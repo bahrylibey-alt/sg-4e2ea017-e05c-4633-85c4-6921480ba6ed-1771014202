@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Facebook, Twitter, Instagram, Youtube, Mail } from "lucide-react";
+import { Facebook, Twitter, Instagram, Youtube, Mail, Zap } from "lucide-react";
 
 export function Footer() {
   return (
@@ -10,13 +10,13 @@ export function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">M</span>
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-foreground">Mekseb Daily</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AffiliatePro</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Celebrating Ethiopian culture, heritage, and stories. Connecting communities through shared traditions.
+              Build your affiliate empire with AI-powered automation. Smart tools, analytics, and integrations all in one platform.
             </p>
             <div className="flex items-center gap-3">
               <Link href="#" className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
@@ -34,15 +34,15 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Explore */}
+          {/* Product */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Explore</h3>
+            <h3 className="font-semibold text-foreground mb-4">Product</h3>
             <ul className="space-y-3">
-              <li><Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">Home</Link></li>
-              <li><Link href="/stories" className="text-sm text-muted-foreground hover:text-primary transition-colors">Stories</Link></li>
-              <li><Link href="/culture" className="text-sm text-muted-foreground hover:text-primary transition-colors">Culture</Link></li>
-              <li><Link href="/history" className="text-sm text-muted-foreground hover:text-primary transition-colors">History</Link></li>
-              <li><Link href="/traditions" className="text-sm text-muted-foreground hover:text-primary transition-colors">Traditions</Link></li>
+              <li><Link href="/features" className="text-sm text-muted-foreground hover:text-primary transition-colors">Features</Link></li>
+              <li><Link href="/tools" className="text-sm text-muted-foreground hover:text-primary transition-colors">Smart Tools</Link></li>
+              <li><Link href="/integrations" className="text-sm text-muted-foreground hover:text-primary transition-colors">Integrations</Link></li>
+              <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/changelog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Changelog</Link></li>
             </ul>
           </div>
 
@@ -50,21 +50,23 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-foreground mb-4">Resources</h3>
             <ul className="space-y-3">
-              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">About Us</Link></li>
-              <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contact</Link></li>
-              <li><Link href="/contribute" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contribute</Link></li>
-              <li><Link href="/guidelines" className="text-sm text-muted-foreground hover:text-primary transition-colors">Guidelines</Link></li>
-              <li><Link href="/faq" className="text-sm text-muted-foreground hover:text-primary transition-colors">FAQ</Link></li>
+              <li><Link href="/docs" className="text-sm text-muted-foreground hover:text-primary transition-colors">Documentation</Link></li>
+              <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Blog</Link></li>
+              <li><Link href="/tutorials" className="text-sm text-muted-foreground hover:text-primary transition-colors">Tutorials</Link></li>
+              <li><Link href="/support" className="text-sm text-muted-foreground hover:text-primary transition-colors">Support</Link></li>
+              <li><Link href="/api" className="text-sm text-muted-foreground hover:text-primary transition-colors">API</Link></li>
             </ul>
           </div>
 
-          {/* Legal */}
+          {/* Company */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Legal</h3>
+            <h3 className="font-semibold text-foreground mb-4">Company</h3>
             <ul className="space-y-3">
-              <li><Link href="/privacy" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terms of Service</Link></li>
-              <li><Link href="/cookies" className="text-sm text-muted-foreground hover:text-primary transition-colors">Cookie Policy</Link></li>
+              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">About Us</Link></li>
+              <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">Contact</Link></li>
+              <li><Link href="/careers" className="text-sm text-muted-foreground hover:text-primary transition-colors">Careers</Link></li>
+              <li><Link href="/privacy" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacy</Link></li>
+              <li><Link href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terms</Link></li>
             </ul>
           </div>
         </div>
@@ -72,12 +74,12 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Mekseb Daily. All rights reserved.
+            © {new Date().getFullYear()} AffiliatePro. All rights reserved.
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Mail className="w-4 h-4" />
-            <a href="mailto:hello@meksebdaily.com" className="hover:text-primary transition-colors">
-              hello@meksebdaily.com
+            <a href="mailto:support@affiliatepro.com" className="hover:text-primary transition-colors">
+              support@affiliatepro.com
             </a>
           </div>
         </div>

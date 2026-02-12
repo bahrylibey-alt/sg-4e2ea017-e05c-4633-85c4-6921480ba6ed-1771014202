@@ -1,7 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail } from "lucide-react";
+import { Mail, Sparkles } from "lucide-react";
 
 export function Newsletter() {
   return (
@@ -16,17 +16,17 @@ export function Newsletter() {
             <div className="relative z-10 text-center space-y-6">
               {/* Icon */}
               <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full">
-                <Mail className="w-8 h-8 text-primary" />
+                <Sparkles className="w-8 h-8 text-primary" />
               </div>
 
               {/* Heading */}
               <div className="space-y-3">
                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">
-                  Stay Connected with Ethiopian Culture
+                  Get Affiliate Marketing Tips & Updates
                 </h2>
                 <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                  Get daily stories, cultural insights, and exclusive content delivered straight to your inbox. 
-                  Join our community of culture enthusiasts.
+                  Join 50,000+ affiliates getting weekly insights on automation strategies, 
+                  profitable products, and conversion optimization tactics.
                 </p>
               </div>
 
@@ -44,11 +44,11 @@ export function Newsletter() {
                     size="lg" 
                     className="bg-primary hover:bg-primary/90 h-12 px-8 font-semibold whitespace-nowrap"
                   >
-                    Subscribe Now
+                    Get Started Free
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Join 50,000+ readers. Unsubscribe anytime. No spam, ever.
+                  Free tools & resources. No credit card required. Unsubscribe anytime.
                 </p>
               </form>
 
@@ -58,12 +58,12 @@ export function Newsletter() {
                   {[1, 2, 3, 4].map((i) => (
                     <div 
                       key={i} 
-                      className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary border-2 border-background"
+                      className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent border-2 border-background"
                     />
                   ))}
                 </div>
                 <p className="text-sm text-muted-foreground ml-2">
-                  <span className="font-semibold text-foreground">2,847</span> people joined this week
+                  <span className="font-semibold text-foreground">3,247</span> affiliates joined this week
                 </p>
               </div>
             </div>
