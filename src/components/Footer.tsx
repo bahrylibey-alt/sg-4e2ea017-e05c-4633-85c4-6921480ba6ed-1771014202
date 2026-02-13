@@ -3,6 +3,14 @@ import Link from "next/link";
 import { Facebook, Twitter, Instagram, Youtube, Mail, Zap } from "lucide-react";
 
 export function Footer() {
+  const handleSocialClick = (platform: string) => {
+    alert(`🔗 Opening ${platform}\n\nThis would redirect to AffiliatePro's ${platform} profile where you can:\n• Follow for updates\n• Connect with the community\n• Get tips and strategies\n• See success stories`);
+  };
+
+  const handleEmailClick = () => {
+    window.location.href = 'mailto:support@affiliatepro.com';
+  };
+
   return (
     <footer className="bg-card border-t border-border">
       <div className="container px-6 py-12">
@@ -19,18 +27,30 @@ export function Footer() {
               Build your affiliate empire with AI-powered automation. Smart tools, analytics, and integrations all in one platform.
             </p>
             <div className="flex items-center gap-3">
-              <Link href="#" className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
+              <button 
+                onClick={() => handleSocialClick('Facebook')}
+                className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors cursor-pointer"
+              >
                 <Facebook className="w-4 h-4 text-primary" />
-              </Link>
-              <Link href="#" className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
+              </button>
+              <button 
+                onClick={() => handleSocialClick('Twitter')}
+                className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors cursor-pointer"
+              >
                 <Twitter className="w-4 h-4 text-primary" />
-              </Link>
-              <Link href="#" className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
+              </button>
+              <button 
+                onClick={() => handleSocialClick('Instagram')}
+                className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors cursor-pointer"
+              >
                 <Instagram className="w-4 h-4 text-primary" />
-              </Link>
-              <Link href="#" className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors">
+              </button>
+              <button 
+                onClick={() => handleSocialClick('YouTube')}
+                className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-colors cursor-pointer"
+              >
                 <Youtube className="w-4 h-4 text-primary" />
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -78,9 +98,9 @@ export function Footer() {
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Mail className="w-4 h-4" />
-            <a href="mailto:support@affiliatepro.com" className="hover:text-primary transition-colors">
+            <button onClick={handleEmailClick} className="hover:text-primary transition-colors cursor-pointer">
               support@affiliatepro.com
-            </a>
+            </button>
           </div>
         </div>
       </div>
