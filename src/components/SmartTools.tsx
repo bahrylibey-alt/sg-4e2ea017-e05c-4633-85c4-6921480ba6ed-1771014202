@@ -50,7 +50,7 @@ const tools = [
 
 export function SmartTools() {
   return (
-    <section className="py-24 px-6 bg-muted/30">
+    <section className="py-24 px-6 bg-muted/30" data-section="tools">
       <div className="container">
         {/* Section header */}
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">

@@ -107,7 +107,7 @@ export function ProductShowcase() {
   };
 
   return (
-    <section className="py-24 px-6 bg-background">
+    <section className="py-24 px-6 bg-background" data-section="features">
       <div className="container">
         {/* Section header */}
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
