@@ -22,17 +22,23 @@ const predefinedResponses: Record<string, string> = {
 export function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hi! I'm your AI affiliate marketing assistant. I can help you find products, generate content, optimize campaigns, and answer questions. How can I help you today?",
-      timestamp: new Date()
-    }
-  ]);
+  const [mounted, setMounted] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    setMessages([
+      {
+        id: "1",
+        role: "assistant",
+        content: "Hi! I'm your AI affiliate marketing assistant. I can help you find products, generate content, optimize campaigns, and answer questions. How can I help you today?",
+        timestamp: new Date()
+      }
+    ]);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -93,6 +99,8 @@ export function AIChatbot() {
       handleSend();
     }
   };
+
+  if (!mounted) return null;
 
   if (!isOpen) {
     return (

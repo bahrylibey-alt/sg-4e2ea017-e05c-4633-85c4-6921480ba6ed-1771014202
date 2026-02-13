@@ -50,10 +50,18 @@ export function Analytics() {
   const [metrics, setMetrics] = useState(initialMetrics);
   const [performance, setPerformance] = useState(initialPerformance);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setLastUpdated(new Date());
+  }, []);
 
   // Simulate real-time updates
   useEffect(() => {
+    if (!mounted) return;
+
     const interval = setInterval(() => {
       setMetrics(prev => prev.map(metric => {
         const randomChange = (Math.random() - 0.5) * 2;
@@ -69,7 +77,7 @@ export function Analytics() {
     }, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [mounted]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -111,6 +119,8 @@ export function Analytics() {
     alert("📊 Analytics exported!\n\nYour performance data has been downloaded as a CSV file.");
   };
 
+  if (!mounted) return null;
+
   return (
     <section className="py-24 px-6 bg-background" data-section="analytics">
       <div className="container">
@@ -134,7 +144,7 @@ export function Analytics() {
               Export CSV
             </Button>
             <span className="text-sm text-muted-foreground">
-              Updated: {lastUpdated.toLocaleTimeString()}
+              Updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : 'Just now'}
             </span>
           </div>
         </div>

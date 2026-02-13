@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 interface Integration {
   name: string;
@@ -10,6 +10,7 @@ interface Integration {
   logo: string;
   category: string;
   connected: boolean;
+  loading?: boolean;
 }
 
 const initialIntegrations: Integration[] = [
@@ -86,7 +87,20 @@ export function Integrations() {
     
     if (integration.connected) {
       // Manage existing connection
-      alert(`⚙️ Managing ${integration.name}\n\nYou can:\n• View connection details\n• Update API credentials\n• Disconnect integration\n• Check sync status`);
+      const choice = window.confirm(`Manage ${integration.name}\n\nSelect OK to view settings or Cancel to disconnect.`);
+      
+      if (!choice) {
+        // Disconnect
+        const updated = [...integrations];
+        updated[index] = { ...integration, loading: true };
+        setIntegrations(updated);
+
+        setTimeout(() => {
+          updated[index] = { ...integration, connected: false, loading: false };
+          setIntegrations([...updated]);
+          alert(`Disconnected ${integration.name}`);
+        }, 1000);
+      }
     } else {
       // Connect new integration
       const confirmed = window.confirm(
@@ -94,14 +108,15 @@ export function Integrations() {
       );
       
       if (confirmed) {
-        // Simulate connection
-        const updatedIntegrations = [...integrations];
-        updatedIntegrations[index] = { ...integration, connected: true };
-        setIntegrations(updatedIntegrations);
+        const updated = [...integrations];
+        updated[index] = { ...integration, loading: true };
+        setIntegrations(updated);
         
         setTimeout(() => {
+          updated[index] = { ...integration, connected: true, loading: false };
+          setIntegrations([...updated]);
           alert(`✅ Successfully connected ${integration.name}!\n\nYou can now use this integration to automate your affiliate workflows.`);
-        }, 500);
+        }, 1500);
       }
     }
   };
@@ -165,8 +180,15 @@ export function Integrations() {
                     size="sm" 
                     variant={integration.connected ? "outline" : "default"}
                     onClick={() => handleIntegrationAction(index)}
+                    disabled={integration.loading}
                   >
-                    {integration.connected ? "Manage" : "Connect"}
+                    {integration.loading ? (
+                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                    ) : integration.connected ? (
+                      "Manage"
+                    ) : (
+                      "Connect"
+                    )}
                   </Button>
                 </div>
               </CardContent>
