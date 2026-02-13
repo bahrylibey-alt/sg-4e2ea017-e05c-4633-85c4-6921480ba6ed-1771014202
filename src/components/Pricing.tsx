@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,8 +60,16 @@ const plans = [
 ];
 
 export function Pricing() {
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+
+  const handleSelectPlan = (planName: string) => {
+    setSelectedPlan(planName);
+    // In a real app, this would redirect to checkout or open a modal
+    alert(`You selected the ${planName} plan! This would redirect to checkout in a real application.`);
+  };
+
   return (
-    <section className="py-24 px-6 bg-background">
+    <section className="py-24 px-6 bg-background" data-section="pricing">
       <div className="container">
         {/* Section header */}
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
@@ -81,7 +89,7 @@ export function Pricing() {
           {plans.map((plan, index) => (
             <Card 
               key={index}
-              className={`relative ${plan.popular ? 'border-primary shadow-2xl shadow-primary/20 scale-105' : 'hover:shadow-lg'} transition-all duration-300`}
+              className={`relative ${plan.popular ? 'border-primary shadow-2xl shadow-primary/20 scale-105' : 'hover:shadow-lg'} transition-all duration-300 ${selectedPlan === plan.name ? 'ring-2 ring-primary' : ''}`}
             >
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -109,8 +117,9 @@ export function Pricing() {
                   size="lg" 
                   className={`w-full ${plan.popular ? 'bg-primary hover:bg-primary/90' : ''}`}
                   variant={plan.popular ? "default" : "outline"}
+                  onClick={() => handleSelectPlan(plan.name)}
                 >
-                  Get Started
+                  {selectedPlan === plan.name ? 'Selected!' : 'Get Started'}
                 </Button>
 
                 <div className="space-y-3">
