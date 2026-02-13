@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, DollarSign, MousePointerClick, Users, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, DollarSign, MousePointerClick, Users, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
 
-const metrics = [
+const initialMetrics = [
   {
     title: "Total Revenue",
     value: "$45,231",
@@ -38,7 +39,7 @@ const metrics = [
   }
 ];
 
-const recentPerformance = [
+const initialPerformance = [
   { product: "Premium WordPress Theme", clicks: 1247, conversions: 89, revenue: "$2,847", conversion_rate: "7.1%" },
   { product: "SEO Tools Suite", clicks: 892, conversions: 67, revenue: "$4,489", conversion_rate: "7.5%" },
   { product: "Digital Marketing Course", clicks: 2341, conversions: 156, revenue: "$12,324", conversion_rate: "6.7%" },
@@ -46,8 +47,72 @@ const recentPerformance = [
 ];
 
 export function Analytics() {
+  const [metrics, setMetrics] = useState(initialMetrics);
+  const [performance, setPerformance] = useState(initialPerformance);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
+  // Simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMetrics(prev => prev.map(metric => {
+        const randomChange = (Math.random() - 0.5) * 2;
+        const currentValue = parseInt(metric.value.replace(/[$,]/g, ""));
+        const newValue = Math.max(0, currentValue + Math.floor(randomChange * 10));
+        
+        return {
+          ...metric,
+          value: metric.title.includes("Revenue") ? `$${newValue.toLocaleString()}` : newValue.toLocaleString()
+        };
+      }));
+      setLastUpdated(new Date());
+    }, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setMetrics(prev => prev.map(metric => ({
+        ...metric,
+        change: `${Math.random() > 0.5 ? '+' : '-'}${(Math.random() * 20).toFixed(1)}%`
+      })));
+      
+      setPerformance(prev => prev.map(item => ({
+        ...item,
+        clicks: item.clicks + Math.floor(Math.random() * 50),
+        conversions: item.conversions + Math.floor(Math.random() * 5)
+      })));
+      
+      setLastUpdated(new Date());
+      setIsRefreshing(false);
+      
+      alert("✅ Analytics refreshed!\n\nLatest data loaded from all your campaigns and affiliate networks.");
+    }, 1500);
+  };
+
+  const handleExportData = () => {
+    const csvContent = "Product,Clicks,Conversions,Revenue,Conversion Rate\n" +
+      performance.map(item => 
+        `"${item.product}",${item.clicks},${item.conversions},${item.revenue},${item.conversion_rate}`
+      ).join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `affiliate-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    alert("📊 Analytics exported!\n\nYour performance data has been downloaded as a CSV file.");
+  };
+
   return (
-    <section className="py-24 px-6 bg-background">
+    <section className="py-24 px-6 bg-background" data-section="analytics">
       <div className="container">
         {/* Section header */}
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
@@ -60,6 +125,18 @@ export function Analytics() {
           <p className="text-lg text-muted-foreground">
             Real-time insights into your affiliate performance with actionable data and advanced reporting
           </p>
+          <div className="flex items-center justify-center gap-4 pt-4">
+            <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" className="gap-2">
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            </Button>
+            <Button onClick={handleExportData} variant="outline">
+              Export CSV
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Updated: {lastUpdated.toLocaleTimeString()}
+            </span>
+          </div>
         </div>
 
         {/* Metrics grid */}
@@ -109,7 +186,7 @@ export function Analytics() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentPerformance.map((item, index) => (
+                  {performance.map((item, index) => (
                     <tr key={index} className="border-b border-border hover:bg-muted/50 transition-colors">
                       <td className="py-4 px-4 font-medium text-foreground">{item.product}</td>
                       <td className="py-4 px-4 text-right text-muted-foreground">{item.clicks}</td>

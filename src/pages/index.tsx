@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
 import { SmartTools } from "@/components/SmartTools";
@@ -9,8 +9,14 @@ import { Pricing } from "@/components/Pricing";
 import { Newsletter } from "@/components/Newsletter";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
+import { AIChatbot } from "@/components/AIChatbot";
+import { AIContentGenerator } from "@/components/AIContentGenerator";
+import { Button } from "@/components/ui/button";
+import { Wand2 } from "lucide-react";
 
 export default function Home() {
+  const [showContentGenerator, setShowContentGenerator] = useState(false);
+
   return (
     <>
       <SEO 
@@ -22,7 +28,7 @@ export default function Home() {
         <Header />
         <main>
           <Hero />
-          <SmartTools />
+          <SmartTools onOpenContentGenerator={() => setShowContentGenerator(true)} />
           <ProductShowcase />
           <Analytics />
           <Integrations />
@@ -30,6 +36,23 @@ export default function Home() {
           <Newsletter />
         </main>
         <Footer />
+        
+        {/* Floating AI Content Generator Button */}
+        <Button
+          onClick={() => setShowContentGenerator(true)}
+          size="lg"
+          className="fixed bottom-24 right-6 z-40 rounded-full shadow-2xl bg-gradient-to-r from-accent to-primary hover:scale-110 transition-transform gap-2"
+        >
+          <Wand2 className="w-5 h-5" />
+          AI Content
+        </Button>
+
+        {/* AI Features */}
+        <AIChatbot />
+        <AIContentGenerator 
+          open={showContentGenerator} 
+          onOpenChange={setShowContentGenerator}
+        />
       </div>
     </>
   );
