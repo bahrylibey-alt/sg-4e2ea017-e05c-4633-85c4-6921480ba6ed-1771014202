@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,8 @@ const products = [
     rating: 4.8,
     reviews: 2847,
     image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&auto=format&fit=crop",
-    trending: true
+    trending: true,
+    affiliateLink: "#wordpress-themes"
   },
   {
     id: 2,
@@ -27,7 +28,8 @@ const products = [
     rating: 4.9,
     reviews: 5432,
     image: "https://images.unsplash.com/photo-1432888622747-4eb9a8f2c293?w=800&auto=format&fit=crop",
-    trending: true
+    trending: true,
+    affiliateLink: "#marketing-course"
   },
   {
     id: 3,
@@ -39,7 +41,8 @@ const products = [
     rating: 4.7,
     reviews: 1893,
     image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop",
-    trending: false
+    trending: false,
+    affiliateLink: "#seo-tools"
   },
   {
     id: 4,
@@ -51,7 +54,8 @@ const products = [
     rating: 4.6,
     reviews: 3241,
     image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&auto=format&fit=crop",
-    trending: false
+    trending: false,
+    affiliateLink: "#ecommerce-pack"
   },
   {
     id: 5,
@@ -63,7 +67,8 @@ const products = [
     rating: 4.9,
     reviews: 6782,
     image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&auto=format&fit=crop",
-    trending: true
+    trending: true,
+    affiliateLink: "#fitness-program"
   },
   {
     id: 6,
@@ -75,11 +80,32 @@ const products = [
     rating: 4.8,
     reviews: 4156,
     image: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&auto=format&fit=crop",
-    trending: false
+    trending: false,
+    affiliateLink: "#photo-presets"
   }
 ];
 
 export function ProductShowcase() {
+  const [copiedLink, setCopiedLink] = useState<number | null>(null);
+
+  const handleGetLink = (productId: number, productTitle: string) => {
+    // Simulate copying affiliate link
+    const affiliateLink = `https://affiliatepro.com/track/${productId}/${productTitle.toLowerCase().replace(/\s+/g, '-')}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(affiliateLink).then(() => {
+      setCopiedLink(productId);
+      
+      // Show success message
+      alert(`✅ Affiliate link copied!\n\n${affiliateLink}\n\nPaste this link in your content to earn ${products.find(p => p.id === productId)?.earnings} per sale!`);
+      
+      // Reset after 3 seconds
+      setTimeout(() => {
+        setCopiedLink(null);
+      }, 3000);
+    });
+  };
+
   return (
     <section className="py-24 px-6 bg-background">
       <div className="container">
@@ -156,8 +182,12 @@ export function ProductShowcase() {
                   <Badge variant="secondary" className="text-xs">
                     {product.commission} Commission
                   </Badge>
-                  <Button size="sm" className="gap-2">
-                    Get Link
+                  <Button 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => handleGetLink(product.id, product.title)}
+                  >
+                    {copiedLink === product.id ? "Copied!" : "Get Link"}
                     <ExternalLink className="w-3 h-3" />
                   </Button>
                 </div>
@@ -168,7 +198,12 @@ export function ProductShowcase() {
 
         {/* View all button */}
         <div className="text-center mt-12">
-          <Button size="lg" variant="outline" className="gap-2">
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => alert("This would open the full product catalog with 500+ affiliate products!")}
+          >
             View All Products
             <ExternalLink className="w-4 h-4" />
           </Button>

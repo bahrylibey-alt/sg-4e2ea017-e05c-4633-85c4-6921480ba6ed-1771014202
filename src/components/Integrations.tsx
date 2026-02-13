@@ -1,10 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 
-const integrations = [
+interface Integration {
+  name: string;
+  description: string;
+  logo: string;
+  category: string;
+  connected: boolean;
+}
+
+const initialIntegrations: Integration[] = [
   {
     name: "Amazon Associates",
     description: "Connect your Amazon affiliate account and start promoting millions of products",
@@ -71,6 +79,41 @@ const integrations = [
 ];
 
 export function Integrations() {
+  const [integrations, setIntegrations] = useState<Integration[]>(initialIntegrations);
+
+  const handleIntegrationAction = (index: number) => {
+    const integration = integrations[index];
+    
+    if (integration.connected) {
+      // Manage existing connection
+      alert(`⚙️ Managing ${integration.name}\n\nYou can:\n• View connection details\n• Update API credentials\n• Disconnect integration\n• Check sync status`);
+    } else {
+      // Connect new integration
+      const confirmed = window.confirm(
+        `Connect ${integration.name}?\n\n${integration.description}\n\nThis will open the connection wizard to authorize access.`
+      );
+      
+      if (confirmed) {
+        // Simulate connection
+        const updatedIntegrations = [...integrations];
+        updatedIntegrations[index] = { ...integration, connected: true };
+        setIntegrations(updatedIntegrations);
+        
+        setTimeout(() => {
+          alert(`✅ Successfully connected ${integration.name}!\n\nYou can now use this integration to automate your affiliate workflows.`);
+        }, 500);
+      }
+    }
+  };
+
+  const handleRequestIntegration = () => {
+    const integrationName = prompt("Which integration would you like us to add?\n\nEnter the platform name:");
+    
+    if (integrationName && integrationName.trim()) {
+      alert(`📝 Integration Request Submitted!\n\nPlatform: ${integrationName}\n\nOur team will review your request and notify you when it's available. We typically add new integrations within 2-4 weeks.`);
+    }
+  };
+
   return (
     <section className="py-24 px-6 bg-muted/30">
       <div className="container">
@@ -121,6 +164,7 @@ export function Integrations() {
                   <Button 
                     size="sm" 
                     variant={integration.connected ? "outline" : "default"}
+                    onClick={() => handleIntegrationAction(index)}
                   >
                     {integration.connected ? "Manage" : "Connect"}
                   </Button>
@@ -135,7 +179,11 @@ export function Integrations() {
           <p className="text-muted-foreground mb-4">
             Need a custom integration? We can build it for you.
           </p>
-          <Button size="lg" variant="outline">
+          <Button 
+            size="lg" 
+            variant="outline"
+            onClick={handleRequestIntegration}
+          >
             Request Integration
           </Button>
         </div>
