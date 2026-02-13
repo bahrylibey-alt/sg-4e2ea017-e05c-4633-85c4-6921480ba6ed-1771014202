@@ -1,9 +1,33 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, Sparkles } from "lucide-react";
+import { Mail, Sparkles, CheckCircle2 } from "lucide-react";
 
 export function Newsletter() {
+  const [email, setEmail] = useState("");
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email) return;
+    
+    setIsLoading(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      setIsSubmitted(true);
+      setIsLoading(false);
+      setEmail("");
+      
+      // Reset after 5 seconds
+      setTimeout(() => {
+        setIsSubmitted(false);
+      }, 5000);
+    }, 1000);
+  };
+
   return (
     <section className="py-20 px-6 bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10">
       <div className="container">
@@ -30,27 +54,43 @@ export function Newsletter() {
                 </p>
               </div>
 
-              {/* Form */}
-              <form className="max-w-md mx-auto space-y-4 pt-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Input 
-                    type="email" 
-                    placeholder="Enter your email" 
-                    className="flex-1 h-12 px-6 text-base"
-                    required
-                  />
-                  <Button 
-                    type="submit" 
-                    size="lg" 
-                    className="bg-primary hover:bg-primary/90 h-12 px-8 font-semibold whitespace-nowrap"
-                  >
-                    Get Started Free
-                  </Button>
+              {/* Success Message */}
+              {isSubmitted ? (
+                <div className="max-w-md mx-auto space-y-4 pt-4">
+                  <div className="flex items-center justify-center gap-3 bg-green-500/10 border border-green-500/20 rounded-lg p-6">
+                    <CheckCircle2 className="w-6 h-6 text-green-500" />
+                    <p className="text-green-500 font-semibold">
+                      Success! Check your email to confirm subscription.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Free tools & resources. No credit card required. Unsubscribe anytime.
-                </p>
-              </form>
+              ) : (
+                /* Form */
+                <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Input 
+                      type="email" 
+                      placeholder="Enter your email" 
+                      className="flex-1 h-12 px-6 text-base"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={isLoading}
+                    />
+                    <Button 
+                      type="submit" 
+                      size="lg" 
+                      className="bg-primary hover:bg-primary/90 h-12 px-8 font-semibold whitespace-nowrap"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Subscribing..." : "Get Started Free"}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Free tools & resources. No credit card required. Unsubscribe anytime.
+                  </p>
+                </form>
+              )}
 
               {/* Social proof */}
               <div className="flex items-center justify-center gap-2 pt-6">
