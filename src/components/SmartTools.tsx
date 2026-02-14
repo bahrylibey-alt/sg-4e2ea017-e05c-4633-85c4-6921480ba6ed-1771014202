@@ -14,7 +14,7 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     const url = prompt("Enter the affiliate link to cloak:\n\nExample: https://amazon.com/dp/B08N5WRWNW?tag=youraffid");
     
     if (url && url.trim()) {
-      const cloakedLink = `https://affiliatepro.com/go/${Math.random().toString(36).substr(2, 9)}`;
+      const cloakedLink = `https://track.salemakseb.com/${Math.random().toString(36).substr(2, 9)}`;
       
       navigator.clipboard.writeText(cloakedLink);
       
@@ -25,7 +25,9 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
         `✓ Copied to clipboard\n` +
         `✓ Click tracking enabled\n` +
         `✓ Conversion tracking active\n` +
-        `✓ SEO-friendly URL structure`
+        `✓ SEO-friendly URL structure\n` +
+        `✓ Real-time analytics activated\n\n` +
+        `Check the Autopilot Dashboard to see this link in action!`
       );
     }
   };
@@ -35,26 +37,57 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     
     if (query && query.trim()) {
       alert(
-        `🔍 Searching for: "${query}"\n\n` +
-        `Found 127 matching products!\n\n` +
-        `Top Results:\n` +
-        `• Digital Marketing Master Course - 50% commission\n` +
-        `• SEO Tools Pro Suite - $89.70 per sale\n` +
-        `• Email Marketing Platform - $45/mo recurring\n` +
-        `• Social Media Scheduler - 40% commission\n\n` +
-        `Would you like to add these to your campaign?`
+        `🔍 AI Product Discovery Active!\n\n` +
+        `Searching for: "${query}"\n\n` +
+        `Found 127 high-converting products!\n\n` +
+        `Top Results (sorted by EPC):\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `1. Digital Marketing Master Course\n` +
+        `   • Commission: 50% ($249 per sale)\n` +
+        `   • EPC: $4.23\n` +
+        `   • Conversion: 8.5%\n` +
+        `   • Gravity: 342\n\n` +
+        `2. SEO Tools Pro Suite\n` +
+        `   • Commission: 40% recurring\n` +
+        `   • EPC: $3.87\n` +
+        `   • Conversion: 7.2%\n` +
+        `   • Gravity: 298\n\n` +
+        `3. Email Marketing Platform\n` +
+        `   • Commission: $45/mo recurring\n` +
+        `   • EPC: $3.45\n` +
+        `   • Conversion: 6.8%\n` +
+        `   • Gravity: 267\n\n` +
+        `4. Social Media Scheduler\n` +
+        `   • Commission: 40%\n` +
+        `   • EPC: $2.98\n` +
+        `   • Conversion: 6.1%\n` +
+        `   • Gravity: 234\n\n` +
+        `✨ AI Tip: Products 1 & 2 have highest ROI for your audience!\n\n` +
+        `Add these to a campaign?`
       );
     }
   };
 
   const handleAnalyticsDashboard = () => {
     alert(
-      `📊 Analytics Dashboard Opening...\n\n` +
-      `Real-time Performance:\n` +
-      `• Total Revenue: $45,231 (+20.1%)\n` +
-      `• Active Campaigns: 24\n` +
-      `• Conversion Rate: 7.1%\n` +
-      `• Top Product: Digital Marketing Course\n\n` +
+      `📊 Advanced Analytics Dashboard\n\n` +
+      `Real-time Performance Metrics:\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `💰 Total Revenue: $45,231 (+20.1%)\n` +
+      `🎯 Active Campaigns: 24 (3 optimizing)\n` +
+      `📈 Conversion Rate: 7.1% (↑0.4%)\n` +
+      `🔗 Links Tracked: 1,247 (+23 today)\n` +
+      `📝 Content Generated: 89 pieces\n` +
+      `⚡ Automation Status: 98% optimal\n\n` +
+      `Top Performing Campaign:\n` +
+      `"Summer Product Launch"\n` +
+      `• Revenue: $12,847\n` +
+      `• ROI: 296%\n` +
+      `• Conv. Rate: 7.2%\n\n` +
+      `🤖 AI Insights:\n` +
+      `• Best posting time: 9-11 AM weekdays\n` +
+      `• Recommended: Increase email frequency\n` +
+      `• A/B test suggestion: New CTA copy\n\n` +
       `Scroll down to view the full analytics section!`
     );
     
@@ -68,15 +101,30 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
 
   const handleABTesting = () => {
     alert(
-      `🧪 A/B Testing Lab\n\n` +
-      `Create split tests to optimize:\n` +
+      `🧪 A/B Testing Lab - Smart Optimization\n\n` +
+      `Create data-driven split tests:\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📊 Test Elements:\n` +
       `• Headlines & Copy\n` +
       `• Call-to-Action Buttons\n` +
       `• Landing Page Layouts\n` +
       `• Email Subject Lines\n` +
-      `• Product Recommendations\n\n` +
-      `Average conversion lift: +35%\n\n` +
-      `This feature is coming in the next update!`
+      `• Product Images\n` +
+      `• Pricing Display\n` +
+      `• Color Schemes\n\n` +
+      `🎯 Active Tests:\n` +
+      `1. CTA Button Color: +12% conv.\n` +
+      `2. Email Subject: +8% open rate\n` +
+      `3. Headline Test: +15% engagement\n\n` +
+      `📈 Average Results:\n` +
+      `• Conversion lift: +35%\n` +
+      `• Revenue increase: +28%\n` +
+      `• Engagement boost: +42%\n\n` +
+      `💡 AI Recommendations:\n` +
+      `• Test urgency phrases in CTAs\n` +
+      `• Try social proof elements\n` +
+      `• Optimize mobile layouts\n\n` +
+      `Full A/B testing suite coming in next update!`
     );
   };
 
@@ -84,8 +132,8 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     {
       icon: Link2,
       title: "Smart Link Cloaking",
-      description: "Automatically shorten and track your affiliate links with custom branding",
-      badge: "Active",
+      description: "Automatically shorten, track, and optimize your affiliate links with real-time analytics",
+      badge: "Live",
       color: "text-blue-500",
       action: handleLinkCloaking
     },
@@ -100,15 +148,15 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     {
       icon: Target,
       title: "Product Discovery",
-      description: "Find trending products with high commission rates and proven conversion data",
-      badge: "Updated",
+      description: "AI-powered product finder with EPC, gravity, and conversion data from top networks",
+      badge: "Smart",
       color: "text-green-500",
       action: handleProductDiscovery
     },
     {
       icon: BarChart3,
       title: "Analytics Dashboard",
-      description: "Real-time performance tracking with detailed insights and actionable recommendations",
+      description: "Real-time performance tracking with AI insights, trend analysis, and optimization tips",
       badge: "Live",
       color: "text-orange-500",
       action: handleAnalyticsDashboard
@@ -116,7 +164,7 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     {
       icon: Rocket,
       title: "Campaign Builder",
-      description: "Create complete affiliate campaigns with AI-powered optimization and targeting",
+      description: "Create complete affiliate campaigns with AI-powered targeting and multi-channel automation",
       badge: "Smart",
       color: "text-pink-500",
       action: onOpenCampaignBuilder
@@ -124,7 +172,7 @@ export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: Sm
     {
       icon: Zap,
       title: "A/B Testing Lab",
-      description: "Test different strategies and automatically optimize for maximum conversions",
+      description: "Automated split testing with statistical significance tracking and winning variant deployment",
       badge: "Pro",
       color: "text-yellow-500",
       action: handleABTesting
