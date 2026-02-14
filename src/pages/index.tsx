@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
+import { DashboardOverview } from "@/components/DashboardOverview";
 import { AutopilotDashboard } from "@/components/AutopilotDashboard";
 import { CampaignMonitor } from "@/components/CampaignMonitor";
 import { SmartTools } from "@/components/SmartTools";
@@ -32,6 +33,7 @@ export default function Home() {
         <Header />
         <main>
           <Hero />
+          <DashboardOverview />
           <AutopilotDashboard />
           <CampaignMonitor />
           <SmartTools 
