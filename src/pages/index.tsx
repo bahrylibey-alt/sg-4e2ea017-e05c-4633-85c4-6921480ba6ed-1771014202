@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
+import { AutopilotDashboard } from "@/components/AutopilotDashboard";
+import { CampaignMonitor } from "@/components/CampaignMonitor";
 import { SmartTools } from "@/components/SmartTools";
 import { ProductShowcase } from "@/components/ProductShowcase";
 import { Analytics } from "@/components/Analytics";
@@ -22,7 +24,7 @@ export default function Home() {
   return (
     <>
       <SEO 
-        title="AffiliatePro - AI-Powered Affiliate Marketing Automation"
+        title="Sale Makseb - AI-Powered Affiliate Marketing Automation"
         description="Build your affiliate empire on autopilot. Smart automation, AI content generation, and advanced analytics to maximize your commissions."
         image="/og-image.png"
       />
@@ -30,6 +32,8 @@ export default function Home() {
         <Header />
         <main>
           <Hero />
+          <AutopilotDashboard />
+          <CampaignMonitor />
           <SmartTools 
             onOpenContentGenerator={() => setShowContentGenerator(true)}
             onOpenCampaignBuilder={() => setShowCampaignBuilder(true)}
