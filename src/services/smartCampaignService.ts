@@ -284,6 +284,7 @@ export const smartCampaignService = {
         affiliateLinks,
         trafficSources: trafficResult.sources || [],
         estimatedReach: trafficResult.sources?.length * 1000, // Estimate based on sources
+        optimizations: [],
         optimizationInsights: optimizationResult.insights.map(i => ({
           title: i.type,
           description: i.suggestion,
@@ -296,8 +297,10 @@ export const smartCampaignService = {
       return { 
         success: false, 
         campaign: null, 
+        affiliateLinks: [],
         trafficSources: [], 
         estimatedReach: 0, 
+        optimizations: [],
         optimizationInsights: [], 
         error: "Failed to create smart campaign" 
       };
