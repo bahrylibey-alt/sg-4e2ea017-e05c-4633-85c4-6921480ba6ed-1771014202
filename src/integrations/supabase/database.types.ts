@@ -317,6 +317,50 @@ export type Database = {
           },
         ]
       }
+      campaign_performance: {
+        Row: {
+          campaign_id: string
+          clicks: number | null
+          conversions: number | null
+          created_at: string | null
+          date: string
+          id: string
+          impressions: number | null
+          revenue: number | null
+          spent: number | null
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          date: string
+          id?: string
+          impressions?: number | null
+          revenue?: number | null
+          spent?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          revenue?: number | null
+          spent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_performance_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_products: {
         Row: {
           campaign_id: string
@@ -535,6 +579,182 @@ export type Database = {
           },
         ]
       }
+      email_sequences: {
+        Row: {
+          campaign_id: string
+          click_rate: number | null
+          conversion_rate: number | null
+          created_at: string | null
+          id: string
+          name: string
+          open_rate: number | null
+          sequence_type: string
+          status: string | null
+        }
+        Insert: {
+          campaign_id: string
+          click_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          id?: string
+          name: string
+          open_rate?: number | null
+          sequence_type: string
+          status?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          click_rate?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          open_rate?: number | null
+          sequence_type?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_sequences_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          click_count: number | null
+          created_at: string | null
+          day_delay: number
+          id: string
+          open_count: number | null
+          preview_text: string | null
+          sent_count: number | null
+          sequence_id: string
+          subject: string
+          template_content: string | null
+        }
+        Insert: {
+          click_count?: number | null
+          created_at?: string | null
+          day_delay: number
+          id?: string
+          open_count?: number | null
+          preview_text?: string | null
+          sent_count?: number | null
+          sequence_id: string
+          subject: string
+          template_content?: string | null
+        }
+        Update: {
+          click_count?: number | null
+          created_at?: string | null
+          day_delay?: number
+          id?: string
+          open_count?: number | null
+          preview_text?: string | null
+          sent_count?: number | null
+          sequence_id?: string
+          subject?: string
+          template_content?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "email_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fraud_alerts: {
+        Row: {
+          alert_type: string
+          campaign_id: string
+          created_at: string | null
+          details: string | null
+          estimated_loss: number | null
+          id: string
+          ip_address: string | null
+          resolved: boolean | null
+          severity: string
+        }
+        Insert: {
+          alert_type: string
+          campaign_id: string
+          created_at?: string | null
+          details?: string | null
+          estimated_loss?: number | null
+          id?: string
+          ip_address?: string | null
+          resolved?: boolean | null
+          severity: string
+        }
+        Update: {
+          alert_type?: string
+          campaign_id?: string
+          created_at?: string | null
+          details?: string | null
+          estimated_loss?: number | null
+          id?: string
+          ip_address?: string | null
+          resolved?: boolean | null
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fraud_alerts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_stages: {
+        Row: {
+          avg_time_seconds: number | null
+          campaign_id: string
+          created_at: string | null
+          drop_off: number | null
+          id: string
+          stage_name: string
+          stage_order: number
+          visitors: number | null
+        }
+        Insert: {
+          avg_time_seconds?: number | null
+          campaign_id: string
+          created_at?: string | null
+          drop_off?: number | null
+          id?: string
+          stage_name: string
+          stage_order: number
+          visitors?: number | null
+        }
+        Update: {
+          avg_time_seconds?: number | null
+          campaign_id?: string
+          created_at?: string | null
+          drop_off?: number | null
+          id?: string
+          stage_name?: string
+          stage_order?: number
+          visitors?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_stages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       optimization_insights: {
         Row: {
           applied_at: string | null
@@ -591,6 +811,47 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_history: {
+        Row: {
+          applied_at: string | null
+          campaign_id: string
+          id: string
+          optimized_price: number
+          original_price: number
+          price_elasticity: number | null
+          product_url: string
+          revenue_impact: number | null
+        }
+        Insert: {
+          applied_at?: string | null
+          campaign_id: string
+          id?: string
+          optimized_price: number
+          original_price: number
+          price_elasticity?: number | null
+          product_url: string
+          revenue_impact?: number | null
+        }
+        Update: {
+          applied_at?: string | null
+          campaign_id?: string
+          id?: string
+          optimized_price?: number
+          original_price?: number
+          price_elasticity?: number | null
+          product_url?: string
+          revenue_impact?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_history_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
         ]
@@ -745,6 +1006,44 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_proof_events: {
+        Row: {
+          amount: number | null
+          campaign_id: string
+          country: string | null
+          created_at: string | null
+          event_type: string
+          id: string
+          product_name: string | null
+        }
+        Insert: {
+          amount?: number | null
+          campaign_id: string
+          country?: string | null
+          created_at?: string | null
+          event_type: string
+          id?: string
+          product_name?: string | null
+        }
+        Update: {
+          amount?: number | null
+          campaign_id?: string
+          country?: string | null
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          product_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_proof_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
         ]

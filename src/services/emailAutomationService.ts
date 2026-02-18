@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface EmailSequence {
   id: string;
@@ -15,7 +16,7 @@ export interface EmailSequence {
 }
 
 export const emailAutomationService = {
-  // Create automated email sequences
+  // Create automated email sequences with REAL database storage
   async createSequence(campaignId: string, type: "welcome" | "abandoned_cart" | "nurture" | "winback"): Promise<{
     sequence: EmailSequence | null;
     error: string | null;
@@ -26,190 +27,189 @@ export const emailAutomationService = {
         return { sequence: null, error: "Not authenticated" };
       }
 
-      const sequences: Record<typeof type, EmailSequence> = {
+      // Email sequence templates
+      const templates = {
         welcome: {
-          id: "seq_welcome",
           name: "Welcome Series",
           emails: [
-            {
-              dayDelay: 0,
-              subject: "Welcome! Here's your exclusive discount 🎉",
-              previewText: "Get 20% off your first purchase today",
-              template: "welcome_email_1"
-            },
-            {
-              dayDelay: 3,
-              subject: "Discover our best-selling products",
-              previewText: "See what others are loving",
-              template: "welcome_email_2"
-            },
-            {
-              dayDelay: 7,
-              subject: "Last chance for your welcome discount",
-              previewText: "Don't miss out on 20% off",
-              template: "welcome_email_3"
-            }
-          ],
-          openRate: 45.2,
-          clickRate: 12.8,
-          conversionRate: 4.5
+            { dayDelay: 0, subject: "Welcome! Here's your exclusive discount 🎉", previewText: "Get 20% off your first purchase today", template: "welcome_email_1" },
+            { dayDelay: 3, subject: "Discover our best-selling products", previewText: "See what others are loving", template: "welcome_email_2" },
+            { dayDelay: 7, subject: "Last chance for your welcome discount", previewText: "Don't miss out on 20% off", template: "welcome_email_3" }
+          ]
         },
         abandoned_cart: {
-          id: "seq_abandoned",
           name: "Cart Recovery",
           emails: [
-            {
-              dayDelay: 0,
-              subject: "You left something behind...",
-              previewText: "Your cart is waiting for you",
-              template: "cart_1"
-            },
-            {
-              dayDelay: 1,
-              subject: "Special discount: Complete your order now",
-              previewText: "Here's 10% off to complete your purchase",
-              template: "cart_2"
-            },
-            {
-              dayDelay: 3,
-              subject: "Last call: Your cart expires soon",
-              previewText: "Don't lose your saved items",
-              template: "cart_3"
-            }
-          ],
-          openRate: 52.1,
-          clickRate: 18.5,
-          conversionRate: 8.2
+            { dayDelay: 0, subject: "You left something behind...", previewText: "Your cart is waiting for you", template: "cart_1" },
+            { dayDelay: 1, subject: "Special discount: Complete your order now", previewText: "Here's 10% off to complete your purchase", template: "cart_2" },
+            { dayDelay: 3, subject: "Last call: Your cart expires soon", previewText: "Don't lose your saved items", template: "cart_3" }
+          ]
         },
         nurture: {
-          id: "seq_nurture",
           name: "Lead Nurture",
           emails: [
-            {
-              dayDelay: 0,
-              subject: "How to get the most out of [Product]",
-              previewText: "Expert tips and tricks",
-              template: "nurture_1"
-            },
-            {
-              dayDelay: 5,
-              subject: "Customer success story: [Name]'s results",
-              previewText: "See real results from real customers",
-              template: "nurture_2"
-            },
-            {
-              dayDelay: 10,
-              subject: "Ready to take the next step?",
-              previewText: "Let's talk about your goals",
-              template: "nurture_3"
-            }
-          ],
-          openRate: 38.5,
-          clickRate: 9.2,
-          conversionRate: 3.1
+            { dayDelay: 0, subject: "How to get the most out of [Product]", previewText: "Expert tips and tricks", template: "nurture_1" },
+            { dayDelay: 5, subject: "Customer success story: Real results", previewText: "See real results from real customers", template: "nurture_2" },
+            { dayDelay: 10, subject: "Ready to take the next step?", previewText: "Let's talk about your goals", template: "nurture_3" }
+          ]
         },
         winback: {
-          id: "seq_winback",
           name: "Win-Back Campaign",
           emails: [
-            {
-              dayDelay: 0,
-              subject: "We miss you! Here's what's new",
-              previewText: "Come back and see what you've been missing",
-              template: "winback_1"
-            },
-            {
-              dayDelay: 3,
-              subject: "Exclusive offer just for you",
-              previewText: "25% off to welcome you back",
-              template: "winback_2"
-            },
-            {
-              dayDelay: 7,
-              subject: "Before you go... one last offer",
-              previewText: "We'd love to have you back",
-              template: "winback_3"
-            }
-          ],
-          openRate: 28.3,
-          clickRate: 6.5,
-          conversionRate: 2.2
+            { dayDelay: 0, subject: "We miss you! Here's what's new", previewText: "Come back and see what you've been missing", template: "winback_1" },
+            { dayDelay: 3, subject: "Exclusive offer just for you", previewText: "25% off to welcome you back", template: "winback_2" },
+            { dayDelay: 7, subject: "Before you go... one last offer", previewText: "We'd love to have you back", template: "winback_3" }
+          ]
         }
       };
 
-      return { sequence: sequences[type], error: null };
+      const template = templates[type];
+
+      // Create sequence in database
+      const { data: sequence, error: seqError } = await supabase
+        .from("email_sequences")
+        .insert({
+          campaign_id: campaignId,
+          sequence_type: type,
+          name: template.name,
+          status: "active",
+          open_rate: 0,
+          click_rate: 0,
+          conversion_rate: 0
+        })
+        .select()
+        .single();
+
+      if (seqError || !sequence) {
+        return { sequence: null, error: seqError?.message || "Failed to create sequence" };
+      }
+
+      // Create email templates
+      for (const email of template.emails) {
+        await supabase.from("email_templates").insert({
+          sequence_id: sequence.id,
+          day_delay: email.dayDelay,
+          subject: email.subject,
+          preview_text: email.previewText,
+          template_content: email.template,
+          sent_count: 0,
+          open_count: 0,
+          click_count: 0
+        });
+      }
+
+      // Get full sequence with templates
+      const { data: templates_data } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("sequence_id", sequence.id)
+        .order("day_delay", { ascending: true });
+
+      return {
+        sequence: {
+          id: sequence.id,
+          name: sequence.name,
+          emails: (templates_data || []).map(t => ({
+            dayDelay: t.day_delay,
+            subject: t.subject,
+            previewText: t.preview_text || "",
+            template: t.template_content || ""
+          })),
+          openRate: sequence.open_rate || 0,
+          clickRate: sequence.click_rate || 0,
+          conversionRate: sequence.conversion_rate || 0
+        },
+        error: null
+      };
     } catch (err) {
+      console.error("Email sequence error:", err);
       return { sequence: null, error: "Failed to create email sequence" };
     }
   },
 
-  // AI-powered subject line optimization
-  async optimizeSubjectLines(campaignId: string): Promise<{
-    suggestions: Array<{
-      original: string;
-      optimized: string;
-      expectedImprovement: number;
-      reasoning: string;
-    }>;
+  // Get sequences for a campaign
+  async getSequences(campaignId: string): Promise<{
+    sequences: EmailSequence[];
     error: string | null;
   }> {
     try {
-      const suggestions = [
-        {
-          original: "Check out our new product",
-          optimized: "You won't believe what we just launched 🚀",
-          expectedImprovement: 35,
-          reasoning: "Curiosity + emoji increases open rate by 25-40%"
-        },
-        {
-          original: "Sale this weekend",
-          optimized: "[ENDING SOON] 48-Hour Flash Sale - Up to 50% Off",
-          expectedImprovement: 42,
-          reasoning: "Urgency + specific discount drives immediate action"
-        }
-      ];
+      const { data: sequences } = await supabase
+        .from("email_sequences")
+        .select("*")
+        .eq("campaign_id", campaignId);
 
-      return { suggestions, error: null };
+      if (!sequences) {
+        return { sequences: [], error: null };
+      }
+
+      const fullSequences: EmailSequence[] = [];
+
+      for (const seq of sequences) {
+        const { data: templates } = await supabase
+          .from("email_templates")
+          .select("*")
+          .eq("sequence_id", seq.id)
+          .order("day_delay", { ascending: true });
+
+        fullSequences.push({
+          id: seq.id,
+          name: seq.name,
+          emails: (templates || []).map(t => ({
+            dayDelay: t.day_delay,
+            subject: t.subject,
+            previewText: t.preview_text || "",
+            template: t.template_content || ""
+          })),
+          openRate: seq.open_rate || 0,
+          clickRate: seq.click_rate || 0,
+          conversionRate: seq.conversion_rate || 0
+        });
+      }
+
+      return { sequences: fullSequences, error: null };
     } catch (err) {
-      return { suggestions: [], error: "Subject line optimization failed" };
+      return { sequences: [], error: "Failed to fetch sequences" };
     }
   },
 
-  // Send time optimization
-  async optimizeSendTimes(campaignId: string): Promise<{
-    recommendations: Array<{
-      day: string;
-      time: string;
-      expectedOpenRate: number;
-      timezone: string;
-    }>;
-    error: string | null;
-  }> {
+  // Update sequence metrics (called when emails are sent/opened)
+  async updateMetrics(sequenceId: string, metrics: {
+    sentCount?: number;
+    openCount?: number;
+    clickCount?: number;
+  }): Promise<{ success: boolean; error: string | null }> {
     try {
-      const recommendations = [
-        {
-          day: "Tuesday",
-          time: "10:00 AM",
-          expectedOpenRate: 48.5,
-          timezone: "EST"
-        },
-        {
-          day: "Thursday",
-          time: "2:00 PM",
-          expectedOpenRate: 45.2,
-          timezone: "EST"
-        },
-        {
-          day: "Sunday",
-          time: "8:00 PM",
-          expectedOpenRate: 42.1,
-          timezone: "EST"
-        }
-      ];
+      const { data: templates } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("sequence_id", sequenceId);
 
-      return { recommendations, error: null };
+      if (!templates || templates.length === 0) {
+        return { success: false, error: "Sequence not found" };
+      }
+
+      const totalSent = templates.reduce((sum, t) => sum + (t.sent_count || 0), 0) + (metrics.sentCount || 0);
+      const totalOpens = templates.reduce((sum, t) => sum + (t.open_count || 0), 0) + (metrics.openCount || 0);
+      const totalClicks = templates.reduce((sum, t) => sum + (t.click_count || 0), 0) + (metrics.clickCount || 0);
+
+      const openRate = totalSent > 0 ? (totalOpens / totalSent) * 100 : 0;
+      const clickRate = totalSent > 0 ? (totalClicks / totalSent) * 100 : 0;
+
+      const { error } = await supabase
+        .from("email_sequences")
+        .update({
+          open_rate: openRate,
+          click_rate: clickRate
+        })
+        .eq("id", sequenceId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, error: null };
     } catch (err) {
-      return { recommendations: [], error: "Send time optimization failed" };
+      return { success: false, error: "Failed to update metrics" };
     }
   }
 };

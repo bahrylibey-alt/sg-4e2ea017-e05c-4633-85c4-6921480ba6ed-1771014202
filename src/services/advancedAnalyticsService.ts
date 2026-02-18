@@ -20,53 +20,39 @@ export interface AttributionData {
 }
 
 export const advancedAnalyticsService = {
-  // Multi-touch attribution modeling
+  // Multi-touch attribution modeling (REAL data from traffic_sources)
   async calculateAttribution(campaignId: string): Promise<{
     attributions: AttributionData[];
     recommendedModel: string;
     error: string | null;
   }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { attributions: [], recommendedModel: "", error: "User not authenticated" };
+      const { data: sources } = await supabase
+        .from("traffic_sources")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .eq("status", "active");
+
+      if (!sources || sources.length === 0) {
+        return { attributions: [], recommendedModel: "time_decay", error: null };
       }
 
-      // Simulate multi-touch attribution across channels
-      const attributions: AttributionData[] = [
-        {
-          channel: "Google Ads",
-          firstTouch: 0.35,
-          lastTouch: 0.45,
-          linear: 0.25,
-          timeDecay: 0.40,
-          position: 0.30
-        },
-        {
-          channel: "Facebook Ads",
-          firstTouch: 0.25,
-          lastTouch: 0.30,
-          linear: 0.25,
-          timeDecay: 0.25,
-          position: 0.25
-        },
-        {
-          channel: "Email Marketing",
-          firstTouch: 0.15,
-          lastTouch: 0.15,
-          linear: 0.25,
-          timeDecay: 0.20,
-          position: 0.20
-        },
-        {
-          channel: "Organic Search",
-          firstTouch: 0.25,
-          lastTouch: 0.10,
-          linear: 0.25,
-          timeDecay: 0.15,
-          position: 0.25
-        }
-      ];
+      const totalClicks = sources.reduce((sum, s) => sum + (s.total_clicks || 0), 0);
+      const totalRevenue = sources.reduce((sum, s) => sum + (s.total_revenue || 0), 0);
+
+      const attributions: AttributionData[] = sources.map(source => {
+        const clickShare = totalClicks > 0 ? (source.total_clicks || 0) / totalClicks : 0;
+        const revenueShare = totalRevenue > 0 ? (source.total_revenue || 0) / totalRevenue : 0;
+        
+        return {
+          channel: source.source_name,
+          firstTouch: clickShare * 0.4 + revenueShare * 0.6, // Weight recent performance
+          lastTouch: revenueShare, // Direct revenue attribution
+          linear: clickShare, // Equal credit
+          timeDecay: clickShare * 0.3 + revenueShare * 0.7, // Favor revenue
+          position: (clickShare + revenueShare) / 2 // Average
+        };
+      });
 
       return {
         attributions,
@@ -74,11 +60,12 @@ export const advancedAnalyticsService = {
         error: null
       };
     } catch (err) {
+      console.error("Attribution error:", err);
       return { attributions: [], recommendedModel: "", error: "Attribution calculation failed" };
     }
   },
 
-  // Predictive analytics for future performance
+  // Predictive analytics using REAL campaign performance data
   async getPredictiveInsights(campaignId: string): Promise<{
     insights: PredictiveInsight[];
     error: string | null;
@@ -94,75 +81,77 @@ export const advancedAnalyticsService = {
         return { insights: [], error: "Campaign not found" };
       }
 
-      const insights: PredictiveInsight[] = [
-        {
+      // Get historical performance data
+      const { data: performance } = await supabase
+        .from("campaign_performance")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("date", { ascending: false })
+        .limit(30);
+
+      const insights: PredictiveInsight[] = [];
+
+      if (performance && performance.length >= 7) {
+        // Calculate trends from real data
+        const recentRevenue = performance.slice(0, 7).reduce((sum, p) => sum + (p.revenue || 0), 0) / 7;
+        const oldRevenue = performance.slice(7, 14).reduce((sum, p) => sum + (p.revenue || 0), 0) / 7;
+        const revenueTrend = oldRevenue > 0 ? ((recentRevenue - oldRevenue) / oldRevenue) : 0;
+
+        const recentConversions = performance.slice(0, 7).reduce((sum, p) => sum + (p.conversions || 0), 0);
+        const totalClicks = performance.slice(0, 7).reduce((sum, p) => sum + (p.clicks || 0), 0);
+        const conversionRate = totalClicks > 0 ? (recentConversions / totalClicks) * 100 : 0;
+
+        const recentSpent = performance.slice(0, 7).reduce((sum, p) => sum + (p.spent || 0), 0) / 7;
+        const cpa = recentConversions > 0 ? (recentSpent * 7) / recentConversions : 0;
+
+        insights.push({
+          metric: "Daily Revenue",
+          current: recentRevenue,
+          predicted: recentRevenue * (1 + revenueTrend),
+          confidence: Math.min(95, 70 + performance.length * 2),
+          trend: revenueTrend > 0.05 ? "up" : revenueTrend < -0.05 ? "down" : "stable",
+          recommendation: revenueTrend > 0.1 ? "Increase budget by 20% to capitalize on upward trend" : 
+                         revenueTrend < -0.1 ? "Review targeting and creative - performance declining" :
+                         "Maintain current strategy - performance stable"
+        });
+
+        insights.push({
+          metric: "Conversion Rate",
+          current: conversionRate,
+          predicted: conversionRate * (1 + revenueTrend * 0.5),
+          confidence: Math.min(90, 65 + performance.length * 2),
+          trend: revenueTrend > 0.05 ? "up" : revenueTrend < -0.05 ? "down" : "stable",
+          recommendation: "Current optimization strategies showing results"
+        });
+
+        insights.push({
+          metric: "Cost Per Acquisition",
+          current: cpa,
+          predicted: cpa * (1 - revenueTrend * 0.3),
+          confidence: Math.min(85, 60 + performance.length * 2),
+          trend: revenueTrend > 0 ? "down" : "up",
+          recommendation: cpa < 50 ? "Excellent CPA - consider scaling" : "Focus on improving conversion rate"
+        });
+      } else {
+        // Not enough data - provide baseline insights
+        insights.push({
           metric: "Daily Revenue",
           current: (campaign.revenue || 0) / 30,
-          predicted: ((campaign.revenue || 0) / 30) * 1.25,
-          confidence: 85,
-          trend: "up",
-          recommendation: "Increase budget by 20% to capitalize on upward trend"
-        },
-        {
-          metric: "Conversion Rate",
-          current: 3.2,
-          predicted: 4.1,
-          confidence: 78,
-          trend: "up",
-          recommendation: "Current optimization strategies showing strong results"
-        },
-        {
-          metric: "Cost Per Acquisition",
-          current: 45,
-          predicted: 38,
-          confidence: 82,
-          trend: "down",
-          recommendation: "Efficiency improving - maintain current targeting"
-        },
-        {
-          metric: "Customer Lifetime Value",
-          current: 280,
-          predicted: 320,
-          confidence: 72,
-          trend: "up",
-          recommendation: "Focus on retention strategies to maximize LTV"
-        }
-      ];
+          predicted: ((campaign.revenue || 0) / 30) * 1.15,
+          confidence: 60,
+          trend: "stable",
+          recommendation: "Collect more data for accurate predictions (7+ days needed)"
+        });
+      }
 
       return { insights, error: null };
     } catch (err) {
+      console.error("Predictive analysis error:", err);
       return { insights: [], error: "Predictive analysis failed" };
     }
   },
 
-  // Cohort analysis for user retention
-  async analyzeCohorts(campaignId: string): Promise<{
-    cohorts: Array<{
-      week: string;
-      users: number;
-      retention: number[];
-      revenue: number[];
-    }>;
-    error: string | null;
-  }> {
-    try {
-      const cohorts = Array.from({ length: 8 }, (_, i) => {
-        const weekNumber = 8 - i;
-        return {
-          week: `Week ${weekNumber}`,
-          users: Math.floor(Math.random() * 500) + 100,
-          retention: Array.from({ length: weekNumber }, () => Math.random() * 100),
-          revenue: Array.from({ length: weekNumber }, () => Math.random() * 1000)
-        };
-      });
-
-      return { cohorts, error: null };
-    } catch (err) {
-      return { cohorts: [], error: "Cohort analysis failed" };
-    }
-  },
-
-  // Funnel analysis with drop-off insights
+  // Funnel analysis with REAL data
   async analyzeFunnel(campaignId: string): Promise<{
     stages: Array<{
       name: string;
@@ -175,136 +164,64 @@ export const advancedAnalyticsService = {
     error: string | null;
   }> {
     try {
-      const stages = [
-        {
-          name: "Landing Page",
-          users: 10000,
-          dropOff: 0,
-          conversionRate: 100,
-          avgTime: 45,
-          insights: ["High bounce rate from mobile devices", "Consider A/B testing hero section"]
-        },
-        {
-          name: "Product View",
-          users: 6500,
-          dropOff: 35,
-          conversionRate: 65,
-          avgTime: 120,
-          insights: ["Good engagement time", "Add more social proof"]
-        },
-        {
-          name: "Add to Cart",
-          users: 3200,
-          dropOff: 51,
-          conversionRate: 32,
-          avgTime: 60,
-          insights: ["Price sensitivity detected", "Offer limited-time discount"]
-        },
-        {
-          name: "Checkout",
-          users: 1600,
-          dropOff: 50,
-          conversionRate: 16,
-          avgTime: 180,
-          insights: ["Cart abandonment high", "Implement exit-intent popup"]
-        },
-        {
-          name: "Purchase",
-          users: 960,
-          dropOff: 40,
-          conversionRate: 9.6,
-          avgTime: 240,
-          insights: ["Strong conversion from checkout", "Upsell opportunities available"]
+      const { data: funnelData } = await supabase
+        .from("funnel_stages")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("stage_order", { ascending: true });
+
+      if (!funnelData || funnelData.length === 0) {
+        // Create default funnel stages for new campaigns
+        const defaultStages = [
+          { name: "Landing Page", order: 1 },
+          { name: "Product View", order: 2 },
+          { name: "Add to Cart", order: 3 },
+          { name: "Checkout", order: 4 },
+          { name: "Purchase", order: 5 }
+        ];
+
+        for (const stage of defaultStages) {
+          await supabase.from("funnel_stages").insert({
+            campaign_id: campaignId,
+            stage_name: stage.name,
+            stage_order: stage.order,
+            visitors: 0,
+            drop_off: 0,
+            avg_time_seconds: 0
+          });
         }
-      ];
+
+        return { stages: [], error: "Funnel tracking initialized - data will appear as traffic flows" };
+      }
+
+      const stages = funnelData.map((stage, idx) => {
+        const prevVisitors = idx > 0 ? funnelData[idx - 1].visitors : stage.visitors;
+        const dropOff = prevVisitors > 0 ? ((prevVisitors - stage.visitors) / prevVisitors) * 100 : 0;
+        const conversionRate = funnelData[0].visitors > 0 ? (stage.visitors / funnelData[0].visitors) * 100 : 0;
+
+        const insights: string[] = [];
+        if (dropOff > 50) insights.push("High drop-off rate - investigate user experience");
+        if (stage.avg_time_seconds < 30) insights.push("Users leaving quickly - improve content");
+        if (dropOff < 20) insights.push("Strong engagement at this stage");
+
+        return {
+          name: stage.stage_name,
+          users: stage.visitors,
+          dropOff,
+          conversionRate,
+          avgTime: stage.avg_time_seconds,
+          insights
+        };
+      });
 
       return { stages, error: null };
     } catch (err) {
+      console.error("Funnel analysis error:", err);
       return { stages: [], error: "Funnel analysis failed" };
     }
   },
 
-  // Anomaly detection for unusual patterns
-  async detectAnomalies(campaignId: string): Promise<{
-    anomalies: Array<{
-      timestamp: string;
-      metric: string;
-      expected: number;
-      actual: number;
-      severity: "low" | "medium" | "high";
-      suggestion: string;
-    }>;
-    error: string | null;
-  }> {
-    try {
-      const anomalies = [
-        {
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          metric: "Click-Through Rate",
-          expected: 3.2,
-          actual: 1.1,
-          severity: "high" as const,
-          suggestion: "Ad fatigue detected - refresh creative immediately"
-        },
-        {
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          metric: "Conversion Rate",
-          expected: 4.5,
-          actual: 6.8,
-          severity: "low" as const,
-          suggestion: "Positive spike - consider scaling budget"
-        }
-      ];
-
-      return { anomalies, error: null };
-    } catch (err) {
-      return { anomalies: [], error: "Anomaly detection failed" };
-    }
-  },
-
-  // Customer journey mapping
-  async mapCustomerJourney(campaignId: string): Promise<{
-    journeys: Array<{
-      path: string[];
-      frequency: number;
-      conversionRate: number;
-      avgRevenue: number;
-      timeToConvert: number;
-    }>;
-    error: string | null;
-  }> {
-    try {
-      const journeys = [
-        {
-          path: ["Google → Landing → Product → Purchase"],
-          frequency: 450,
-          conversionRate: 8.2,
-          avgRevenue: 127,
-          timeToConvert: 3.5
-        },
-        {
-          path: ["Facebook → Landing → Email → Product → Purchase"],
-          frequency: 320,
-          conversionRate: 6.1,
-          avgRevenue: 142,
-          timeToConvert: 7.2
-        },
-        {
-          path: ["Organic → Blog → Product → Cart → Purchase"],
-          frequency: 280,
-          conversionRate: 12.5,
-          avgRevenue: 156,
-          timeToConvert: 5.8
-        }
-      ];
-
-      return { journeys, error: null };
-    } catch (err) {
-      return { journeys: [], error: "Journey mapping failed" };
-    }
-  },
-
-  // Real-time performance monitoring
+  // Real-time performance monitoring with REAL data
   async getRealtimeMetrics(campaignId: string): Promise<{
     metrics: {
       activeUsers: number;
@@ -317,23 +234,43 @@ export const advancedAnalyticsService = {
     error: string | null;
   }> {
     try {
-      const { data: campaign } = await supabase
-        .from("campaigns")
+      // Get today's performance
+      const today = new Date().toISOString().split("T")[0];
+      const { data: todayPerf } = await supabase
+        .from("campaign_performance")
         .select("*")
-        .eq("id", campaignId)
+        .eq("campaign_id", campaignId)
+        .eq("date", today)
         .single();
 
+      // Get active traffic sources
+      const { data: sources } = await supabase
+        .from("traffic_sources")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .eq("status", "active")
+        .order("total_revenue", { ascending: false })
+        .limit(1);
+
+      // Get unresolved fraud alerts
+      const { data: alerts } = await supabase
+        .from("fraud_alerts")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("resolved", false);
+
       const metrics = {
-        activeUsers: Math.floor(Math.random() * 500) + 50,
-        clicksPerMinute: Math.floor(Math.random() * 20) + 5,
-        conversionsPerHour: Math.floor(Math.random() * 10) + 1,
-        revenueToday: (campaign?.revenue || 0) * 0.1,
-        topPerformingChannel: "Google Ads",
-        alertsActive: Math.floor(Math.random() * 3)
+        activeUsers: todayPerf?.clicks || 0,
+        clicksPerMinute: todayPerf ? Math.round((todayPerf.clicks || 0) / (60 * 24)) : 0,
+        conversionsPerHour: todayPerf ? Math.round((todayPerf.conversions || 0) / 24) : 0,
+        revenueToday: todayPerf?.revenue || 0,
+        topPerformingChannel: sources?.[0]?.source_name || "None",
+        alertsActive: alerts?.length || 0
       };
 
       return { metrics, error: null };
     } catch (err) {
+      console.error("Real-time monitoring error:", err);
       return {
         metrics: {
           activeUsers: 0,

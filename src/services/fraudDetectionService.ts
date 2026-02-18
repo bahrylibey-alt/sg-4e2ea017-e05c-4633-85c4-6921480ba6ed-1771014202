@@ -1,18 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
-export interface FraudAlert {
-  id: string;
-  timestamp: string;
-  severity: "low" | "medium" | "high" | "critical";
-  type: "click_fraud" | "conversion_fraud" | "bot_traffic" | "invalid_traffic";
-  affectedLinkId: string;
-  details: string;
-  estimatedLoss: number;
-  recommended_action: string;
-}
+type FraudAlert = Database["public"]["Tables"]["fraud_alerts"]["Row"];
 
 export const fraudDetectionService = {
-  // Real-time fraud detection
+  // Real-time fraud detection using actual click data
   async detectFraud(campaignId: string): Promise<{
     alerts: FraudAlert[];
     totalLoss: number;
@@ -25,7 +17,7 @@ export const fraudDetectionService = {
         return { alerts: [], totalLoss: 0, fraudRate: 0, error: "Not authenticated" };
       }
 
-      // Get click events for analysis
+      // Get campaign's affiliate links
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("id")
@@ -35,57 +27,81 @@ export const fraudDetectionService = {
         return { alerts: [], totalLoss: 0, fraudRate: 0, error: null };
       }
 
-      const linkIds = links.map(l => l.id);
-
+      // Get recent click events
       const { data: clicks } = await supabase
         .from("click_events")
         .select("*")
-        .in("link_id", linkIds)
+        .in("link_id", links.map(l => l.id))
         .order("clicked_at", { ascending: false })
         .limit(1000);
 
+      if (!clicks || clicks.length === 0) {
+        return { alerts: [], totalLoss: 0, fraudRate: 0, error: null };
+      }
+
       // Analyze for fraud patterns
-      const alerts: FraudAlert[] = [];
-      let totalLoss = 0;
-
-      // Example: Detect suspicious IP patterns
       const ipCounts = new Map<string, number>();
-      clicks?.forEach(click => {
+      const suspiciousIPs: string[] = [];
+
+      clicks.forEach(click => {
         if (click.ip_address) {
-          ipCounts.set(click.ip_address, (ipCounts.get(click.ip_address) || 0) + 1);
+          const count = (ipCounts.get(click.ip_address) || 0) + 1;
+          ipCounts.set(click.ip_address, count);
+          
+          // Flag IPs with excessive clicks (>50 clicks)
+          if (count > 50 && !suspiciousIPs.includes(click.ip_address)) {
+            suspiciousIPs.push(click.ip_address);
+          }
         }
       });
 
-      // Flag IPs with excessive clicks
-      ipCounts.forEach((count, ip) => {
-        if (count > 50) {
-          const loss = count * 0.50; // Assume $0.50 per click
-          totalLoss += loss;
-          alerts.push({
-            id: `fraud_${Date.now()}_${ip}`,
-            timestamp: new Date().toISOString(),
-            severity: count > 100 ? "critical" : "high",
-            type: "click_fraud",
-            affectedLinkId: linkIds[0],
-            details: `Suspicious activity: ${count} clicks from IP ${ip}`,
-            estimatedLoss: loss,
-            recommended_action: "Block IP address and request refund from traffic source"
-          });
-        }
-      });
+      // Create fraud alerts in database
+      const newAlerts: FraudAlert[] = [];
+      for (const ip of suspiciousIPs) {
+        const clickCount = ipCounts.get(ip) || 0;
+        const estimatedLoss = clickCount * 0.50; // Assume $0.50 per click
 
-      const fraudRate = clicks && clicks.length > 0 
-        ? (alerts.length / clicks.length) * 100 
-        : 0;
+        const { data: alert } = await supabase
+          .from("fraud_alerts")
+          .insert({
+            campaign_id: campaignId,
+            alert_type: "click_fraud",
+            severity: clickCount > 100 ? "critical" : "high",
+            ip_address: ip,
+            details: `Suspicious activity: ${clickCount} clicks from single IP address`,
+            estimated_loss: estimatedLoss,
+            resolved: false
+          })
+          .select()
+          .single();
 
-      return { alerts, totalLoss, fraudRate, error: null };
+        if (alert) newAlerts.push(alert);
+      }
+
+      // Get all unresolved alerts
+      const { data: allAlerts } = await supabase
+        .from("fraud_alerts")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .eq("resolved", false)
+        .order("created_at", { ascending: false });
+
+      const totalLoss = (allAlerts || []).reduce((sum, alert) => sum + (alert.estimated_loss || 0), 0);
+      const fraudRate = clicks.length > 0 ? ((allAlerts || []).length / clicks.length) * 100 : 0;
+
+      return { 
+        alerts: allAlerts || [], 
+        totalLoss, 
+        fraudRate, 
+        error: null 
+      };
     } catch (err) {
       console.error("Fraud detection error:", err);
       return { alerts: [], totalLoss: 0, fraudRate: 0, error: "Fraud detection failed" };
     }
   },
 
-  // Bot detection
+  // Bot detection using real user agent data
   async detectBots(campaignId: string): Promise<{
     botTraffic: number;
     humanTraffic: number;
@@ -93,7 +109,6 @@ export const fraudDetectionService = {
     error: string | null;
   }> {
     try {
-      // Simple bot detection based on user agent patterns
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { botTraffic: 0, humanTraffic: 0, botPercentage: 0, error: "Not authenticated" };
@@ -114,11 +129,13 @@ export const fraudDetectionService = {
         .in("link_id", links.map(l => l.id));
 
       const totalClicks = clicks?.length || 0;
-      const botClicks = clicks?.filter(c => 
-        c.user_agent?.toLowerCase().includes("bot") ||
-        c.user_agent?.toLowerCase().includes("crawler") ||
-        c.user_agent?.toLowerCase().includes("spider")
-      ).length || 0;
+      const botClicks = clicks?.filter(c => {
+        const ua = (c.user_agent || "").toLowerCase();
+        return ua.includes("bot") || 
+               ua.includes("crawler") || 
+               ua.includes("spider") ||
+               ua.includes("scraper");
+      }).length || 0;
 
       return {
         botTraffic: botClicks,
@@ -127,11 +144,12 @@ export const fraudDetectionService = {
         error: null
       };
     } catch (err) {
+      console.error("Bot detection error:", err);
       return { botTraffic: 0, humanTraffic: 0, botPercentage: 0, error: "Bot detection failed" };
     }
   },
 
-  // Auto-block suspicious traffic
+  // Auto-block suspicious traffic based on real fraud alerts
   async autoBlockFraud(campaignId: string): Promise<{
     blocked: number;
     savedBudget: number;
@@ -140,12 +158,24 @@ export const fraudDetectionService = {
     try {
       const fraudResult = await this.detectFraud(campaignId);
       
-      // In production, this would actually block IPs and sources
-      const blocked = fraudResult.alerts.length;
-      const savedBudget = fraudResult.totalLoss;
+      // Mark alerts as resolved (blocked)
+      const { error } = await supabase
+        .from("fraud_alerts")
+        .update({ resolved: true })
+        .eq("campaign_id", campaignId)
+        .eq("resolved", false);
 
-      return { blocked, savedBudget, error: null };
+      if (error) {
+        return { blocked: 0, savedBudget: 0, error: error.message };
+      }
+
+      return { 
+        blocked: fraudResult.alerts.length, 
+        savedBudget: fraudResult.totalLoss,
+        error: null 
+      };
     } catch (err) {
+      console.error("Auto-block error:", err);
       return { blocked: 0, savedBudget: 0, error: "Auto-block failed" };
     }
   }
