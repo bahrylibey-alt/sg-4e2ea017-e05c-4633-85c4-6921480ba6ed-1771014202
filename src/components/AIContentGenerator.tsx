@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +14,17 @@ import {
   RefreshCw,
   Wand2,
   FileText,
-  Mail,
-  MessageSquare,
-  Target,
-  TrendingUp
+  TrendingUp,
+  Target
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export function AIContentGenerator() {
+interface AIContentGeneratorProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function AIContentGenerator({ open, onOpenChange }: AIContentGeneratorProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [contentType, setContentType] = useState<"ad-copy" | "email" | "social" | "product">("ad-copy");
@@ -114,232 +118,203 @@ export function AIContentGenerator() {
   };
 
   return (
-    <div className="container py-12">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold mb-2">AI Content Generator</h2>
-        <p className="text-muted-foreground">Create high-converting copy in seconds with AI</p>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-primary" />
+            AI Content Generator
+          </DialogTitle>
+          <DialogDescription>
+            Create high-converting copy in seconds with AI optimization
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5 text-primary" />
-              Content Settings
-            </CardTitle>
-            <CardDescription>Tell AI about your product and audience</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs value={contentType} onValueChange={(v) => setContentType(v as any)}>
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="ad-copy">Ad Copy</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
-                <TabsTrigger value="social">Social</TabsTrigger>
-                <TabsTrigger value="product">Product</TabsTrigger>
-              </TabsList>
-            </Tabs>
+        <div className="grid gap-6 lg:grid-cols-2 mt-4">
+          <Card className="border-0 shadow-none">
+            <CardHeader className="px-0 pt-0">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-primary" />
+                Content Settings
+              </CardTitle>
+              <CardDescription>Tell AI about your product and audience</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 space-y-4">
+              <Tabs value={contentType} onValueChange={(v) => setContentType(v as any)}>
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="ad-copy">Ad Copy</TabsTrigger>
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                  <TabsTrigger value="social">Social</TabsTrigger>
+                  <TabsTrigger value="product">Product</TabsTrigger>
+                </TabsList>
+              </Tabs>
 
-            <div className="space-y-2">
-              <Label htmlFor="productName">Product/Offer Name *</Label>
-              <Input
-                id="productName"
-                placeholder="e.g., Premium Fitness Program"
-                value={input.productName}
-                onChange={(e) => setInput({ ...input, productName: e.target.value })}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="productName">Product/Offer Name *</Label>
+                <Input
+                  id="productName"
+                  placeholder="e.g., Premium Fitness Program"
+                  value={input.productName}
+                  onChange={(e) => setInput({ ...input, productName: e.target.value })}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="targetAudience">Target Audience</Label>
-              <Input
-                id="targetAudience"
-                placeholder="e.g., busy professionals aged 25-45"
-                value={input.targetAudience}
-                onChange={(e) => setInput({ ...input, targetAudience: e.target.value })}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="targetAudience">Target Audience</Label>
+                <Input
+                  id="targetAudience"
+                  placeholder="e.g., busy professionals aged 25-45"
+                  value={input.targetAudience}
+                  onChange={(e) => setInput({ ...input, targetAudience: e.target.value })}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="keyFeatures">Key Features/Benefits</Label>
-              <Textarea
-                id="keyFeatures"
-                placeholder="e.g., 30-minute workouts, no equipment needed, proven results"
-                value={input.keyFeatures}
-                onChange={(e) => setInput({ ...input, keyFeatures: e.target.value })}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="keyFeatures">Key Features/Benefits</Label>
+                <Textarea
+                  id="keyFeatures"
+                  placeholder="e.g., 30-minute workouts, no equipment needed, proven results"
+                  value={input.keyFeatures}
+                  onChange={(e) => setInput({ ...input, keyFeatures: e.target.value })}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tone">Tone of Voice</Label>
-              <select
-                id="tone"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={input.tone}
-                onChange={(e) => setInput({ ...input, tone: e.target.value })}
+              <div className="space-y-2">
+                <Label htmlFor="tone">Tone of Voice</Label>
+                <select
+                  id="tone"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={input.tone}
+                  onChange={(e) => setInput({ ...input, tone: e.target.value })}
+                >
+                  <option value="professional">Professional</option>
+                  <option value="casual">Casual & Friendly</option>
+                  <option value="urgent">Urgent & Compelling</option>
+                  <option value="luxury">Luxury & Premium</option>
+                  <option value="playful">Playful & Fun</option>
+                </select>
+              </div>
+
+              <Button 
+                onClick={generateContent} 
+                disabled={loading}
+                className="w-full"
+                size="lg"
               >
-                <option value="professional">Professional</option>
-                <option value="casual">Casual & Friendly</option>
-                <option value="urgent">Urgent & Compelling</option>
-                <option value="luxury">Luxury & Premium</option>
-                <option value="playful">Playful & Fun</option>
-              </select>
-            </div>
+                {loading ? (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate AI Content
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
 
-            <Button 
-              onClick={generateContent} 
-              disabled={loading}
-              className="w-full"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Generate AI Content
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Generated Content
-            </CardTitle>
-            <CardDescription>
-              {generatedContent ? "AI-optimized copy ready to use" : "Your content will appear here"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {generatedContent ? (
-              <div className="space-y-6">
-                <div className="p-4 rounded-lg border bg-accent/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge>Headline</Badge>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => copyToClipboard(generatedContent.headline)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <p className="font-semibold text-lg">{generatedContent.headline}</p>
-                </div>
-
-                <div className="p-4 rounded-lg border bg-accent/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge>Body Copy</Badge>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => copyToClipboard(generatedContent.body)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <p className="text-sm">{generatedContent.body}</p>
-                </div>
-
-                <div className="p-4 rounded-lg border bg-accent/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge>Call-to-Action</Badge>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => copyToClipboard(generatedContent.cta)}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <p className="font-medium">{generatedContent.cta}</p>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Alternative Headlines
-                  </h4>
-                  {generatedContent.variations.map((variation, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                      <span className="text-sm">{variation}</span>
+          <Card className="bg-accent/10 border-0 shadow-none">
+            <CardHeader className="pt-0">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Generated Content
+              </CardTitle>
+              <CardDescription>
+                {generatedContent ? "AI-optimized copy ready to use" : "Your content will appear here"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {generatedContent ? (
+                <div className="space-y-6">
+                  <div className="p-4 rounded-lg border bg-background shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline">Headline</Badge>
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => copyToClipboard(variation)}
+                        className="h-6 w-6 p-0"
+                        onClick={() => copyToClipboard(generatedContent.headline)}
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
                     </div>
-                  ))}
-                </div>
+                    <p className="font-semibold">{generatedContent.headline}</p>
+                  </div>
 
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={generateContent} className="flex-1">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Regenerate
-                  </Button>
-                  <Button className="flex-1">
-                    <Download className="h-4 w-4 mr-2" />
-                    Export All
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Generate content to see results</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  <div className="p-4 rounded-lg border bg-background shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline">Body Copy</Badge>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => copyToClipboard(generatedContent.body)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{generatedContent.body}</p>
+                  </div>
 
-      <Card className="mt-6 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            AI Optimization Tips
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-lg bg-background border">
-              <h4 className="font-semibold mb-2">Headlines</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Use power words</li>
-                <li>• Include numbers</li>
-                <li>• Create urgency</li>
-                <li>• Promise benefits</li>
-              </ul>
-            </div>
-            <div className="p-4 rounded-lg bg-background border">
-              <h4 className="font-semibold mb-2">Body Copy</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Focus on benefits</li>
-                <li>• Use social proof</li>
-                <li>• Address pain points</li>
-                <li>• Keep it scannable</li>
-              </ul>
-            </div>
-            <div className="p-4 rounded-lg bg-background border">
-              <h4 className="font-semibold mb-2">CTAs</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Action-oriented</li>
-                <li>• Create FOMO</li>
-                <li>• Clear value</li>
-                <li>• Low friction</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                  <div className="p-4 rounded-lg border bg-background shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="outline">Call-to-Action</Badge>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => copyToClipboard(generatedContent.cta)}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="font-medium text-primary">{generatedContent.cta}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Alternative Headlines
+                    </h4>
+                    {generatedContent.variations.map((variation, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded border bg-background text-xs hover:border-primary transition-colors">
+                        <span className="truncate flex-1 mr-2">{variation}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-5 w-5 p-0"
+                          onClick={() => copyToClipboard(variation)}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button variant="outline" onClick={generateContent} className="flex-1">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Regenerate
+                    </Button>
+                    <Button className="flex-1">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p>Fill in the details to generate content</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
