@@ -377,11 +377,13 @@ export const smartCampaignService = {
   // SIMPLIFIED ONE-CLICK SETUP (For UI)
   async quickSetup(params: { 
     productUrl: string; 
+    budget?: number;
     goal: "sales" | "leads" | "traffic" 
   }): Promise<OneClickResult> {
     return this.createQuickCampaign({
       productUrls: [params.productUrl],
-      customGoal: params.goal
+      customGoal: params.goal,
+      customBudget: params.budget
     });
   }
 };

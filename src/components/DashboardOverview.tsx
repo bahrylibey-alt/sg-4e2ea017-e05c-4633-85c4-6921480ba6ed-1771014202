@@ -37,7 +37,7 @@ export function DashboardOverview() {
       setLoading(true);
       const [campaignStats, predictions, trafficStatus] = await Promise.all([
         campaignService.getCampaignStats(),
-        advancedAnalyticsService.predictPerformance("sample-campaign", 30),
+        advancedAnalyticsService.getPredictiveInsights("sample-campaign"),
         trafficAutomationService.getTrafficStatus()
       ]);
 

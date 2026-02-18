@@ -449,5 +449,20 @@ export const trafficAutomationService = {
       console.error("Error scaling top performers:", err);
       return { scaled: [], error: "Failed to scale top performers" };
     }
+  },
+
+  async getTrafficStatus(): Promise<{
+    activeSources: number;
+    totalTraffic: number;
+    optimizationStatus: "active" | "paused";
+    nextOptimization: string;
+  }> {
+    // Mock implementation for dashboard
+    return {
+      activeSources: 5,
+      totalTraffic: 156200,
+      optimizationStatus: "active",
+      nextOptimization: "15 min"
+    };
   }
 };
