@@ -132,12 +132,12 @@ export const intelligentRoutingService = {
     error: string | null;
   }> {
     try {
-      const { data: clicks } = await supabase
+      const { count } = await supabase
         .from("click_events")
-        .select("id")
+        .select("*", { count: "exact", head: true })
         .eq("campaign_id", campaignId);
 
-      if (!clicks || clicks.length === 0) {
+      if (!count || count === 0) {
         return { 
           segments: [
             { name: "No Data Yet", size: 0, conversionRate: 0, value: 0 }
@@ -150,7 +150,7 @@ export const intelligentRoutingService = {
       const segments = [
         {
           name: "All Traffic",
-          size: clicks.length,
+          size: count,
           conversionRate: 0, // Would calculate from conversion data
           value: 0
         }
