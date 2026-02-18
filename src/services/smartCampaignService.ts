@@ -168,6 +168,46 @@ export const smartCampaignService = {
     }
   },
 
+  // Ensure user profile exists (CRITICAL FIX)
+  async ensureProfileExists(userId: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+      // Check if profile exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .single();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        console.error("Error checking profile:", checkError);
+        return { success: false, error: "Failed to verify user profile" };
+      }
+
+      // Profile already exists
+      if (existingProfile) {
+        console.log("✅ Profile exists:", userId);
+        return { success: true, error: null };
+      }
+
+      // Create profile if it doesn't exist
+      console.log("📝 Creating profile for user:", userId);
+      const { error: createError } = await supabase
+        .from("profiles")
+        .insert({ id: userId, email: null, full_name: null });
+
+      if (createError) {
+        console.error("Error creating profile:", createError);
+        return { success: false, error: "Failed to create user profile" };
+      }
+
+      console.log("✅ Profile created successfully");
+      return { success: true, error: null };
+    } catch (err) {
+      console.error("Unexpected error ensuring profile:", err);
+      return { success: false, error: "Profile verification failed" };
+    }
+  },
+
   // REVOLUTIONARY ONE-CLICK AUTOMATED CAMPAIGN SYSTEM
   async createQuickCampaign(input: QuickCampaignInput): Promise<OneClickResult> {
     try {
@@ -189,6 +229,21 @@ export const smartCampaignService = {
       }
 
       console.log("✅ User authenticated:", user.id);
+
+      // Step 1.5: ENSURE PROFILE EXISTS (CRITICAL FIX)
+      const profileCheck = await this.ensureProfileExists(user.id);
+      if (!profileCheck.success) {
+        console.error("❌ Profile check failed:", profileCheck.error);
+        return {
+          success: false,
+          campaign: null,
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: profileCheck.error || "Failed to verify user profile. Please contact support."
+        };
+      }
 
       // Step 2: Validate input
       if (!input.productUrls || input.productUrls.length === 0) {
@@ -254,7 +309,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: `Failed to create campaign: ${campaignError || "Unknown error"}` 
+          error: `Campaign creation failed: ${campaignError || "Unknown error"}. Please try again.` 
         };
       }
 
