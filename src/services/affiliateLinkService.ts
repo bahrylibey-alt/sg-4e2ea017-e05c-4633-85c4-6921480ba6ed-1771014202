@@ -8,8 +8,9 @@ export const affiliateLinkService = {
   // Create a new affiliate link with automatic slug generation
   async createLink(data: {
     original_url: string;
-    title: string;
-    campaign_id?: string;
+    product_name?: string;
+    network?: string;
+    commission_rate?: number;
   }): Promise<{ link: AffiliateLink | null; error: string | null }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -19,17 +20,20 @@ export const affiliateLinkService = {
 
       // Generate unique slug
       const slug = this.generateSlug();
+      const cloakedUrl = this.getCloakedUrl(slug);
 
       const insertData: AffiliateLinkInsert = {
         user_id: user.id,
         original_url: data.original_url,
+        cloaked_url: cloakedUrl,
         slug,
-        title: data.title,
-        campaign_id: data.campaign_id || null,
+        product_name: data.product_name || null,
+        network: data.network || null,
+        commission_rate: data.commission_rate || null,
         clicks: 0,
         conversions: 0,
         revenue: 0,
-        is_active: true
+        status: "active"
       };
 
       const { data: link, error } = await supabase
@@ -82,7 +86,7 @@ export const affiliateLinkService = {
     user_agent?: string;
     referrer?: string;
     country?: string;
-    device?: string;
+    device_type?: string;
   }): Promise<{ success: boolean; redirect_url: string | null }> {
     try {
       // Get the link by slug
@@ -90,7 +94,7 @@ export const affiliateLinkService = {
         .from("affiliate_links")
         .select("*")
         .eq("slug", slug)
-        .eq("is_active", true)
+        .eq("status", "active")
         .single();
 
       if (linkError || !link) {
@@ -107,7 +111,7 @@ export const affiliateLinkService = {
           user_agent: metadata?.user_agent || null,
           referrer: metadata?.referrer || null,
           country: metadata?.country || null,
-          device: metadata?.device || null
+          device_type: metadata?.device_type || null
         });
 
       if (clickError) {
@@ -128,11 +132,11 @@ export const affiliateLinkService = {
   },
 
   // Update link status
-  async toggleLinkStatus(linkId: string, isActive: boolean): Promise<{ success: boolean; error: string | null }> {
+  async toggleLinkStatus(linkId: string, status: "active" | "paused" | "archived"): Promise<{ success: boolean; error: string | null }> {
     try {
       const { error } = await supabase
         .from("affiliate_links")
-        .update({ is_active: isActive })
+        .update({ status })
         .eq("id", linkId);
 
       if (error) {
@@ -176,6 +180,9 @@ export const affiliateLinkService = {
   // Get cloaked URL for display
   getCloakedUrl(slug: string): string {
     // In production, this would use your actual domain
-    return `${window.location.origin}/go/${slug}`;
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}/go/${slug}`;
+    }
+    return `https://salemakseb.com/go/${slug}`;
   }
 };

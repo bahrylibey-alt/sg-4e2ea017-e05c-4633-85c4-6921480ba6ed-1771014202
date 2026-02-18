@@ -11,7 +11,8 @@ export const commissionService = {
     amount: number;
     product_name: string;
     network: string;
-    order_id?: string;
+    transaction_id?: string;
+    customer_id?: string;
   }): Promise<{ commission: Commission | null; error: string | null }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -25,7 +26,8 @@ export const commissionService = {
         amount: data.amount,
         product_name: data.product_name,
         network: data.network,
-        order_id: data.order_id || null,
+        transaction_id: data.transaction_id || null,
+        customer_id: data.customer_id || null,
         status: "pending"
       };
 
@@ -150,7 +152,7 @@ export const commissionService = {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       const stats = commissions.reduce((acc, comm) => {
-        const amount = comm.amount || 0;
+        const amount = Number(comm.amount) || 0;
         
         if (comm.status === "pending") acc.total_pending += amount;
         if (comm.status === "approved") acc.total_approved += amount;
@@ -158,7 +160,7 @@ export const commissionService = {
         
         acc.total_earnings += amount;
 
-        if (new Date(comm.created_at) >= firstDayOfMonth) {
+        if (new Date(comm.created_at || "") >= firstDayOfMonth) {
           acc.this_month += amount;
         }
 
@@ -191,10 +193,10 @@ export const commissionService = {
     error: string | null;
   }> {
     try {
-      const updateData: { status: string; paid_at?: string } = { status };
+      const updateData: { status: string; paid_date?: string } = { status };
       
       if (status === "paid") {
-        updateData.paid_at = new Date().toISOString();
+        updateData.paid_date = new Date().toISOString();
       }
 
       const { error } = await supabase

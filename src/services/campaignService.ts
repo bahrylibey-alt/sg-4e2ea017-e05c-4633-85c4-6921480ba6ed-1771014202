@@ -8,13 +8,13 @@ export const campaignService = {
   // Create a new campaign
   async createCampaign(data: {
     name: string;
-    goal: string;
+    goal: "sales" | "leads" | "traffic" | "awareness";
     budget: number;
     duration_days: number;
     target_audience?: string;
     content_strategy?: string;
     products: string[];
-    channels: string[];
+    channels: Array<{ id: string; name: string }>;
   }): Promise<{ campaign: Campaign | null; error: string | null }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -34,8 +34,7 @@ export const campaignService = {
         budget: data.budget,
         spent: 0,
         revenue: 0,
-        clicks: 0,
-        conversions: 0,
+        duration_days: data.duration_days,
         target_audience: data.target_audience || null,
         content_strategy: data.content_strategy || null,
         start_date: new Date().toISOString(),
@@ -63,12 +62,12 @@ export const campaignService = {
         await supabase.from("campaign_products").insert(productInserts);
       }
 
-      // Insert channels
+      // Insert channels (with proper column names)
       if (data.channels.length > 0) {
         const channelInserts = data.channels.map(channel => ({
           campaign_id: campaign.id,
-          channel_type: channel,
-          is_active: true
+          channel_id: channel.id,
+          channel_name: channel.name
         }));
 
         await supabase.from("campaign_channels").insert(channelInserts);
@@ -111,7 +110,7 @@ export const campaignService = {
   async getCampaignDetails(campaignId: string): Promise<{
     campaign: Campaign | null;
     products: string[];
-    channels: string[];
+    channels: Array<{ id: string; name: string }>;
     error: string | null;
   }> {
     try {
@@ -133,13 +132,13 @@ export const campaignService = {
 
       const products = productData?.map(p => p.product_name) || [];
 
-      // Get channels
+      // Get channels (using correct column names)
       const { data: channelData } = await supabase
         .from("campaign_channels")
-        .select("channel_type")
+        .select("channel_id, channel_name")
         .eq("campaign_id", campaignId);
 
-      const channels = channelData?.map(c => c.channel_type) || [];
+      const channels = channelData?.map(c => ({ id: c.channel_id, name: c.channel_name })) || [];
 
       return { campaign, products, channels, error: null };
     } catch (err) {
@@ -148,7 +147,7 @@ export const campaignService = {
   },
 
   // Update campaign status
-  async updateCampaignStatus(campaignId: string, status: "active" | "paused" | "completed"): Promise<{
+  async updateCampaignStatus(campaignId: string, status: "active" | "paused" | "completed" | "draft"): Promise<{
     success: boolean;
     error: string | null;
   }> {
@@ -170,15 +169,13 @@ export const campaignService = {
 
   // Update campaign metrics (called when conversions happen)
   async updateCampaignMetrics(campaignId: string, metrics: {
-    clicks?: number;
-    conversions?: number;
     revenue?: number;
     spent?: number;
   }): Promise<{ success: boolean; error: string | null }> {
     try {
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("clicks, conversions, revenue, spent")
+        .select("revenue, spent")
         .eq("id", campaignId)
         .single();
 
@@ -187,8 +184,6 @@ export const campaignService = {
       }
 
       const updates = {
-        clicks: (campaign.clicks || 0) + (metrics.clicks || 0),
-        conversions: (campaign.conversions || 0) + (metrics.conversions || 0),
         revenue: (campaign.revenue || 0) + (metrics.revenue || 0),
         spent: (campaign.spent || 0) + (metrics.spent || 0)
       };
