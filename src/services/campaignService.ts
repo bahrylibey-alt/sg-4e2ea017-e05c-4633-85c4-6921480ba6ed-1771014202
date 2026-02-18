@@ -237,7 +237,7 @@ export const campaignService = {
         impressions: d.impressions || 0
       })) || [];
 
-      // 2. Get real top products from affiliate links - FIXED: No campaign_id filter
+      // 2. Get real top products from affiliate links
       const { data: { user } } = await supabase.auth.getUser();
       const { data: allLinks } = await supabase
         .from("affiliate_links")
@@ -249,7 +249,7 @@ export const campaignService = {
       // Filter by campaign products manually
       const campaignProductNames = new Set(products);
       const productStats = allLinks?.filter(link => 
-        campaignProductNames.has(link.product_name)
+        campaignProductNames.has(link.product_name || "")
       ) || [];
 
       const topProducts = productStats.slice(0, 5).map(p => ({
@@ -258,18 +258,19 @@ export const campaignService = {
         conversions: p.conversion_count || 0
       }));
 
-      // 3. Get real top channels from traffic sources - FIXED: Use correct column names
+      // 3. Get real top channels from traffic sources
+      // FIXED: Use correct columns 'total_clicks' and 'total_conversions'
       const { data: channelStats } = await supabase
         .from("traffic_sources")
-        .select("source_name, total_clicks, conversions")
+        .select("source_name, total_clicks, total_conversions")
         .eq("campaign_id", campaignId)
-        .order("conversions", { ascending: false })
+        .order("total_conversions", { ascending: false })
         .limit(5);
 
       const topChannels = channelStats?.map(c => ({
         channel: c.source_name || "Unknown",
         clicks: c.total_clicks || 0,
-        conversions: c.conversions || 0
+        conversions: c.total_conversions || 0
       })) || [];
 
       // 4. Calculate aggregate metrics
