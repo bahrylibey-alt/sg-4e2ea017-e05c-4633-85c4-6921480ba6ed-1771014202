@@ -47,11 +47,11 @@ export const trafficAutomationService = {
           source_name: sourceName,
           source_type: sourceConfig.type as any,
           status: "active",
-          budget: budgetPerSource,
-          spent: 0,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
+          daily_budget: budgetPerSource,
+          total_spent: 0,
+          total_clicks: 0,
+          total_conversions: 0,
+          total_revenue: 0,
           cpc: sourceConfig.cpc,
           ctr: 0,
           conversion_rate: 0
@@ -85,7 +85,7 @@ export const trafficAutomationService = {
         .from("traffic_sources")
         .select("*")
         .eq("campaign_id", campaignId)
-        .order("revenue", { ascending: false });
+        .order("total_revenue", { ascending: false });
 
       if (error) {
         return { sources: [], error: error.message };
@@ -116,16 +116,16 @@ export const trafficAutomationService = {
       }
 
       const updates = {
-        clicks: (source.clicks || 0) + (metrics.clicks || 0),
-        conversions: (source.conversions || 0) + (metrics.conversions || 0),
-        revenue: (source.revenue || 0) + (metrics.revenue || 0),
-        spent: (source.spent || 0) + (metrics.spent || 0)
+        total_clicks: (source.total_clicks || 0) + (metrics.clicks || 0),
+        total_conversions: (source.total_conversions || 0) + (metrics.conversions || 0),
+        total_revenue: (source.total_revenue || 0) + (metrics.revenue || 0),
+        total_spent: (source.total_spent || 0) + (metrics.spent || 0)
       };
 
       // Calculate derived metrics
-      const ctr = updates.clicks > 0 ? (updates.clicks / Math.max(updates.clicks * 20, 1)) * 100 : 0;
-      const conversion_rate = updates.clicks > 0 ? (updates.conversions / updates.clicks) * 100 : 0;
-      const actual_cpc = updates.clicks > 0 ? updates.spent / updates.clicks : source.cpc || 0;
+      const ctr = updates.total_clicks > 0 ? (updates.total_clicks / Math.max(updates.total_clicks * 20, 1)) * 100 : 0;
+      const conversion_rate = updates.total_clicks > 0 ? (updates.total_conversions / updates.total_clicks) * 100 : 0;
+      const actual_cpc = updates.total_clicks > 0 ? updates.total_spent / updates.total_clicks : source.cpc || 0;
 
       const { error } = await supabase
         .from("traffic_sources")
@@ -165,11 +165,11 @@ export const trafficAutomationService = {
       // Calculate ROI for each source
       const sourceMetrics = sources.map(source => ({
         ...source,
-        roi: source.spent && source.spent > 0 
-          ? ((source.revenue || 0) - source.spent) / source.spent 
+        roi: source.total_spent && source.total_spent > 0 
+          ? ((source.total_revenue || 0) - source.total_spent) / source.total_spent 
           : 0,
-        roas: source.spent && source.spent > 0
-          ? (source.revenue || 0) / source.spent
+        roas: source.total_spent && source.total_spent > 0
+          ? (source.total_revenue || 0) / source.total_spent
           : 0
       }));
 
@@ -212,22 +212,24 @@ export const trafficAutomationService = {
 
       // Filter top performers (positive ROI)
       const topPerformers = sources.filter(s => {
-        const roi = s.spent && s.spent > 0 ? ((s.revenue || 0) - s.spent) / s.spent : 0;
+        const roi = s.total_spent && s.total_spent > 0 
+          ? ((s.total_revenue || 0) - s.total_spent) / s.total_spent 
+          : 0;
         return roi > 0.2; // 20% ROI threshold
       });
 
       const scaled: TrafficSource[] = [];
 
       for (const source of topPerformers) {
-        const newBudget = (source.budget || 0) * scaleFactor;
+        const newBudget = (source.daily_budget || 0) * scaleFactor;
 
         const { error } = await supabase
           .from("traffic_sources")
-          .update({ budget: newBudget })
+          .update({ daily_budget: newBudget })
           .eq("id", source.id);
 
         if (!error) {
-          scaled.push({ ...source, budget: newBudget });
+          scaled.push({ ...source, daily_budget: newBudget });
         }
       }
 
@@ -247,8 +249,10 @@ export const trafficAutomationService = {
       const { sources } = await this.getTrafficSources(campaignId);
 
       const underperformers = sources.filter(s => {
-        const roi = s.spent && s.spent > 0 ? ((s.revenue || 0) - s.spent) / s.spent : 0;
-        return s.spent > 50 && roi < -0.5; // Negative 50% ROI and spent > $50
+        const roi = s.total_spent && s.total_spent > 0 
+          ? ((s.total_revenue || 0) - s.total_spent) / s.total_spent 
+          : 0;
+        return s.total_spent > 50 && roi < -0.5; // Negative 50% ROI and spent > $50
       });
 
       const paused: string[] = [];
@@ -295,7 +299,7 @@ export const trafficAutomationService = {
         };
       }
 
-      const totalClicks = (data || []).reduce((sum, s) => sum + (s.clicks || 0), 0);
+      const totalClicks = (data || []).reduce((sum, s) => sum + (s.total_clicks || 0), 0);
 
       return {
         activeChannels: count || 0,

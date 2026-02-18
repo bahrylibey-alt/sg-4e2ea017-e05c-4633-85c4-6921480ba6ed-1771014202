@@ -32,7 +32,7 @@ export const abTestingService = {
       const testInsert: ABTestInsert = {
         campaign_id: data.campaignId,
         user_id: user.id,
-        test_name: data.testName,
+        name: data.testName,
         test_type: data.testType,
         status: "running",
         target_sample_size: data.targetSampleSize || 1000
@@ -51,8 +51,8 @@ export const abTestingService = {
       // Create variants
       const variantInserts: ABTestVariantInsert[] = data.variants.map((variant, idx) => ({
         test_id: test.id,
-        variant_name: variant.name,
-        variant_content: variant.content,
+        name: variant.name,
+        content: variant.content,
         traffic_split: Math.round(100 / data.variants.length),
         is_control: idx === 0
       }));
@@ -92,24 +92,24 @@ export const abTestingService = {
 
       // Calculate statistical significance
       const control = variants.find(v => v.is_control);
-      if (!control || !control.impressions || control.impressions === 0) {
+      if (!control || !control.visitors || control.visitors === 0) {
         return { test, variants, confidence: 0 };
       }
 
-      const controlRate = (control.conversions || 0) / control.impressions;
+      const controlRate = (control.conversions || 0) / control.visitors;
       let winner: ABTestVariant | undefined;
       let maxLift = 0;
       let confidence = 0;
 
       variants.forEach(variant => {
-        if (variant.is_control || !variant.impressions) return;
+        if (variant.is_control || !variant.visitors) return;
         
-        const variantRate = (variant.conversions || 0) / variant.impressions;
+        const variantRate = (variant.conversions || 0) / variant.visitors;
         const lift = ((variantRate - controlRate) / controlRate) * 100;
 
         // Simple z-test for statistical significance
-        const n1 = control.impressions;
-        const n2 = variant.impressions;
+        const n1 = control.visitors;
+        const n2 = variant.visitors;
         const p1 = controlRate;
         const p2 = variantRate;
         
@@ -151,20 +151,13 @@ export const abTestingService = {
       }
 
       const updates = {
-        impressions: (variant.impressions || 0) + 1,
+        visitors: (variant.visitors || 0) + 1,
         conversions: (variant.conversions || 0) + (converted ? 1 : 0)
       };
 
-      const conversionRate = updates.impressions > 0 
-        ? (updates.conversions / updates.impressions) * 100 
-        : 0;
-
       const { error } = await supabase
         .from("ab_test_variants")
-        .update({
-          ...updates,
-          conversion_rate: conversionRate
-        })
+        .update(updates)
         .eq("id", variantId);
 
       if (error) {
@@ -205,7 +198,7 @@ export const abTestingService = {
       }
 
       const recommendations = result.winner ? [
-        `Scale ${result.winner.variant_name} to 100% of traffic`,
+        `Scale ${result.winner.name} to 100% of traffic`,
         `Expected lift: ${result.confidence.toFixed(1)}% confidence`,
         `Update all campaigns with winning variant content`,
         `Monitor performance for next 7 days`
@@ -217,7 +210,7 @@ export const abTestingService = {
 
       return {
         success: true,
-        winner: result.winner?.variant_name || "No clear winner",
+        winner: result.winner?.name || "No clear winner",
         scalingRecommendations: recommendations,
         error: null
       };
