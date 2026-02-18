@@ -52,7 +52,7 @@ export const smartCampaignService = {
       defaultChannels: [
         { id: "email", name: "Email Marketing" },
         { id: "social", name: "Social Media" },
-        { id: "paid-ads", name: "Paid Ads" }
+        { id: "paid", name: "Paid Ads" }
       ],
       contentStrategy: "High-converting product showcases with urgency tactics, limited-time offers, and social proof",
       targetAudience: "Ready-to-buy customers, previous purchasers, warm leads"
@@ -66,8 +66,7 @@ export const smartCampaignService = {
       suggestedDuration: 14,
       defaultChannels: [
         { id: "blog", name: "Content Marketing" },
-        { id: "social", name: "Social Media" },
-        { id: "seo", name: "SEO" }
+        { id: "social", name: "Social Media" }
       ],
       contentStrategy: "Educational content, free resources, webinars, and lead magnets to capture emails",
       targetAudience: "Problem-aware audience, information seekers, early-stage buyers"
@@ -112,7 +111,6 @@ export const smartCampaignService = {
       defaultChannels: [
         { id: "email", name: "Email Marketing" },
         { id: "blog", name: "Content Marketing" },
-        { id: "seo", name: "SEO" },
         { id: "social", name: "Social Media" }
       ],
       contentStrategy: "SEO-optimized content, email nurture sequences, retargeting campaigns, and value-first approach",
@@ -173,8 +171,12 @@ export const smartCampaignService = {
   // REVOLUTIONARY ONE-CLICK AUTOMATED CAMPAIGN SYSTEM
   async createQuickCampaign(input: QuickCampaignInput): Promise<OneClickResult> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      console.log("🚀 Starting campaign creation with input:", input);
+
+      // Step 1: Verify authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error("❌ Authentication failed:", authError);
         return { 
           success: false, 
           campaign: null, 
@@ -182,11 +184,50 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "User not authenticated" 
+          error: "You must be logged in to create campaigns. Please sign in and try again." 
         };
       }
 
-      // Step 1: Determine template
+      console.log("✅ User authenticated:", user.id);
+
+      // Step 2: Validate input
+      if (!input.productUrls || input.productUrls.length === 0) {
+        return {
+          success: false,
+          campaign: null,
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "Please provide at least one product URL"
+        };
+      }
+
+      // Validate URLs
+      const invalidUrls = input.productUrls.filter(url => {
+        try {
+          new URL(url);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+
+      if (invalidUrls.length > 0) {
+        return {
+          success: false,
+          campaign: null,
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: `Invalid URLs detected: ${invalidUrls.join(", ")}. Please provide valid URLs starting with http:// or https://`
+        };
+      }
+
+      console.log("✅ URLs validated:", input.productUrls);
+
+      // Step 3: Determine template
       const template = input.templateId 
         ? this.getTemplate(input.templateId) 
         : this.suggestTemplate(input.productUrls);
@@ -199,48 +240,22 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "Invalid template" 
+          error: "Invalid campaign template selected" 
         };
       }
 
-      // Step 2: Extract/use product names
+      console.log("✅ Template selected:", template.name);
+
+      // Step 4: Extract/use product names
       const productNames = input.productNames || input.productUrls.map(url => this.extractProductName(url));
+      console.log("✅ Product names:", productNames);
 
-      // Step 3: Generate campaign name
+      // Step 5: Generate campaign name
       const campaignName = this.generateCampaignName(productNames, input.customGoal || template.goal);
+      console.log("✅ Campaign name generated:", campaignName);
 
-      // Step 4: Create affiliate links for all products
-      const linkPromises = input.productUrls.map(async (url, index) => {
-        const { link, error } = await affiliateLinkService.createLink({
-          original_url: url,
-          product_name: productNames[index],
-          network: "auto-generated",
-          commission_rate: 10
-        });
-
-        if (error || !link) {
-          console.error(`Failed to create link for ${url}:`, error);
-          return null;
-        }
-
-        return link;
-      });
-
-      const affiliateLinks = (await Promise.all(linkPromises)).filter(Boolean) as AffiliateLink[];
-
-      if (affiliateLinks.length === 0) {
-        return { 
-          success: false, 
-          campaign: null, 
-          affiliateLinks: [],
-          trafficSources: [],
-          estimatedReach: 0,
-          optimizations: [],
-          error: "Failed to create affiliate links" 
-        };
-      }
-
-      // Step 5: Create campaign
+      // Step 6: Create campaign first
+      console.log("📝 Creating campaign...");
       const { campaign, error: campaignError } = await campaignService.createCampaign({
         name: campaignName,
         goal: input.customGoal || template.goal,
@@ -253,6 +268,7 @@ export const smartCampaignService = {
       });
 
       if (campaignError || !campaign) {
+        console.error("❌ Campaign creation failed:", campaignError);
         return { 
           success: false, 
           campaign: null, 
@@ -260,40 +276,94 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: campaignError || "Failed to create campaign" 
+          error: `Failed to create campaign: ${campaignError || "Unknown error"}` 
         };
       }
 
-      // 2. Launch traffic automation
+      console.log("✅ Campaign created successfully:", campaign.id);
+
+      // Step 7: Create affiliate links for all products
+      console.log("🔗 Creating affiliate links...");
+      const linkPromises = input.productUrls.map(async (url, index) => {
+        try {
+          const { link, error } = await affiliateLinkService.createLink({
+            original_url: url,
+            product_name: productNames[index],
+            network: "auto-generated",
+            commission_rate: 10
+          });
+
+          if (error || !link) {
+            console.error(`❌ Failed to create link for ${url}:`, error);
+            return null;
+          }
+
+          console.log(`✅ Link created for ${productNames[index]}`);
+          return link;
+        } catch (err) {
+          console.error(`❌ Exception creating link for ${url}:`, err);
+          return null;
+        }
+      });
+
+      const affiliateLinksResults = await Promise.all(linkPromises);
+      const affiliateLinks = affiliateLinksResults.filter(Boolean) as AffiliateLink[];
+
+      console.log(`✅ Created ${affiliateLinks.length}/${input.productUrls.length} affiliate links`);
+
+      if (affiliateLinks.length === 0) {
+        console.error("❌ No affiliate links were created");
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "Failed to create affiliate links. Please check your URLs and try again." 
+        };
+      }
+
+      // Step 8: Launch traffic automation
+      console.log("🚦 Launching traffic automation...");
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
         campaignId: campaign.id,
-        budget: campaign.budget * 0.4, // Allocate 40% to initial traffic
-        // removed targetTraffic as it's not supported in real implementation
+        budget: campaign.budget * 0.4
       });
 
       if (!trafficResult.success) {
-        console.warn("Traffic launch warning:", trafficResult.error);
+        console.warn("⚠️ Traffic automation warning:", trafficResult.error);
+      } else {
+        console.log("✅ Traffic sources activated:", trafficResult.sources?.length || 0);
       }
 
-      // 3. Setup conversion tracking
+      // Step 9: Get optimization insights
+      console.log("🔍 Analyzing optimization opportunities...");
       const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
+
+      const optimizationInsights = optimizationResult.insights.map(i => ({
+        title: i.type,
+        description: i.suggestion,
+        impact: i.impact
+      }));
+
+      console.log(`✅ Found ${optimizationInsights.length} optimization insights`);
+
+      // Step 10: Success!
+      console.log("🎉 Campaign creation completed successfully!");
 
       return {
         success: true,
         campaign,
         affiliateLinks,
         trafficSources: trafficResult.sources || [],
-        estimatedReach: trafficResult.sources?.length * 1000, // Estimate based on sources
+        estimatedReach: (trafficResult.sources?.length || 3) * 1500,
         optimizations: [],
-        optimizationInsights: optimizationResult.insights.map(i => ({
-          title: i.type,
-          description: i.suggestion,
-          impact: i.impact
-        })),
+        optimizationInsights,
         error: null
       };
     } catch (err) {
-      console.error("Smart campaign error:", err);
+      console.error("💥 Unexpected error in campaign creation:", err);
       return { 
         success: false, 
         campaign: null, 
@@ -302,7 +372,7 @@ export const smartCampaignService = {
         estimatedReach: 0, 
         optimizations: [],
         optimizationInsights: [], 
-        error: "Failed to create smart campaign" 
+        error: err instanceof Error ? err.message : "An unexpected error occurred. Please try again." 
       };
     }
   },
@@ -347,7 +417,7 @@ export const smartCampaignService = {
     return results;
   },
 
-  // 4. Get Optimization Insights
+  // Get Optimization Insights
   async getOptimizationInsights(campaignId: string): Promise<{
     insights: Array<{ title: string; description: string; impact: string }>;
     error: string | null;
