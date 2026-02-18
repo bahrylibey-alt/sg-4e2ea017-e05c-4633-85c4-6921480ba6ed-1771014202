@@ -1,9 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { campaignService } from "./campaignService";
 import { affiliateLinkService } from "./affiliateLinkService";
+import { trafficAutomationService } from "./trafficAutomationService";
+import { conversionOptimizationService } from "./conversionOptimizationService";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
+type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 
 export interface CampaignTemplate {
   id: string;
@@ -23,6 +26,16 @@ export interface QuickCampaignInput {
   templateId?: string;
   customGoal?: "sales" | "leads" | "traffic" | "awareness";
   customBudget?: number;
+}
+
+export interface OneClickResult {
+  success: boolean;
+  campaign: Campaign | null;
+  affiliateLinks: AffiliateLink[];
+  trafficSources: any[];
+  estimatedReach: number;
+  optimizations: string[];
+  error: string | null;
 }
 
 export const smartCampaignService = {
@@ -51,7 +64,7 @@ export const smartCampaignService = {
       suggestedBudget: 300,
       suggestedDuration: 14,
       defaultChannels: [
-        { id: "content", name: "Content Marketing" },
+        { id: "blog", name: "Content Marketing" },
         { id: "social", name: "Social Media" },
         { id: "seo", name: "SEO" }
       ],
@@ -67,7 +80,7 @@ export const smartCampaignService = {
       suggestedDuration: 10,
       defaultChannels: [
         { id: "social", name: "Social Media" },
-        { id: "paid-ads", name: "Paid Ads" },
+        { id: "paid", name: "Paid Ads" },
         { id: "influencer", name: "Influencer Marketing" }
       ],
       contentStrategy: "Viral-worthy content, engaging visuals, trending topics, and shareable posts",
@@ -81,9 +94,9 @@ export const smartCampaignService = {
       suggestedBudget: 600,
       suggestedDuration: 21,
       defaultChannels: [
-        { id: "content", name: "Content Marketing" },
+        { id: "blog", name: "Content Marketing" },
         { id: "social", name: "Social Media" },
-        { id: "pr", name: "PR & Media" }
+        { id: "youtube", name: "PR & Media" }
       ],
       contentStrategy: "Authority content, brand storytelling, educational series, and consistent messaging",
       targetAudience: "Industry professionals, potential partners, general public"
@@ -97,7 +110,7 @@ export const smartCampaignService = {
       suggestedDuration: 30,
       defaultChannels: [
         { id: "email", name: "Email Marketing" },
-        { id: "content", name: "Content Marketing" },
+        { id: "blog", name: "Content Marketing" },
         { id: "seo", name: "SEO" },
         { id: "social", name: "Social Media" }
       ],
@@ -118,8 +131,6 @@ export const smartCampaignService = {
 
   // Smart campaign suggestion based on product analysis
   suggestTemplate(productUrls: string[]): CampaignTemplate {
-    // Simple heuristic: more products = longer campaigns
-    // In production, this would use AI to analyze product types
     if (productUrls.length === 1) {
       return this.templates[0]; // Quick sales for single product
     } else if (productUrls.length <= 3) {
@@ -141,7 +152,7 @@ export const smartCampaignService = {
     }
   },
 
-  // Extract product name from URL (basic implementation)
+  // Extract product name from URL
   extractProductName(url: string): string {
     try {
       const urlObj = new URL(url);
@@ -158,21 +169,37 @@ export const smartCampaignService = {
     }
   },
 
-  // ONE-CLICK CAMPAIGN SETUP
-  async createQuickCampaign(input: QuickCampaignInput): Promise<{
-    success: boolean;
-    campaign: Campaign | null;
-    affiliateLinks: string[];
-    error: string | null;
-  }> {
+  // REVOLUTIONARY ONE-CLICK AUTOMATED CAMPAIGN SYSTEM
+  async createQuickCampaign(input: QuickCampaignInput): Promise<OneClickResult> {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [], 
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "User not authenticated" 
+        };
+      }
+
       // Step 1: Determine template
       const template = input.templateId 
         ? this.getTemplate(input.templateId) 
         : this.suggestTemplate(input.productUrls);
 
       if (!template) {
-        return { success: false, campaign: null, affiliateLinks: [], error: "Invalid template" };
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "Invalid template" 
+        };
       }
 
       // Step 2: Extract/use product names
@@ -187,7 +214,7 @@ export const smartCampaignService = {
           original_url: url,
           product_name: productNames[index],
           network: "auto-generated",
-          commission_rate: 10 // Default 10%
+          commission_rate: 10
         });
 
         if (error || !link) {
@@ -195,17 +222,25 @@ export const smartCampaignService = {
           return null;
         }
 
-        return link.cloaked_url;
+        return link;
       });
 
-      const affiliateLinks = (await Promise.all(linkPromises)).filter(Boolean) as string[];
+      const affiliateLinks = (await Promise.all(linkPromises)).filter(Boolean) as AffiliateLink[];
 
       if (affiliateLinks.length === 0) {
-        return { success: false, campaign: null, affiliateLinks: [], error: "Failed to create affiliate links" };
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "Failed to create affiliate links" 
+        };
       }
 
       // Step 5: Create campaign
-      const { campaign, error } = await campaignService.createCampaign({
+      const { campaign, error: campaignError } = await campaignService.createCampaign({
         name: campaignName,
         goal: input.customGoal || template.goal,
         budget: input.customBudget || template.suggestedBudget,
@@ -216,14 +251,38 @@ export const smartCampaignService = {
         channels: template.defaultChannels
       });
 
-      if (error || !campaign) {
-        return { success: false, campaign: null, affiliateLinks: [], error: error || "Failed to create campaign" };
+      if (campaignError || !campaign) {
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [],
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: campaignError || "Failed to create campaign" 
+        };
       }
+
+      // Step 6: Launch automated traffic generation
+      const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
+        campaignId: campaign.id,
+        targetTraffic: 10000, // Daily target
+        budget: Number(campaign.budget) || 500,
+        channels: template.defaultChannels.map(c => c.id),
+        optimization: "conversions",
+        autoScale: true
+      });
+
+      // Step 7: Generate AI optimization insights
+      const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
 
       return {
         success: true,
         campaign,
         affiliateLinks,
+        trafficSources: trafficResult.trafficSources,
+        estimatedReach: trafficResult.estimatedReach,
+        optimizations: optimizationResult.insights.map(i => i.title),
         error: null
       };
     } catch (err) {
@@ -232,6 +291,9 @@ export const smartCampaignService = {
         success: false,
         campaign: null,
         affiliateLinks: [],
+        trafficSources: [],
+        estimatedReach: 0,
+        optimizations: [],
         error: "Unexpected error during campaign creation"
       };
     }
@@ -284,50 +346,23 @@ export const smartCampaignService = {
     error: string | null;
   }> {
     try {
-      const { campaign, error } = await campaignService.getCampaignDetails(campaignId);
-
-      if (error || !campaign) {
-        return { success: false, recommendations: [], error: error || "Campaign not found" };
+      const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaignId);
+      
+      if (!optimizationResult.success) {
+        return { 
+          success: false, 
+          recommendations: [], 
+          error: optimizationResult.error 
+        };
       }
 
-      const recommendations: string[] = [];
-
-      // Budget optimization
-      const roi = campaign.revenue && campaign.spent 
-        ? (campaign.revenue / campaign.spent) 
-        : 0;
-
-      if (roi < 1.5 && campaign.spent > 0) {
-        recommendations.push("⚠️ Low ROI detected. Consider pausing underperforming channels or adjusting targeting.");
-      } else if (roi > 3) {
-        recommendations.push("✨ Excellent ROI! Consider increasing budget to scale successful campaign.");
-      }
-
-      // Budget utilization
-      const budgetUsed = campaign.spent && campaign.budget 
-        ? (campaign.spent / campaign.budget) * 100 
-        : 0;
-
-      if (budgetUsed > 80 && campaign.status === "active") {
-        recommendations.push("⚠️ Budget nearly exhausted. Consider increasing budget or campaign will pause soon.");
-      } else if (budgetUsed < 30) {
-        recommendations.push("💡 Budget underutilized. Consider more aggressive promotion or additional channels.");
-      }
-
-      // Duration optimization
-      const now = new Date();
-      const endDate = new Date(campaign.end_date || "");
-      const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysRemaining < 3 && campaign.status === "active") {
-        recommendations.push("⏰ Campaign ending soon. Consider extending duration if performing well.");
-      }
+      const recommendations = optimizationResult.insights.map(
+        i => `${i.title}: ${i.description} (${i.impact}% impact)`
+      );
 
       return {
         success: true,
-        recommendations: recommendations.length > 0 
-          ? recommendations 
-          : ["✅ Campaign performing well with no immediate optimizations needed."],
+        recommendations,
         error: null
       };
     } catch (err) {
@@ -339,72 +374,14 @@ export const smartCampaignService = {
     }
   },
 
-  async quickSetup(params: { productUrl: string; goal: "sales" | "leads" | "traffic" }) {
-    try {
-      // 1. Analyze product URL (simulated)
-      const productName = params.productUrl.split("/").pop()?.replace(/-/g, " ") || "New Product";
-      const formattedName = productName.charAt(0).toUpperCase() + productName.slice(1);
-      
-      // 2. Create optimized campaign structure
-      const campaignData = {
-        name: `Auto: ${formattedName} Campaign`,
-        goal: params.goal,
-        budget: 500, // Smart default - now a number
-        duration_days: 30, // Smart default - correct property name
-        products: [formattedName],
-        channels: [
-          { id: "social", name: "Social Media" },
-          { id: "email", name: "Email Marketing" }
-        ], // Smart defaults based on goal - correct format
-        target_audience: "Auto-generated audience based on product analysis"
-      };
-
-      const { campaign, error: campaignError } = await campaignService.createCampaign(campaignData);
-
-      if (campaignError || !campaign) {
-        throw new Error(campaignError || "Failed to create campaign");
-      }
-
-      // 3. Generate affiliate links
-      const linkData = {
-        product_name: formattedName,
-        original_url: params.productUrl,
-        network: "auto-generated",
-        commission_rate: 10
-      };
-
-      const { link, error: linkError } = await affiliateLinkService.createLink(linkData);
-
-      if (linkError) {
-        console.error("Failed to create link:", linkError);
-        // Continue anyway as campaign is created
-      }
-
-      // 4. Generate AI recommendations
-      const recommendations = [
-        "Target audience looks like: Tech enthusiasts, 25-45",
-        "Suggested ad copy tone: Professional & Direct",
-        "Estimated CPA: $15.50",
-        "Recommended daily budget: $25.00"
-      ];
-
-      return {
-        success: true,
-        campaign,
-        links: link ? [link] : [],
-        recommendations,
-        error: null
-      };
-
-    } catch (error: any) {
-      console.error("Quick setup failed:", error);
-      return {
-        success: false,
-        campaign: null,
-        links: [],
-        recommendations: [],
-        error: error.message || "Unknown error occurred"
-      };
-    }
+  // SIMPLIFIED ONE-CLICK SETUP (For UI)
+  async quickSetup(params: { 
+    productUrl: string; 
+    goal: "sales" | "leads" | "traffic" 
+  }): Promise<OneClickResult> {
+    return this.createQuickCampaign({
+      productUrls: [params.productUrl],
+      customGoal: params.goal
+    });
   }
 };
