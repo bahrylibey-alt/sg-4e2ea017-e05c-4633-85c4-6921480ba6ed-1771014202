@@ -233,7 +233,8 @@ export const campaignService = {
         revenue: Number(d.revenue) || 0,
         spent: Number(d.spent) || 0,
         clicks: d.clicks || 0,
-        conversions: d.conversions || 0
+        conversions: d.conversions || 0,
+        impressions: d.impressions || 0 // Added missing property
       })) || [];
 
       // 2. Get real top products from affiliate links
@@ -251,14 +252,14 @@ export const campaignService = {
       })) || [];
 
       // 3. Get real top channels from traffic sources
-      const { data: channelStats } = await supabase
-        .from("traffic_sources")
+      // Cast to any to avoid SelectQueryError
+      const { data: channelStats } = await (supabase.from("traffic_sources") as any)
         .select("name, visitors, conversions")
         .eq("campaign_id", campaignId)
         .order("conversions", { ascending: false })
         .limit(5);
 
-      const topChannels = channelStats?.map(c => ({
+      const topChannels = channelStats?.map((c: any) => ({
         channel: c.name,
         clicks: c.visitors || 0,
         conversions: c.conversions || 0

@@ -70,13 +70,13 @@ export const aiOptimizationEngine = {
 
       // 3. Create retargeting audiences (Real Segments)
       const audienceResult = await retargetingService.getAudienceInsights(campaignId);
-      if (audienceResult.segments.length > 0) {
+      if (audienceResult.topSegments.length > 0) {
         optimizationsApplied++;
         // Create actual audience segment in DB
         await retargetingService.createAudience({
           campaign_id: campaignId,
           name: `Auto-Segment ${new Date().toISOString().split('T')[0]}`,
-          audience_type: "high_intent",
+          source: "website_visitors", // Fixed: audience_type -> source
           duration_days: 30
         });
         
