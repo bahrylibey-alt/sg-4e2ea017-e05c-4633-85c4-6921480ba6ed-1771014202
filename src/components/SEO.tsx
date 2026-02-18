@@ -10,7 +10,7 @@ interface SEOProps {
 // SEO elements that can be used in _document.tsx (returns JSX without Head wrapper)
 export function SEOElements({
   title = "Hello World",
-  description = "Welcome to my app",
+  description = "Welcome to my app.amThis system is an autopiolot  affiliate system that can generate affiliate products auto",
   image = "/og-image.png",
   url,
 }: SEOProps) {
