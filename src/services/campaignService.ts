@@ -213,7 +213,7 @@ export const campaignService = {
     }
   },
 
-  // Get comprehensive campaign performance
+  // Get comprehensive campaign performance - FIXED to match actual schema
   async getCampaignPerformance(campaignId: string): Promise<CampaignPerformance | null> {
     try {
       const { campaign, products, channels } = await this.getCampaignDetails(campaignId);
@@ -234,34 +234,41 @@ export const campaignService = {
         spent: Number(d.spent) || 0,
         clicks: d.clicks || 0,
         conversions: d.conversions || 0,
-        impressions: d.impressions || 0 // Added missing property
+        impressions: d.impressions || 0
       })) || [];
 
-      // 2. Get real top products from affiliate links
-      // Cast to any to avoid deep type instantiation issues with joins
-      const { data: productStats } = await (supabase.from("affiliate_links") as any)
+      // 2. Get real top products from affiliate links - FIXED: No campaign_id filter
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: allLinks } = await supabase
+        .from("affiliate_links")
         .select("product_name, conversion_count, commission_earned")
-        .eq("campaign_id", campaignId)
+        .eq("user_id", user?.id || "")
         .order("commission_earned", { ascending: false })
-        .limit(5);
+        .limit(10);
 
-      const topProducts = productStats?.map((p: any) => ({
+      // Filter by campaign products manually
+      const campaignProductNames = new Set(products);
+      const productStats = allLinks?.filter(link => 
+        campaignProductNames.has(link.product_name)
+      ) || [];
+
+      const topProducts = productStats.slice(0, 5).map(p => ({
         product: p.product_name || "Unknown Product",
         revenue: Number(p.commission_earned) || 0,
         conversions: p.conversion_count || 0
-      })) || [];
+      }));
 
-      // 3. Get real top channels from traffic sources
-      // Cast to any to avoid SelectQueryError
-      const { data: channelStats } = await (supabase.from("traffic_sources") as any)
-        .select("name, visitors, conversions")
+      // 3. Get real top channels from traffic sources - FIXED: Use correct column names
+      const { data: channelStats } = await supabase
+        .from("traffic_sources")
+        .select("source_name, total_clicks, conversions")
         .eq("campaign_id", campaignId)
         .order("conversions", { ascending: false })
         .limit(5);
 
-      const topChannels = channelStats?.map((c: any) => ({
-        channel: c.name,
-        clicks: c.visitors || 0,
+      const topChannels = channelStats?.map(c => ({
+        channel: c.source_name || "Unknown",
+        clicks: c.total_clicks || 0,
         conversions: c.conversions || 0
       })) || [];
 
@@ -270,15 +277,16 @@ export const campaignService = {
       const totalSpent = dailyPerformance.reduce((sum, d) => sum + d.spent, 0);
       const totalConversions = dailyPerformance.reduce((sum, d) => sum + d.conversions, 0);
       const totalClicks = dailyPerformance.reduce((sum, d) => sum + d.clicks, 0);
+      const totalImpressions = dailyPerformance.reduce((sum, d) => sum + d.impressions, 0);
 
       const metrics: CampaignMetrics = {
-        impressions: dailyPerformance.reduce((sum, d) => sum + (d.impressions || 0), 0),
+        impressions: totalImpressions,
         clicks: totalClicks,
         conversions: totalConversions,
         revenue: totalRevenue,
         spent: totalSpent,
         roi: totalSpent > 0 ? (totalRevenue - totalSpent) / totalSpent : 0,
-        ctr: 0, // Need impressions for this
+        ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
         conversionRate: totalClicks > 0 ? totalConversions / totalClicks : 0,
         cpa: totalConversions > 0 ? totalSpent / totalConversions : 0,
         roas: totalSpent > 0 ? totalRevenue / totalSpent : 0
