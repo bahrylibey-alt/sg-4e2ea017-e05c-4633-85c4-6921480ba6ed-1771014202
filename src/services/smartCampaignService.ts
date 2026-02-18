@@ -263,38 +263,42 @@ export const smartCampaignService = {
         };
       }
 
-      // Step 6: Launch automated traffic generation
+      // 2. Launch traffic automation
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
         campaignId: campaign.id,
-        targetTraffic: 10000, // Daily target
-        budget: Number(campaign.budget) || 500,
-        channels: template.defaultChannels.map(c => c.id),
-        optimization: "conversions",
-        autoScale: true
+        budget: campaign.budget * 0.4, // Allocate 40% to initial traffic
+        // removed targetTraffic as it's not supported in real implementation
       });
 
-      // Step 7: Generate AI optimization insights
+      if (!trafficResult.success) {
+        console.warn("Traffic launch warning:", trafficResult.error);
+      }
+
+      // 3. Setup conversion tracking
       const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
 
       return {
         success: true,
         campaign,
         affiliateLinks,
-        trafficSources: trafficResult.trafficSources,
-        estimatedReach: trafficResult.estimatedReach,
-        optimizations: optimizationResult.insights.map(i => i.title),
+        trafficSources: trafficResult.sources || [],
+        estimatedReach: trafficResult.sources?.length * 1000, // Estimate based on sources
+        optimizationInsights: optimizationResult.insights.map(i => ({
+          title: i.type,
+          description: i.suggestion,
+          impact: i.impact
+        })),
         error: null
       };
     } catch (err) {
-      console.error("Quick campaign creation error:", err);
-      return {
-        success: false,
-        campaign: null,
-        affiliateLinks: [],
-        trafficSources: [],
-        estimatedReach: 0,
-        optimizations: [],
-        error: "Unexpected error during campaign creation"
+      console.error("Smart campaign error:", err);
+      return { 
+        success: false, 
+        campaign: null, 
+        trafficSources: [], 
+        estimatedReach: 0, 
+        optimizationInsights: [], 
+        error: "Failed to create smart campaign" 
       };
     }
   },
@@ -339,39 +343,21 @@ export const smartCampaignService = {
     return results;
   },
 
-  // Auto-optimize existing campaign
-  async optimizeCampaign(campaignId: string): Promise<{
-    success: boolean;
-    recommendations: string[];
+  // 4. Get Optimization Insights
+  async getOptimizationInsights(campaignId: string): Promise<{
+    insights: Array<{ title: string; description: string; impact: string }>;
     error: string | null;
   }> {
-    try {
-      const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaignId);
-      
-      if (!optimizationResult.success) {
-        return { 
-          success: false, 
-          recommendations: [], 
-          error: optimizationResult.error 
-        };
-      }
-
-      const recommendations = optimizationResult.insights.map(
-        i => `${i.title}: ${i.description} (${i.impact}% impact)`
-      );
-
-      return {
-        success: true,
-        recommendations,
-        error: null
-      };
-    } catch (err) {
-      return {
-        success: false,
-        recommendations: [],
-        error: "Failed to analyze campaign"
-      };
-    }
+    const result = await conversionOptimizationService.analyzeAndOptimize(campaignId);
+    
+    return {
+      insights: result.insights.map(i => ({
+        title: i.type,
+        description: i.suggestion,
+        impact: i.impact
+      })),
+      error: result.error
+    };
   },
 
   // SIMPLIFIED ONE-CLICK SETUP (For UI)

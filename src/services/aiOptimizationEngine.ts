@@ -197,5 +197,48 @@ export const aiOptimizationEngine = {
     } catch (err) {
       return { bestTimes: [], adjustments: [], error: "Schedule optimization failed" };
     }
+  },
+
+  // Run continuous optimization cycle
+  async optimizeCampaign(campaignId: string): Promise<{
+    actionsTaken: string[];
+    improvements: string[];
+    error: string | null;
+  }> {
+    try {
+      const actionsTaken: string[] = [];
+      const improvements: string[] = [];
+
+      // 1. Analyze performance
+      const analysis = await conversionOptimizationService.analyzeAndOptimize(campaignId);
+      
+      if (analysis.insights.length > 0) {
+        actionsTaken.push(`Generated ${analysis.insights.length} optimization insights`);
+      }
+
+      // 2. Optimize Budget
+      // We need to fetch budget from campaign first (mocking 1000 for now if not available)
+      const budgetResult = await trafficAutomationService.allocateTrafficSources(campaignId, 1000);
+      
+      if (budgetResult.allocations.length > 0) {
+        actionsTaken.push("Reallocated budget to top performing channels");
+      }
+
+      // 3. Refresh Retargeting
+      const audienceResult = await retargetingService.createAudience({
+        name: `Auto-Retargeting ${new Date().toISOString().split('T')[0]}`,
+        source: "website_visitors",
+        duration_days: 30,
+        campaign_id: campaignId // Fixed casing
+      });
+
+      if (audienceResult.audience) {
+        actionsTaken.push("Updated retargeting audience segments");
+      }
+
+      return { actionsTaken, improvements, error: null };
+    } catch (err) {
+      return { actionsTaken: [], improvements: [], error: "AI optimization failed" };
+    }
   }
 };

@@ -29,12 +29,13 @@ export const retargetingService = {
         .from("retargeting_audiences")
         .insert({
           name: data.name,
-          source: data.source,
+          audience_type: data.source, // Mapped to correct column
           campaign_id: data.campaign_id,
           user_id: user.id,
           status: "collecting",
           size: 0,
-          rules: { duration: data.duration_days }
+          engagement_score: 0,
+          recency_days: data.duration_days
         })
         .select()
         .single();
