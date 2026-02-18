@@ -1,388 +1,297 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Zap, 
-  TrendingUp, 
-  Link2, 
-  FileText, 
-  Target, 
-  PlayCircle, 
-  PauseCircle,
-  Activity,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Rocket
-} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw } from "lucide-react";
+import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
+import { trafficAutomationService } from "@/services/trafficAutomationService";
+import { conversionOptimizationService } from "@/services/conversionOptimizationService";
 
-interface AutopilotActivity {
-  id: string;
-  type: "link_cloaked" | "content_generated" | "campaign_optimized" | "conversion_tracked" | "product_discovered";
-  title: string;
-  description: string;
-  timestamp: Date;
-  status: "success" | "processing" | "pending";
-}
-
-interface AutopilotMetric {
-  label: string;
-  value: string;
-  change: string;
-  icon: React.ElementType;
-  color: string;
+interface AutopilotStatus {
+  active: boolean;
+  revenue: number;
+  conversions: number;
+  roi: number;
+  traffic: number;
+  optimization: number;
 }
 
 export function AutopilotDashboard() {
-  const [isAutopilotActive, setIsAutopilotActive] = useState(true);
-  const [activities, setActivities] = useState<AutopilotActivity[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<AutopilotStatus>({
+    active: false,
+    revenue: 0,
+    conversions: 0,
+    roi: 0,
+    traffic: 0,
+    optimization: 0
+  });
+  const [recommendations, setRecommendations] = useState<string[]>([]);
 
   useEffect(() => {
-    setMounted(true);
-    
-    // Initialize with recent activities
-    const initialActivities: AutopilotActivity[] = [
-      {
-        id: "1",
-        type: "link_cloaked",
-        title: "Link Cloaked",
-        description: "Amazon product link shortened and tracked",
-        timestamp: new Date(Date.now() - 2 * 60000),
-        status: "success"
-      },
-      {
-        id: "2",
-        type: "content_generated",
-        title: "Content Generated",
-        description: "Product review for 'Digital Marketing Course' created",
-        timestamp: new Date(Date.now() - 5 * 60000),
-        status: "success"
-      },
-      {
-        id: "3",
-        type: "campaign_optimized",
-        title: "Campaign Optimized",
-        description: "Summer Launch campaign CTR improved by 12%",
-        timestamp: new Date(Date.now() - 15 * 60000),
-        status: "success"
-      },
-      {
-        id: "4",
-        type: "conversion_tracked",
-        title: "Conversion Tracked",
-        description: "$89 commission from SEO Tools Suite",
-        timestamp: new Date(Date.now() - 30 * 60000),
-        status: "success"
+    if (autopilotEnabled) {
+      loadAutopilotStatus();
+      const interval = setInterval(loadAutopilotStatus, 30000); // Update every 30s
+      return () => clearInterval(interval);
+    }
+  }, [autopilotEnabled]);
+
+  const loadAutopilotStatus = async () => {
+    try {
+      const trafficResult = await trafficAutomationService.generateTraffic("demo-campaign");
+      const optimizationResult = await aiOptimizationEngine.optimizeEverything("demo-campaign");
+
+      setStatus({
+        active: true,
+        revenue: trafficResult.estimatedRevenue || 0,
+        conversions: trafficResult.estimatedConversions || 0,
+        roi: optimizationResult.improvements?.roi || 0,
+        traffic: trafficResult.traffic?.reduce((sum, t) => sum + t.volume, 0) || 0,
+        optimization: optimizationResult.overallScore || 0
+      });
+
+      if (optimizationResult.recommendations) {
+        setRecommendations(optimizationResult.recommendations.slice(0, 5));
       }
-    ];
-    
-    setActivities(initialActivities);
-  }, []);
+    } catch (err) {
+      console.error("Failed to load autopilot status:", err);
+    }
+  };
 
-  // Simulate real-time activity updates
-  useEffect(() => {
-    if (!mounted || !isAutopilotActive) return;
-
-    const activityTypes = [
-      {
-        type: "link_cloaked" as const,
-        title: "Link Cloaked",
-        descriptions: [
-          "ClickBank product link shortened",
-          "ShareASale affiliate link tracked",
-          "Commission Junction link optimized",
-          "Amazon product link cloaked"
-        ]
-      },
-      {
-        type: "content_generated" as const,
-        title: "Content Generated",
-        descriptions: [
-          "Blog post draft created for trending product",
-          "Social media posts scheduled",
-          "Product comparison article generated",
-          "Email sequence drafted"
-        ]
-      },
-      {
-        type: "campaign_optimized" as const,
-        title: "Campaign Optimized",
-        descriptions: [
-          "Ad targeting improved based on performance",
-          "Landing page headline A/B test winner applied",
-          "Email subject line optimized",
-          "CTA button color changed for better conversion"
-        ]
-      },
-      {
-        type: "conversion_tracked" as const,
-        title: "Conversion Tracked",
-        descriptions: [
-          "$45 commission from Premium Theme",
-          "$120 commission from Course Bundle",
-          "$67 commission from SEO Tools",
-          "$89 commission from E-commerce Pack"
-        ]
-      },
-      {
-        type: "product_discovered" as const,
-        title: "Product Discovered",
-        descriptions: [
-          "High-converting fitness program found",
-          "New software tool with 50% commission",
-          "Trending course added to recommendations",
-          "Premium service with recurring commissions"
-        ]
+  const toggleAutopilot = async () => {
+    setLoading(true);
+    try {
+      const newState = !autopilotEnabled;
+      setAutopilotEnabled(newState);
+      
+      if (newState) {
+        // Initialize autopilot systems
+        await Promise.all([
+          trafficAutomationService.generateTraffic("demo-campaign"),
+          aiOptimizationEngine.optimizeEverything("demo-campaign"),
+          conversionOptimizationService.analyzeAndOptimize("demo-campaign")
+        ]);
+        await loadAutopilotStatus();
+      } else {
+        setStatus({
+          active: false,
+          revenue: 0,
+          conversions: 0,
+          roi: 0,
+          traffic: 0,
+          optimization: 0
+        });
       }
-    ];
-
-    const interval = setInterval(() => {
-      const randomActivity = activityTypes[Math.floor(Math.random() * activityTypes.length)];
-      const randomDescription = randomActivity.descriptions[Math.floor(Math.random() * randomActivity.descriptions.length)];
-      
-      const newActivity: AutopilotActivity = {
-        id: Date.now().toString(),
-        type: randomActivity.type,
-        title: randomActivity.title,
-        description: randomDescription,
-        timestamp: new Date(),
-        status: "success"
-      };
-      
-      setActivities(prev => [newActivity, ...prev].slice(0, 10));
-    }, 15000); // New activity every 15 seconds
-
-    return () => clearInterval(interval);
-  }, [mounted, isAutopilotActive]);
-
-  const metrics: AutopilotMetric[] = [
-    {
-      label: "Links Tracked",
-      value: "1,247",
-      change: "+23 today",
-      icon: Link2,
-      color: "text-blue-500"
-    },
-    {
-      label: "Content Generated",
-      value: "89",
-      change: "+12 today",
-      icon: FileText,
-      color: "text-purple-500"
-    },
-    {
-      label: "Campaigns Active",
-      value: "24",
-      change: "3 optimizing",
-      icon: Target,
-      color: "text-orange-500"
-    },
-    {
-      label: "Auto Conversions",
-      value: "$2,847",
-      change: "+18% today",
-      icon: TrendingUp,
-      color: "text-green-500"
-    }
-  ];
-
-  const getActivityIcon = (type: AutopilotActivity["type"]) => {
-    switch (type) {
-      case "link_cloaked":
-        return Link2;
-      case "content_generated":
-        return FileText;
-      case "campaign_optimized":
-        return Target;
-      case "conversion_tracked":
-        return TrendingUp;
-      case "product_discovered":
-        return Rocket;
+    } catch (err) {
+      console.error("Failed to toggle autopilot:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getActivityColor = (type: AutopilotActivity["type"]) => {
-    switch (type) {
-      case "link_cloaked":
-        return "text-blue-500 bg-blue-500/10";
-      case "content_generated":
-        return "text-purple-500 bg-purple-500/10";
-      case "campaign_optimized":
-        return "text-orange-500 bg-orange-500/10";
-      case "conversion_tracked":
-        return "text-green-500 bg-green-500/10";
-      case "product_discovered":
-        return "text-pink-500 bg-pink-500/10";
+  const forceOptimization = async () => {
+    setLoading(true);
+    try {
+      await aiOptimizationEngine.optimizeEverything("demo-campaign");
+      await loadAutopilotStatus();
+    } catch (err) {
+      console.error("Failed to force optimization:", err);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const getTimeAgo = (date: Date) => {
-    if (!mounted) return "Just now";
-    
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    
-    if (seconds < 60) return "Just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
-  };
-
-  if (!mounted) return null;
 
   return (
-    <section className="py-24 px-6 bg-gradient-to-b from-background to-muted/30" data-section="autopilot">
-      <div className="container">
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
-          <Badge variant="outline" className="text-primary border-primary/30">
-            <Zap className="w-3 h-3 mr-1" />
-            Autopilot Dashboard
-          </Badge>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground">
-            Your Affiliate Business on <span className="text-primary">Autopilot</span>
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Real-time monitoring of automated tasks and campaign performance
-          </p>
-        </div>
-
-        {/* Autopilot Status */}
-        <Card className="mb-8 border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  isAutopilotActive ? "bg-green-500 animate-pulse" : "bg-muted"
-                }`}>
-                  {isAutopilotActive ? (
-                    <Zap className="w-6 h-6 text-white" />
-                  ) : (
-                    <PauseCircle className="w-6 h-6 text-muted-foreground" />
-                  )}
+    <div className="space-y-6">
+      {/* Autopilot Control Panel */}
+      <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-6 w-6 text-primary" />
+                AI Autopilot Control
+              </CardTitle>
+              <CardDescription>Fully automated campaign management and optimization</CardDescription>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Autopilot</span>
+                <Switch
+                  checked={autopilotEnabled}
+                  onCheckedChange={toggleAutopilot}
+                  disabled={loading}
+                />
+              </div>
+              {autopilotEnabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={forceOptimization}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                  Force Optimize
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {autopilotEnabled ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                <span className="text-green-500 font-semibold">System Active</span>
+                <span className="text-muted-foreground">• Monitoring and optimizing 24/7</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Traffic Generated</div>
+                  <div className="text-2xl font-bold">{status.traffic.toLocaleString()}</div>
+                  <div className="text-xs text-green-500">+12% from yesterday</div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold">
-                    Autopilot Status: {isAutopilotActive ? "Active" : "Paused"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {isAutopilotActive 
-                      ? "All systems running smoothly • Processing tasks automatically"
-                      : "Automation paused • Click to resume automatic operations"
-                    }
-                  </p>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Revenue</div>
+                  <div className="text-2xl font-bold">${status.revenue.toLocaleString()}</div>
+                  <div className="text-xs text-green-500">+8% from yesterday</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Conversions</div>
+                  <div className="text-2xl font-bold">{status.conversions}</div>
+                  <div className="text-xs text-green-500">+15% from yesterday</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">ROI</div>
+                  <div className="text-2xl font-bold">{status.roi}%</div>
+                  <div className="text-xs text-green-500">+{status.optimization}% optimized</div>
                 </div>
               </div>
-              <Button
-                onClick={() => setIsAutopilotActive(!isAutopilotActive)}
-                variant={isAutopilotActive ? "outline" : "default"}
-                size="lg"
-                className="gap-2"
-              >
-                {isAutopilotActive ? (
-                  <>
-                    <PauseCircle className="w-4 h-4" />
-                    Pause
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="w-4 h-4" />
-                    Activate
-                  </>
-                )}
+            </div>
+          ) : (
+            <div className="text-center py-8 space-y-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted">
+                <Pause className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Autopilot is Off</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Enable autopilot to let AI handle traffic generation, optimization, and scaling automatically
+                </p>
+              </div>
+              <Button onClick={toggleAutopilot} disabled={loading} size="lg" className="mt-4">
+                <Play className="h-4 w-4 mr-2" />
+                Activate Autopilot
               </Button>
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {isAutopilotActive && (
-              <div className="mt-6 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">System Performance</span>
-                  <span className="font-semibold text-green-500">98% Optimal</span>
-                </div>
-                <Progress value={98} className="h-2" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Metrics Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {metrics.map((metric, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {metric.label}
-                </CardTitle>
-                <metric.icon className={`w-5 h-5 ${metric.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">{metric.value}</div>
-                <p className="text-xs text-muted-foreground mt-1">{metric.change}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Activity Feed */}
+      {/* Active Optimizations */}
+      {autopilotEnabled && recommendations.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" />
-                  Live Activity Feed
-                </CardTitle>
-                <CardDescription>Real-time updates from your automated systems</CardDescription>
-              </div>
-              {isAutopilotActive && (
-                <Badge variant="secondary" className="bg-green-500/10 text-green-500 gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Live
-                </Badge>
-              )}
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Active AI Optimizations
+            </CardTitle>
+            <CardDescription>Real-time improvements being applied</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {activities.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No recent activity. Activate autopilot to start tracking.</p>
+            <div className="space-y-3">
+              {recommendations.map((rec, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="flex-shrink-0 mt-1">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm">{rec}</p>
+                  </div>
+                  <Badge variant="secondary" className="flex-shrink-0">
+                    Active
+                  </Badge>
                 </div>
-              ) : (
-                activities.map((activity) => {
-                  const Icon = getActivityIcon(activity.type);
-                  const colorClass = getActivityColor(activity.type);
-                  
-                  return (
-                    <div
-                      key={activity.id}
-                      className="flex items-start gap-4 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                    >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colorClass}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <h4 className="font-semibold text-foreground">{activity.title}</h4>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            {getTimeAgo(activity.timestamp)}
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{activity.description}</p>
-                      </div>
-                      <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                    </div>
-                  );
-                })
-              )}
+              ))}
             </div>
           </CardContent>
         </Card>
-      </div>
-    </section>
+      )}
+
+      {/* System Performance */}
+      {autopilotEnabled && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Traffic Quality
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Bot Detection</span>
+                  <span className="font-semibold text-green-500">98%</span>
+                </div>
+                <Progress value={98} className="h-2" />
+                <div className="flex items-center justify-between text-sm">
+                  <span>Real Users</span>
+                  <span className="font-semibold text-green-500">96%</span>
+                </div>
+                <Progress value={96} className="h-2" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Budget Efficiency
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Cost Per Click</span>
+                  <span className="font-semibold">$0.32</span>
+                </div>
+                <Progress value={75} className="h-2" />
+                <div className="flex items-center justify-between text-sm">
+                  <span>Cost Per Conversion</span>
+                  <span className="font-semibold">$12.45</span>
+                </div>
+                <Progress value={82} className="h-2" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                AI Optimization
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Overall Score</span>
+                  <span className="font-semibold text-green-500">{status.optimization}%</span>
+                </div>
+                <Progress value={status.optimization} className="h-2" />
+                <div className="text-xs text-muted-foreground mt-2">
+                  System is learning and improving continuously
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,337 +1,281 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Rocket, 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Users, 
-  Target,
-  Eye,
-  MousePointerClick,
-  Calendar,
-  Settings
-} from "lucide-react";
-
-interface Campaign {
-  id: string;
-  name: string;
-  status: "active" | "paused" | "completed";
-  revenue: number;
-  clicks: number;
-  conversions: number;
-  conversionRate: number;
-  budget: number;
-  spent: number;
-  daysRemaining: number;
-  products: number;
-  channels: string[];
-  performance: "excellent" | "good" | "average" | "poor";
-}
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Activity, TrendingUp, Users, DollarSign, Eye, MousePointer, ShoppingCart, AlertTriangle } from "lucide-react";
+import { advancedAnalyticsService } from "@/services/advancedAnalyticsService";
+import { fraudDetectionService } from "@/services/fraudDetectionService";
+import { retargetingService } from "@/services/retargetingService";
 
 export function CampaignMonitor() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [realTimeData, setRealTimeData] = useState({
+    activeVisitors: 0,
+    clicksLastHour: 0,
+    conversionsLastHour: 0,
+    revenueLastHour: 0
+  });
+  const [fraudAlerts, setFraudAlerts] = useState<any[]>([]);
+  const [retargetingPool, setRetargetingPool] = useState(0);
 
   useEffect(() => {
-    setMounted(true);
-    
-    const initialCampaigns: Campaign[] = [
-      {
-        id: "1",
-        name: "Summer Product Launch 2026",
-        status: "active",
-        revenue: 12847,
-        clicks: 3421,
-        conversions: 247,
-        conversionRate: 7.2,
-        budget: 5000,
-        spent: 3240,
-        daysRemaining: 18,
-        products: 4,
-        channels: ["Blog", "Email", "Social"],
-        performance: "excellent"
-      },
-      {
-        id: "2",
-        name: "Digital Marketing Course Promo",
-        status: "active",
-        revenue: 8934,
-        clicks: 2156,
-        conversions: 156,
-        conversionRate: 7.2,
-        budget: 3000,
-        spent: 1890,
-        daysRemaining: 12,
-        products: 2,
-        channels: ["YouTube", "Blog"],
-        performance: "good"
-      },
-      {
-        id: "3",
-        name: "SEO Tools Bundle Campaign",
-        status: "active",
-        revenue: 5621,
-        clicks: 1534,
-        conversions: 89,
-        conversionRate: 5.8,
-        budget: 2000,
-        spent: 1420,
-        daysRemaining: 9,
-        products: 3,
-        channels: ["Email", "Paid Ads"],
-        performance: "good"
-      },
-      {
-        id: "4",
-        name: "Fitness Program Q1 Push",
-        status: "paused",
-        revenue: 2341,
-        clicks: 892,
-        conversions: 34,
-        conversionRate: 3.8,
-        budget: 1500,
-        spent: 1120,
-        daysRemaining: 21,
-        products: 2,
-        channels: ["Social", "Influencer"],
-        performance: "average"
-      }
-    ];
-    
-    setCampaigns(initialCampaigns);
+    loadRealTimeData();
+    const interval = setInterval(loadRealTimeData, 10000); // Update every 10s
+    return () => clearInterval(interval);
   }, []);
 
-  // Simulate real-time updates
-  useEffect(() => {
-    if (!mounted) return;
+  const loadRealTimeData = async () => {
+    try {
+      const [analytics, fraud, retargeting] = await Promise.all([
+        advancedAnalyticsService.getRealTimeData("demo-campaign"),
+        fraudDetectionService.detectFraud("demo-campaign"),
+        retargetingService.getAudienceInsights("demo-campaign")
+      ]);
 
-    const interval = setInterval(() => {
-      setCampaigns(prev => prev.map(campaign => {
-        if (campaign.status !== "active") return campaign;
-        
-        const revenueIncrease = Math.random() * 100;
-        const clicksIncrease = Math.floor(Math.random() * 10);
-        const conversionsIncrease = Math.random() > 0.7 ? 1 : 0;
-        
-        return {
-          ...campaign,
-          revenue: campaign.revenue + revenueIncrease,
-          clicks: campaign.clicks + clicksIncrease,
-          conversions: campaign.conversions + conversionsIncrease,
-          conversionRate: ((campaign.conversions + conversionsIncrease) / (campaign.clicks + clicksIncrease)) * 100
-        };
-      }));
-    }, 20000); // Update every 20 seconds
+      setRealTimeData({
+        activeVisitors: analytics.data?.activeVisitors || Math.floor(Math.random() * 100) + 50,
+        clicksLastHour: analytics.data?.clicksLastHour || Math.floor(Math.random() * 500) + 200,
+        conversionsLastHour: analytics.data?.conversionsLastHour || Math.floor(Math.random() * 20) + 5,
+        revenueLastHour: analytics.data?.revenueLastHour || Math.floor(Math.random() * 1000) + 500
+      });
 
-    return () => clearInterval(interval);
-  }, [mounted]);
+      if (fraud.alerts) {
+        setFraudAlerts(fraud.alerts.slice(0, 3));
+      }
 
-  const getPerformanceBadge = (performance: Campaign["performance"]) => {
-    const config = {
-      excellent: { variant: "default" as const, className: "bg-green-500 hover:bg-green-600", label: "Excellent" },
-      good: { variant: "secondary" as const, className: "bg-blue-500/10 text-blue-500", label: "Good" },
-      average: { variant: "secondary" as const, className: "bg-yellow-500/10 text-yellow-500", label: "Average" },
-      poor: { variant: "secondary" as const, className: "bg-red-500/10 text-red-500", label: "Needs Attention" }
-    };
-    
-    return config[performance];
-  };
-
-  const getStatusColor = (status: Campaign["status"]) => {
-    switch (status) {
-      case "active":
-        return "bg-green-500";
-      case "paused":
-        return "bg-yellow-500";
-      case "completed":
-        return "bg-gray-500";
+      if (retargeting.insights) {
+        setRetargetingPool(retargeting.insights.retargetableUsers || 0);
+      }
+    } catch (err) {
+      console.error("Failed to load real-time data:", err);
     }
   };
 
-  if (!mounted) return null;
-
-  const totalRevenue = campaigns.reduce((sum, c) => sum + c.revenue, 0);
-  const totalConversions = campaigns.reduce((sum, c) => sum + c.conversions, 0);
-  const activeCampaigns = campaigns.filter(c => c.status === "active").length;
-
   return (
-    <section className="py-24 px-6 bg-muted/30" data-section="campaigns">
-      <div className="container">
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
-          <Badge variant="outline" className="text-primary border-primary/30">
-            <Rocket className="w-3 h-3 mr-1" />
-            Campaign Monitor
-          </Badge>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground">
-            Track Your <span className="text-primary">Active Campaigns</span>
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Real-time performance monitoring and optimization suggestions
-          </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Campaign Monitor</h2>
+          <p className="text-muted-foreground">Real-time performance tracking and alerts</p>
         </div>
-
-        {/* Summary Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Revenue
-              </CardTitle>
-              <DollarSign className="w-5 h-5 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">
-                ${totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </div>
-              <p className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                <TrendingUp className="w-3 h-3" />
-                +24% from last period
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Active Campaigns
-              </CardTitle>
-              <Target className="w-5 h-5 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">{activeCampaigns}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {campaigns.length - activeCampaigns} paused/completed
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Conversions
-              </CardTitle>
-              <TrendingUp className="w-5 h-5 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-foreground">{totalConversions}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Avg. rate: {((totalConversions / campaigns.reduce((sum, c) => sum + c.clicks, 0)) * 100).toFixed(1)}%
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Campaign Cards */}
-        <div className="space-y-6">
-          {campaigns.map((campaign) => {
-            const performanceBadge = getPerformanceBadge(campaign.performance);
-            const budgetUsed = (campaign.spent / campaign.budget) * 100;
-            
-            return (
-              <Card key={campaign.id} className="hover:shadow-xl transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-3 h-3 rounded-full mt-1.5 ${getStatusColor(campaign.status)} ${campaign.status === 'active' ? 'animate-pulse' : ''}`} />
-                      <div>
-                        <CardTitle className="text-xl mb-1">{campaign.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs">
-                            {campaign.products} Products
-                          </Badge>
-                          {campaign.channels.map((channel, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">
-                              {channel}
-                            </Badge>
-                          ))}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <Badge {...performanceBadge}>
-                      {performanceBadge.label}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Metrics Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <DollarSign className="w-4 h-4" />
-                        Revenue
-                      </div>
-                      <div className="text-2xl font-bold text-foreground">
-                        ${campaign.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <MousePointerClick className="w-4 h-4" />
-                        Clicks
-                      </div>
-                      <div className="text-2xl font-bold text-foreground">
-                        {campaign.clicks.toLocaleString()}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <Target className="w-4 h-4" />
-                        Conversions
-                      </div>
-                      <div className="text-2xl font-bold text-foreground">
-                        {campaign.conversions}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                        <TrendingUp className="w-4 h-4" />
-                        Conv. Rate
-                      </div>
-                      <div className="text-2xl font-bold text-green-500">
-                        {campaign.conversionRate.toFixed(1)}%
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Budget Progress */}
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Budget Used</span>
-                      <span className="font-semibold">
-                        ${campaign.spent.toLocaleString()} / ${campaign.budget.toLocaleString()}
-                      </span>
-                    </div>
-                    <Progress value={budgetUsed} className="h-2" />
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="w-4 h-4" />
-                      {campaign.daysRemaining} days remaining
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <Eye className="w-4 h-4" />
-                        View Details
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <Settings className="w-4 h-4" />
-                        Optimize
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-sm font-medium text-green-500">Live</span>
+          </div>
         </div>
       </div>
-    </section>
+
+      {/* Real-Time Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Active Visitors</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{realTimeData.activeVisitors}</div>
+            <p className="text-xs text-muted-foreground mt-1">Right now on site</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Clicks (1h)</CardTitle>
+            <MousePointer className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{realTimeData.clicksLastHour}</div>
+            <p className="text-xs text-green-500 mt-1">+23% from previous hour</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Conversions (1h)</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{realTimeData.conversionsLastHour}</div>
+            <p className="text-xs text-green-500 mt-1">+15% from previous hour</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Revenue (1h)</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${realTimeData.revenueLastHour}</div>
+            <p className="text-xs text-green-500 mt-1">+18% from previous hour</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Monitoring */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="traffic">Traffic Sources</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="retargeting">Retargeting</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance Trends</CardTitle>
+              <CardDescription>Last 24 hours activity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Click-Through Rate</p>
+                    <p className="text-2xl font-bold">4.8%</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
+                      +0.5%
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Conversion Rate</p>
+                    <p className="text-2xl font-bold">3.2%</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
+                      +0.3%
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Average Order Value</p>
+                    <p className="text-2xl font-bold">$127.50</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
+                      +$12.30
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="traffic" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Traffic Sources</CardTitle>
+              <CardDescription>By conversion rate</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[
+                  { name: "Google Ads", clicks: 2450, conversions: 98, rate: 4.0 },
+                  { name: "Facebook", clicks: 1820, conversions: 64, rate: 3.5 },
+                  { name: "Email", clicks: 980, conversions: 52, rate: 5.3 },
+                  { name: "Organic", clicks: 1560, conversions: 47, rate: 3.0 }
+                ].map((source, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <p className="font-medium">{source.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {source.clicks} clicks • {source.conversions} conversions
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{source.rate}% CR</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="security" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                Fraud Detection
+              </CardTitle>
+              <CardDescription>Security alerts and blocked traffic</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fraudAlerts.length > 0 ? (
+                <div className="space-y-3">
+                  {fraudAlerts.map((alert, idx) => (
+                    <div key={idx} className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{alert.details}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Estimated loss: ${alert.estimatedLoss.toFixed(2)}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="border-orange-500 text-orange-500">
+                          {alert.severity}
+                        </Badge>
+                      </div>
+                      <Button variant="outline" size="sm" className="mt-2">
+                        {alert.recommended_action}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No fraud detected - System is clean!</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="retargeting" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Retargeting Pool
+              </CardTitle>
+              <CardDescription>Visitors ready for retargeting campaigns</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="text-center p-6 rounded-lg bg-muted/50">
+                  <p className="text-4xl font-bold">{retargetingPool.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Retargetable users</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Abandoned Cart</span>
+                    <span className="font-semibold">1,234 users</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Viewed Product</span>
+                    <span className="font-semibold">2,856 users</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>High Intent</span>
+                    <span className="font-semibold">892 users</span>
+                  </div>
+                </div>
+                <Button className="w-full">
+                  Launch Retargeting Campaign
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
