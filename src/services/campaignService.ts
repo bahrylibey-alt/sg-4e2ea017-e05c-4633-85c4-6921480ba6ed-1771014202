@@ -220,50 +220,68 @@ export const campaignService = {
       
       if (!campaign) return null;
 
-      // Calculate metrics
+      // 1. Get real daily performance history
+      const { data: dailyData } = await supabase
+        .from("campaign_performance")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("date", { ascending: true })
+        .limit(30);
+
+      const dailyPerformance = dailyData?.map(d => ({
+        date: d.date,
+        revenue: Number(d.revenue) || 0,
+        spent: Number(d.spent) || 0,
+        clicks: d.clicks || 0,
+        conversions: d.conversions || 0
+      })) || [];
+
+      // 2. Get real top products from affiliate links
+      // Cast to any to avoid deep type instantiation issues with joins
+      const { data: productStats } = await (supabase.from("affiliate_links") as any)
+        .select("product_name, conversion_count, commission_earned")
+        .eq("campaign_id", campaignId)
+        .order("commission_earned", { ascending: false })
+        .limit(5);
+
+      const topProducts = productStats?.map((p: any) => ({
+        product: p.product_name || "Unknown Product",
+        revenue: Number(p.commission_earned) || 0,
+        conversions: p.conversion_count || 0
+      })) || [];
+
+      // 3. Get real top channels from traffic sources
+      const { data: channelStats } = await supabase
+        .from("traffic_sources")
+        .select("name, visitors, conversions")
+        .eq("campaign_id", campaignId)
+        .order("conversions", { ascending: false })
+        .limit(5);
+
+      const topChannels = channelStats?.map(c => ({
+        channel: c.name,
+        clicks: c.visitors || 0,
+        conversions: c.conversions || 0
+      })) || [];
+
+      // 4. Calculate aggregate metrics
+      const totalRevenue = dailyPerformance.reduce((sum, d) => sum + d.revenue, 0);
+      const totalSpent = dailyPerformance.reduce((sum, d) => sum + d.spent, 0);
+      const totalConversions = dailyPerformance.reduce((sum, d) => sum + d.conversions, 0);
+      const totalClicks = dailyPerformance.reduce((sum, d) => sum + d.clicks, 0);
+
       const metrics: CampaignMetrics = {
-        impressions: 0, // Would come from ad platforms
-        clicks: 0,
-        conversions: campaign.revenue ? Math.floor(campaign.revenue / 50) : 0, // Assume $50 avg
-        revenue: campaign.revenue || 0,
-        spent: campaign.spent || 0,
-        roi: campaign.spent && campaign.spent > 0 
-          ? ((campaign.revenue || 0) - campaign.spent) / campaign.spent 
-          : 0,
-        ctr: 0, // Would calculate from actual data
-        conversionRate: 0, // Would calculate from actual data
-        cpa: campaign.spent && campaign.revenue 
-          ? campaign.spent / Math.max(1, Math.floor(campaign.revenue / 50))
-          : 0,
-        roas: campaign.spent && campaign.spent > 0 
-          ? (campaign.revenue || 0) / campaign.spent 
-          : 0
+        impressions: dailyPerformance.reduce((sum, d) => sum + (d.impressions || 0), 0),
+        clicks: totalClicks,
+        conversions: totalConversions,
+        revenue: totalRevenue,
+        spent: totalSpent,
+        roi: totalSpent > 0 ? (totalRevenue - totalSpent) / totalSpent : 0,
+        ctr: 0, // Need impressions for this
+        conversionRate: totalClicks > 0 ? totalConversions / totalClicks : 0,
+        cpa: totalConversions > 0 ? totalSpent / totalConversions : 0,
+        roas: totalSpent > 0 ? totalRevenue / totalSpent : 0
       };
-
-      // Mock top products (would be from actual data)
-      const topProducts = products.slice(0, 3).map(product => ({
-        product,
-        revenue: Math.random() * (campaign.revenue || 0),
-        conversions: Math.floor(Math.random() * 10)
-      }));
-
-      // Mock top channels (would be from actual data)
-      const topChannels = channels.slice(0, 3).map(channel => ({
-        channel: channel.name,
-        clicks: Math.floor(Math.random() * 1000),
-        conversions: Math.floor(Math.random() * 50)
-      }));
-
-      // Mock daily performance (last 7 days)
-      const dailyPerformance = Array.from({ length: 7 }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - i));
-        return {
-          date: date.toISOString().split("T")[0],
-          revenue: Math.random() * ((campaign.revenue || 0) / 7),
-          spent: Math.random() * ((campaign.spent || 0) / 7)
-        };
-      });
 
       return {
         campaign,

@@ -18,7 +18,7 @@ export interface OptimizationResult {
 }
 
 export const aiOptimizationEngine = {
-  // Run complete AI optimization cycle
+  // Run complete AI optimization cycle with PERSISTENT logging
   async runFullOptimization(campaignId: string): Promise<{
     result: OptimizationResult | null;
     error: string | null;
@@ -31,79 +31,95 @@ export const aiOptimizationEngine = {
 
       const improvements = [];
       let optimizationsApplied = 0;
+      const logs = [];
 
-      // 1. Optimize conversion funnel
+      // 1. Optimize conversion funnel (Real Analysis)
       const conversionResult = await conversionOptimizationService.analyzeAndOptimize(campaignId);
       if (conversionResult.insights.length > 0) {
+        const topInsight = conversionResult.insights[0];
         improvements.push({
-          metric: "Conversion Rate",
-          before: 3.2,
-          after: 4.1,
-          improvement: "+28%"
+          metric: "Conversion Potential",
+          before: 0, 
+          after: 0, // Real values would require historical comparison
+          improvement: topInsight.impact
         });
         optimizationsApplied++;
+        logs.push({
+          campaign_id: campaignId,
+          action_type: "conversion_optimization",
+          description: `Applied insight: ${topInsight.suggestion}`,
+          impact_score: topInsight.impact
+        });
       }
 
-      // 2. Optimize budget allocation
-      // Mocking total budget as 1000 since we don't have it here
-      const budgetResult = await budgetOptimizationService.optimizeBudgetAllocation(campaignId, 1000);
+      // 2. Optimize budget allocation (Real Allocation)
+      // Get current budget from campaign
+      const { data: campaign } = await supabase.from("campaigns").select("budget").eq("id", campaignId).single();
+      const currentBudget = campaign?.budget || 1000;
+
+      const budgetResult = await budgetOptimizationService.optimizeBudgetAllocation(campaignId, currentBudget);
       if (budgetResult.allocations.length > 0) {
-        improvements.push({
-          metric: "ROI",
-          before: 2.8,
-          after: 3.6,
-          improvement: "+29%"
-        });
         optimizationsApplied++;
+        logs.push({
+          campaign_id: campaignId,
+          action_type: "budget_reallocation",
+          description: `Reallocated budget across ${budgetResult.allocations.length} channels`,
+          impact_score: "High"
+        });
       }
 
-      // 3. Create retargeting audiences
-      const audienceResult = await retargetingService.createAudience({
-        campaign_id: campaignId,
-        name: "Cart Abandoners",
-        source: "cart_abandoners",
-        duration_days: 7
-      });
-      if (audienceResult.audience) {
-        improvements.push({
-          metric: "Audience Reach",
-          before: 5000,
-          after: 6500,
-          improvement: "+30%"
-        });
+      // 3. Create retargeting audiences (Real Segments)
+      const audienceResult = await retargetingService.getAudienceInsights(campaignId);
+      if (audienceResult.segments.length > 0) {
         optimizationsApplied++;
+        // Create actual audience segment in DB
+        await retargetingService.createAudience({
+          campaign_id: campaignId,
+          name: `Auto-Segment ${new Date().toISOString().split('T')[0]}`,
+          audience_type: "high_intent",
+          duration_days: 30
+        });
+        
+        logs.push({
+          campaign_id: campaignId,
+          action_type: "retargeting_update",
+          description: "Created new high-intent audience segment",
+          impact_score: "Medium"
+        });
       }
 
-      // 4. Scale top-performing traffic sources
+      // 4. Scale top-performing traffic sources (Real Scaling)
       const trafficResult = await trafficAutomationService.scaleTopPerformers(campaignId);
       if (trafficResult.scaled.length > 0) {
-        improvements.push({
-          metric: "Traffic Volume",
-          before: 10000,
-          after: 14500,
-          improvement: "+45%"
-        });
         optimizationsApplied++;
+        logs.push({
+          campaign_id: campaignId,
+          action_type: "traffic_scaling",
+          description: `Scaled sources: ${trafficResult.scaled.join(", ")}`,
+          impact_score: "Very High"
+        });
       }
 
-      const recommendations = [
-        "Continue current optimization strategy - strong performance detected",
-        "Consider increasing budget by 25% to capitalize on improvements",
-        "Test new creative variants in top-performing channels",
-        "Implement advanced retargeting for cart abandoners",
-        "Schedule next optimization cycle in 24 hours"
-      ];
+      // Persist logs to database
+      if (logs.length > 0) {
+        const { error: logError } = await supabase
+          .from("optimization_logs")
+          .insert(logs);
+          
+        if (logError) console.error("Failed to save optimization logs:", logError);
+      }
 
       const result: OptimizationResult = {
         campaignId,
         optimizationsApplied,
         improvements,
-        recommendations,
+        recommendations: conversionResult.insights.map(i => i.suggestion).slice(0, 5),
         nextOptimizationIn: 24
       };
 
       return { result, error: null };
     } catch (err) {
+      console.error("AI Optimization Error:", err);
       return { result: null, error: "Optimization engine failed" };
     }
   },
@@ -115,89 +131,12 @@ export const aiOptimizationEngine = {
     error: string | null;
   }> {
     try {
-      // Identify winning variants and scale them automatically
-      const scaled = ["Variant B - Email Campaign", "Variant C - Facebook Ad Set"];
-      const budgetIncreased = 500;
-
-      return { scaled, budgetIncreased, error: null };
+      // Logic to find winning variants from DB
+      // This is a placeholder for the logic that would query ab_tests table
+      // For now returning empty to ensure no fake data is returned
+      return { scaled: [], budgetIncreased: 0, error: null };
     } catch (err) {
       return { scaled: [], budgetIncreased: 0, error: "Auto-scaling failed" };
-    }
-  },
-
-  // Predictive bid optimization
-  async optimizeBidding(campaignId: string): Promise<{
-    newBids: Record<string, number>;
-    projectedImprovement: number;
-    error: string | null;
-  }> {
-    try {
-      const newBids = {
-        "google_search": 2.45,
-        "facebook_feed": 1.82,
-        "instagram_stories": 1.65,
-        "youtube_video": 3.20
-      };
-
-      return {
-        newBids,
-        projectedImprovement: 18,
-        error: null
-      };
-    } catch (err) {
-      return { newBids: {}, projectedImprovement: 0, error: "Bid optimization failed" };
-    }
-  },
-
-  // Dynamic creative optimization
-  async optimizeCreatives(campaignId: string): Promise<{
-    winners: Array<{ id: string; performance: number }>;
-    recommendations: string[];
-    error: string | null;
-  }> {
-    try {
-      const winners = [
-        { id: "creative_1", performance: 94 },
-        { id: "creative_3", performance: 87 },
-        { id: "creative_5", performance: 82 }
-      ];
-
-      const recommendations = [
-        "Scale creative_1 to 50% of budget - highest performance",
-        "Test creative_1 variations with different CTAs",
-        "Pause creative_2 and creative_4 - underperforming"
-      ];
-
-      return { winners, recommendations, error: null };
-    } catch (err) {
-      return { winners: [], recommendations: [], error: "Creative optimization failed" };
-    }
-  },
-
-  // Automated scheduling optimization
-  async optimizeScheduling(campaignId: string): Promise<{
-    bestTimes: Array<{ day: string; hour: number; score: number }>;
-    adjustments: string[];
-    error: string | null;
-  }> {
-    try {
-      const bestTimes = [
-        { day: "Monday", hour: 9, score: 92 },
-        { day: "Tuesday", hour: 14, score: 88 },
-        { day: "Wednesday", hour: 11, score: 85 },
-        { day: "Thursday", hour: 10, score: 87 },
-        { day: "Friday", hour: 15, score: 81 }
-      ];
-
-      const adjustments = [
-        "Increase budget 30% during peak hours (9-11 AM)",
-        "Reduce spend 20% during low-performing hours (12-2 AM)",
-        "Test weekend schedule - potential untapped opportunity"
-      ];
-
-      return { bestTimes, adjustments, error: null };
-    } catch (err) {
-      return { bestTimes: [], adjustments: [], error: "Schedule optimization failed" };
     }
   },
 
@@ -208,37 +147,13 @@ export const aiOptimizationEngine = {
     error: string | null;
   }> {
     try {
-      const actionsTaken: string[] = [];
-      const improvements: string[] = [];
-
-      // 1. Analyze performance
-      const analysis = await conversionOptimizationService.analyzeAndOptimize(campaignId);
+      const { result } = await this.runFullOptimization(campaignId);
       
-      if (analysis.insights.length > 0) {
-        actionsTaken.push(`Generated ${analysis.insights.length} optimization insights`);
-      }
-
-      // 2. Optimize Budget
-      // We need to fetch budget from campaign first (mocking 1000 for now if not available)
-      const budgetResult = await trafficAutomationService.allocateTrafficSources(campaignId, 1000);
-      
-      if (budgetResult.allocations.length > 0) {
-        actionsTaken.push("Reallocated budget to top performing channels");
-      }
-
-      // 3. Refresh Retargeting
-      const audienceResult = await retargetingService.createAudience({
-        name: `Auto-Retargeting ${new Date().toISOString().split('T')[0]}`,
-        source: "website_visitors",
-        duration_days: 30,
-        campaign_id: campaignId // Fixed casing
-      });
-
-      if (audienceResult.audience) {
-        actionsTaken.push("Updated retargeting audience segments");
-      }
-
-      return { actionsTaken, improvements, error: null };
+      return { 
+        actionsTaken: result?.recommendations || [], 
+        improvements: result?.improvements.map(i => `${i.metric}: ${i.improvement}`) || [], 
+        error: null 
+      };
     } catch (err) {
       return { actionsTaken: [], improvements: [], error: "AI optimization failed" };
     }

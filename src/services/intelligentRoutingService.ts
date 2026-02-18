@@ -27,7 +27,8 @@ export const intelligentRoutingService = {
   }> {
     try {
       // Get all clicks for campaign
-      const { data: links } = await supabase
+      // Cast supabase to any to avoid TS2589 (excessively deep type instantiation)
+      const { data: links } = await (supabase as any)
         .from("affiliate_links")
         .select("id, short_code, click_count, conversion_count")
         .eq("campaign_id", campaignId);
@@ -132,10 +133,13 @@ export const intelligentRoutingService = {
     error: string | null;
   }> {
     try {
-      // Casting table ref to any to avoid TS2589 (excessively deep type instantiation)
-      const { count } = await (supabase.from("click_events") as any)
+      // Force break type inference recursion by casting supabase client
+      const result = await (supabase as any)
+        .from("click_events")
         .select("*", { count: "exact", head: true })
         .eq("campaign_id", campaignId);
+
+      const count = result.count;
 
       if (!count || count === 0) {
         return { 

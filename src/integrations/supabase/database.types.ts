@@ -827,6 +827,41 @@ export type Database = {
           },
         ]
       }
+      optimization_logs: {
+        Row: {
+          action_type: string
+          campaign_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          impact_score: string | null
+        }
+        Insert: {
+          action_type: string
+          campaign_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          impact_score?: string | null
+        }
+        Update: {
+          action_type?: string
+          campaign_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          impact_score?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_history: {
         Row: {
           applied_at: string | null
