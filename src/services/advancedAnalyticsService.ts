@@ -197,6 +197,7 @@ export const advancedAnalyticsService = {
           users: 3200,
           dropOff: 51,
           conversionRate: 32,
+          avgTime: 60,
           insights: ["Price sensitivity detected", "Offer limited-time discount"]
         },
         {

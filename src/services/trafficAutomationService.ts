@@ -415,5 +415,39 @@ export const trafficAutomationService = {
         ...data
       }))
       .slice(-24);
+  },
+
+  // Scale top performing traffic sources automatically
+  async scaleTopPerformers(campaignId: string): Promise<{
+    scaled: string[];
+    error: string | null;
+  }> {
+    try {
+      // Analyze current traffic sources performance
+      const analytics = await this.getTrafficAnalytics(campaignId);
+      
+      // Identify top performers (ROI > 2.0 or Conversion Rate > 3%)
+      const topPerformers = analytics.topSources.filter(
+        source => source.roi > 2.0 || source.conversionRate > 3.0
+      );
+
+      if (topPerformers.length === 0) {
+        return { scaled: [], error: null };
+      }
+
+      // Simulate scaling action (increasing budget/traffic allocation)
+      const scaledSourceNames = topPerformers.map(source => source.name);
+      
+      // In a real implementation, this would update the traffic source configuration
+      // await this.updateTrafficSourceConfig(campaignId, topPerformers);
+
+      return { 
+        scaled: scaledSourceNames, 
+        error: null 
+      };
+    } catch (err) {
+      console.error("Error scaling top performers:", err);
+      return { scaled: [], error: "Failed to scale top performers" };
+    }
   }
 };
