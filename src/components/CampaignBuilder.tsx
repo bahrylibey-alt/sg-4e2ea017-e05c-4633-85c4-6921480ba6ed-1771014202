@@ -1,400 +1,393 @@
-import React, { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Rocket, Target, DollarSign, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Target, 
+  Calendar,
+  DollarSign,
+  Users,
+  TrendingUp,
+  Zap,
+  CheckCircle,
+  ArrowRight,
+  Sparkles
+} from "lucide-react";
+import { smartCampaignService } from "@/services/smartCampaignService";
+import { useToast } from "@/hooks/use-toast";
 
 interface CampaignBuilderProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onComplete?: () => void;
 }
 
-export function CampaignBuilder({ open, onOpenChange }: CampaignBuilderProps) {
+export function CampaignBuilder({ onComplete }: CampaignBuilderProps) {
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [campaignData, setCampaignData] = useState({
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
     name: "",
-    goal: "sales",
-    products: [] as string[],
-    budget: "",
-    duration: "30",
+    goal: "sales" as "sales" | "leads" | "traffic" | "awareness",
+    budget: "500",
+    duration: "14",
     targetAudience: "",
-    channels: [] as string[],
-    contentStrategy: ""
+    productUrls: "",
+    channels: [] as string[]
   });
 
-  const [isCreating, setIsCreating] = useState(false);
-  const [campaignCreated, setCampaignCreated] = useState(false);
+  const templates = smartCampaignService.getTemplates();
 
-  const productOptions = [
-    "Premium WordPress Theme Bundle",
-    "Complete Digital Marketing Course",
-    "SEO Tools Suite",
-    "E-commerce Starter Pack",
-    "Fitness & Nutrition Program",
-    "Photography Presets Collection"
-  ];
-
-  const channelOptions = [
-    { id: "blog", name: "Blog Posts", icon: "📝" },
-    { id: "email", name: "Email Marketing", icon: "📧" },
-    { id: "social", name: "Social Media", icon: "📱" },
-    { id: "youtube", name: "YouTube", icon: "🎥" },
-    { id: "paid", name: "Paid Ads", icon: "💰" },
-    { id: "influencer", name: "Influencer Marketing", icon: "⭐" }
-  ];
-
-  const handleProductToggle = (product: string) => {
-    setCampaignData(prev => ({
-      ...prev,
-      products: prev.products.includes(product)
-        ? prev.products.filter(p => p !== product)
-        : [...prev.products, product]
-    }));
-  };
-
-  const handleChannelToggle = (channelId: string) => {
-    setCampaignData(prev => ({
-      ...prev,
-      channels: prev.channels.includes(channelId)
-        ? prev.channels.filter(c => c !== channelId)
-        : [...prev.channels, channelId]
-    }));
-  };
-
-  const handleCreateCampaign = () => {
-    setIsCreating(true);
-    
-    setTimeout(() => {
-      setIsCreating(false);
-      setCampaignCreated(true);
-      
-      setTimeout(() => {
-        alert(
-          `🎉 Campaign Created Successfully!\n\n` +
-          `Campaign: ${campaignData.name}\n` +
-          `Products: ${campaignData.products.length} selected\n` +
-          `Channels: ${campaignData.channels.length} active\n` +
-          `Budget: $${campaignData.budget}\n` +
-          `Duration: ${campaignData.duration} days\n\n` +
-          `Your campaign is now live and tracking conversions!`
-        );
-        
-        onOpenChange(false);
-        setCampaignCreated(false);
-        setStep(1);
-        setCampaignData({
-          name: "",
-          goal: "sales",
-          products: [],
-          budget: "",
-          duration: "30",
-          targetAudience: "",
-          channels: [],
-          contentStrategy: ""
-        });
-      }, 2000);
-    }, 2000);
-  };
-
-  const canProceed = () => {
-    switch (step) {
-      case 1:
-        return campaignData.name && campaignData.goal;
-      case 2:
-        return campaignData.products.length > 0;
-      case 3:
-        return campaignData.channels.length > 0 && campaignData.targetAudience;
-      case 4:
-        return campaignData.budget && campaignData.duration;
-      default:
-        return false;
+  const handleTemplateSelect = (templateId: string) => {
+    const template = smartCampaignService.getTemplate(templateId);
+    if (template) {
+      setFormData({
+        ...formData,
+        goal: template.goal,
+        budget: template.suggestedBudget.toString(),
+        duration: template.suggestedDuration.toString(),
+        targetAudience: template.targetAudience,
+        channels: template.defaultChannels.map(c => c.id)
+      });
+      setStep(2);
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <Rocket className="w-6 h-6 text-primary" />
-            Smart Campaign Builder
-          </DialogTitle>
-          <DialogDescription>
-            Create a high-converting affiliate campaign in minutes with AI-powered recommendations
-          </DialogDescription>
-        </DialogHeader>
+  const handleCreateCampaign = async () => {
+    if (!formData.name || !formData.productUrls) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
 
-        {/* Progress Indicator */}
-        <div className="flex items-center justify-between mb-6">
-          {[1, 2, 3, 4].map((s) => (
-            <div key={s} className="flex items-center flex-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                s < step ? "bg-green-500 text-white" :
-                s === step ? "bg-primary text-white" :
-                "bg-muted text-muted-foreground"
-              }`}>
-                {s < step ? <CheckCircle2 className="w-5 h-5" /> : s}
-              </div>
-              {s < 4 && <div className={`flex-1 h-1 mx-2 ${s < step ? "bg-green-500" : "bg-muted"}`} />}
+    setLoading(true);
+    try {
+      const urls = formData.productUrls.split("\n").filter(url => url.trim());
+      
+      const result = await smartCampaignService.createQuickCampaign({
+        productUrls: urls,
+        customGoal: formData.goal,
+        customBudget: parseFloat(formData.budget)
+      });
+
+      if (result.success) {
+        toast({
+          title: "Campaign Created!",
+          description: "Your automated campaign is now live"
+        });
+        setStep(4);
+        onComplete?.();
+      } else {
+        throw new Error(result.error || "Failed to create campaign");
+      }
+    } catch (err) {
+      toast({
+        title: "Creation Failed",
+        description: "Failed to create campaign. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const nextStep = () => {
+    if (step < 3) setStep(step + 1);
+  };
+
+  const prevStep = () => {
+    if (step > 1) setStep(step - 1);
+  };
+
+  return (
+    <div className="container py-12">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold mb-2">Smart Campaign Builder</h2>
+          <p className="text-muted-foreground">Create optimized campaigns with AI assistance</p>
+          
+          <div className="mt-6">
+            <Progress value={(step / 4) * 100} className="h-2" />
+            <div className="flex justify-between mt-2 text-sm text-muted-foreground">
+              <span className={step >= 1 ? "text-primary font-medium" : ""}>1. Template</span>
+              <span className={step >= 2 ? "text-primary font-medium" : ""}>2. Details</span>
+              <span className={step >= 3 ? "text-primary font-medium" : ""}>3. Configure</span>
+              <span className={step >= 4 ? "text-primary font-medium" : ""}>4. Launch</span>
             </div>
-          ))}
+          </div>
         </div>
 
-        <div className="space-y-6">
-          {/* Step 1: Campaign Basics */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">Campaign Basics</h3>
-                <p className="text-muted-foreground">Set up the foundation of your campaign</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="campaign-name">Campaign Name</Label>
-                <Input
-                  id="campaign-name"
-                  placeholder="e.g., Summer Product Launch 2026"
-                  value={campaignData.name}
-                  onChange={(e) => setCampaignData(prev => ({ ...prev, name: e.target.value }))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="goal">Primary Goal</Label>
-                <Select value={campaignData.goal} onValueChange={(value) => setCampaignData(prev => ({ ...prev, goal: value }))}>
-                  <SelectTrigger id="goal">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sales">Maximize Sales</SelectItem>
-                    <SelectItem value="leads">Generate Leads</SelectItem>
-                    <SelectItem value="traffic">Drive Traffic</SelectItem>
-                    <SelectItem value="awareness">Build Awareness</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Product Selection */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">Select Products</h3>
-                <p className="text-muted-foreground">Choose which products to promote in this campaign</p>
-              </div>
-
-              <div className="grid gap-3">
-                {productOptions.map((product) => (
-                  <Card
-                    key={product}
-                    className={`cursor-pointer transition-all ${
-                      campaignData.products.includes(product)
-                        ? "border-primary bg-primary/5"
-                        : "hover:border-primary/50"
-                    }`}
-                    onClick={() => handleProductToggle(product)}
+        {step === 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Choose Campaign Template</CardTitle>
+              <CardDescription>Select a pre-optimized template or start from scratch</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                {templates.map((template) => (
+                  <Card 
+                    key={template.id}
+                    className="cursor-pointer hover:border-primary transition-all hover:shadow-lg"
+                    onClick={() => handleTemplateSelect(template.id)}
                   >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          campaignData.products.includes(product)
-                            ? "border-primary bg-primary"
-                            : "border-muted-foreground"
-                        }`}>
-                          {campaignData.products.includes(product) && (
-                            <CheckCircle2 className="w-4 h-4 text-white" />
-                          )}
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{template.name}</CardTitle>
+                        <Badge>{template.goal}</Badge>
+                      </div>
+                      <CardDescription>{template.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Budget</span>
+                          <span className="font-medium">${template.suggestedBudget}</span>
                         </div>
-                        <span className="font-medium">{product}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Duration</span>
+                          <span className="font-medium">{template.suggestedDuration} days</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-4">
+                          {template.defaultChannels.slice(0, 3).map((channel, idx) => (
+                            <Badge key={idx} variant="outline">{channel.name}</Badge>
+                          ))}
+                        </div>
                       </div>
-                      <Badge variant="secondary">High Conv.</Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Channels & Audience */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">Marketing Channels</h3>
-                <p className="text-muted-foreground">Select where you'll promote your products</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {channelOptions.map((channel) => (
-                  <Card
-                    key={channel.id}
-                    className={`cursor-pointer transition-all ${
-                      campaignData.channels.includes(channel.id)
-                        ? "border-primary bg-primary/5"
-                        : "hover:border-primary/50"
-                    }`}
-                    onClick={() => handleChannelToggle(channel.id)}
-                  >
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                        campaignData.channels.includes(channel.id)
-                          ? "border-primary bg-primary"
-                          : "border-muted-foreground"
-                      }`}>
-                        {campaignData.channels.includes(channel.id) && (
-                          <CheckCircle2 className="w-4 h-4 text-white" />
-                        )}
-                      </div>
-                      <span className="text-2xl">{channel.icon}</span>
-                      <span className="font-medium text-sm">{channel.name}</span>
                     </CardContent>
                   </Card>
                 ))}
               </div>
 
-              <div className="space-y-2 pt-4">
-                <Label htmlFor="target-audience">Target Audience</Label>
-                <Textarea
-                  id="target-audience"
-                  placeholder="Describe your target audience (e.g., young professionals interested in digital marketing, age 25-35)"
-                  value={campaignData.targetAudience}
-                  onChange={(e) => setCampaignData(prev => ({ ...prev, targetAudience: e.target.value }))}
-                  rows={3}
+              <Button variant="outline" className="w-full mt-4" onClick={nextStep}>
+                Start from Scratch
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 2 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Details</CardTitle>
+              <CardDescription>Basic information about your campaign</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Campaign Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="e.g., Summer Sale 2026"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
-            </div>
-          )}
 
-          {/* Step 4: Budget & Timeline */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-semibold mb-2">Budget & Timeline</h3>
-                <p className="text-muted-foreground">Set your investment and campaign duration</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="goal">Campaign Goal</Label>
+                  <select
+                    id="goal"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={formData.goal}
+                    onChange={(e) => setFormData({ ...formData, goal: e.target.value as any })}
+                  >
+                    <option value="sales">Maximize Sales</option>
+                    <option value="leads">Generate Leads</option>
+                    <option value="traffic">Drive Traffic</option>
+                    <option value="awareness">Brand Awareness</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="budget">Budget ($)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="budget"
+                      type="number"
+                      className="pl-9"
+                      value={formData.budget}
+                      onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="budget">
-                    <DollarSign className="w-4 h-4 inline mr-1" />
-                    Campaign Budget (USD)
-                  </Label>
+              <div className="space-y-2">
+                <Label htmlFor="productUrls">Product URLs * (one per line)</Label>
+                <Textarea
+                  id="productUrls"
+                  placeholder="https://example.com/product1&#10;https://example.com/product2"
+                  rows={4}
+                  value={formData.productUrls}
+                  onChange={(e) => setFormData({ ...formData, productUrls: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={prevStep} className="flex-1">
+                  Back
+                </Button>
+                <Button onClick={nextStep} className="flex-1">
+                  Continue
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 3 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Configuration</CardTitle>
+              <CardDescription>Customize your campaign settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="duration">Campaign Duration (days)</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="budget"
+                    id="duration"
                     type="number"
-                    placeholder="5000"
-                    value={campaignData.budget}
-                    onChange={(e) => setCampaignData(prev => ({ ...prev, budget: e.target.value }))}
+                    className="pl-9"
+                    value={formData.duration}
+                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="duration">
-                    <Calendar className="w-4 h-4 inline mr-1" />
-                    Duration (days)
-                  </Label>
-                  <Select value={campaignData.duration} onValueChange={(value) => setCampaignData(prev => ({ ...prev, duration: value }))}>
-                    <SelectTrigger id="duration">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">7 Days</SelectItem>
-                      <SelectItem value="14">14 Days</SelectItem>
-                      <SelectItem value="30">30 Days</SelectItem>
-                      <SelectItem value="60">60 Days</SelectItem>
-                      <SelectItem value="90">90 Days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="content-strategy">Content Strategy (Optional)</Label>
+                <Label htmlFor="audience">Target Audience</Label>
                 <Textarea
-                  id="content-strategy"
-                  placeholder="Describe your content approach (e.g., 3 blog posts per week, daily social media updates)"
-                  value={campaignData.contentStrategy}
-                  onChange={(e) => setCampaignData(prev => ({ ...prev, contentStrategy: e.target.value }))}
-                  rows={3}
+                  id="audience"
+                  placeholder="e.g., Young professionals aged 25-40, interested in fitness and wellness"
+                  value={formData.targetAudience}
+                  onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
                 />
               </div>
 
-              {/* AI Recommendations */}
-              <Card className="bg-primary/5 border-primary/20">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <Target className="w-5 h-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-sm mb-1">AI Recommendations</p>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Expected ROI: 250-350% based on similar campaigns</li>
-                        <li>• Recommended: Increase budget to ${parseInt(campaignData.budget || "0") * 1.5} for optimal results</li>
-                        <li>• Best performing time: Weekday mornings (9-11 AM)</li>
-                        <li>• Suggested: Add email marketing channel (+40% conversion)</li>
-                      </ul>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+              <div className="space-y-2">
+                <Label>Traffic Channels</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "social", name: "Social Media" },
+                    { id: "email", name: "Email Marketing" },
+                    { id: "paid-ads", name: "Paid Ads" },
+                    { id: "seo", name: "SEO" },
+                    { id: "influencer", name: "Influencers" },
+                    { id: "blog", name: "Content" }
+                  ].map((channel) => (
+                    <label key={channel.id} className="flex items-center gap-2 p-3 rounded-lg border cursor-pointer hover:bg-accent transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formData.channels.includes(channel.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({ ...formData, channels: [...formData.channels, channel.id] });
+                          } else {
+                            setFormData({ ...formData, channels: formData.channels.filter(c => c !== channel.id) });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{channel.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-          {/* Campaign Created Success */}
-          {campaignCreated && (
-            <Card className="bg-green-500/10 border-green-500/20">
-              <CardContent className="p-6 text-center">
-                <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Campaign Created!</h3>
-                <p className="text-muted-foreground">Setting up tracking and generating affiliate links...</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={prevStep} className="flex-1">
+                  Back
+                </Button>
+                <Button onClick={handleCreateCampaign} disabled={loading} className="flex-1">
+                  {loading ? (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2" />
+                      Launch Campaign
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between pt-6 border-t">
-          <Button
-            variant="outline"
-            onClick={() => setStep(Math.max(1, step - 1))}
-            disabled={step === 1 || isCreating}
-          >
-            Back
-          </Button>
+        {step === 4 && (
+          <Card className="bg-gradient-to-br from-green-500/5 to-transparent border-green-500/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-6 w-6 text-green-500" />
+                Campaign Successfully Launched!
+              </CardTitle>
+              <CardDescription>Your automated system is now live and generating results</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-lg bg-background border text-center">
+                  <Target className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <p className="text-2xl font-bold">Active</p>
+                  <p className="text-xs text-muted-foreground">Campaign Status</p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border text-center">
+                  <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <p className="text-2xl font-bold">5.2K+</p>
+                  <p className="text-xs text-muted-foreground">Est. Daily Traffic</p>
+                </div>
+                <div className="p-4 rounded-lg bg-background border text-center">
+                  <TrendingUp className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <p className="text-2xl font-bold">24/7</p>
+                  <p className="text-xs text-muted-foreground">AI Optimization</p>
+                </div>
+              </div>
 
-          {step < 4 ? (
-            <Button
-              onClick={() => setStep(step + 1)}
-              disabled={!canProceed()}
-              className="bg-primary"
-            >
-              Next Step
-            </Button>
-          ) : (
-            <Button
-              onClick={handleCreateCampaign}
-              disabled={!canProceed() || isCreating}
-              className="bg-gradient-to-r from-primary to-accent"
-            >
-              {isCreating ? (
-                <>
-                  <AlertCircle className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Campaign...
-                </>
-              ) : (
-                <>
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Launch Campaign
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <h4 className="font-semibold mb-2">Automated Features Active:</h4>
+                <ul className="space-y-1 text-sm">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Traffic generation across all channels
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Real-time budget optimization
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Conversion tracking and analytics
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    Fraud detection and prevention
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    A/B testing and optimization
+                  </li>
+                </ul>
+              </div>
+
+              <Button onClick={() => window.location.reload()} className="w-full" size="lg">
+                View Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
   );
 }
