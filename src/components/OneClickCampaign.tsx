@@ -265,7 +265,7 @@ export function OneClickCampaign() {
                   </p>
                 </div>
 
-                <div className="grid md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+                <div className="grid md:grid-cols-4 gap-4 max-w-lg mx-auto">
                   <Card className="bg-primary/5">
                     <CardContent className="p-4 text-center">
                       <div className="text-3xl font-bold text-primary">
@@ -277,7 +277,7 @@ export function OneClickCampaign() {
                   <Card className="bg-accent/5">
                     <CardContent className="p-4 text-center">
                       <div className="text-3xl font-bold text-accent">
-                        {campaignResult.trafficSources?.length || 5}
+                        {campaignResult.trafficSources?.length || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">Traffic Channels</div>
                     </CardContent>
@@ -285,7 +285,7 @@ export function OneClickCampaign() {
                   <Card className="bg-green-500/5">
                     <CardContent className="p-4 text-center">
                       <div className="text-3xl font-bold text-green-500">
-                        {campaignResult.estimatedReach?.toLocaleString() || "10,000"}
+                        {campaignResult.estimatedReach?.toLocaleString() || "0"}
                       </div>
                       <div className="text-sm text-muted-foreground">Daily Reach</div>
                     </CardContent>
@@ -293,7 +293,7 @@ export function OneClickCampaign() {
                   <Card className="bg-blue-500/5">
                     <CardContent className="p-4 text-center">
                       <div className="text-3xl font-bold text-blue-500">
-                        ${campaignResult.campaign?.budget || 500}
+                        ${campaignResult.campaign?.budget || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">Budget</div>
                     </CardContent>

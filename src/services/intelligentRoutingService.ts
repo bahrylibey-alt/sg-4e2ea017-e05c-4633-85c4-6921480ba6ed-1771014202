@@ -1,7 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type Click = Database["public"]["Tables"]["click_events"]["Row"];
 
 export interface TrafficRoute {
   id: string;
@@ -26,8 +23,7 @@ export const intelligentRoutingService = {
     error: string | null;
   }> {
     try {
-      // Get all clicks for campaign
-      // Cast supabase to any to avoid TS2589 (excessively deep type instantiation)
+      // Aggressive cast to any to completely bypass TS2589 deep instantiation error
       const { data: links } = await (supabase as any)
         .from("affiliate_links")
         .select("id, short_code, click_count, conversion_count")
@@ -38,9 +34,11 @@ export const intelligentRoutingService = {
       }
 
       // Calculate routing performance for each link
-      const routes: TrafficRoute[] = links.map(link => {
-        const conversionRate = link.click_count > 0 ? (link.conversion_count / link.click_count) * 100 : 0;
-        const avgValue = link.conversion_count > 0 ? 50 : 0; // Placeholder, would calculate from actual commissions
+      const routes: TrafficRoute[] = links.map((link: any) => {
+        const clicks = link.click_count || 0;
+        const conversions = link.conversion_count || 0;
+        const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+        const avgValue = conversions > 0 ? 50 : 0; // Placeholder, would calculate from actual commissions
         
         return {
           id: link.id,
@@ -104,7 +102,8 @@ export const intelligentRoutingService = {
     error: string | null;
   }> {
     try {
-      const { data: links } = await supabase
+      // Explicit cast to any to prevent TS recursion
+      const { data: links } = await (supabase as any)
         .from("affiliate_links")
         .select("original_url, click_count, conversion_count")
         .eq("campaign_id", campaignId)
@@ -115,7 +114,7 @@ export const intelligentRoutingService = {
         return { destinations: [], error: null };
       }
 
-      const destinations = links.map(link => ({
+      const destinations = links.map((link: any) => ({
         url: link.original_url,
         performance: link.click_count > 0 ? (link.conversion_count / link.click_count) * 100 : 0,
         traffic: link.click_count
