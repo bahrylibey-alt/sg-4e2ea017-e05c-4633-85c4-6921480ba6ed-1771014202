@@ -121,9 +121,12 @@ export type Database = {
       }
       affiliate_links: {
         Row: {
+          click_count: number | null
           clicks: number | null
           cloaked_url: string
+          commission_earned: number | null
           commission_rate: number | null
+          conversion_count: number | null
           conversions: number | null
           created_at: string | null
           id: string
@@ -131,15 +134,19 @@ export type Database = {
           original_url: string
           product_name: string | null
           revenue: number | null
+          short_code: string | null
           slug: string
           status: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          click_count?: number | null
           clicks?: number | null
           cloaked_url: string
+          commission_earned?: number | null
           commission_rate?: number | null
+          conversion_count?: number | null
           conversions?: number | null
           created_at?: string | null
           id?: string
@@ -147,15 +154,19 @@ export type Database = {
           original_url: string
           product_name?: string | null
           revenue?: number | null
+          short_code?: string | null
           slug: string
           status?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          click_count?: number | null
           clicks?: number | null
           cloaked_url?: string
+          commission_earned?: number | null
           commission_rate?: number | null
+          conversion_count?: number | null
           conversions?: number | null
           created_at?: string | null
           id?: string
@@ -163,6 +174,7 @@ export type Database = {
           original_url?: string
           product_name?: string | null
           revenue?: number | null
+          short_code?: string | null
           slug?: string
           status?: string | null
           updated_at?: string | null

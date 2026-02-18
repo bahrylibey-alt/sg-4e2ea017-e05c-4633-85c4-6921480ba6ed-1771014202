@@ -17,7 +17,7 @@ export const dynamicPricingService = {
     try {
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("*, campaign_products(product_name)")
+        .select("*")
         .eq("id", campaignId)
         .single();
 

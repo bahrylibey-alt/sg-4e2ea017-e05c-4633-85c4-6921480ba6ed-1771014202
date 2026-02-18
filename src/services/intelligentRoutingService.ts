@@ -134,7 +134,7 @@ export const intelligentRoutingService = {
     try {
       const { data: clicks } = await supabase
         .from("click_events")
-        .select("*")
+        .select("id")
         .eq("campaign_id", campaignId);
 
       if (!clicks || clicks.length === 0) {
