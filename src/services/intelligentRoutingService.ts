@@ -132,10 +132,11 @@ export const intelligentRoutingService = {
     error: string | null;
   }> {
     try {
+      // Casting to any to avoid TS2589 (excessively deep type instantiation)
       const { count } = await supabase
         .from("click_events")
         .select("*", { count: "exact", head: true })
-        .eq("campaign_id", campaignId);
+        .eq("campaign_id", campaignId) as any;
 
       if (!count || count === 0) {
         return { 
