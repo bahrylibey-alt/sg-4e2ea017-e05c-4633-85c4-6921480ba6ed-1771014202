@@ -26,7 +26,52 @@ export interface CampaignPerformance {
 }
 
 export const campaignService = {
-  // Create a new campaign with enhanced validation
+  // Ensure user profile exists before campaign creation
+  async ensureUserProfile(userId: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+      console.log("🔍 Checking if profile exists for user:", userId);
+      
+      // Check if profile exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("❌ Error checking profile:", checkError);
+        return { success: false, error: `Profile check failed: ${checkError.message}` };
+      }
+
+      if (existingProfile) {
+        console.log("✅ Profile exists");
+        return { success: true, error: null };
+      }
+
+      // Create profile if it doesn't exist
+      console.log("📝 Creating profile for user:", userId);
+      const { error: createError } = await supabase
+        .from("profiles")
+        .insert({ 
+          id: userId,
+          email: null,
+          full_name: null
+        });
+
+      if (createError) {
+        console.error("❌ Error creating profile:", createError);
+        return { success: false, error: `Failed to create profile: ${createError.message}` };
+      }
+
+      console.log("✅ Profile created successfully");
+      return { success: true, error: null };
+    } catch (err) {
+      console.error("💥 Unexpected error in ensureUserProfile:", err);
+      return { success: false, error: "Profile verification failed" };
+    }
+  },
+
+  // Create a new campaign with enhanced validation and error handling
   async createCampaign(data: {
     name: string;
     goal: "sales" | "leads" | "traffic" | "awareness";
@@ -38,12 +83,24 @@ export const campaignService = {
     channels: Array<{ id: string; name: string }>;
   }): Promise<{ campaign: Campaign | null; error: string | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { campaign: null, error: "User not authenticated" };
+      console.log("🚀 Starting campaign creation:", data.name);
+
+      // Step 1: Verify authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error("❌ Authentication failed:", authError);
+        return { campaign: null, error: "You must be logged in to create campaigns" };
+      }
+      console.log("✅ User authenticated:", user.id);
+
+      // Step 2: Ensure profile exists (CRITICAL)
+      const profileCheck = await this.ensureUserProfile(user.id);
+      if (!profileCheck.success) {
+        console.error("❌ Profile check failed:", profileCheck.error);
+        return { campaign: null, error: profileCheck.error || "Failed to verify user profile" };
       }
 
-      // Validate input
+      // Step 3: Validate input
       if (!data.name || data.name.trim().length === 0) {
         return { campaign: null, error: "Campaign name is required" };
       }
@@ -53,8 +110,9 @@ export const campaignService = {
       if (data.duration_days <= 0) {
         return { campaign: null, error: "Duration must be greater than 0" };
       }
+      console.log("✅ Input validation passed");
 
-      // Calculate end date
+      // Step 4: Calculate dates
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + data.duration_days);
@@ -74,6 +132,9 @@ export const campaignService = {
         end_date: endDate.toISOString()
       };
 
+      console.log("📝 Inserting campaign:", insertData);
+
+      // Step 5: Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert(insertData)
@@ -81,12 +142,15 @@ export const campaignService = {
         .single();
 
       if (campaignError) {
-        console.error("Error creating campaign:", campaignError);
-        return { campaign: null, error: campaignError.message };
+        console.error("❌ Campaign creation error:", campaignError);
+        return { campaign: null, error: `Campaign creation failed: ${campaignError.message}` };
       }
 
-      // Insert products
+      console.log("✅ Campaign created:", campaign.id);
+
+      // Step 6: Insert products
       if (data.products.length > 0) {
+        console.log("📦 Adding products:", data.products.length);
         const productInserts = data.products.map(product => ({
           campaign_id: campaign.id,
           product_name: product
@@ -97,12 +161,15 @@ export const campaignService = {
           .insert(productInserts);
 
         if (productError) {
-          console.error("Error inserting products:", productError);
+          console.error("⚠️ Product insertion error:", productError);
+        } else {
+          console.log("✅ Products added");
         }
       }
 
-      // Insert channels
+      // Step 7: Insert channels
       if (data.channels.length > 0) {
+        console.log("📡 Adding channels:", data.channels.length);
         const channelInserts = data.channels.map(channel => ({
           campaign_id: campaign.id,
           channel_id: channel.id,
@@ -114,15 +181,18 @@ export const campaignService = {
           .insert(channelInserts);
 
         if (channelError) {
-          console.error("Error inserting channels:", channelError);
+          console.error("⚠️ Channel insertion error:", channelError);
+        } else {
+          console.log("✅ Channels added");
         }
       }
 
-      console.log("Campaign created successfully:", campaign);
+      console.log("🎉 Campaign creation completed successfully");
       return { campaign, error: null };
     } catch (err) {
-      console.error("Unexpected error creating campaign:", err);
-      return { campaign: null, error: "Failed to create campaign" };
+      console.error("💥 Unexpected error in createCampaign:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to create campaign";
+      return { campaign: null, error: errorMessage };
     }
   },
 
@@ -259,7 +329,6 @@ export const campaignService = {
       }));
 
       // 3. Get real top channels from traffic sources
-      // FIXED: Use correct columns 'total_clicks' and 'total_conversions'
       const { data: channelStats } = await supabase
         .from("traffic_sources")
         .select("source_name, total_clicks, total_conversions")
