@@ -203,28 +203,6 @@ export const smartCampaignService = {
         };
       }
 
-      // Validate URLs
-      const invalidUrls = input.productUrls.filter(url => {
-        try {
-          new URL(url);
-          return false;
-        } catch {
-          return true;
-        }
-      });
-
-      if (invalidUrls.length > 0) {
-        return {
-          success: false,
-          campaign: null,
-          affiliateLinks: [],
-          trafficSources: [],
-          estimatedReach: 0,
-          optimizations: [],
-          error: `Invalid URLs detected: ${invalidUrls.join(", ")}. Please provide valid URLs starting with http:// or https://`
-        };
-      }
-
       console.log("✅ URLs validated:", input.productUrls);
 
       // Step 3: Determine template
