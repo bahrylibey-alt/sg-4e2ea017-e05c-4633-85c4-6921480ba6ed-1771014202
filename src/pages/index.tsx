@@ -17,6 +17,7 @@ import { Newsletter } from "@/components/Newsletter";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { AIChatbot } from "@/components/AIChatbot";
+import { OneClickCampaign } from "@/components/OneClickCampaign";
 
 export default function Home() {
   const [showContentGenerator, setShowContentGenerator] = useState(false);
@@ -30,6 +31,7 @@ export default function Home() {
         <main>
           <Hero />
           <FeaturedContent />
+          <OneClickCampaign />
           <DashboardOverview />
           <AutopilotDashboard />
           <CampaignMonitor />
