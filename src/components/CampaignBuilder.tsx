@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Target, 
   Calendar,
@@ -17,7 +18,8 @@ import {
   CheckCircle,
   ArrowRight,
   Sparkles,
-  Rocket
+  Rocket,
+  AlertCircle
 } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +34,7 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     goal: "sales" as "sales" | "leads" | "traffic" | "awareness",
@@ -55,23 +58,83 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
         targetAudience: template.targetAudience,
         channels: template.defaultChannels.map(c => c.id)
       });
+      setError(null);
       setStep(2);
     }
   };
 
+  const validateUrls = (urls: string[]): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (urls.length === 0) {
+      errors.push("Please provide at least one product URL");
+      return { valid: false, errors };
+    }
+
+    urls.forEach((url, index) => {
+      if (!url.trim()) {
+        errors.push(`Line ${index + 1}: Empty URL`);
+        return;
+      }
+
+      try {
+        const urlObj = new URL(url.trim());
+        if (!urlObj.protocol.startsWith("http")) {
+          errors.push(`Line ${index + 1}: URL must start with http:// or https://`);
+        }
+      } catch {
+        errors.push(`Line ${index + 1}: Invalid URL format - "${url.trim()}"`);
+      }
+    });
+
+    return { valid: errors.length === 0, errors };
+  };
+
   const handleCreateCampaign = async () => {
-    if (!formData.name || !formData.productUrls) {
+    setError(null);
+    
+    // Validation
+    if (!formData.name || formData.name.trim().length === 0) {
+      setError("Campaign name is required");
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields",
+        description: "Please provide a campaign name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.productUrls || formData.productUrls.trim().length === 0) {
+      setError("Product URLs are required");
+      toast({
+        title: "Missing Information",
+        description: "Please provide at least one product URL",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const urls = formData.productUrls
+      .split("\n")
+      .map(url => url.trim())
+      .filter(url => url.length > 0);
+
+    const validation = validateUrls(urls);
+    if (!validation.valid) {
+      const errorMsg = validation.errors.join("\n");
+      setError(errorMsg);
+      toast({
+        title: "Invalid URLs",
+        description: "Please fix the URL errors and try again",
         variant: "destructive"
       });
       return;
     }
 
     setLoading(true);
+    
     try {
-      const urls = formData.productUrls.split("\n").filter(url => url.trim());
+      console.log("🚀 Creating campaign with URLs:", urls);
       
       const result = await smartCampaignService.createQuickCampaign({
         productUrls: urls,
@@ -79,20 +142,26 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
         customBudget: parseFloat(formData.budget)
       });
 
-      if (result.success) {
+      console.log("📊 Campaign result:", result);
+
+      if (result.success && result.campaign) {
         toast({
-          title: "Campaign Created!",
-          description: "Your automated campaign is now live"
+          title: "Campaign Created Successfully!",
+          description: `${result.affiliateLinks.length} affiliate links created. Traffic automation is now active.`
         });
+        setError(null);
         setStep(4);
         onComplete?.();
       } else {
         throw new Error(result.error || "Failed to create campaign");
       }
     } catch (err) {
+      console.error("❌ Campaign creation error:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+      setError(errorMessage);
       toast({
-        title: "Creation Failed",
-        description: "Failed to create campaign. Please try again.",
+        title: "Campaign Creation Failed",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -101,15 +170,18 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
   };
 
   const nextStep = () => {
+    setError(null);
     if (step < 3) setStep(step + 1);
   };
 
   const prevStep = () => {
+    setError(null);
     if (step > 1) setStep(step - 1);
   };
 
   const resetAndClose = () => {
     setStep(1);
+    setError(null);
     setFormData({
       name: "",
       goal: "sales",
@@ -145,6 +217,13 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
               <span className={step >= 4 ? "text-primary font-bold" : ""}>Launch</span>
             </div>
           </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
+            </Alert>
+          )}
 
           {step === 1 && (
             <div className="space-y-4">
@@ -240,12 +319,14 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
                   <Label htmlFor="productUrls">Product URLs * (one per line)</Label>
                   <Textarea
                     id="productUrls"
-                    placeholder="https://example.com/product1&#10;https://example.com/product2"
-                    rows={4}
+                    placeholder="https://example.com/product1&#10;https://example.com/product2&#10;https://amazon.com/product3"
+                    rows={5}
                     value={formData.productUrls}
                     onChange={(e) => setFormData({ ...formData, productUrls: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground">The system will automatically scan these pages to generate ads.</p>
+                  <p className="text-xs text-muted-foreground">
+                    💡 Tip: Each URL must start with http:// or https://. The system will automatically create affiliate links and generate promotional content.
+                  </p>
                 </div>
               </div>
 
@@ -280,6 +361,7 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
                   <Textarea
                     id="audience"
                     placeholder="e.g., Young professionals aged 25-40, interested in fitness and wellness"
+                    rows={3}
                     value={formData.targetAudience}
                     onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
                   />
@@ -323,7 +405,7 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
                   {loading ? (
                     <>
                       <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
+                      Creating Campaign...
                     </>
                   ) : (
                     <>
