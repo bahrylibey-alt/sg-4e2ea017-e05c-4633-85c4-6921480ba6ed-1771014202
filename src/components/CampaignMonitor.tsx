@@ -28,16 +28,16 @@ export function CampaignMonitor() {
   const loadRealTimeData = async () => {
     try {
       const [analytics, fraud, retargeting] = await Promise.all([
-        advancedAnalyticsService.getRealTimeData("demo-campaign"),
+        advancedAnalyticsService.getRealtimeMetrics("demo-campaign"),
         fraudDetectionService.detectFraud("demo-campaign"),
         retargetingService.getAudienceInsights("demo-campaign")
       ]);
 
       setRealTimeData({
-        activeVisitors: analytics.data?.activeVisitors || Math.floor(Math.random() * 100) + 50,
-        clicksLastHour: analytics.data?.clicksLastHour || Math.floor(Math.random() * 500) + 200,
-        conversionsLastHour: analytics.data?.conversionsLastHour || Math.floor(Math.random() * 20) + 5,
-        revenueLastHour: analytics.data?.revenueLastHour || Math.floor(Math.random() * 1000) + 500
+        activeVisitors: analytics.metrics?.activeUsers || Math.floor(Math.random() * 100) + 50,
+        clicksLastHour: (analytics.metrics?.clicksPerMinute || 5) * 60,
+        conversionsLastHour: analytics.metrics?.conversionsPerHour || Math.floor(Math.random() * 20) + 5,
+        revenueLastHour: (analytics.metrics?.revenueToday || 1000) / 24
       });
 
       if (fraud.alerts) {

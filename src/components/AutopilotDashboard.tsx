@@ -41,20 +41,27 @@ export function AutopilotDashboard() {
 
   const loadAutopilotStatus = async () => {
     try {
-      const trafficResult = await trafficAutomationService.generateTraffic("demo-campaign");
-      const optimizationResult = await aiOptimizationEngine.optimizeEverything("demo-campaign");
+      const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
+        campaignId: "demo-campaign",
+        targetTraffic: 5000,
+        budget: 1000,
+        channels: ["social", "email", "paid-ads", "seo"],
+        optimization: "conversions",
+        autoScale: true
+      });
+      const optimizationResult = await aiOptimizationEngine.runFullOptimization("demo-campaign");
 
       setStatus({
         active: true,
-        revenue: trafficResult.estimatedRevenue || 0,
-        conversions: trafficResult.estimatedConversions || 0,
-        roi: optimizationResult.improvements?.roi || 0,
-        traffic: trafficResult.traffic?.reduce((sum, t) => sum + t.volume, 0) || 0,
-        optimization: optimizationResult.overallScore || 0
+        revenue: (trafficResult.estimatedReach * 0.05 * 50) || 0, // Mock calculation
+        conversions: (trafficResult.estimatedReach * 0.05) || 0,
+        roi: optimizationResult.result?.improvements?.find(i => i.metric === "ROI")?.after || 0,
+        traffic: trafficResult.estimatedReach || 0,
+        optimization: optimizationResult.result?.optimizationsApplied || 0
       });
 
-      if (optimizationResult.recommendations) {
-        setRecommendations(optimizationResult.recommendations.slice(0, 5));
+      if (optimizationResult.result?.recommendations) {
+        setRecommendations(optimizationResult.result.recommendations.slice(0, 5));
       }
     } catch (err) {
       console.error("Failed to load autopilot status:", err);
@@ -70,8 +77,15 @@ export function AutopilotDashboard() {
       if (newState) {
         // Initialize autopilot systems
         await Promise.all([
-          trafficAutomationService.generateTraffic("demo-campaign"),
-          aiOptimizationEngine.optimizeEverything("demo-campaign"),
+          trafficAutomationService.launchAutomatedTraffic({
+            campaignId: "demo-campaign",
+            targetTraffic: 5000,
+            budget: 1000,
+            channels: ["social", "email", "paid-ads", "seo"],
+            optimization: "conversions",
+            autoScale: true
+          }),
+          aiOptimizationEngine.runFullOptimization("demo-campaign"),
           conversionOptimizationService.analyzeAndOptimize("demo-campaign")
         ]);
         await loadAutopilotStatus();
@@ -95,7 +109,7 @@ export function AutopilotDashboard() {
   const forceOptimization = async () => {
     setLoading(true);
     try {
-      await aiOptimizationEngine.optimizeEverything("demo-campaign");
+      await aiOptimizationEngine.runFullOptimization("demo-campaign");
       await loadAutopilotStatus();
     } catch (err) {
       console.error("Failed to force optimization:", err);
