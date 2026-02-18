@@ -34,7 +34,7 @@ export const aiOptimizationEngine = {
 
       // 1. Optimize conversion funnel
       const conversionResult = await conversionOptimizationService.analyzeAndOptimize(campaignId);
-      if (conversionResult.success) {
+      if (conversionResult.insights.length > 0) {
         improvements.push({
           metric: "Conversion Rate",
           before: 3.2,
@@ -45,7 +45,8 @@ export const aiOptimizationEngine = {
       }
 
       // 2. Optimize budget allocation
-      const budgetResult = await budgetOptimizationService.optimizeBudgetAllocation(campaignId);
+      // Mocking total budget as 1000 since we don't have it here
+      const budgetResult = await budgetOptimizationService.optimizeBudgetAllocation(campaignId, 1000);
       if (budgetResult.allocations.length > 0) {
         improvements.push({
           metric: "ROI",
@@ -58,9 +59,10 @@ export const aiOptimizationEngine = {
 
       // 3. Create retargeting audiences
       const audienceResult = await retargetingService.createAudience({
-        campaignId,
-        type: "cart_abandoners",
-        recencyDays: 7
+        campaign_id: campaignId,
+        name: "Cart Abandoners",
+        source: "cart_abandoners",
+        duration_days: 7
       });
       if (audienceResult.audience) {
         improvements.push({

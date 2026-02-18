@@ -65,8 +65,8 @@ export function CampaignMonitor() {
         setFraudAlerts(fraud.alerts.slice(0, 3));
       }
 
-      if (retargeting.insights) {
-        setRetargetingPool(retargeting.insights.retargetableUsers || 0);
+      if (retargeting) {
+        setRetargetingPool(retargeting.totalReach || 0);
       }
     } catch (err) {
       console.error("Failed to load real-time data:", err);

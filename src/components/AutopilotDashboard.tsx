@@ -63,20 +63,20 @@ export function AutopilotDashboard() {
     try {
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
         campaignId: activeCampaignId,
-        targetTraffic: 5000,
         budget: 1000,
-        channels: ["social", "email", "paid-ads", "seo"],
-        optimization: "conversions",
-        autoScale: true
+        sources: ["Google Ads", "Facebook Ads", "Email Marketing", "SEO Traffic"]
       });
       const optimizationResult = await aiOptimizationEngine.runFullOptimization(activeCampaignId);
 
+      // Calculate estimated metrics based on sources created
+      const estimatedReach = trafficResult.sources.length * 1000;
+
       setStatus({
         active: true,
-        revenue: (trafficResult.estimatedReach * 0.05 * 50) || 0,
-        conversions: (trafficResult.estimatedReach * 0.05) || 0,
+        revenue: (estimatedReach * 0.05 * 50) || 0,
+        conversions: (estimatedReach * 0.05) || 0,
         roi: optimizationResult.result?.improvements?.find(i => i.metric === "ROI")?.after || 0,
-        traffic: trafficResult.estimatedReach || 0,
+        traffic: estimatedReach || 0,
         optimization: optimizationResult.result?.optimizationsApplied || 0
       });
 
@@ -103,11 +103,8 @@ export function AutopilotDashboard() {
         await Promise.all([
           trafficAutomationService.launchAutomatedTraffic({
             campaignId: activeCampaignId,
-            targetTraffic: 5000,
             budget: 1000,
-            channels: ["social", "email", "paid-ads", "seo"],
-            optimization: "conversions",
-            autoScale: true
+            sources: ["Google Ads", "Facebook Ads", "Email Marketing", "SEO Traffic"]
           }),
           aiOptimizationEngine.runFullOptimization(activeCampaignId),
           conversionOptimizationService.analyzeAndOptimize(activeCampaignId)

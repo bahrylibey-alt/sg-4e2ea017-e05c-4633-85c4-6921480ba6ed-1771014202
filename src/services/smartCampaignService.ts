@@ -35,6 +35,7 @@ export interface OneClickResult {
   trafficSources: any[];
   estimatedReach: number;
   optimizations: string[];
+  optimizationInsights?: Array<{ title: string; description: string; impact: string }>;
   error: string | null;
 }
 
