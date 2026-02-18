@@ -26,11 +26,10 @@ export const dynamicPricingService = {
       }
 
       // Get affiliate links performance for this campaign
-      // Casting to any to avoid TS2589 (excessively deep type instantiation) caused by complex Database types
-      const response = await supabase
-        .from("affiliate_links")
+      // Casting table ref to any to avoid TS2589 (excessively deep type instantiation)
+      const response = await (supabase.from("affiliate_links") as any)
         .select("product_name, click_count, conversion_count, commission_earned")
-        .eq("campaign_id", campaignId) as any;
+        .eq("campaign_id", campaignId);
 
       const links = response.data;
 
