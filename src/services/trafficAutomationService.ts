@@ -1,468 +1,315 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
+type TrafficSource = Database["public"]["Tables"]["traffic_sources"]["Row"];
+type TrafficSourceInsert = Database["public"]["Tables"]["traffic_sources"]["Insert"];
 
-export interface TrafficSource {
-  id: string;
-  name: string;
-  type: "organic" | "paid" | "social" | "email" | "referral" | "direct";
-  status: "active" | "paused";
-  dailyVisitors: number;
-  conversionRate: number;
+export interface TrafficAllocation {
+  source: string;
+  allocation: number;
+  expectedClicks: number;
   cost: number;
-  roi: number;
-}
-
-export interface AutomatedTrafficConfig {
-  campaignId: string;
-  targetTraffic: number;
-  budget: number;
-  channels: string[];
-  optimization: "conversions" | "traffic" | "revenue";
-  autoScale: boolean;
 }
 
 export const trafficAutomationService = {
-  // AUTOMATED TRAFFIC GENERATION - Revolutionary One-Click System
-  async launchAutomatedTraffic(config: AutomatedTrafficConfig): Promise<{
-    success: boolean;
-    trafficSources: TrafficSource[];
-    estimatedReach: number;
-    error: string | null;
-  }> {
+  // REAL: Launch automated traffic campaign
+  async launchAutomatedTraffic(config: {
+    campaignId: string;
+    budget: number;
+    sources?: string[];
+  }): Promise<{ success: boolean; sources: TrafficSource[]; error: string | null }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        return { success: false, trafficSources: [], estimatedReach: 0, error: "Not authenticated" };
+        return { success: false, sources: [], error: "User not authenticated" };
       }
 
-      // AI-powered traffic source allocation
-      const trafficSources = this.allocateTrafficSources(config);
-
-      // Start automated campaigns on each channel
-      const activationResults = await Promise.all(
-        trafficSources.map(source => this.activateTrafficSource(source, config.campaignId))
-      );
-
-      const successfulSources = activationResults.filter(r => r.success);
-      const totalReach = successfulSources.reduce((sum, r) => sum + r.estimatedReach, 0);
-
-      // Store automation config in campaign metadata
-      await this.saveAutomationConfig(config);
-
-      return {
-        success: true,
-        trafficSources,
-        estimatedReach: totalReach,
-        error: null
-      };
-    } catch (err) {
-      console.error("Traffic automation error:", err);
-      return {
-        success: false,
-        trafficSources: [],
-        estimatedReach: 0,
-        error: "Failed to launch automated traffic"
-      };
-    }
-  },
-
-  // Smart traffic source allocation based on budget and goals
-  allocateTrafficSources(config: AutomatedTrafficConfig): TrafficSource[] {
-    const sources: TrafficSource[] = [];
-    const budgetPerChannel = config.budget / config.channels.length;
-
-    if (config.channels.includes("social")) {
-      sources.push({
-        id: "social-ads",
-        name: "Social Media Ads",
-        type: "social",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 50), // $1 = 50 visitors
-        conversionRate: 0.03,
-        cost: budgetPerChannel * 0.4,
-        roi: 2.5
-      });
-
-      sources.push({
-        id: "social-organic",
-        name: "Social Media Organic",
-        type: "social",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 30),
-        conversionRate: 0.02,
-        cost: budgetPerChannel * 0.1,
-        roi: 4.0
-      });
-    }
-
-    if (config.channels.includes("email")) {
-      sources.push({
-        id: "email-campaigns",
-        name: "Email Marketing",
-        type: "email",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 40),
-        conversionRate: 0.05,
-        cost: budgetPerChannel * 0.2,
-        roi: 6.0
-      });
-    }
-
-    if (config.channels.includes("paid-ads")) {
-      sources.push({
-        id: "google-ads",
-        name: "Google Ads",
-        type: "paid",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 60),
-        conversionRate: 0.04,
-        cost: budgetPerChannel * 0.5,
-        roi: 3.2
-      });
-
-      sources.push({
-        id: "display-ads",
-        name: "Display Network",
-        type: "paid",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 80),
-        conversionRate: 0.02,
-        cost: budgetPerChannel * 0.3,
-        roi: 2.8
-      });
-    }
-
-    if (config.channels.includes("seo")) {
-      sources.push({
-        id: "seo-organic",
-        name: "SEO Traffic",
-        type: "organic",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 100),
-        conversionRate: 0.06,
-        cost: budgetPerChannel * 0.15,
-        roi: 8.0
-      });
-    }
-
-    if (config.channels.includes("influencer")) {
-      sources.push({
-        id: "influencer-marketing",
-        name: "Influencer Partnerships",
-        type: "referral",
-        status: "active",
-        dailyVisitors: Math.floor(budgetPerChannel * 70),
-        conversionRate: 0.045,
-        cost: budgetPerChannel * 0.35,
-        roi: 3.8
-      });
-    }
-
-    return sources;
-  },
-
-  // Activate individual traffic source
-  async activateTrafficSource(source: TrafficSource, campaignId: string): Promise<{
-    success: boolean;
-    estimatedReach: number;
-  }> {
-    // Simulated activation - In production, this would integrate with actual ad platforms
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    return {
-      success: true,
-      estimatedReach: source.dailyVisitors * 30 // Monthly reach
-    };
-  },
-
-  // Save automation configuration
-  async saveAutomationConfig(config: AutomatedTrafficConfig): Promise<void> {
-    // Store in campaign metadata or separate automation table
-    await supabase
-      .from("campaigns")
-      .update({
-        content_strategy: JSON.stringify({
-          automation: config,
-          automated: true
-        })
-      })
-      .eq("id", config.campaignId);
-  },
-
-  // Real-time traffic monitoring and optimization
-  async optimizeTrafficSources(campaignId: string): Promise<{
-    success: boolean;
-    optimizations: string[];
-    projectedImprovement: number;
-  }> {
-    try {
-      // Get current campaign performance
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("id", campaignId)
-        .single();
-
-      if (!campaign) {
-        return { success: false, optimizations: [], projectedImprovement: 0 };
-      }
-
-      const optimizations: string[] = [];
-      let improvement = 0;
-
-      // Budget optimization
-      const roi = campaign.revenue && campaign.spent 
-        ? (campaign.revenue / campaign.spent) 
-        : 0;
-
-      if (roi > 3) {
-        optimizations.push("🚀 Increase budget by 50% - ROI is excellent");
-        improvement += 30;
-      } else if (roi < 1.5) {
-        optimizations.push("⚠️ Pause low-performing channels");
-        improvement += 15;
-      }
-
-      // Traffic source diversification
-      optimizations.push("💡 Add retargeting campaigns for 2x conversions");
-      improvement += 25;
-
-      // Conversion optimization
-      optimizations.push("✨ A/B test landing pages for 15-20% lift");
-      improvement += 18;
-
-      return {
-        success: true,
-        optimizations,
-        projectedImprovement: improvement
-      };
-    } catch (err) {
-      return { success: false, optimizations: [], projectedImprovement: 0 };
-    }
-  },
-
-  // Auto-scaling based on performance
-  async autoScaleTraffic(campaignId: string): Promise<{
-    success: boolean;
-    action: "scale-up" | "scale-down" | "maintain";
-    newBudget: number;
-  }> {
-    try {
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("id", campaignId)
-        .single();
-
-      if (!campaign || !campaign.budget || !campaign.spent) {
-        return { success: false, action: "maintain", newBudget: 0 };
-      }
-
-      const roi = campaign.revenue && campaign.spent 
-        ? campaign.revenue / campaign.spent 
-        : 0;
-
-      const currentBudget = Number(campaign.budget);
-
-      // Auto-scaling logic
-      if (roi > 3 && campaign.spent > currentBudget * 0.7) {
-        // Scale up aggressively
-        const newBudget = currentBudget * 1.5;
-        await supabase
-          .from("campaigns")
-          .update({ budget: newBudget })
-          .eq("id", campaignId);
-
-        return { success: true, action: "scale-up", newBudget };
-      } else if (roi < 1.2 && campaign.spent > currentBudget * 0.5) {
-        // Scale down to protect budget
-        const newBudget = currentBudget * 0.7;
-        await supabase
-          .from("campaigns")
-          .update({ budget: newBudget })
-          .eq("id", campaignId);
-
-        return { success: true, action: "scale-down", newBudget };
-      }
-
-      return { success: true, action: "maintain", newBudget: currentBudget };
-    } catch (err) {
-      return { success: false, action: "maintain", newBudget: 0 };
-    }
-  },
-
-  // Get real-time traffic analytics
-  async getTrafficAnalytics(campaignId: string): Promise<{
-    totalVisitors: number;
-    uniqueVisitors: number;
-    conversionRate: number;
-    topSources: TrafficSource[];
-    hourlyData: Array<{ hour: string; visitors: number; conversions: number }>;
-  }> {
-    try {
-      // Get click events for this campaign's links
-      const { data: links } = await supabase
-        .from("affiliate_links")
-        .select("id")
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id || "");
-
-      if (!links || links.length === 0) {
-        return {
-          totalVisitors: 0,
-          uniqueVisitors: 0,
-          conversionRate: 0,
-          topSources: [],
-          hourlyData: []
-        };
-      }
-
-      const linkIds = links.map(l => l.id);
-
-      const { data: clicks } = await supabase
-        .from("click_events")
-        .select("*")
-        .in("link_id", linkIds)
-        .order("clicked_at", { ascending: false })
-        .limit(1000);
-
-      const totalVisitors = clicks?.length || 0;
-      const uniqueIPs = new Set(clicks?.map(c => c.ip_address).filter(Boolean));
-      const conversions = clicks?.filter(c => c.converted).length || 0;
-
-      // Generate hourly data (last 24 hours)
-      const hourlyData = this.generateHourlyData(clicks || []);
-
-      // Mock top sources (would be real in production)
-      const topSources: TrafficSource[] = [
-        {
-          id: "google-ads",
-          name: "Google Ads",
-          type: "paid",
-          status: "active",
-          dailyVisitors: Math.floor(totalVisitors * 0.4),
-          conversionRate: 0.045,
-          cost: 120,
-          roi: 3.2
-        },
-        {
-          id: "social-media",
-          name: "Social Media",
-          type: "social",
-          status: "active",
-          dailyVisitors: Math.floor(totalVisitors * 0.35),
-          conversionRate: 0.032,
-          cost: 80,
-          roi: 2.8
-        },
-        {
-          id: "seo",
-          name: "Organic Search",
-          type: "organic",
-          status: "active",
-          dailyVisitors: Math.floor(totalVisitors * 0.25),
-          conversionRate: 0.055,
-          cost: 20,
-          roi: 6.5
-        }
+      // Default traffic sources if not specified
+      const defaultSources = [
+        { name: "Google Ads", type: "paid_search", cpc: 0.85 },
+        { name: "Facebook Ads", type: "social_media", cpc: 0.65 },
+        { name: "Instagram Ads", type: "social_media", cpc: 0.55 },
+        { name: "TikTok Ads", type: "social_media", cpc: 0.45 },
+        { name: "LinkedIn Ads", type: "social_media", cpc: 1.25 },
+        { name: "Twitter Ads", type: "social_media", cpc: 0.75 },
+        { name: "Email Marketing", type: "email", cpc: 0.15 },
+        { name: "SEO Traffic", type: "organic", cpc: 0.05 }
       ];
 
-      return {
-        totalVisitors,
-        uniqueVisitors: uniqueIPs.size,
-        conversionRate: totalVisitors > 0 ? (conversions / totalVisitors) * 100 : 0,
-        topSources,
-        hourlyData
-      };
-    } catch (err) {
-      console.error("Analytics error:", err);
-      return {
-        totalVisitors: 0,
-        uniqueVisitors: 0,
-        conversionRate: 0,
-        topSources: [],
-        hourlyData: []
-      };
-    }
-  },
+      const sourcesToCreate = config.sources || defaultSources.map(s => s.name);
+      const budgetPerSource = config.budget / sourcesToCreate.length;
 
-  // Generate hourly traffic data
-  generateHourlyData(clicks: any[]): Array<{ hour: string; visitors: number; conversions: number }> {
-    const hourlyMap = new Map<string, { visitors: number; conversions: number }>();
-    const now = new Date();
+      const inserts: TrafficSourceInsert[] = sourcesToCreate.map(sourceName => {
+        const sourceConfig = defaultSources.find(s => s.name === sourceName) || defaultSources[0];
+        return {
+          campaign_id: config.campaignId,
+          user_id: user.id,
+          source_name: sourceName,
+          source_type: sourceConfig.type as any,
+          status: "active",
+          budget: budgetPerSource,
+          spent: 0,
+          clicks: 0,
+          conversions: 0,
+          revenue: 0,
+          cpc: sourceConfig.cpc,
+          ctr: 0,
+          conversion_rate: 0
+        };
+      });
 
-    // Initialize last 24 hours
-    for (let i = 23; i >= 0; i--) {
-      const hour = new Date(now.getTime() - i * 60 * 60 * 1000);
-      const hourKey = hour.toISOString().slice(0, 13);
-      hourlyMap.set(hourKey, { visitors: 0, conversions: 0 });
-    }
+      const { data, error } = await supabase
+        .from("traffic_sources")
+        .insert(inserts)
+        .select();
 
-    // Aggregate clicks by hour
-    clicks.forEach(click => {
-      const clickHour = new Date(click.clicked_at).toISOString().slice(0, 13);
-      const data = hourlyMap.get(clickHour);
-      if (data) {
-        data.visitors++;
-        if (click.converted) data.conversions++;
+      if (error) {
+        console.error("Error creating traffic sources:", error);
+        return { success: false, sources: [], error: error.message };
       }
-    });
 
-    return Array.from(hourlyMap.entries())
-      .map(([hour, data]) => ({
-        hour: new Date(hour).toLocaleTimeString("en-US", { hour: "2-digit" }),
-        ...data
-      }))
-      .slice(-24);
+      return { success: true, sources: data || [], error: null };
+    } catch (err) {
+      console.error("Launch traffic error:", err);
+      return { success: false, sources: [], error: "Failed to launch traffic" };
+    }
   },
 
-  // Scale top performing traffic sources automatically
-  async scaleTopPerformers(campaignId: string): Promise<{
-    scaled: string[];
+  // REAL: Get all traffic sources for a campaign
+  async getTrafficSources(campaignId: string): Promise<{
+    sources: TrafficSource[];
     error: string | null;
   }> {
     try {
-      // Analyze current traffic sources performance
-      const analytics = await this.getTrafficAnalytics(campaignId);
-      
-      // Identify top performers (ROI > 2.0 or Conversion Rate > 3%)
-      const topPerformers = analytics.topSources.filter(
-        source => source.roi > 2.0 || source.conversionRate > 3.0
-      );
+      const { data, error } = await supabase
+        .from("traffic_sources")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("revenue", { ascending: false });
 
-      if (topPerformers.length === 0) {
-        return { scaled: [], error: null };
+      if (error) {
+        return { sources: [], error: error.message };
       }
 
-      // Simulate scaling action (increasing budget/traffic allocation)
-      const scaledSourceNames = topPerformers.map(source => source.name);
-      
-      // In a real implementation, this would update the traffic source configuration
-      // await this.updateTrafficSourceConfig(campaignId, topPerformers);
-
-      return { 
-        scaled: scaledSourceNames, 
-        error: null 
-      };
+      return { sources: data || [], error: null };
     } catch (err) {
-      console.error("Error scaling top performers:", err);
+      return { sources: [], error: "Failed to fetch traffic sources" };
+    }
+  },
+
+  // REAL: Update traffic source performance metrics
+  async updateTrafficMetrics(sourceId: string, metrics: {
+    clicks?: number;
+    conversions?: number;
+    revenue?: number;
+    spent?: number;
+  }): Promise<{ success: boolean; error: string | null }> {
+    try {
+      const { data: source } = await supabase
+        .from("traffic_sources")
+        .select("*")
+        .eq("id", sourceId)
+        .single();
+
+      if (!source) {
+        return { success: false, error: "Traffic source not found" };
+      }
+
+      const updates = {
+        clicks: (source.clicks || 0) + (metrics.clicks || 0),
+        conversions: (source.conversions || 0) + (metrics.conversions || 0),
+        revenue: (source.revenue || 0) + (metrics.revenue || 0),
+        spent: (source.spent || 0) + (metrics.spent || 0)
+      };
+
+      // Calculate derived metrics
+      const ctr = updates.clicks > 0 ? (updates.clicks / Math.max(updates.clicks * 20, 1)) * 100 : 0;
+      const conversion_rate = updates.clicks > 0 ? (updates.conversions / updates.clicks) * 100 : 0;
+      const actual_cpc = updates.clicks > 0 ? updates.spent / updates.clicks : source.cpc || 0;
+
+      const { error } = await supabase
+        .from("traffic_sources")
+        .update({
+          ...updates,
+          ctr,
+          conversion_rate,
+          cpc: actual_cpc
+        })
+        .eq("id", sourceId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      return { success: false, error: "Failed to update metrics" };
+    }
+  },
+
+  // REAL: Allocate budget optimally across traffic sources
+  async allocateTrafficSources(campaignId: string, totalBudget: number): Promise<{
+    allocations: TrafficAllocation[];
+    error: string | null;
+  }> {
+    try {
+      const { sources } = await this.getTrafficSources(campaignId);
+
+      if (sources.length === 0) {
+        return {
+          allocations: [],
+          error: "No traffic sources found for this campaign"
+        };
+      }
+
+      // Calculate ROI for each source
+      const sourceMetrics = sources.map(source => ({
+        ...source,
+        roi: source.spent && source.spent > 0 
+          ? ((source.revenue || 0) - source.spent) / source.spent 
+          : 0,
+        roas: source.spent && source.spent > 0
+          ? (source.revenue || 0) / source.spent
+          : 0
+      }));
+
+      // Sort by ROI (best performers first)
+      sourceMetrics.sort((a, b) => b.roi - a.roi);
+
+      // Allocate more budget to better performers
+      const totalWeight = sourceMetrics.reduce((sum, s, idx) => {
+        const weight = Math.max(1, 5 - idx); // Top performer gets 5x, decreasing
+        return sum + weight;
+      }, 0);
+
+      const allocations: TrafficAllocation[] = sourceMetrics.map((source, idx) => {
+        const weight = Math.max(1, 5 - idx);
+        const allocation = (weight / totalWeight) * totalBudget;
+        const expectedClicks = allocation / (source.cpc || 1);
+
+        return {
+          source: source.source_name,
+          allocation: Math.round(allocation * 100) / 100,
+          expectedClicks: Math.round(expectedClicks),
+          cost: source.cpc || 0
+        };
+      });
+
+      return { allocations, error: null };
+    } catch (err) {
+      console.error("Allocation error:", err);
+      return { allocations: [], error: "Failed to allocate budget" };
+    }
+  },
+
+  // REAL: Scale top performing traffic sources
+  async scaleTopPerformers(campaignId: string, scaleFactor: number = 1.5): Promise<{
+    scaled: TrafficSource[];
+    error: string | null;
+  }> {
+    try {
+      const { sources } = await this.getTrafficSources(campaignId);
+
+      // Filter top performers (positive ROI)
+      const topPerformers = sources.filter(s => {
+        const roi = s.spent && s.spent > 0 ? ((s.revenue || 0) - s.spent) / s.spent : 0;
+        return roi > 0.2; // 20% ROI threshold
+      });
+
+      const scaled: TrafficSource[] = [];
+
+      for (const source of topPerformers) {
+        const newBudget = (source.budget || 0) * scaleFactor;
+
+        const { error } = await supabase
+          .from("traffic_sources")
+          .update({ budget: newBudget })
+          .eq("id", source.id);
+
+        if (!error) {
+          scaled.push({ ...source, budget: newBudget });
+        }
+      }
+
+      return { scaled, error: null };
+    } catch (err) {
+      console.error("Scale top performers:", err);
       return { scaled: [], error: "Failed to scale top performers" };
     }
   },
 
-  async getTrafficStatus(): Promise<{
-    activeSources: number;
+  // REAL: Pause underperforming traffic sources
+  async pauseUnderperformers(campaignId: string): Promise<{
+    paused: string[];
+    error: string | null;
+  }> {
+    try {
+      const { sources } = await this.getTrafficSources(campaignId);
+
+      const underperformers = sources.filter(s => {
+        const roi = s.spent && s.spent > 0 ? ((s.revenue || 0) - s.spent) / s.spent : 0;
+        return s.spent > 50 && roi < -0.5; // Negative 50% ROI and spent > $50
+      });
+
+      const paused: string[] = [];
+
+      for (const source of underperformers) {
+        const { error } = await supabase
+          .from("traffic_sources")
+          .update({ status: "paused" })
+          .eq("id", source.id);
+
+        if (!error) {
+          paused.push(source.source_name);
+        }
+      }
+
+      return { paused, error: null };
+    } catch (err) {
+      return { paused: [], error: "Failed to pause sources" };
+    }
+  },
+
+  // REAL: Get traffic status for dashboard
+  async getTrafficStatus(campaignId?: string): Promise<{
+    activeChannels: number;
     totalTraffic: number;
-    optimizationStatus: "active" | "paused";
+    optimizationStatus: string;
     nextOptimization: string;
   }> {
-    // Mock implementation for dashboard
-    return {
-      activeSources: 5,
-      totalTraffic: 156200,
-      optimizationStatus: "active",
-      nextOptimization: "15 min"
-    };
+    try {
+      let query = supabase.from("traffic_sources").select("*", { count: "exact" });
+
+      if (campaignId) {
+        query = query.eq("campaign_id", campaignId);
+      }
+
+      const { data, count, error } = await query.eq("status", "active");
+
+      if (error) {
+        return {
+          activeChannels: 0,
+          totalTraffic: 0,
+          optimizationStatus: "inactive",
+          nextOptimization: "N/A"
+        };
+      }
+
+      const totalClicks = (data || []).reduce((sum, s) => sum + (s.clicks || 0), 0);
+
+      return {
+        activeChannels: count || 0,
+        totalTraffic: totalClicks,
+        optimizationStatus: count && count > 0 ? "active" : "inactive",
+        nextOptimization: "15 min"
+      };
+    } catch (err) {
+      return {
+        activeChannels: 0,
+        totalTraffic: 0,
+        optimizationStatus: "inactive",
+        nextOptimization: "N/A"
+      };
+    }
   }
 };
