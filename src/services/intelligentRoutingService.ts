@@ -1,239 +1,158 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type Click = Database["public"]["Tables"]["click_events"]["Row"];
 
 export interface TrafficRoute {
-  channelId: string;
-  channelName: string;
+  id: string;
+  source: string;
+  destination: string;
+  conversionRate: number;
+  avgValue: number;
   priority: number;
-  allocation: number;
-  expectedROI: number;
-  confidence: number;
 }
 
-export interface GeoTargeting {
-  country: string;
-  expectedConversion: number;
-  suggestedBudget: number;
-  competitionLevel: "low" | "medium" | "high";
+export interface RoutingRule {
+  condition: string;
+  destination: string;
+  weight: number;
 }
 
 export const intelligentRoutingService = {
-  // AI-powered traffic routing optimization
-  async optimizeRouting(campaignId: string): Promise<{
+  // Analyze click patterns to determine best routing strategies
+  async analyzeRouting(campaignId: string): Promise<{
     routes: TrafficRoute[];
-    estimatedImprovement: number;
-    error: string | null;
-  }> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { routes: [], estimatedImprovement: 0, error: "Not authenticated" };
-      }
-
-      // AI determines optimal traffic routing based on performance data
-      const routes: TrafficRoute[] = [
-        {
-          channelId: "google-search",
-          channelName: "Google Search Ads",
-          priority: 1,
-          allocation: 35,
-          expectedROI: 4.2,
-          confidence: 92
-        },
-        {
-          channelId: "facebook-feed",
-          channelName: "Facebook News Feed",
-          priority: 2,
-          allocation: 25,
-          expectedROI: 3.8,
-          confidence: 88
-        },
-        {
-          channelId: "instagram-stories",
-          channelName: "Instagram Stories",
-          priority: 3,
-          allocation: 20,
-          expectedROI: 3.4,
-          confidence: 85
-        },
-        {
-          channelId: "email-campaigns",
-          channelName: "Email Marketing",
-          priority: 4,
-          allocation: 15,
-          expectedROI: 5.1,
-          confidence: 95
-        },
-        {
-          channelId: "youtube-ads",
-          channelName: "YouTube Ads",
-          priority: 5,
-          allocation: 5,
-          expectedROI: 2.9,
-          confidence: 78
-        }
-      ];
-
-      return {
-        routes,
-        estimatedImprovement: 34,
-        error: null
-      };
-    } catch (err) {
-      return { routes: [], estimatedImprovement: 0, error: "Routing optimization failed" };
-    }
-  },
-
-  // Geographic targeting optimization
-  async optimizeGeoTargeting(campaignId: string): Promise<{
-    recommendations: GeoTargeting[];
-    error: string | null;
-  }> {
-    try {
-      const recommendations: GeoTargeting[] = [
-        {
-          country: "United States",
-          expectedConversion: 4.8,
-          suggestedBudget: 500,
-          competitionLevel: "high"
-        },
-        {
-          country: "United Kingdom",
-          expectedConversion: 4.2,
-          suggestedBudget: 300,
-          competitionLevel: "medium"
-        },
-        {
-          country: "Canada",
-          expectedConversion: 3.9,
-          suggestedBudget: 200,
-          competitionLevel: "medium"
-        },
-        {
-          country: "Australia",
-          expectedConversion: 4.5,
-          suggestedBudget: 250,
-          competitionLevel: "low"
-        },
-        {
-          country: "Germany",
-          expectedConversion: 3.6,
-          suggestedBudget: 200,
-          competitionLevel: "medium"
-        }
-      ];
-
-      return { recommendations, error: null };
-    } catch (err) {
-      return { recommendations: [], error: "Geo-targeting optimization failed" };
-    }
-  },
-
-  // Device-specific optimization
-  async optimizeDeviceTargeting(campaignId: string): Promise<{
-    recommendations: Array<{
-      device: string;
-      allocation: number;
-      expectedCTR: number;
-      bidAdjustment: number;
-    }>;
-    error: string | null;
-  }> {
-    try {
-      const recommendations = [
-        {
-          device: "Mobile",
-          allocation: 55,
-          expectedCTR: 3.8,
-          bidAdjustment: 1.15
-        },
-        {
-          device: "Desktop",
-          allocation: 35,
-          expectedCTR: 4.2,
-          bidAdjustment: 1.25
-        },
-        {
-          device: "Tablet",
-          allocation: 10,
-          expectedCTR: 3.2,
-          bidAdjustment: 0.90
-        }
-      ];
-
-      return { recommendations, error: null };
-    } catch (err) {
-      return { recommendations: [], error: "Device optimization failed" };
-    }
-  },
-
-  // Time-based optimization
-  async optimizeScheduling(campaignId: string): Promise<{
-    optimalHours: Array<{ hour: number; day: string; score: number }>;
     recommendations: string[];
     error: string | null;
   }> {
     try {
-      const optimalHours = [
-        { hour: 9, day: "Monday", score: 94 },
-        { hour: 10, day: "Tuesday", score: 91 },
-        { hour: 14, day: "Wednesday", score: 88 },
-        { hour: 11, day: "Thursday", score: 90 },
-        { hour: 15, day: "Friday", score: 85 },
-        { hour: 20, day: "Sunday", score: 82 }
-      ];
+      // Get all clicks for campaign
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("id, short_code, click_count, conversion_count")
+        .eq("campaign_id", campaignId);
 
-      const recommendations = [
-        "Increase bids 25% during peak hours (9-11 AM weekdays)",
-        "Reduce bids 15% during low-performing hours (1-3 AM)",
-        "Test weekend evening slots (7-9 PM) - potential untapped audience"
-      ];
+      if (!links || links.length === 0) {
+        return { routes: [], recommendations: ["Create affiliate links to enable routing optimization"], error: null };
+      }
 
-      return { optimalHours, recommendations, error: null };
+      // Calculate routing performance for each link
+      const routes: TrafficRoute[] = links.map(link => {
+        const conversionRate = link.click_count > 0 ? (link.conversion_count / link.click_count) * 100 : 0;
+        const avgValue = link.conversion_count > 0 ? 50 : 0; // Placeholder, would calculate from actual commissions
+        
+        return {
+          id: link.id,
+          source: "Direct Traffic",
+          destination: link.short_code,
+          conversionRate,
+          avgValue,
+          priority: conversionRate * avgValue
+        };
+      });
+
+      // Sort by priority
+      routes.sort((a, b) => b.priority - a.priority);
+
+      // Generate recommendations
+      const recommendations: string[] = [];
+      const bestRoute = routes[0];
+      const worstRoute = routes[routes.length - 1];
+
+      if (bestRoute && worstRoute && bestRoute.conversionRate > worstRoute.conversionRate * 2) {
+        recommendations.push(`Route more traffic to ${bestRoute.destination} (${bestRoute.conversionRate.toFixed(1)}% conversion rate)`);
+      }
+
+      if (routes.some(r => r.conversionRate === 0)) {
+        recommendations.push("Some links have zero conversions - consider testing different landing pages");
+      }
+
+      return { routes, recommendations, error: null };
     } catch (err) {
-      return { optimalHours: [], recommendations: [], error: "Scheduling optimization failed" };
+      console.error("Routing analysis error:", err);
+      return { routes: [], recommendations: [], error: "Failed to analyze routing" };
     }
   },
 
-  // Audience segmentation and routing
-  async segmentAndRoute(campaignId: string): Promise<{
-    segments: Array<{
-      name: string;
-      size: number;
-      conversionRate: number;
-      recommendedChannels: string[];
-      bidStrategy: string;
-    }>;
+  // Create geographic-based routing rules
+  async createGeoRouting(campaignId: string, rules: RoutingRule[]): Promise<{
+    success: boolean;
+    rulesCreated: number;
     error: string | null;
   }> {
     try {
+      // Store routing rules in campaign metadata
+      const { error } = await supabase
+        .from("campaigns")
+        .update({ 
+          content_strategy: JSON.stringify({ routing_rules: rules })
+        })
+        .eq("id", campaignId);
+
+      if (error) throw error;
+
+      return { success: true, rulesCreated: rules.length, error: null };
+    } catch (err) {
+      return { success: false, rulesCreated: 0, error: "Failed to create routing rules" };
+    }
+  },
+
+  // Get best performing destinations
+  async getBestDestinations(campaignId: string, limit: number = 5): Promise<{
+    destinations: Array<{ url: string; performance: number; traffic: number }>;
+    error: string | null;
+  }> {
+    try {
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("original_url, click_count, conversion_count")
+        .eq("campaign_id", campaignId)
+        .order("conversion_count", { ascending: false })
+        .limit(limit);
+
+      if (!links) {
+        return { destinations: [], error: null };
+      }
+
+      const destinations = links.map(link => ({
+        url: link.original_url,
+        performance: link.click_count > 0 ? (link.conversion_count / link.click_count) * 100 : 0,
+        traffic: link.click_count
+      }));
+
+      return { destinations, error: null };
+    } catch (err) {
+      return { destinations: [], error: "Failed to fetch destinations" };
+    }
+  },
+
+  // Segment traffic based on behavior
+  async segmentTraffic(campaignId: string): Promise<{
+    segments: Array<{ name: string; size: number; conversionRate: number; value: number }>;
+    error: string | null;
+  }> {
+    try {
+      const { data: clicks } = await supabase
+        .from("click_events")
+        .select("*")
+        .eq("campaign_id", campaignId);
+
+      if (!clicks || clicks.length === 0) {
+        return { 
+          segments: [
+            { name: "No Data Yet", size: 0, conversionRate: 0, value: 0 }
+          ], 
+          error: null 
+        };
+      }
+
+      // Simple segmentation by device (would be more sophisticated in production)
       const segments = [
         {
-          name: "High-Intent Buyers",
-          size: 2500,
-          conversionRate: 8.2,
-          recommendedChannels: ["Google Search", "Email Retargeting"],
-          bidStrategy: "Target CPA: $45"
-        },
-        {
-          name: "Window Shoppers",
-          size: 5000,
-          conversionRate: 3.1,
-          recommendedChannels: ["Facebook Feed", "Instagram Stories"],
-          bidStrategy: "Maximize Conversions"
-        },
-        {
-          name: "Brand Explorers",
-          size: 8000,
-          conversionRate: 1.8,
-          recommendedChannels: ["YouTube", "Display Network"],
-          bidStrategy: "Target Impression Share"
-        },
-        {
-          name: "Previous Customers",
-          size: 1200,
-          conversionRate: 12.5,
-          recommendedChannels: ["Email", "Facebook Custom Audience"],
-          bidStrategy: "Maximize Conversion Value"
+          name: "All Traffic",
+          size: clicks.length,
+          conversionRate: 0, // Would calculate from conversion data
+          value: 0
         }
       ];
 
