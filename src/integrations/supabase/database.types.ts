@@ -21,6 +21,7 @@ export type Database = {
           conversions: number | null
           created_at: string | null
           id: string
+          is_control: boolean | null
           name: string
           revenue: number | null
           test_id: string
@@ -32,6 +33,7 @@ export type Database = {
           conversions?: number | null
           created_at?: string | null
           id?: string
+          is_control?: boolean | null
           name: string
           revenue?: number | null
           test_id: string
@@ -43,6 +45,7 @@ export type Database = {
           conversions?: number | null
           created_at?: string | null
           id?: string
+          is_control?: boolean | null
           name?: string
           revenue?: number | null
           test_id?: string
@@ -68,6 +71,8 @@ export type Database = {
           id: string
           name: string
           status: string
+          target_sample_size: number | null
+          test_type: string | null
           user_id: string
           winner_variant_id: string | null
         }
@@ -79,6 +84,8 @@ export type Database = {
           id?: string
           name: string
           status?: string
+          target_sample_size?: number | null
+          test_type?: string | null
           user_id: string
           winner_variant_id?: string | null
         }
@@ -90,6 +97,8 @@ export type Database = {
           id?: string
           name?: string
           status?: string
+          target_sample_size?: number | null
+          test_type?: string | null
           user_id?: string
           winner_variant_id?: string | null
         }
@@ -743,7 +752,10 @@ export type Database = {
       traffic_sources: {
         Row: {
           campaign_id: string
+          conversion_rate: number | null
+          cpc: number | null
           created_at: string | null
+          ctr: number | null
           daily_budget: number | null
           id: string
           source_name: string
@@ -757,7 +769,10 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          conversion_rate?: number | null
+          cpc?: number | null
           created_at?: string | null
+          ctr?: number | null
           daily_budget?: number | null
           id?: string
           source_name: string
@@ -771,7 +786,10 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          conversion_rate?: number | null
+          cpc?: number | null
           created_at?: string | null
+          ctr?: number | null
           daily_budget?: number | null
           id?: string
           source_name?: string
