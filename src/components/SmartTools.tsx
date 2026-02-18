@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Zap, Link2, Wand2, BarChart3, Target, Rocket } from "lucide-react";
 
-interface SmartToolsProps {
+export interface SmartToolsProps {
   onOpenContentGenerator: () => void;
   onOpenCampaignBuilder: () => void;
 }
