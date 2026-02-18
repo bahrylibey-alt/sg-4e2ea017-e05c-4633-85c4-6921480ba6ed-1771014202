@@ -472,5 +472,11 @@ export const campaignService = {
         error: "Failed to fetch stats"
       };
     }
+  },
+
+  // Helper method for UI components that expect a direct array
+  async listCampaigns(): Promise<Campaign[]> {
+    const { campaigns } = await this.getUserCampaigns();
+    return campaigns;
   }
 };
