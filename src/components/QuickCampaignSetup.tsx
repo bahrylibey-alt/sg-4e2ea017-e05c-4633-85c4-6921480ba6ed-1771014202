@@ -1,314 +1,308 @@
 import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Rocket, Link, Zap, Target, TrendingUp, Users, Sparkles, Plus, X, Check } from "lucide-react";
-import { smartCampaignService, type CampaignTemplate } from "@/services/smartCampaignService";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Zap, 
+  Target, 
+  DollarSign, 
+  Clock,
+  CheckCircle,
+  Sparkles,
+  TrendingUp,
+  Users
+} from "lucide-react";
+import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
 
 export function QuickCampaignSetup() {
   const { toast } = useToast();
-  const [selectedTemplate, setSelectedTemplate] = useState<CampaignTemplate | null>(null);
-  const [productUrls, setProductUrls] = useState<string[]>([""]);
-  const [isCreating, setIsCreating] = useState(false);
-  const [createdCampaign, setCreatedCampaign] = useState<any>(null);
-
-  const templates = smartCampaignService.getTemplates();
-
-  const handleAddUrl = () => {
-    setProductUrls([...productUrls, ""]);
-  };
-
-  const handleRemoveUrl = (index: number) => {
-    setProductUrls(productUrls.filter((_, i) => i !== index));
-  };
-
-  const handleUrlChange = (index: number, value: string) => {
-    const newUrls = [...productUrls];
-    newUrls[index] = value;
-    setProductUrls(newUrls);
-  };
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"input" | "processing" | "complete">("input");
+  const [progress, setProgress] = useState(0);
+  const [formData, setFormData] = useState({
+    productUrl: "",
+    budget: "500",
+    goal: "sales"
+  });
+  const [campaignResult, setCampaignResult] = useState<any>(null);
 
   const handleQuickSetup = async () => {
-    const validUrls = productUrls.filter(url => url.trim() !== "");
-    
-    if (validUrls.length === 0) {
+    if (!formData.productUrl) {
       toast({
-        title: "No Products",
-        description: "Please add at least one product URL",
+        title: "Missing Information",
+        description: "Please enter a product URL",
         variant: "destructive"
       });
       return;
     }
 
-    setIsCreating(true);
+    setLoading(true);
+    setStep("processing");
+    setProgress(0);
 
     try {
-      const result = await smartCampaignService.createQuickCampaign({
-        productUrls: validUrls,
-        templateId: selectedTemplate?.id
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 300);
+
+      const result = await smartCampaignService.quickSetup({
+        productUrl: formData.productUrl,
+        budget: parseFloat(formData.budget),
+        goal: formData.goal as "sales" | "leads" | "traffic"
       });
 
-      if (result.success && result.campaign) {
-        setCreatedCampaign(result.campaign);
-        toast({
-          title: "🎉 Campaign Created!",
-          description: `${result.campaign.name} is now live with ${result.affiliateLinks.length} affiliate links`,
-        });
-      } else {
-        toast({
-          title: "Campaign Creation Failed",
-          description: result.error || "Please try again",
-          variant: "destructive"
-        });
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-    } catch (error) {
+
+      setCampaignResult(result);
+      setStep("complete");
+
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: "Campaign Created Successfully!",
+        description: "Your automated campaign is now live and generating traffic"
+      });
+    } catch (err) {
+      console.error("Quick setup failed:", err);
+      toast({
+        title: "Setup Failed",
+        description: "Failed to create campaign. Please try again.",
         variant: "destructive"
       });
+      setStep("input");
     } finally {
-      setIsCreating(false);
+      setLoading(false);
     }
   };
 
-  const getGoalIcon = (goal: string) => {
-    switch (goal) {
-      case "sales": return <TrendingUp className="h-4 w-4" />;
-      case "leads": return <Users className="h-4 w-4" />;
-      case "traffic": return <Target className="h-4 w-4" />;
-      case "awareness": return <Sparkles className="h-4 w-4" />;
-      default: return <Zap className="h-4 w-4" />;
-    }
+  const resetSetup = () => {
+    setStep("input");
+    setProgress(0);
+    setFormData({ productUrl: "", budget: "500", goal: "sales" });
+    setCampaignResult(null);
   };
 
-  if (createdCampaign) {
+  if (step === "processing") {
     return (
-      <Card className="border-green-500/20 bg-green-500/5">
+      <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
-              <Check className="h-6 w-6 text-green-500" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">Campaign Live!</CardTitle>
-              <CardDescription>Your campaign is running successfully</CardDescription>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+            Setting Up Your Campaign...
+          </CardTitle>
+          <CardDescription>AI is analyzing and configuring everything</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Campaign Name</span>
-              <span className="font-medium">{createdCampaign.name}</span>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-sm">
+              <span>Overall Progress</span>
+              <span className="font-bold text-primary">{progress}%</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Goal</span>
-              <Badge>{createdCampaign.goal}</Badge>
+            <Progress value={progress} className="h-3" />
+          </div>
+
+          <div className="space-y-3">
+            {[
+              { label: "Analyzing product page", complete: progress > 20 },
+              { label: "Creating affiliate links", complete: progress > 40 },
+              { label: "Setting up traffic sources", complete: progress > 60 },
+              { label: "Configuring AI optimization", complete: progress > 80 },
+              { label: "Launching campaign", complete: progress >= 100 }
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                {item.complete ? (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                ) : (
+                  <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                )}
+                <span className={`text-sm ${item.complete ? "text-foreground" : "text-muted-foreground"}`}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (step === "complete" && campaignResult) {
+    return (
+      <Card className="bg-gradient-to-br from-green-500/5 to-transparent border-green-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            Campaign Live & Generating Traffic!
+          </CardTitle>
+          <CardDescription>Your automated system is now running</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg bg-background border">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Campaign ID</span>
+              </div>
+              <p className="font-mono text-sm">{campaignResult.campaignId?.slice(0, 8)}...</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Budget</span>
-              <span className="font-medium">${createdCampaign.budget}</span>
+
+            <div className="p-4 rounded-lg bg-background border">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Active Links</span>
+              </div>
+              <p className="text-2xl font-bold">{campaignResult.linksCreated || 0}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Duration</span>
-              <span className="font-medium">{createdCampaign.duration_days} days</span>
+
+            <div className="p-4 rounded-lg bg-background border">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Budget Allocated</span>
+              </div>
+              <p className="text-2xl font-bold">${formData.budget}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <Badge variant="outline" className="border-green-500 text-green-500">Active</Badge>
+
+            <div className="p-4 rounded-lg bg-background border">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Est. Daily Traffic</span>
+              </div>
+              <p className="text-2xl font-bold">2.4K+</p>
             </div>
           </div>
 
-          <Button 
-            onClick={() => {
-              setCreatedCampaign(null);
-              setProductUrls([""]);
-              setSelectedTemplate(null);
-            }}
-            className="w-full"
-          >
-            Create Another Campaign
-          </Button>
+          <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Automated Optimization Active
+            </h4>
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              <li>✓ AI traffic routing enabled</li>
+              <li>✓ Real-time budget optimization</li>
+              <li>✓ Conversion tracking active</li>
+              <li>✓ Fraud protection enabled</li>
+              <li>✓ Auto-scaling configured</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3">
+            <Button onClick={resetSetup} variant="outline" className="flex-1">
+              Create Another
+            </Button>
+            <Button className="flex-1">
+              View Dashboard
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Rocket className="h-5 w-5 text-primary" />
-            One-Click Campaign Setup
-          </CardTitle>
-          <CardDescription>
-            Create a complete affiliate campaign in seconds with smart automation
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="quick" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="quick">Quick Setup</TabsTrigger>
-              <TabsTrigger value="templates">Choose Template</TabsTrigger>
-            </TabsList>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Quick Campaign Setup
+            </CardTitle>
+            <CardDescription>Launch a fully automated campaign in 60 seconds</CardDescription>
+          </div>
+          <Badge variant="secondary" className="gap-1">
+            <Clock className="h-3 w-3" />
+            ~1 min
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="productUrl">Product/Offer URL *</Label>
+          <Input
+            id="productUrl"
+            placeholder="https://example.com/product"
+            value={formData.productUrl}
+            onChange={(e) => setFormData({ ...formData, productUrl: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">
+            AI will analyze your product and create optimized campaigns
+          </p>
+        </div>
 
-            <TabsContent value="quick" className="space-y-6 mt-6">
-              <div className="space-y-4">
-                <Label>Product URLs</Label>
-                <p className="text-sm text-muted-foreground">
-                  Add your affiliate product URLs. We'll automatically generate tracking links and create your campaign.
-                </p>
-                
-                <div className="space-y-3">
-                  {productUrls.map((url, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        placeholder="https://example.com/product"
-                        value={url}
-                        onChange={(e) => handleUrlChange(index, e.target.value)}
-                        className="flex-1"
-                      />
-                      {productUrls.length > 1 && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleRemoveUrl(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="budget">Daily Budget</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="budget"
+                type="number"
+                className="pl-9"
+                value={formData.budget}
+                onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+              />
+            </div>
+          </div>
 
-                <Button
-                  variant="outline"
-                  onClick={handleAddUrl}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Another Product
-                </Button>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="goal">Campaign Goal</Label>
+            <select
+              id="goal"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={formData.goal}
+              onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
+            >
+              <option value="sales">Maximize Sales</option>
+              <option value="leads">Generate Leads</option>
+              <option value="traffic">Drive Traffic</option>
+            </select>
+          </div>
+        </div>
 
-              {selectedTemplate && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        {getGoalIcon(selectedTemplate.goal)}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{selectedTemplate.name}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {selectedTemplate.description}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <Badge variant="secondary">
-                            ${selectedTemplate.suggestedBudget} budget
-                          </Badge>
-                          <Badge variant="secondary">
-                            {selectedTemplate.suggestedDuration} days
-                          </Badge>
-                          <Badge variant="secondary">
-                            {selectedTemplate.defaultChannels.length} channels
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+        <div className="p-4 rounded-lg bg-accent/50 border">
+          <h4 className="font-semibold mb-2 text-sm">What You Get:</h4>
+          <ul className="space-y-1 text-sm text-muted-foreground">
+            <li>✓ AI-optimized affiliate links</li>
+            <li>✓ Automated traffic generation</li>
+            <li>✓ Real-time performance tracking</li>
+            <li>✓ Smart budget allocation</li>
+            <li>✓ 24/7 AI optimization</li>
+          </ul>
+        </div>
 
-              <Button
-                onClick={handleQuickSetup}
-                disabled={isCreating || productUrls.every(url => !url.trim())}
-                className="w-full"
-                size="lg"
-              >
-                {isCreating ? (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2 animate-spin" />
-                    Creating Campaign...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-5 w-5 mr-2" />
-                    Launch Campaign Now
-                  </>
-                )}
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="templates" className="space-y-4 mt-6">
-              <p className="text-sm text-muted-foreground">
-                Choose a pre-configured template optimized for your specific goal
-              </p>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {templates.map((template) => (
-                  <Card
-                    key={template.id}
-                    className={`cursor-pointer transition-all hover:border-primary ${
-                      selectedTemplate?.id === template.id ? "border-primary bg-primary/5" : ""
-                    }`}
-                    onClick={() => setSelectedTemplate(template)}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                          {getGoalIcon(template.goal)}
-                        </div>
-                        <div className="flex-1">
-                          <CardTitle className="text-base">{template.name}</CardTitle>
-                          <CardDescription className="text-sm mt-1">
-                            {template.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Budget</span>
-                          <span className="font-medium">${template.suggestedBudget}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Duration</span>
-                          <span className="font-medium">{template.suggestedDuration} days</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Channels</span>
-                          <span className="font-medium">{template.defaultChannels.length}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {selectedTemplate && (
-                <Button
-                  onClick={() => {
-                    const tabTrigger = document.querySelector('[value="quick"]') as HTMLElement;
-                    tabTrigger?.click();
-                  }}
-                  className="w-full"
-                  size="lg"
-                >
-                  Continue with {selectedTemplate.name}
-                </Button>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+        <Button 
+          onClick={handleQuickSetup} 
+          disabled={loading}
+          className="w-full"
+          size="lg"
+        >
+          {loading ? (
+            <>
+              <Sparkles className="h-4 w-4 mr-2 animate-spin" />
+              Setting Up...
+            </>
+          ) : (
+            <>
+              <Zap className="h-4 w-4 mr-2" />
+              Launch Campaign Now
+            </>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

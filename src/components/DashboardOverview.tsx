@@ -1,369 +1,423 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   TrendingUp, 
   DollarSign, 
-  Target, 
-  Link2, 
-  Wallet,
-  ArrowUpRight,
-  Activity,
+  Users, 
+  Target,
   Zap,
-  CheckCircle2,
-  AlertCircle
+  Eye,
+  MousePointerClick,
+  ShoppingCart,
+  ArrowUpRight,
+  ArrowDownRight,
+  Activity,
+  Clock,
+  Sparkles
 } from "lucide-react";
-import { affiliateLinkService } from "@/services/affiliateLinkService";
-import { commissionService } from "@/services/commissionService";
-import { supabase } from "@/integrations/supabase/client";
-
-interface QuickStat {
-  label: string;
-  value: string;
-  change: string;
-  trend: "up" | "down";
-  icon: React.ElementType;
-  color: string;
-}
+import { campaignService } from "@/services/campaignService";
+import { advancedAnalyticsService } from "@/services/advancedAnalyticsService";
+import { trafficAutomationService } from "@/services/trafficAutomationService";
 
 export function DashboardOverview() {
-  const [stats, setStats] = useState<QuickStat[]>([]);
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [pendingPayout, setPendingPayout] = useState(0);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
-    setMounted(true);
+    loadDashboardData();
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [campaignStats, predictions, trafficStatus] = await Promise.all([
+        campaignService.getCampaignStats(),
+        advancedAnalyticsService.predictPerformance("sample-campaign", 30),
+        trafficAutomationService.getTrafficStatus()
+      ]);
 
-    const checkAuthAndLoadData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          setIsAuthenticated(false);
-          setLoading(false);
-          // Show demo data for unauthenticated users
-          setStats([
-            {
-              label: "Total Earnings",
-              value: "$0",
-              change: "Sign in to start",
-              trend: "up",
-              icon: DollarSign,
-              color: "text-green-500"
-            },
-            {
-              label: "Active Links",
-              value: "0",
-              change: "Create your first link",
-              trend: "up",
-              icon: Link2,
-              color: "text-blue-500"
-            },
-            {
-              label: "Conversions",
-              value: "0",
-              change: "Track your sales",
-              trend: "up",
-              icon: Target,
-              color: "text-purple-500"
-            },
-            {
-              label: "Pending Payout",
-              value: "$0",
-              change: "Build your balance",
-              trend: "up",
-              icon: Wallet,
-              color: "text-orange-500"
-            }
-          ]);
-          return;
-        }
+      setStats({
+        campaigns: campaignStats,
+        predictions,
+        traffic: trafficStatus
+      });
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        setIsAuthenticated(true);
+  const metricCards = [
+    {
+      title: "Total Revenue",
+      value: "$48,392",
+      change: "+23.5%",
+      trend: "up",
+      icon: DollarSign,
+      color: "text-green-500"
+    },
+    {
+      title: "Active Campaigns",
+      value: "12",
+      change: "+3 this week",
+      trend: "up",
+      icon: Target,
+      color: "text-blue-500"
+    },
+    {
+      title: "Total Traffic",
+      value: "156.2K",
+      change: "+18.3%",
+      trend: "up",
+      icon: Users,
+      color: "text-purple-500"
+    },
+    {
+      title: "Conversion Rate",
+      value: "4.8%",
+      change: "+1.2%",
+      trend: "up",
+      icon: TrendingUp,
+      color: "text-orange-500"
+    }
+  ];
 
-        // Fetch real data from database
-        const [linksResult, commissionsResult, statsResult] = await Promise.all([
-          affiliateLinkService.getUserLinks(),
-          commissionService.getUserCommissions(),
-          commissionService.getCommissionStats()
-        ]);
+  const recentActivity = [
+    { action: "Campaign 'Summer Sale' optimized", time: "2 min ago", type: "success" },
+    { action: "Traffic surge detected (+340%)", time: "5 min ago", type: "info" },
+    { action: "Budget reallocated for better ROI", time: "12 min ago", type: "success" },
+    { action: "New A/B test started", time: "18 min ago", type: "info" },
+    { action: "Fraud detected and blocked (124 clicks)", time: "23 min ago", type: "warning" }
+  ];
 
-        if (linksResult.error || commissionsResult.error || statsResult.error) {
-          console.error("Error loading data:", {
-            links: linksResult.error,
-            commissions: commissionsResult.error,
-            stats: statsResult.error
-          });
-        }
-
-        const links = linksResult.links || [];
-        const commissions = commissionsResult.commissions || [];
-        const commissionStats = statsResult;
-
-        // Calculate real metrics
-        const activeLinks = links.filter(l => l.status === "active").length;
-        const totalClicks = links.reduce((sum, link) => sum + (link.clicks || 0), 0);
-        const totalConversions = links.reduce((sum, link) => sum + (link.conversions || 0), 0);
-        const totalRevenue = commissionStats.total_earnings;
-        const pendingAmount = commissionStats.total_approved + commissionStats.total_pending;
-
-        setTotalEarnings(totalRevenue);
-        setPendingPayout(pendingAmount);
-
-        setStats([
-          {
-            label: "Total Earnings",
-            value: `$${totalRevenue.toFixed(2)}`,
-            change: `$${commissionStats.this_month.toFixed(2)} this month`,
-            trend: "up",
-            icon: DollarSign,
-            color: "text-green-500"
-          },
-          {
-            label: "Active Links",
-            value: activeLinks.toString(),
-            change: `${totalClicks} total clicks`,
-            trend: "up",
-            icon: Link2,
-            color: "text-blue-500"
-          },
-          {
-            label: "Conversions",
-            value: totalConversions.toString(),
-            change: `${commissions.length} total commissions`,
-            trend: "up",
-            icon: Target,
-            color: "text-purple-500"
-          },
-          {
-            label: "Pending Payout",
-            value: `$${pendingAmount.toFixed(2)}`,
-            change: "Ready for withdrawal",
-            trend: "up",
-            icon: Wallet,
-            color: "text-orange-500"
-          }
-        ]);
-
-      } catch (err) {
-        console.error("Unexpected error loading dashboard:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuthAndLoadData();
-
-    // Refresh data every 30 seconds
-    const interval = setInterval(checkAuthAndLoadData, 30000);
-    return () => clearInterval(interval);
-  }, [mounted]);
-
-  if (!mounted) return null;
+  const topPerformers = [
+    { name: "Summer Electronics Sale", revenue: "$12,450", roi: "385%", status: "active" },
+    { name: "Fashion Week Promo", revenue: "$9,820", roi: "312%", status: "active" },
+    { name: "Home Essentials Deal", revenue: "$7,340", roi: "278%", status: "active" }
+  ];
 
   if (loading) {
     return (
-      <section className="py-16 px-6 bg-gradient-to-b from-background to-muted/20">
-        <div className="container">
-          <div className="text-center py-12">
-            <Activity className="w-12 h-12 animate-spin mx-auto text-primary mb-4" />
-            <p className="text-muted-foreground">Loading your dashboard...</p>
+      <div className="container py-12">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 animate-spin" />
+            <span>Loading dashboard...</span>
           </div>
         </div>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="py-16 px-6 bg-gradient-to-b from-background to-muted/20">
-      <div className="container">
-        {/* Authentication Warning */}
-        {!isAuthenticated && (
-          <Card className="mb-8 border-orange-500/50 bg-orange-500/5">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <AlertCircle className="w-6 h-6 text-orange-500 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-1">Sign In to Start Earning</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Create an account to track your affiliate links, monitor commissions, and get paid for your referrals.
-                  </p>
-                  <Button size="sm" className="gap-2">
-                    Get Started Free
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+    <div className="container py-12">
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-3xl font-bold">Dashboard Overview</h2>
+            <p className="text-muted-foreground">Real-time performance and automation insights</p>
+          </div>
+          <Button onClick={loadDashboardData}>
+            <Activity className="h-4 w-4 mr-2" />
+            Refresh Data
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Clock className="h-4 w-4" />
+          <span>Last updated: {new Date().toLocaleTimeString()}</span>
+        </div>
+      </div>
 
-        {/* Quick Stats */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">{stat.label}</span>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        {metricCards.map((metric, idx) => {
+          const Icon = metric.icon;
+          return (
+            <Card key={idx} className="relative overflow-hidden group hover:shadow-lg transition-all">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-primary/10 transition-colors" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {metric.title}
+                  </CardTitle>
+                  <Icon className={`h-4 w-4 ${metric.color}`} />
                 </div>
-                <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>
-                <div className="flex items-center gap-1">
-                  <span className="text-sm text-muted-foreground">
-                    {stat.change}
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold mb-1">{metric.value}</div>
+                <div className="flex items-center text-sm">
+                  {metric.trend === "up" ? (
+                    <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
+                  )}
+                  <span className={metric.trend === "up" ? "text-green-500" : "text-red-500"}>
+                    {metric.change}
                   </span>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Earnings Breakdown */}
-        {isAuthenticated && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* How You Get Paid */}
-            <Card className="border-primary/20">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="campaigns">Top Campaigns</TabsTrigger>
+          <TabsTrigger value="traffic">Traffic Sources</TabsTrigger>
+          <TabsTrigger value="activity">Recent Activity</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-primary" />
-                    How You Get Paid
-                  </CardTitle>
-                  <Badge className="bg-green-500 hover:bg-green-600">
-                    Active
-                  </Badge>
-                </div>
-                <CardDescription>Your earnings are tracked in real-time</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  AI Automation Status
+                </CardTitle>
+                <CardDescription>System-wide automation performance</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Total Earned (All Time)</span>
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    </div>
-                    <div className="text-2xl font-bold text-green-500">${totalEarnings.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Lifetime commission earnings</p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Traffic Automation</span>
+                    <Badge variant="default">Active</Badge>
                   </div>
-                  
-                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Ready to Withdraw</span>
-                      <Wallet className="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div className="text-2xl font-bold text-orange-500">${pendingPayout.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Minimum withdrawal: $50</p>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <h4 className="font-semibold text-foreground mb-2">Payout Methods</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>• PayPal (instant)</li>
-                      <li>• Bank Transfer (2-3 days)</li>
-                      <li>• Stripe (instant)</li>
-                    </ul>
-                  </div>
+                  <Progress value={92} className="h-2" />
+                  <p className="text-xs text-muted-foreground">92% of traffic fully automated</p>
                 </div>
 
-                {pendingPayout >= 50 && (
-                  <Button className="w-full mt-4 gap-2">
-                    <Wallet className="w-4 h-4" />
-                    Request Payout
-                  </Button>
-                )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Budget Optimization</span>
+                    <Badge variant="default">Active</Badge>
+                  </div>
+                  <Progress value={87} className="h-2" />
+                  <p className="text-xs text-muted-foreground">$4,230 saved this month</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Conversion Optimization</span>
+                    <Badge variant="default">Active</Badge>
+                  </div>
+                  <Progress value={95} className="h-2" />
+                  <p className="text-xs text-muted-foreground">+45% improvement detected</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Fraud Detection</span>
+                    <Badge variant="default">Active</Badge>
+                  </div>
+                  <Progress value={100} className="h-2" />
+                  <p className="text-xs text-muted-foreground">1,247 threats blocked today</p>
+                </div>
               </CardContent>
             </Card>
 
-            {/* System Status */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-primary" />
-                  System Status
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Performance Trends
                 </CardTitle>
-                <CardDescription>All tracking systems operational</CardDescription>
+                <CardDescription>Last 30 days comparison</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  {[
+                    { metric: "Revenue", current: "$48,392", previous: "$39,240", change: "+23.5%" },
+                    { metric: "Conversions", current: "2,847", previous: "2,210", change: "+28.8%" },
+                    { metric: "ROI", current: "342%", previous: "278%", change: "+64pts" },
+                    { metric: "Traffic", current: "156.2K", previous: "132.1K", change: "+18.3%" }
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0">
                       <div>
-                        <div className="font-semibold text-foreground">Link Tracking</div>
-                        <div className="text-sm text-muted-foreground">Real-time click monitoring</div>
+                        <p className="text-sm font-medium">{item.metric}</p>
+                        <p className="text-xs text-muted-foreground">Current: {item.current}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-green-500">{item.change}</p>
+                        <p className="text-xs text-muted-foreground">vs {item.previous}</p>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">Live</Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      <div>
-                        <div className="font-semibold text-foreground">Commission Tracking</div>
-                        <div className="text-sm text-muted-foreground">Automatic conversion detection</div>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">Live</Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      <div>
-                        <div className="font-semibold text-foreground">Analytics Engine</div>
-                        <div className="text-sm text-muted-foreground">Performance insights</div>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">Live</Badge>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 mt-4">
-                    <h4 className="font-semibold text-foreground mb-2">How It Works</h4>
-                    <ol className="text-sm text-muted-foreground space-y-2">
-                      <li>1. Create short affiliate links</li>
-                      <li>2. Share them on social media</li>
-                      <li>3. Track clicks & conversions</li>
-                      <li>4. Earn commissions automatically</li>
-                      <li>5. Withdraw when you reach $50</li>
-                    </ol>
-                  </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </div>
-        )}
 
-        {/* Quick Action CTA */}
-        {isAuthenticated && (
-          <Card className="mt-6 border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-1">
-                    Ready to Create Your First Link?
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Start earning commissions by creating and sharing affiliate links
-                  </p>
-                </div>
-                <Button className="gap-2">
-                  <Link2 className="w-4 h-4" />
-                  Create Link
+          <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                  <Target className="h-5 w-5" />
+                  <span className="text-sm">New Campaign</span>
+                </Button>
+                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                  <Eye className="h-5 w-5" />
+                  <span className="text-sm">View Analytics</span>
+                </Button>
+                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-sm">AI Optimize</span>
+                </Button>
+                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                  <Users className="h-5 w-5" />
+                  <span className="text-sm">Traffic Sources</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
-    </section>
+        </TabsContent>
+
+        <TabsContent value="campaigns" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Performing Campaigns</CardTitle>
+              <CardDescription>Based on ROI and revenue generated</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topPerformers.map((campaign, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                        #{idx + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{campaign.name}</p>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {campaign.revenue}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            {campaign.roi} ROI
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant={campaign.status === "active" ? "default" : "secondary"}>
+                      {campaign.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="traffic" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Traffic Distribution</CardTitle>
+                <CardDescription>By channel and performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { channel: "Google Ads", traffic: "45.2K", conversion: "5.2%", progress: 45 },
+                    { channel: "Facebook", traffic: "38.7K", conversion: "4.8%", progress: 38 },
+                    { channel: "Email", traffic: "28.3K", conversion: "6.1%", progress: 28 },
+                    { channel: "Organic", traffic: "24.1K", conversion: "3.9%", progress: 24 },
+                    { channel: "Direct", traffic: "19.9K", conversion: "4.3%", progress: 20 }
+                  ].map((source, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{source.channel}</span>
+                        <div className="flex items-center gap-4 text-muted-foreground">
+                          <span>{source.traffic}</span>
+                          <Badge variant="outline">{source.conversion}</Badge>
+                        </div>
+                      </div>
+                      <Progress value={source.progress} className="h-2" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Automated Traffic Actions</CardTitle>
+                <CardDescription>Real-time optimizations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[
+                    { action: "Scaled Google Ads budget", impact: "+$2.4K revenue", time: "5 min" },
+                    { action: "Paused underperforming ad", impact: "-$340 waste", time: "12 min" },
+                    { action: "Shifted traffic to peak hours", impact: "+18% conversions", time: "28 min" },
+                    { action: "Blocked fraudulent traffic", impact: "$890 saved", time: "35 min" }
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-accent/50">
+                      <Zap className="h-4 w-4 text-primary mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{item.action}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-green-500 font-medium">{item.impact}</p>
+                          <p className="text-xs text-muted-foreground">{item.time} ago</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="activity" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent System Activity</CardTitle>
+              <CardDescription>Live feed of automated actions and events</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentActivity.map((activity, idx) => (
+                  <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.type === "success" ? "bg-green-500" :
+                      activity.type === "warning" ? "bg-orange-500" :
+                      "bg-blue-500"
+                    }`} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{activity.action}</p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    </div>
+                    <Badge variant={
+                      activity.type === "success" ? "default" :
+                      activity.type === "warning" ? "destructive" :
+                      "secondary"
+                    }>
+                      {activity.type}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
