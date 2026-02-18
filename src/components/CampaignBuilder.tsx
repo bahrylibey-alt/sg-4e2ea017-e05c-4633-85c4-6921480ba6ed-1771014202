@@ -63,12 +63,26 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
     }
   };
 
-  const validateUrls = (urls: string[]): { valid: boolean; errors: string[] } => {
+  const normalizeUrl = (url: string): string => {
+    const trimmed = url.trim();
+    if (!trimmed) return "";
+    
+    // If already has protocol, return as is
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    
+    // Add https:// by default
+    return `https://${trimmed}`;
+  };
+
+  const validateUrls = (urls: string[]): { valid: boolean; errors: string[]; normalizedUrls: string[] } => {
     const errors: string[] = [];
+    const normalizedUrls: string[] = [];
     
     if (urls.length === 0) {
       errors.push("Please provide at least one product URL");
-      return { valid: false, errors };
+      return { valid: false, errors, normalizedUrls };
     }
 
     urls.forEach((url, index) => {
@@ -77,17 +91,24 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
         return;
       }
 
+      const normalized = normalizeUrl(url);
+      
       try {
-        const urlObj = new URL(url.trim());
-        if (!urlObj.protocol.startsWith("http")) {
-          errors.push(`Line ${index + 1}: URL must start with http:// or https://`);
+        const urlObj = new URL(normalized);
+        
+        // Check if it's a valid domain
+        if (!urlObj.hostname || urlObj.hostname.length < 3 || !urlObj.hostname.includes(".")) {
+          errors.push(`Line ${index + 1}: Invalid domain - "${url.trim()}"`);
+          return;
         }
+        
+        normalizedUrls.push(normalized);
       } catch {
-        errors.push(`Line ${index + 1}: Invalid URL format - "${url.trim()}"`);
+        errors.push(`Line ${index + 1}: Invalid URL format - "${url.trim()}". Example: amazon.com/product or https://example.com/item`);
       }
     });
 
-    return { valid: errors.length === 0, errors };
+    return { valid: errors.length === 0, errors, normalizedUrls };
   };
 
   const handleCreateCampaign = async () => {
@@ -134,10 +155,10 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
     setLoading(true);
     
     try {
-      console.log("🚀 Creating campaign with URLs:", urls);
+      console.log("🚀 Creating campaign with normalized URLs:", validation.normalizedUrls);
       
       const result = await smartCampaignService.createQuickCampaign({
-        productUrls: urls,
+        productUrls: validation.normalizedUrls,
         customGoal: formData.goal,
         customBudget: parseFloat(formData.budget)
       });
@@ -319,14 +340,19 @@ export function CampaignBuilder({ open, onOpenChange, onComplete }: CampaignBuil
                   <Label htmlFor="productUrls">Product URLs * (one per line)</Label>
                   <Textarea
                     id="productUrls"
-                    placeholder="https://example.com/product1&#10;https://example.com/product2&#10;https://amazon.com/product3"
+                    placeholder="amazon.com/product1&#10;example.com/product2&#10;https://shop.com/item"
                     rows={5}
                     value={formData.productUrls}
                     onChange={(e) => setFormData({ ...formData, productUrls: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    💡 Tip: Each URL must start with http:// or https://. The system will automatically create affiliate links and generate promotional content.
-                  </p>
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3 mt-2">
+                    <p className="text-sm text-blue-900 dark:text-blue-100 font-medium mb-1">💡 URL Tips:</p>
+                    <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                      <li>• You can paste URLs with or without http:// or https://</li>
+                      <li>• Examples: "amazon.com/dp/B08X123" or "https://shop.com/product"</li>
+                      <li>• The system will automatically add https:// if needed</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
