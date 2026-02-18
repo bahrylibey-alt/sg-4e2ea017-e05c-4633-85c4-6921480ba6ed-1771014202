@@ -15,6 +15,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_variants: {
+        Row: {
+          content: string | null
+          conversions: number | null
+          created_at: string | null
+          id: string
+          name: string
+          revenue: number | null
+          test_id: string
+          traffic_percentage: number | null
+          visitors: number | null
+        }
+        Insert: {
+          content?: string | null
+          conversions?: number | null
+          created_at?: string | null
+          id?: string
+          name: string
+          revenue?: number | null
+          test_id: string
+          traffic_percentage?: number | null
+          visitors?: number | null
+        }
+        Update: {
+          content?: string | null
+          conversions?: number | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          revenue?: number | null
+          test_id?: string
+          traffic_percentage?: number | null
+          visitors?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_variants_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ab_tests: {
+        Row: {
+          campaign_id: string
+          completed_at: string | null
+          confidence_level: number | null
+          created_at: string | null
+          id: string
+          name: string
+          status: string
+          user_id: string
+          winner_variant_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          completed_at?: string | null
+          confidence_level?: number | null
+          created_at?: string | null
+          id?: string
+          name: string
+          status?: string
+          user_id: string
+          winner_variant_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          completed_at?: string | null
+          confidence_level?: number | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          status?: string
+          user_id?: string
+          winner_variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_tests_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ab_tests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       affiliate_links: {
         Row: {
           clicks: number | null
@@ -117,6 +212,63 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_content_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_allocations: {
+        Row: {
+          allocated_budget: number | null
+          campaign_id: string
+          channel_name: string
+          created_at: string | null
+          id: string
+          revenue: number | null
+          roi: number | null
+          spent: number | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          allocated_budget?: number | null
+          campaign_id: string
+          channel_name: string
+          created_at?: string | null
+          id?: string
+          revenue?: number | null
+          roi?: number | null
+          spent?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          allocated_budget?: number | null
+          campaign_id?: string
+          channel_name?: string
+          created_at?: string | null
+          id?: string
+          revenue?: number | null
+          roi?: number | null
+          spent?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_allocations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_allocations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -374,6 +526,66 @@ export type Database = {
           },
         ]
       }
+      optimization_insights: {
+        Row: {
+          applied_at: string | null
+          campaign_id: string
+          created_at: string | null
+          description: string
+          id: string
+          impact_score: number | null
+          insight_type: string
+          results_after: Json | null
+          results_before: Json | null
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          campaign_id: string
+          created_at?: string | null
+          description: string
+          id?: string
+          impact_score?: number | null
+          insight_type: string
+          results_after?: Json | null
+          results_before?: Json | null
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          campaign_id?: string
+          created_at?: string | null
+          description?: string
+          id?: string
+          impact_score?: number | null
+          insight_type?: string
+          results_after?: Json | null
+          results_before?: Json | null
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_insights_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "optimization_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -400,6 +612,186 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      retargeting_audiences: {
+        Row: {
+          audience_type: string
+          campaign_id: string
+          created_at: string | null
+          engagement_score: number | null
+          id: string
+          name: string
+          recency_days: number | null
+          size: number | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          audience_type: string
+          campaign_id: string
+          created_at?: string | null
+          engagement_score?: number | null
+          id?: string
+          name: string
+          recency_days?: number | null
+          size?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          audience_type?: string
+          campaign_id?: string
+          created_at?: string | null
+          engagement_score?: number | null
+          id?: string
+          name?: string
+          recency_days?: number | null
+          size?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retargeting_audiences_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retargeting_audiences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retargeting_campaigns: {
+        Row: {
+          ad_content: string | null
+          audience_id: string
+          budget: number | null
+          campaign_id: string
+          clicks: number | null
+          conversions: number | null
+          created_at: string | null
+          frequency_cap: number | null
+          id: string
+          impressions: number | null
+          spent: number | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          ad_content?: string | null
+          audience_id: string
+          budget?: number | null
+          campaign_id: string
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          frequency_cap?: number | null
+          id?: string
+          impressions?: number | null
+          spent?: number | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          ad_content?: string | null
+          audience_id?: string
+          budget?: number | null
+          campaign_id?: string
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          frequency_cap?: number | null
+          id?: string
+          impressions?: number | null
+          spent?: number | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retargeting_campaigns_audience_id_fkey"
+            columns: ["audience_id"]
+            isOneToOne: false
+            referencedRelation: "retargeting_audiences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retargeting_campaigns_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retargeting_campaigns_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_sources: {
+        Row: {
+          campaign_id: string
+          created_at: string | null
+          daily_budget: number | null
+          id: string
+          source_name: string
+          source_type: string
+          status: string
+          total_clicks: number | null
+          total_conversions: number | null
+          total_revenue: number | null
+          total_spent: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string | null
+          daily_budget?: number | null
+          id?: string
+          source_name: string
+          source_type: string
+          status?: string
+          total_clicks?: number | null
+          total_conversions?: number | null
+          total_revenue?: number | null
+          total_spent?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string | null
+          daily_budget?: number | null
+          id?: string
+          source_name?: string
+          source_type?: string
+          status?: string
+          total_clicks?: number | null
+          total_conversions?: number | null
+          total_revenue?: number | null
+          total_spent?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_sources_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_settings: {
         Row: {
