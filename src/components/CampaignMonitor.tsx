@@ -7,9 +7,11 @@ import { Activity, TrendingUp, Users, DollarSign, Eye, MousePointer, ShoppingCar
 import { advancedAnalyticsService } from "@/services/advancedAnalyticsService";
 import { fraudDetectionService } from "@/services/fraudDetectionService";
 import { retargetingService } from "@/services/retargetingService";
+import { campaignService } from "@/services/campaignService";
 
 export function CampaignMonitor() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [realTimeData, setRealTimeData] = useState({
     activeVisitors: 0,
     clicksLastHour: 0,
@@ -20,17 +22,36 @@ export function CampaignMonitor() {
   const [retargetingPool, setRetargetingPool] = useState(0);
 
   useEffect(() => {
-    loadRealTimeData();
-    const interval = setInterval(loadRealTimeData, 10000); // Update every 10s
-    return () => clearInterval(interval);
+    loadActiveCampaign();
   }, []);
 
+  useEffect(() => {
+    if (activeCampaignId) {
+      loadRealTimeData();
+      const interval = setInterval(loadRealTimeData, 10000); // Update every 10s
+      return () => clearInterval(interval);
+    }
+  }, [activeCampaignId]);
+
+  const loadActiveCampaign = async () => {
+    try {
+      const campaigns = await campaignService.listCampaigns();
+      if (campaigns.length > 0) {
+        setActiveCampaignId(campaigns[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load campaigns:", err);
+    }
+  };
+
   const loadRealTimeData = async () => {
+    if (!activeCampaignId) return;
+
     try {
       const [analytics, fraud, retargeting] = await Promise.all([
-        advancedAnalyticsService.getRealtimeMetrics("demo-campaign"),
-        fraudDetectionService.detectFraud("demo-campaign"),
-        retargetingService.getAudienceInsights("demo-campaign")
+        advancedAnalyticsService.getRealtimeMetrics(activeCampaignId),
+        fraudDetectionService.detectFraud(activeCampaignId),
+        retargetingService.getAudienceInsights(activeCampaignId)
       ]);
 
       setRealTimeData({
@@ -51,6 +72,23 @@ export function CampaignMonitor() {
       console.error("Failed to load real-time data:", err);
     }
   };
+
+  if (!activeCampaignId) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-2 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Activity className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Campaigns to Monitor</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Create your first campaign to start monitoring real-time performance metrics.
+            </p>
+            <Button className="mt-4">Create Campaign</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

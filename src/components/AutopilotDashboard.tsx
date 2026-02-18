@@ -8,6 +8,7 @@ import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, R
 import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
 import { trafficAutomationService } from "@/services/trafficAutomationService";
 import { conversionOptimizationService } from "@/services/conversionOptimizationService";
+import { campaignService } from "@/services/campaignService";
 
 interface AutopilotStatus {
   active: boolean;
@@ -21,6 +22,7 @@ interface AutopilotStatus {
 export function AutopilotDashboard() {
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [status, setStatus] = useState<AutopilotStatus>({
     active: false,
     revenue: 0,
@@ -31,29 +33,47 @@ export function AutopilotDashboard() {
   });
   const [recommendations, setRecommendations] = useState<string[]>([]);
 
+  // Load the first available campaign on mount
   useEffect(() => {
-    if (autopilotEnabled) {
+    loadActiveCampaign();
+  }, []);
+
+  useEffect(() => {
+    if (autopilotEnabled && activeCampaignId) {
       loadAutopilotStatus();
       const interval = setInterval(loadAutopilotStatus, 30000); // Update every 30s
       return () => clearInterval(interval);
     }
-  }, [autopilotEnabled]);
+  }, [autopilotEnabled, activeCampaignId]);
+
+  const loadActiveCampaign = async () => {
+    try {
+      const campaigns = await campaignService.listCampaigns();
+      if (campaigns.length > 0) {
+        setActiveCampaignId(campaigns[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load campaigns:", err);
+    }
+  };
 
   const loadAutopilotStatus = async () => {
+    if (!activeCampaignId) return;
+
     try {
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
-        campaignId: "demo-campaign",
+        campaignId: activeCampaignId,
         targetTraffic: 5000,
         budget: 1000,
         channels: ["social", "email", "paid-ads", "seo"],
         optimization: "conversions",
         autoScale: true
       });
-      const optimizationResult = await aiOptimizationEngine.runFullOptimization("demo-campaign");
+      const optimizationResult = await aiOptimizationEngine.runFullOptimization(activeCampaignId);
 
       setStatus({
         active: true,
-        revenue: (trafficResult.estimatedReach * 0.05 * 50) || 0, // Mock calculation
+        revenue: (trafficResult.estimatedReach * 0.05 * 50) || 0,
         conversions: (trafficResult.estimatedReach * 0.05) || 0,
         roi: optimizationResult.result?.improvements?.find(i => i.metric === "ROI")?.after || 0,
         traffic: trafficResult.estimatedReach || 0,
@@ -69,24 +89,28 @@ export function AutopilotDashboard() {
   };
 
   const toggleAutopilot = async () => {
+    if (!activeCampaignId) {
+      alert("Please create a campaign first to use autopilot features.");
+      return;
+    }
+
     setLoading(true);
     try {
       const newState = !autopilotEnabled;
       setAutopilotEnabled(newState);
       
       if (newState) {
-        // Initialize autopilot systems
         await Promise.all([
           trafficAutomationService.launchAutomatedTraffic({
-            campaignId: "demo-campaign",
+            campaignId: activeCampaignId,
             targetTraffic: 5000,
             budget: 1000,
             channels: ["social", "email", "paid-ads", "seo"],
             optimization: "conversions",
             autoScale: true
           }),
-          aiOptimizationEngine.runFullOptimization("demo-campaign"),
-          conversionOptimizationService.analyzeAndOptimize("demo-campaign")
+          aiOptimizationEngine.runFullOptimization(activeCampaignId),
+          conversionOptimizationService.analyzeAndOptimize(activeCampaignId)
         ]);
         await loadAutopilotStatus();
       } else {
@@ -107,9 +131,11 @@ export function AutopilotDashboard() {
   };
 
   const forceOptimization = async () => {
+    if (!activeCampaignId) return;
+
     setLoading(true);
     try {
-      await aiOptimizationEngine.runFullOptimization("demo-campaign");
+      await aiOptimizationEngine.runFullOptimization(activeCampaignId);
       await loadAutopilotStatus();
     } catch (err) {
       console.error("Failed to force optimization:", err);
@@ -117,6 +143,23 @@ export function AutopilotDashboard() {
       setLoading(false);
     }
   };
+
+  if (!activeCampaignId) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-2 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Zap className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Campaigns Available</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Create your first campaign to enable AI Autopilot and automated traffic generation.
+            </p>
+            <Button className="mt-4">Create Campaign</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

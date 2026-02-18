@@ -27,6 +27,7 @@ export function DashboardOverview() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -35,19 +36,40 @@ export function DashboardOverview() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [campaignStats, predictions, trafficStatus] = await Promise.all([
-        campaignService.getCampaignStats(),
-        advancedAnalyticsService.getPredictiveInsights("sample-campaign"),
-        trafficAutomationService.getTrafficStatus()
-      ]);
+      
+      // First, get available campaigns
+      const campaigns = await campaignService.listCampaigns();
+      const campaignId = campaigns.length > 0 ? campaigns[0].id : null;
+      setActiveCampaignId(campaignId);
 
-      setStats({
-        campaigns: campaignStats,
-        predictions,
-        traffic: trafficStatus
-      });
+      // If we have a campaign, load its data
+      if (campaignId) {
+        const [campaignStats, predictions, trafficStatus] = await Promise.all([
+          campaignService.getCampaignStats(),
+          advancedAnalyticsService.getPredictiveInsights(campaignId),
+          trafficAutomationService.getTrafficStatus()
+        ]);
+
+        setStats({
+          campaigns: campaignStats,
+          predictions,
+          traffic: trafficStatus
+        });
+      } else {
+        // No campaigns exist, set empty stats
+        setStats({
+          campaigns: { totalRevenue: 0, activeCampaigns: 0, totalClicks: 0, avgConversionRate: 0 },
+          predictions: null,
+          traffic: { activeChannels: 0, totalTraffic: 0, optimizationStatus: "inactive" }
+        });
+      }
     } catch (err) {
       console.error("Failed to load dashboard:", err);
+      setStats({
+        campaigns: { totalRevenue: 0, activeCampaigns: 0, totalClicks: 0, avgConversionRate: 0 },
+        predictions: null,
+        traffic: { activeChannels: 0, totalTraffic: 0, optimizationStatus: "inactive" }
+      });
     } finally {
       setLoading(false);
     }
