@@ -168,43 +168,79 @@ export const smartCampaignService = {
     }
   },
 
-  // Ensure user profile exists (CRITICAL FIX)
-  async ensureProfileExists(userId: string): Promise<{ success: boolean; error: string | null }> {
+  // CRITICAL: Robust profile existence check and creation
+  async ensureProfileExists(userId: string, userEmail: string | null): Promise<{ success: boolean; error: string | null }> {
     try {
-      // Check if profile exists
-      const { data: existingProfile, error: checkError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", userId)
-        .single();
+      console.log("🔍 Checking profile existence for user:", userId);
 
-      if (checkError && checkError.code !== "PGRST116") {
-        console.error("Error checking profile:", checkError);
-        return { success: false, error: "Failed to verify user profile" };
+      // Step 1: Try to fetch the profile with maybeSingle (won't throw error if not found)
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+
+      // If there's a real error (not just "not found"), return it
+      if (fetchError) {
+        console.error("❌ Error fetching profile:", fetchError);
+        return { 
+          success: false, 
+          error: `Database error: ${fetchError.message}. Please contact support.` 
+        };
       }
 
-      // Profile already exists
+      // Profile exists - success!
       if (existingProfile) {
-        console.log("✅ Profile exists:", userId);
+        console.log("✅ Profile already exists:", existingProfile);
         return { success: true, error: null };
       }
 
-      // Create profile if it doesn't exist
-      console.log("📝 Creating profile for user:", userId);
-      const { error: createError } = await supabase
+      // Step 2: Profile doesn't exist - create it
+      console.log("📝 Profile not found. Creating new profile...");
+      
+      const { data: newProfile, error: createError } = await supabase
         .from("profiles")
-        .insert({ id: userId, email: null, full_name: null });
+        .insert({
+          id: userId,
+          email: userEmail,
+          full_name: null,
+          avatar_url: null
+        })
+        .select()
+        .single();
 
       if (createError) {
-        console.error("Error creating profile:", createError);
-        return { success: false, error: "Failed to create user profile" };
+        console.error("❌ Error creating profile:", createError);
+        
+        // Handle specific error cases
+        if (createError.code === "23503") {
+          return {
+            success: false,
+            error: "Authentication session expired. Please sign out and sign in again."
+          };
+        }
+
+        if (createError.code === "23505") {
+          // Profile already exists (race condition) - this is actually fine
+          console.log("ℹ️ Profile already exists (race condition detected)");
+          return { success: true, error: null };
+        }
+
+        return {
+          success: false,
+          error: `Failed to create profile: ${createError.message}. Please try again or contact support.`
+        };
       }
 
-      console.log("✅ Profile created successfully");
+      console.log("✅ Profile created successfully:", newProfile);
       return { success: true, error: null };
+
     } catch (err) {
-      console.error("Unexpected error ensuring profile:", err);
-      return { success: false, error: "Profile verification failed" };
+      console.error("💥 Unexpected error in ensureProfileExists:", err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Profile verification failed unexpectedly"
+      };
     }
   },
 
@@ -213,10 +249,24 @@ export const smartCampaignService = {
     try {
       console.log("🚀 Starting campaign creation with input:", input);
 
-      // Step 1: Verify authentication
+      // Step 1: Verify authentication and get user details
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error("❌ Authentication failed:", authError);
+      
+      if (authError) {
+        console.error("❌ Auth error:", authError);
+        return { 
+          success: false, 
+          campaign: null, 
+          affiliateLinks: [], 
+          trafficSources: [],
+          estimatedReach: 0,
+          optimizations: [],
+          error: "Authentication failed. Please sign in again." 
+        };
+      }
+
+      if (!user) {
+        console.error("❌ No user found");
         return { 
           success: false, 
           campaign: null, 
@@ -228,12 +278,13 @@ export const smartCampaignService = {
         };
       }
 
-      console.log("✅ User authenticated:", user.id);
+      console.log("✅ User authenticated:", { id: user.id, email: user.email });
 
-      // Step 1.5: ENSURE PROFILE EXISTS (CRITICAL FIX)
-      const profileCheck = await this.ensureProfileExists(user.id);
+      // Step 2: Ensure profile exists (CRITICAL)
+      const profileCheck = await this.ensureProfileExists(user.id, user.email || null);
+      
       if (!profileCheck.success) {
-        console.error("❌ Profile check failed:", profileCheck.error);
+        console.error("❌ Profile check/creation failed:", profileCheck.error);
         return {
           success: false,
           campaign: null,
@@ -241,11 +292,13 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: profileCheck.error || "Failed to verify user profile. Please contact support."
+          error: profileCheck.error || "Profile verification failed. Please try again or contact support."
         };
       }
 
-      // Step 2: Validate input
+      console.log("✅ Profile verified/created successfully");
+
+      // Step 3: Validate input
       if (!input.productUrls || input.productUrls.length === 0) {
         return {
           success: false,
@@ -260,7 +313,7 @@ export const smartCampaignService = {
 
       console.log("✅ URLs validated:", input.productUrls);
 
-      // Step 3: Determine template
+      // Step 4: Determine template
       const template = input.templateId 
         ? this.getTemplate(input.templateId) 
         : this.suggestTemplate(input.productUrls);
@@ -279,15 +332,15 @@ export const smartCampaignService = {
 
       console.log("✅ Template selected:", template.name);
 
-      // Step 4: Extract/use product names
+      // Step 5: Extract/use product names
       const productNames = input.productNames || input.productUrls.map(url => this.extractProductName(url));
       console.log("✅ Product names:", productNames);
 
-      // Step 5: Generate campaign name
+      // Step 6: Generate campaign name
       const campaignName = this.generateCampaignName(productNames, input.customGoal || template.goal);
       console.log("✅ Campaign name generated:", campaignName);
 
-      // Step 6: Create campaign first
+      // Step 7: Create campaign
       console.log("📝 Creating campaign...");
       const { campaign, error: campaignError } = await campaignService.createCampaign({
         name: campaignName,
@@ -315,7 +368,7 @@ export const smartCampaignService = {
 
       console.log("✅ Campaign created successfully:", campaign.id);
 
-      // Step 7: Create affiliate links for all products
+      // Step 8: Create affiliate links for all products
       console.log("🔗 Creating affiliate links...");
       const linkPromises = input.productUrls.map(async (url, index) => {
         try {
@@ -357,7 +410,7 @@ export const smartCampaignService = {
         };
       }
 
-      // Step 8: Launch traffic automation
+      // Step 9: Launch traffic automation
       console.log("🚦 Launching traffic automation...");
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
         campaignId: campaign.id,
@@ -370,7 +423,7 @@ export const smartCampaignService = {
         console.log("✅ Traffic sources activated:", trafficResult.sources?.length || 0);
       }
 
-      // Step 9: Get optimization insights
+      // Step 10: Get optimization insights
       console.log("🔍 Analyzing optimization opportunities...");
       const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
 
@@ -382,7 +435,7 @@ export const smartCampaignService = {
 
       console.log(`✅ Found ${optimizationInsights.length} optimization insights`);
 
-      // Step 10: Success!
+      // Step 11: Success!
       console.log("🎉 Campaign creation completed successfully!");
 
       return {
