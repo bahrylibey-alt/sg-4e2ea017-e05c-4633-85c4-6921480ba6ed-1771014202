@@ -18,6 +18,7 @@ import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
 import { AIChatbot } from "@/components/AIChatbot";
 import { OneClickCampaign } from "@/components/OneClickCampaign";
+import { AuthModal } from "@/components/AuthModal";
 
 export default function Home() {
   const [showContentGenerator, setShowContentGenerator] = useState(false);
