@@ -230,25 +230,16 @@ export const affiliateIntegrationService = {
             continue;
           }
 
-          // Create affiliate link for product
-          const slug = this.generateSlug(product.name);
-          const { error } = await supabase
-            .from("affiliate_links")
-            .insert({
-              user_id: user.id,
-              product_name: product.name,
-              original_url: product.url,
-              cloaked_url: `${window.location.origin}/go/${slug}`,
-              slug: slug,
-              short_code: this.generateShortCode(),
-              status: "active",
-              clicks: 0,
-              conversion_count: 0,
-              commission_earned: 0,
-              commission_rate: this.extractCommissionRate(product.commission)
-            });
+          // Use affiliateLinkService to create links instead of direct DB insert
+          const linkResult = await affiliateLinkService.createAffiliateLink({
+            productId: product.id,
+            productName: product.name,
+            destinationUrl: product.url,
+            network: product.network,
+            commissionRate: this.extractCommissionRate(product.commission)
+          });
 
-          if (!error) {
+          if (linkResult.success) {
             addedCount++;
             console.log(`✅ Added: ${product.name}`);
           }
@@ -280,20 +271,26 @@ export const affiliateIntegrationService = {
       const user = await authService.getCurrentUser();
       if (!user) throw new Error("Authentication required");
 
-      // Get all products without links
+      // Get all products without proper slugs or short codes
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("user_id", user.id)
-        .is("short_code", null);
+        .or("slug.is.null,short_code.is.null");
 
       let generatedCount = 0;
 
       if (links) {
         for (const link of links) {
+          const shortCode = affiliateLinkService.generateShortCode();
+          const slug = link.slug || (await affiliateLinkService.generateUniqueSlug());
+          
           const { error } = await supabase
             .from("affiliate_links")
-            .update({ short_code: this.generateShortCode() })
+            .update({ 
+              short_code: shortCode,
+              slug: slug
+            })
             .eq("id", link.id);
 
           if (!error) generatedCount++;

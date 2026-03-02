@@ -19,6 +19,13 @@ export interface LinkAnalytics {
 
 export const affiliateLinkService = {
   /**
+   * Generate unique short code for affiliate links
+   */
+  generateShortCode(): string {
+    return Math.random().toString(36).substring(2, 10);
+  },
+
+  /**
    * Create a new affiliate link
    */
   async createAffiliateLink(params: {
