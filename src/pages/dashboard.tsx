@@ -29,6 +29,7 @@ import { affiliateIntegrationService } from "@/services/affiliateIntegrationServ
 import { CampaignBuilder } from "@/components/CampaignBuilder";
 import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
 import { OneClickAutopilot } from "@/components/OneClickAutopilot";
+import { ProductGallery } from "@/components/ProductGallery";
 
 interface Campaign {
   id: string;
@@ -428,6 +429,11 @@ export default function Dashboard() {
 
           {/* One-Click Autopilot */}
           <OneClickAutopilot />
+
+          {/* Product Gallery */}
+          <div className="mt-8">
+            <ProductGallery />
+          </div>
 
           {/* Advanced Analytics Dashboard */}
           <div className="mt-8">

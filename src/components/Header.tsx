@@ -83,21 +83,17 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <button onClick={() => scrollToSection("features")} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer">
+            <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Features
-            </button>
-            <button onClick={() => scrollToSection("tools")} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer">
-              Tools
-            </button>
-            <button onClick={() => scrollToSection("integrations")} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer">
-              Integrations
-            </button>
-            <button onClick={() => scrollToSection("pricing")} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer">
-              Pricing
-            </button>
-            <Link href="/docs" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Docs
             </Link>
+            <Link href="/#pricing" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              Pricing
+            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                Dashboard
+              </Link>
+            ) : null}
           </nav>
 
           {/* Right side actions */}
@@ -150,33 +146,17 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 animate-in slide-in-from-top">
           <nav className="container px-6 py-8 space-y-4">
-            <button 
-              onClick={() => scrollToSection("features")} 
-              className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors"
-            >
+            <Link href="/#features" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
               Features
-            </button>
-            <button 
-              onClick={() => scrollToSection("tools")} 
-              className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors"
-            >
-              Tools
-            </button>
-            <button 
-              onClick={() => scrollToSection("integrations")} 
-              className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors"
-            >
-              Integrations
-            </button>
-            <button 
-              onClick={() => scrollToSection("pricing")} 
-              className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors"
-            >
-              Pricing
-            </button>
-            <Link href="/docs" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
-              Docs
             </Link>
+            <Link href="/#pricing" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
+              Pricing
+            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
+                Dashboard
+              </Link>
+            ) : null}
             <div className="pt-4 space-y-3">
               {isAuthenticated ? (
                 <>

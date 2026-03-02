@@ -1,28 +1,51 @@
-import React from 'react'
-import Head from 'next/head'
-import Link from 'next/link'
-import { Button } from "@/components/ui/button"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { SEO } from "@/components/SEO";
+import { Home, ArrowLeft } from "lucide-react";
 
-export default function NotFound() {
+export default function Custom404() {
   return (
     <>
-      <Head>
-        <title>404 - Page Not Found</title>
-        <meta name="description" content="Page not found" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      
-      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-gray-900">404</h1>
-          <p className="text-lg text-gray-600">Sorry, we couldn't find the page you requested. This page may have been moved, deleted, or never existed.</p>
-          <Button asChild>
-            <Link href="/">
-              Return to home page
-            </Link>
-          </Button>
+      <SEO 
+        title="404 - Page Not Found | Sale Makseb" 
+        description="The page you're looking for doesn't exist." 
+      />
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="space-y-2">
+            <h1 className="text-9xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              404
+            </h1>
+            <h2 className="text-2xl font-semibold text-foreground">
+              Page Not Found
+            </h2>
+            <p className="text-muted-foreground">
+              The page you're looking for doesn't exist or has been moved.
+            </p>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+            <Button asChild size="lg" className="gap-2">
+              <Link href="/">
+                <Home className="w-4 h-4" />
+                Go Home
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="gap-2">
+              <Link href="/dashboard">
+                <ArrowLeft className="w-4 h-4" />
+                Go to Dashboard
+              </Link>
+            </Button>
+          </div>
+
+          <div className="pt-8 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Need help? <Link href="/#features" className="text-primary hover:underline">Contact Support</Link>
+            </p>
+          </div>
         </div>
-      </main>
+      </div>
     </>
-  )
+  );
 }

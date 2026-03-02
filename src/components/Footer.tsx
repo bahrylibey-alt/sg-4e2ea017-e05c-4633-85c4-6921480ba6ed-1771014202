@@ -56,13 +56,11 @@ export function Footer() {
 
           {/* Product */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Product</h3>
+            <h3 className="text-base font-semibold text-foreground mb-4">Product</h3>
             <ul className="space-y-3">
-              <li><Link href="/features" className="text-sm text-muted-foreground hover:text-primary transition-colors">Features</Link></li>
-              <li><Link href="/tools" className="text-sm text-muted-foreground hover:text-primary transition-colors">Smart Tools</Link></li>
-              <li><Link href="/integrations" className="text-sm text-muted-foreground hover:text-primary transition-colors">Integrations</Link></li>
-              <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">Pricing</Link></li>
-              <li><Link href="/changelog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Changelog</Link></li>
+              <li><Link href="/#features" className="text-sm text-muted-foreground hover:text-primary transition-colors">Features</Link></li>
+              <li><Link href="/#pricing" className="text-sm text-muted-foreground hover:text-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary transition-colors">Dashboard</Link></li>
             </ul>
           </div>
 
@@ -70,7 +68,6 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-foreground mb-4">Resources</h3>
             <ul className="space-y-3">
-              <li><Link href="/docs" className="text-sm text-muted-foreground hover:text-primary transition-colors">Documentation</Link></li>
               <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-primary transition-colors">Blog</Link></li>
               <li><Link href="/tutorials" className="text-sm text-muted-foreground hover:text-primary transition-colors">Tutorials</Link></li>
               <li><Link href="/support" className="text-sm text-muted-foreground hover:text-primary transition-colors">Support</Link></li>
