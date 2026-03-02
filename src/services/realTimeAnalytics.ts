@@ -75,12 +75,12 @@ export const realTimeAnalytics = {
 
     const trafficSources = trafficSourcesRes.data || [];
     const topTrafficSources = trafficSources
-      .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
+      .sort((a, b) => (b.total_clicks || 0) - (a.total_clicks || 0))
       .slice(0, 5)
       .map(source => ({
         name: source.source_name || "Unknown Source",
-        clicks: source.clicks || 0,
-        conversions: source.conversions || 0
+        clicks: source.total_clicks || 0,
+        conversions: source.total_conversions || 0
       }));
 
     return {
