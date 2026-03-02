@@ -426,7 +426,7 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          <OneClickAutopilot />
+          {/* One-Click Autopilot */}
 
           <div className="mt-8">
             <AdvancedAnalyticsDashboard />

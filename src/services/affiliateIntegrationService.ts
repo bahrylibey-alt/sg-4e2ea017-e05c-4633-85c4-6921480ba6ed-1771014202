@@ -23,6 +23,45 @@ export interface SystemStats {
 
 export const affiliateIntegrationService = {
   /**
+   * Get product catalog
+   */
+  async getProductCatalog() {
+    // Return all products available in the catalog
+    const products = productCatalogService.getHighConvertingProducts(0);
+    return { products };
+  },
+
+  /**
+   * Get affiliate link stats for a specific user
+   */
+  async getAffiliateLinkStats(userId: string) {
+    // Re-use getSystemStats but return format expected by dashboard
+    const stats = await this.getSystemStats();
+    return {
+      totalLinks: stats.totalProducts,
+      activeLinks: stats.activeLinks,
+      clicks: stats.totalClicks,
+      conversions: stats.totalConversions,
+      revenue: stats.totalRevenue
+    };
+  },
+
+  /**
+   * Auto discover and add new products based on criteria
+   */
+  async autoDiscoverProducts(config: { category: string; minCommissionRate: number; autoGenerateLinks: boolean }) {
+    // Use the existing auto-add logic
+    const result = await this.autoAddProducts(8); // Default to high converting for now
+    
+    // If auto-generate links is requested, run that too
+    if (config.autoGenerateLinks) {
+      await this.autoGenerateLinks();
+    }
+
+    return result;
+  },
+
+  /**
    * Setup complete affiliate system infrastructure
    * Creates all necessary database records and configurations
    */
