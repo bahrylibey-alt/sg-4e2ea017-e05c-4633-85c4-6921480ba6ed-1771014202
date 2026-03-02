@@ -36,19 +36,41 @@ const getURL = () => {
 export const authService = {
   // Get current user
   async getCurrentUser(): Promise<AuthUser | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user ? {
-      id: user.id,
-      email: user.email || "",
-      user_metadata: user.user_metadata,
-      created_at: user.created_at
-    } : null;
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.log("Auth error in getCurrentUser:", error.message);
+        return null;
+      }
+      
+      return user ? {
+        id: user.id,
+        email: user.email || "",
+        user_metadata: user.user_metadata,
+        created_at: user.created_at
+      } : null;
+    } catch (error) {
+      console.log("Exception in getCurrentUser:", error);
+      return null;
+    }
   },
 
   // Get current session
   async getCurrentSession(): Promise<Session | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.log("Auth error in getCurrentSession:", error.message);
+        return null;
+      }
+      
+      return session;
+    } catch (error) {
+      console.log("Exception in getCurrentSession:", error);
+      return null;
+    }
   },
 
   // Sign up with email and password
