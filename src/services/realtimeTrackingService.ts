@@ -322,8 +322,19 @@ export const realtimeTrackingService = {
         return { success: false, clickId: null };
       }
 
-      // Update link click count
-      await supabase.rpc("increment_link_clicks", { link_id: linkId });
+      // Update link click count manually to avoid RPC type issues
+      const { data: link } = await supabase
+        .from("affiliate_links")
+        .select("clicks")
+        .eq("id", linkId)
+        .single();
+      
+      if (link) {
+        await supabase
+          .from("affiliate_links")
+          .update({ clicks: (link.clicks || 0) + 1 })
+          .eq("id", linkId);
+      }
 
       return { success: true, clickId: click.id };
     } catch (error) {
