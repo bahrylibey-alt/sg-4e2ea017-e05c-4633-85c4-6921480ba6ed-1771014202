@@ -9,7 +9,15 @@ import { Card } from "@/components/ui/card";
 import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info, ExternalLink } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 
-export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CampaignBuilder({ 
+  open, 
+  onOpenChange,
+  onCampaignCreated 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  onCampaignCreated?: () => void;
+}) {
   const [step, setStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [campaignName, setCampaignName] = useState("");
@@ -114,6 +122,11 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
       if (result.success && result.campaign) {
         setCreatedCampaign(result);
         setSuccess(true);
+        
+        // Call the callback if provided
+        if (onCampaignCreated) {
+          onCampaignCreated();
+        }
       } else {
         console.error("❌ Failed:", result.error);
         

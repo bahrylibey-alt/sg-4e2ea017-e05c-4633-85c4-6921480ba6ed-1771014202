@@ -222,6 +222,139 @@ export const affiliateIntegrationService = {
     }
   },
 
+  // Get product catalog
+  async getProductCatalog() {
+    try {
+      const products = productCatalogService.getAllProducts();
+      return {
+        success: true,
+        products
+      };
+    } catch (error: any) {
+      console.error("❌ Failed to get product catalog:", error);
+      return {
+        success: false,
+        products: []
+      };
+    }
+  },
+
+  // Get affiliate link statistics for a user
+  async getAffiliateLinkStats(userId: string) {
+    try {
+      const { data: links, error } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      const totalLinks = links?.length || 0;
+      const activeLinks = links?.filter(l => l.status === "active").length || 0;
+      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+      const totalConversions = links?.reduce((sum, l) => sum + (l.conversion_count || 0), 0) || 0;
+      const totalCommissions = links?.reduce((sum, l) => sum + (l.commission_earned || 0), 0) || 0;
+
+      return {
+        success: true,
+        totalLinks,
+        activeLinks,
+        totalClicks,
+        totalConversions,
+        totalCommissions,
+        conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0
+      };
+    } catch (error: any) {
+      console.error("❌ Failed to get link stats:", error);
+      return {
+        success: false,
+        totalLinks: 0,
+        activeLinks: 0,
+        totalClicks: 0,
+        totalConversions: 0,
+        totalCommissions: 0,
+        conversionRate: 0
+      };
+    }
+  },
+
+  // Auto-discover products with configuration
+  async autoDiscoverProducts(config: {
+    category?: string;
+    minCommissionRate?: number;
+    autoGenerateLinks?: boolean;
+  }) {
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) throw new Error("Authentication required");
+
+      console.log("🔍 Auto-discovering products...", config);
+
+      // Get products based on criteria
+      let products = config.category
+        ? productCatalogService.getProductsByCategory(config.category)
+        : productCatalogService.getAllProducts();
+
+      // Filter by commission rate if specified
+      if (config.minCommissionRate) {
+        products = products.filter(p => {
+          const rate = parseFloat(p.commission.split('-')[0]);
+          return rate >= config.minCommissionRate!;
+        });
+      }
+
+      // Get existing links to avoid duplicates
+      const { data: existingLinks } = await supabase
+        .from("affiliate_links")
+        .select("original_url")
+        .eq("user_id", user.id);
+
+      const existingUrls = new Set(existingLinks?.map(l => l.original_url) || []);
+      const newProducts = products.filter(p => !existingUrls.has(p.url));
+
+      console.log(`✅ Found ${newProducts.length} new products`);
+
+      let addedCount = 0;
+      const addedProducts = [];
+
+      // Auto-generate links if enabled
+      if (config.autoGenerateLinks && newProducts.length > 0) {
+        for (const product of newProducts.slice(0, 10)) {
+          try {
+            const result = await affiliateLinkService.createLink({
+              original_url: product.url,
+              product_name: product.name,
+              network: product.network,
+              commission_rate: parseFloat(product.commission.split('-')[0])
+            });
+
+            if (result.link && !result.error) {
+              addedCount++;
+              addedProducts.push(result.link);
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to add ${product.name}:`, err);
+          }
+        }
+      }
+
+      return {
+        success: true,
+        addedCount,
+        totalFound: newProducts.length,
+        products: addedProducts
+      };
+    } catch (error: any) {
+      console.error("❌ Auto-discover failed:", error);
+      return {
+        success: false,
+        addedCount: 0,
+        totalFound: 0,
+        products: []
+      };
+    }
+  },
+
   // Track click and auto-calculate commission
   async trackClickAndCommission(linkId: string, referrer?: string) {
     try {
