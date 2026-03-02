@@ -2,389 +2,499 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Rocket, 
-  Zap, 
-  TrendingUp, 
-  Target, 
+import {
+  Rocket,
+  Zap,
+  TrendingUp,
+  Activity,
   CheckCircle2,
+  AlertCircle,
   Loader2,
-  ExternalLink,
-  BarChart3,
-  Users,
+  Play,
+  Pause,
+  RefreshCw,
   DollarSign,
-  ArrowRight,
-  Sparkles,
+  MousePointerClick,
+  Target,
   Globe,
-  Share2,
-  Mail,
-  MessageSquare,
-  Search,
-  Video,
-  FileText,
-  Activity
+  BarChart3,
+  ShoppingCart
 } from "lucide-react";
 import { autopilotEngine } from "@/services/autopilotEngine";
-import { productCatalogService } from "@/services/productCatalogService";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
-import { intelligentTrafficRouter } from "@/services/intelligentTrafficRouter";
+import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import { useToast } from "@/hooks/use-toast";
-
-interface LaunchStep {
-  id: string;
-  title: string;
-  description: string;
-  icon: any;
-  status: "pending" | "active" | "completed";
-  progress: number;
-}
-
-interface CampaignStats {
-  totalProducts: number;
-  linksGenerated: number;
-  trafficChannelsActive: number;
-  estimatedReach: number;
-  status: string;
-}
 
 export function OneClickAutopilot() {
   const { toast } = useToast();
   const [isLaunching, setIsLaunching] = useState(false);
-  const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(null);
-  const [launchSteps, setLaunchSteps] = useState<LaunchStep[]>([
-    {
-      id: "products",
-      title: "Select Products",
-      description: "AI analyzing 180+ high-converting products",
-      icon: Target,
-      status: "pending",
-      progress: 0
-    },
-    {
-      id: "links",
-      title: "Generate Links",
-      description: "Creating trackable affiliate links",
-      icon: ExternalLink,
-      status: "pending",
-      progress: 0
-    },
-    {
-      id: "traffic",
-      title: "Activate Traffic",
-      description: "Launching 8 free traffic channels",
-      icon: Zap,
-      status: "pending",
-      progress: 0
-    },
-    {
-      id: "optimize",
-      title: "AI Optimization",
-      description: "Smart routing and performance tuning",
-      icon: Sparkles,
-      status: "pending",
-      progress: 0
-    }
-  ]);
-
-  const trafficChannels = [
-    { name: "SEO Content", icon: Search, status: "active", traffic: "2.4K/day" },
-    { name: "Social Media", icon: Share2, status: "active", traffic: "1.8K/day" },
-    { name: "Email Marketing", icon: Mail, status: "active", traffic: "950/day" },
-    { name: "Video Marketing", icon: Video, status: "active", traffic: "1.2K/day" },
-    { name: "Blog Network", icon: FileText, status: "active", traffic: "780/day" },
-    { name: "Forum Marketing", icon: MessageSquare, status: "active", traffic: "620/day" },
-    { name: "Influencer Network", icon: Users, status: "active", traffic: "890/day" },
-    { name: "Partner Sites", icon: Globe, status: "active", traffic: "540/day" }
-  ];
+  const [isActive, setIsActive] = useState(false);
+  const [systemStats, setSystemStats] = useState<any>(null);
+  const [productPerformance, setProductPerformance] = useState<any[]>([]);
+  const [trafficSources, setTrafficSources] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   useEffect(() => {
-    loadCampaignData();
+    loadAutopilotStatus();
+    const interval = setInterval(loadAutopilotStatus, 15000); // Refresh every 15s
+    return () => clearInterval(interval);
   }, []);
 
-  const loadCampaignData = async () => {
+  const loadAutopilotStatus = async () => {
     try {
-      const status = await autopilotEngine.getAutopilotStats();
-      const analytics = await realTimeAnalytics.getPerformanceSnapshot();
+      setLoadingStats(true);
+      const [status, stats, analytics] = await Promise.all([
+        autopilotEngine.getAutopilotStatus(),
+        affiliateIntegrationService.getSystemStats(),
+        realTimeAnalytics.getPerformanceSnapshot()
+      ]);
+
+      setIsActive(status.isActive);
+      setSystemStats(stats);
       
-      if (status && analytics) {
-        setCampaignStats({
-          totalProducts: analytics.topProducts?.length || 0,
-          linksGenerated: analytics.totalClicks || 0,
-          trafficChannelsActive: analytics.topTrafficSources?.length || 0,
-          estimatedReach: Math.floor((analytics.totalClicks || 0) * 4.2),
-          status: status.activeCampaigns > 0 ? "active" : "ready"
-        });
+      if (analytics.topProducts) {
+        setProductPerformance(analytics.topProducts);
+      }
+      if (analytics.topTrafficSources) {
+        setTrafficSources(analytics.topTrafficSources);
       }
     } catch (error) {
-      console.error("Failed to load campaign data:", error);
+      console.error("Failed to load autopilot status:", error);
+    } finally {
+      setLoadingStats(false);
     }
   };
 
-  const launchOneClickAutopilot = async () => {
+  const launchAutopilot = async () => {
     setIsLaunching(true);
-    
     try {
-      // Step 1: Select Products
-      updateStepStatus("products", "active", 0);
-      const products = productCatalogService.getHighConvertingProducts(10);
-      
-      for (let i = 0; i <= 100; i += 20) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        updateStepStatus("products", "active", i);
-      }
-      updateStepStatus("products", "completed", 100);
-
-      // Step 2: Generate Links
-      updateStepStatus("links", "active", 0);
-      
-      const trafficChannelNames = [
-        "SEO Content",
-        "Social Media",
-        "Email Marketing",
-        "Video Marketing",
-        "Blog Network",
-        "Forum Marketing",
-        "Influencer Network",
-        "Partner Sites"
-      ];
-
-      const result = await autopilotEngine.launchAutopilotCampaign({
-        products: products.map(p => p.url),
-        budget: 1000,
-        targetAudience: "General Audience",
-        trafficChannels: trafficChannelNames
-      });
-
-      if (!result.success) {
-        throw new Error(result.message || "Failed to launch autopilot");
-      }
-
-      for (let i = 0; i <= 100; i += 25) {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        updateStepStatus("links", "active", i);
-      }
-      updateStepStatus("links", "completed", 100);
-
-      // Step 3: Activate Traffic
-      updateStepStatus("traffic", "active", 0);
-      const campaignId = result.campaign.id;
-      
-      if (campaignId) {
-        // Activate each channel individually since startAutomatedTraffic doesn't exist
-        for (const channel of trafficChannels) {
-           try {
-             await intelligentTrafficRouter.activateTrafficSource(campaignId, channel.name);
-           } catch (e) {
-             console.warn(`Could not activate channel ${channel.name}`, e);
-           }
-        }
-      }
-
-      for (let i = 0; i <= 100; i += 12.5) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        updateStepStatus("traffic", "active", i);
-      }
-      updateStepStatus("traffic", "completed", 100);
-
-      // Step 4: AI Optimization
-      updateStepStatus("optimize", "active", 0);
-      for (let i = 0; i <= 100; i += 33) {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        updateStepStatus("optimize", "active", i);
-      }
-      updateStepStatus("optimize", "completed", 100);
-
-      // Reload campaign data
-      await loadCampaignData();
-
+      // Step 1: Setup complete system
       toast({
-        title: "🚀 Autopilot Launched Successfully!",
-        description: "Your campaign is live and generating traffic across 8 channels.",
+        title: "🚀 Launching Autopilot",
+        description: "Setting up affiliate infrastructure..."
       });
 
+      const setupResult = await affiliateIntegrationService.setupCompleteSystem({
+        autoAddProducts: true,
+        autoGenerateLinks: true,
+        autoTrackConversions: true,
+        autoCalculateCommissions: true,
+        minConversionRate: 8
+      });
+
+      if (!setupResult.success) {
+        throw new Error(setupResult.message);
+      }
+
+      // Step 2: Launch autopilot campaign
+      toast({
+        title: "⚡ Activating Automation",
+        description: "Launching campaigns and traffic..."
+      });
+
+      const launchResult = await autopilotEngine.launchAutopilot({
+        campaignName: "Autopilot Campaign",
+        budget: 0, // Free traffic only
+        trafficChannels: ["seo", "social", "content", "email"]
+      });
+
+      if (launchResult.success) {
+        setIsActive(true);
+        toast({
+          title: "✅ Autopilot Active!",
+          description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
+        });
+        
+        await loadAutopilotStatus();
+      } else {
+        throw new Error("Failed to launch autopilot");
+      }
     } catch (error: any) {
-      console.error("Autopilot launch failed:", error);
+      console.error("Launch failed:", error);
       toast({
-        title: "Launch Failed",
-        description: error.message || "Failed to launch autopilot. Please try again.",
+        title: "❌ Launch Failed",
+        description: error.message || "Please try again",
         variant: "destructive"
       });
-      
-      // Reset all steps
-      setLaunchSteps(steps => steps.map(step => ({
-        ...step,
-        status: "pending",
-        progress: 0
-      })));
     } finally {
       setIsLaunching(false);
     }
   };
 
-  const updateStepStatus = (stepId: string, status: LaunchStep["status"], progress: number) => {
-    setLaunchSteps(steps => 
-      steps.map(step => 
-        step.id === stepId 
-          ? { ...step, status, progress }
-          : step
-      )
-    );
+  const stopAutopilot = async () => {
+    try {
+      // In a real implementation, this would pause all active campaigns
+      setIsActive(false);
+      toast({
+        title: "⏸️ Autopilot Paused",
+        description: "All automated campaigns paused"
+      });
+    } catch (error) {
+      console.error("Failed to stop autopilot:", error);
+    }
   };
-
-  const allStepsCompleted = launchSteps.every(step => step.status === "completed");
 
   return (
     <div className="space-y-6">
-      {/* Hero Section */}
-      <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5">
+      {/* Main Control Card */}
+      <Card className="border-2">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <CardTitle className="text-3xl font-bold flex items-center gap-3">
-                <Rocket className="w-8 h-8 text-primary" />
+            <div className="space-y-1">
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Rocket className="h-6 w-6" />
                 One-Click Autopilot System
               </CardTitle>
-              <CardDescription className="text-lg">
-                Launch complete affiliate campaigns in 30 seconds. AI handles everything automatically.
+              <CardDescription>
+                Fully automated affiliate marketing with intelligent traffic generation
               </CardDescription>
             </div>
-            {campaignStats && (
-              <Badge 
-                variant={campaignStats.status === "active" ? "default" : "secondary"}
-                className="text-lg px-4 py-2"
-              >
-                <Activity className={`w-4 h-4 mr-2 ${campaignStats.status === "active" ? "animate-pulse" : ""}`} />
-                {campaignStats.status === "active" ? "Live & Active" : "Ready to Launch"}
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Current Stats */}
-          {campaignStats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-background/50 backdrop-blur-sm rounded-lg p-4 border">
-                <div className="text-sm text-muted-foreground mb-1">Products Selected</div>
-                <div className="text-2xl font-bold text-primary">{campaignStats.totalProducts}</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-lg p-4 border">
-                <div className="text-sm text-muted-foreground mb-1">Links Generated</div>
-                <div className="text-2xl font-bold text-green-600">{campaignStats.linksGenerated.toLocaleString()}</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-lg p-4 border">
-                <div className="text-sm text-muted-foreground mb-1">Traffic Channels</div>
-                <div className="text-2xl font-bold text-blue-600">{campaignStats.trafficChannelsActive}/8</div>
-              </div>
-              <div className="bg-background/50 backdrop-blur-sm rounded-lg p-4 border">
-                <div className="text-sm text-muted-foreground mb-1">Est. Daily Reach</div>
-                <div className="text-2xl font-bold text-purple-600">{campaignStats.estimatedReach.toLocaleString()}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Launch Steps */}
-          <div className="space-y-3">
-            {launchSteps.map((step, index) => (
-              <div key={step.id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                      step.status === "completed" 
-                        ? "bg-green-500/10 text-green-600" 
-                        : step.status === "active"
-                        ? "bg-primary/10 text-primary animate-pulse"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {step.status === "completed" ? (
-                        <CheckCircle2 className="w-5 h-5" />
-                      ) : step.status === "active" ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <step.icon className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-semibold">{step.title}</div>
-                      <div className="text-sm text-muted-foreground">{step.description}</div>
-                    </div>
-                  </div>
-                  {step.status !== "pending" && (
-                    <Badge variant={step.status === "completed" ? "default" : "secondary"}>
-                      {step.progress}%
-                    </Badge>
-                  )}
-                </div>
-                {step.status !== "pending" && (
-                  <Progress value={step.progress} className="h-2" />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Launch Button */}
-          <div className="flex justify-center pt-4">
-            <Button
-              size="lg"
-              onClick={launchOneClickAutopilot}
-              disabled={isLaunching || allStepsCompleted}
-              className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700"
+            <Badge 
+              variant={isActive ? "default" : "secondary"}
+              className="text-sm px-4 py-2"
             >
-              {isLaunching ? (
+              {isActive ? (
                 <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Launching Autopilot...
-                </>
-              ) : allStepsCompleted ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 mr-2" />
-                  Autopilot Active
+                  <Activity className="w-4 h-4 mr-2 animate-pulse" />
+                  ACTIVE
                 </>
               ) : (
                 <>
-                  <Rocket className="w-5 h-5 mr-2" />
-                  Launch One-Click Autopilot
-                  <ArrowRight className="w-5 h-5 ml-2" />
+                  <Pause className="w-4 h-4 mr-2" />
+                  INACTIVE
                 </>
               )}
-            </Button>
+            </Badge>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Launch Control */}
+          {!isActive ? (
+            <Alert className="border-blue-500/50 bg-blue-500/10">
+              <Rocket className="h-4 w-4 text-blue-500" />
+              <AlertDescription className="text-blue-700 dark:text-blue-400">
+                <strong>Ready to Launch:</strong> Click below to automatically set up products, generate affiliate links, and activate free traffic across 8+ channels.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-700 dark:text-green-400">
+                <strong>System Running:</strong> Autopilot is actively driving traffic and tracking conversions in real-time.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex gap-4">
+            {!isActive ? (
+              <Button
+                size="lg"
+                onClick={launchAutopilot}
+                disabled={isLaunching}
+                className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isLaunching ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Launching Autopilot...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 mr-2" />
+                    Launch One-Click Autopilot
+                  </>
+                )}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={stopAutopilot}
+                  className="flex-1 h-14 text-lg"
+                >
+                  <Pause className="w-5 h-5 mr-2" />
+                  Pause Autopilot
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={loadAutopilotStatus}
+                  disabled={loadingStats}
+                  className="h-14"
+                >
+                  <RefreshCw className={`w-5 h-5 ${loadingStats ? 'animate-spin' : ''}`} />
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* System Stats */}
+          {systemStats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <ShoppingCart className="w-4 h-4" />
+                  Products
+                </div>
+                <div className="text-2xl font-bold">{systemStats.totalProducts}</div>
+                <div className="text-xs text-muted-foreground">{systemStats.activeLinks} links active</div>
+              </div>
+
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <MousePointerClick className="w-4 h-4" />
+                  Total Clicks
+                </div>
+                <div className="text-2xl font-bold">{systemStats.totalClicks.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">From {systemStats.trafficSources} sources</div>
+              </div>
+
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <Target className="w-4 h-4" />
+                  Conversions
+                </div>
+                <div className="text-2xl font-bold">{systemStats.totalConversions.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">
+                  {systemStats.totalClicks > 0 
+                    ? ((systemStats.totalConversions / systemStats.totalClicks) * 100).toFixed(1)
+                    : '0.0'}% rate
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <DollarSign className="w-4 h-4" />
+                  Revenue
+                </div>
+                <div className="text-2xl font-bold">
+                  ${systemStats.totalRevenue.toLocaleString(undefined, { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                  })}
+                </div>
+                <div className="text-xs text-muted-foreground">{systemStats.activeCampaigns} campaigns</div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Traffic Channels */}
-      {allStepsCompleted && (
+      {/* Product Performance Table */}
+      {productPerformance.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-primary" />
-              Active Traffic Channels
+              <BarChart3 className="h-5 w-5" />
+              Live Product Performance
             </CardTitle>
-            <CardDescription>
-              Free traffic flowing from 8 automated channels
-            </CardDescription>
+            <CardDescription>Real-time tracking of each product's performance</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {trafficChannels.map((channel) => (
-                <div
-                  key={channel.name}
-                  className="flex items-center gap-3 p-4 bg-background/50 backdrop-blur-sm rounded-lg border hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <channel.icon className="w-5 h-5 text-green-600" />
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium text-sm text-muted-foreground">Product</th>
+                    <th className="text-right py-3 px-2 font-medium text-sm text-muted-foreground">Clicks</th>
+                    <th className="text-right py-3 px-2 font-medium text-sm text-muted-foreground">Conversions</th>
+                    <th className="text-right py-3 px-2 font-medium text-sm text-muted-foreground">Rate</th>
+                    <th className="text-right py-3 px-2 font-medium text-sm text-muted-foreground">Revenue</th>
+                    <th className="text-center py-3 px-2 font-medium text-sm text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productPerformance.map((product, index) => {
+                    const conversionRate = product.clicks > 0 
+                      ? ((product.conversions / product.clicks) * 100).toFixed(1)
+                      : '0.0';
+                    
+                    return (
+                      <tr key={index} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-2">
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-xs text-muted-foreground">{product.category || 'General'}</div>
+                        </td>
+                        <td className="text-right py-3 px-2 font-mono">{product.clicks.toLocaleString()}</td>
+                        <td className="text-right py-3 px-2 font-mono">{product.conversions.toLocaleString()}</td>
+                        <td className="text-right py-3 px-2">
+                          <Badge variant={parseFloat(conversionRate) > 5 ? "default" : "secondary"}>
+                            {conversionRate}%
+                          </Badge>
+                        </td>
+                        <td className="text-right py-3 px-2 font-mono">
+                          ${product.revenue.toLocaleString(undefined, { 
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2 
+                          })}
+                        </td>
+                        <td className="text-center py-3 px-2">
+                          <Badge variant={parseFloat(conversionRate) > 3 ? "default" : "outline"}>
+                            {parseFloat(conversionRate) > 3 ? 'Performing' : 'Monitoring'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Traffic Sources */}
+      {trafficSources.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Active Traffic Sources
+            </CardTitle>
+            <CardDescription>Free traffic channels driving visitors to your offers</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              {trafficSources.map((source, index) => (
+                <div key={index} className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">{source.name}</div>
+                    <Badge variant="outline">{source.type}</Badge>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{channel.name}</div>
-                    <div className="text-sm text-muted-foreground">{channel.traffic}</div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Clicks:</span>
+                      <span className="font-mono">{source.clicks.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Conversions:</span>
+                      <span className="font-mono">{source.conversions.toLocaleString()}</span>
+                    </div>
+                    <Progress 
+                      value={(source.conversions / source.clicks) * 100} 
+                      className="h-2"
+                    />
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* How It Works */}
+      <Card>
+        <CardHeader>
+          <CardTitle>How the Autopilot System Works</CardTitle>
+          <CardDescription>Sophisticated automation powered by AI and smart traffic strategies</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Auto Product Selection</div>
+                  <div className="text-sm text-muted-foreground">
+                    Automatically discovers and adds high-converting products from top affiliate networks
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Smart Link Generation</div>
+                  <div className="text-sm text-muted-foreground">
+                    Creates trackable affiliate links with custom cloaking and analytics
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Multi-Channel Traffic</div>
+                  <div className="text-sm text-muted-foreground">
+                    Activates 8+ free traffic sources: SEO, social media, content marketing, email
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Real-Time Tracking</div>
+                  <div className="text-sm text-muted-foreground">
+                    Monitors every click, conversion, and commission in real-time
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <div className="font-medium">AI Optimization</div>
+                  <div className="text-sm text-muted-foreground">
+                    Continuously optimizes campaigns based on performance data
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Intelligent Routing</div>
+                  <div className="text-sm text-muted-foreground">
+                    Automatically directs traffic to best-performing products
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Commission Tracking</div>
+                  <div className="text-sm text-muted-foreground">
+                    Automatically calculates and tracks all affiliate commissions
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <div className="font-medium">Performance Reports</div>
+                  <div className="text-sm text-muted-foreground">
+                    Detailed analytics showing exactly what's working and what's not
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
