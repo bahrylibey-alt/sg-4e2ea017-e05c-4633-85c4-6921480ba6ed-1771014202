@@ -19,7 +19,7 @@ export function Header() {
   }, []);
 
   const checkAuth = async () => {
-    const session = await authService.getSession();
+    const session = await authService.getCurrentSession();
     setIsAuthenticated(!!session);
     setUserEmail(session?.user?.email || null);
   };

@@ -61,10 +61,10 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      const result = await authService.signInWithEmail(loginEmail.trim(), loginPassword);
+      const result = await authService.signIn(loginEmail.trim(), loginPassword);
 
       if (result.error) {
-        setError(result.error);
+        setError(result.error.message);
         setLoading(false);
         return;
       }
@@ -110,14 +110,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      const result = await authService.signUpWithEmail(
+      const result = await authService.signUp(
         signupEmail.trim(),
         signupPassword,
         { full_name: signupName.trim() }
       );
 
       if (result.error) {
-        setError(result.error);
+        setError(result.error.message);
         setLoading(false);
         return;
       }

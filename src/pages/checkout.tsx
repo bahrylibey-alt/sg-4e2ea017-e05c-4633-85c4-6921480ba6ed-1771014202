@@ -69,7 +69,7 @@ export default function Checkout() {
   }, []);
 
   const checkAuth = async () => {
-    const session = await authService.getSession();
+    const session = await authService.getCurrentSession();
     setIsAuthenticated(!!session);
     setLoading(false);
 
