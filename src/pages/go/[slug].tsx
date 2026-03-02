@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { affiliateLinkService } from "@/services/affiliateLinkService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,81 +10,122 @@ export default function RedirectPage() {
   const router = useRouter();
   const { slug } = router.query;
   const [error, setError] = useState<string | null>(null);
-  const [redirecting, setRedirecting] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   useEffect(() => {
     const handleRedirect = async () => {
       if (!slug || typeof slug !== "string") {
-        setError("Invalid link");
+        console.error("❌ Invalid slug:", slug);
+        setError("Invalid link - no slug provided");
+        setDebugInfo(`Slug type: ${typeof slug}, Value: ${JSON.stringify(slug)}`);
         return;
       }
 
+      console.log("🔗 Looking up affiliate link for slug:", slug);
+
       try {
-        // Look up the affiliate link by slug
+        // Step 1: Look up the affiliate link by slug
         const { data: link, error: linkError } = await supabase
           .from("affiliate_links")
           .select("*")
           .eq("slug", slug)
           .eq("status", "active")
-          .single();
+          .maybeSingle();
 
-        if (linkError || !link) {
-          console.error("Link not found:", linkError);
-          setError("This affiliate link was not found or is no longer active");
-          setRedirecting(false);
+        if (linkError) {
+          console.error("❌ Database query error:", linkError);
+          setError("Database error while looking up link");
+          setDebugInfo(`Error: ${linkError.message}\nCode: ${linkError.code}`);
           return;
         }
 
-        // Check if we have a valid destination URL
-        if (!link.original_url) {
-          console.error("Link has no destination URL:", link);
-          setError("This link is not configured properly");
-          setRedirecting(false);
+        if (!link) {
+          console.error("❌ Link not found for slug:", slug);
+          
+          // Debug: Check if link exists with different status
+          const { data: anyLink } = await supabase
+            .from("affiliate_links")
+            .select("slug, status")
+            .eq("slug", slug)
+            .maybeSingle();
+          
+          if (anyLink) {
+            setError(`This link is ${anyLink.status} and cannot be used`);
+            setDebugInfo(`Slug found but status is: ${anyLink.status}`);
+          } else {
+            setError("This affiliate link was not found");
+            setDebugInfo(`No link found with slug: ${slug}\nPlease check if the link was created correctly.`);
+          }
           return;
         }
 
-        // Track the click
+        console.log("✅ Link found:", {
+          id: link.id,
+          product_name: link.product_name,
+          original_url: link.original_url,
+          clicks: link.clicks,
+          click_count: link.click_count
+        });
+
+        // Step 2: Validate destination URL
+        if (!link.original_url || link.original_url.trim() === "") {
+          console.error("❌ Link has no destination URL:", link);
+          setError("This link is not configured properly - missing destination URL");
+          setDebugInfo(`Link ID: ${link.id}\nProduct: ${link.product_name}\nDestination URL is empty or null`);
+          return;
+        }
+
+        // Step 3: Track the click in click_events table
         const clickData: any = {
           link_id: link.id,
           user_id: link.user_id,
           clicked_at: new Date().toISOString()
         };
 
-        // Add optional tracking data if available
+        // Add browser metadata if available
         if (typeof window !== 'undefined') {
           clickData.referrer = document.referrer || null;
           clickData.user_agent = navigator.userAgent || null;
+          clickData.device_type = /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
         }
 
-        // Record the click in the database using the CORRECT table name
+        console.log("📊 Recording click event...");
         const { error: clickError } = await supabase
-          .from("click_events") // Changed from "link_clicks" to "click_events"
+          .from("click_events")
           .insert(clickData);
 
         if (clickError) {
-          console.error("Failed to track click:", clickError);
+          console.error("⚠️  Failed to track click (non-blocking):", clickError);
           // Don't block redirect if tracking fails
+        } else {
+          console.log("✅ Click tracked successfully");
         }
 
-        // Update click count on the link
-        // Use click_count which seems to be the preferred column based on schema
-        await supabase
+        // Step 4: Update click counters on the link (both fields for compatibility)
+        console.log("📈 Updating click counters...");
+        const { error: updateError } = await supabase
           .from("affiliate_links")
           .update({ 
             click_count: (link.click_count || 0) + 1,
-            clicks: (link.clicks || 0) + 1, // Update both for compatibility
-            updated_at: new Date().toISOString() // Correct column name based on schema context
+            clicks: (link.clicks || 0) + 1,
+            updated_at: new Date().toISOString()
           })
           .eq("id", link.id);
 
-        // Redirect to the actual product URL
-        console.log("Redirecting to:", link.original_url);
+        if (updateError) {
+          console.error("⚠️  Failed to update click count (non-blocking):", updateError);
+        } else {
+          console.log("✅ Click count updated");
+        }
+
+        // Step 5: Redirect to the destination
+        console.log("🚀 Redirecting to:", link.original_url);
         window.location.href = link.original_url;
         
-      } catch (error) {
-        console.error("Redirect error:", error);
-        setError("An error occurred while processing this link");
-        setRedirecting(false);
+      } catch (error: any) {
+        console.error("💥 Unexpected error during redirect:", error);
+        setError("An unexpected error occurred");
+        setDebugInfo(`Error: ${error.message}\nStack: ${error.stack}`);
       }
     };
 
@@ -101,9 +141,15 @@ export default function RedirectPage() {
               <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
               <h1 className="text-2xl font-bold">Link Not Found</h1>
               <p className="text-muted-foreground">{error}</p>
+              {debugInfo && (
+                <details className="text-left text-xs text-muted-foreground bg-muted p-4 rounded">
+                  <summary className="cursor-pointer font-semibold mb-2">Debug Info (click to expand)</summary>
+                  <pre className="whitespace-pre-wrap">{debugInfo}</pre>
+                </details>
+              )}
               <div className="pt-4">
-                <Link href="/">
-                  <Button>Return to Homepage</Button>
+                <Link href="/dashboard">
+                  <Button>Go to Dashboard</Button>
                 </Link>
               </div>
             </div>
