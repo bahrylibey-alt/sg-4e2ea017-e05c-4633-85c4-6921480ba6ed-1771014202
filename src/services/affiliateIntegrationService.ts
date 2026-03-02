@@ -109,7 +109,7 @@ export const affiliateIntegrationService = {
             .from("affiliate_links")
             .select("id")
             .eq("user_id", user.id)
-            .eq("destination_url", product.url)
+            .eq("original_url", product.url)
             .maybeSingle();
 
           if (existing) {
@@ -118,12 +118,15 @@ export const affiliateIntegrationService = {
           }
 
           // Create affiliate link for product
+          const slug = this.generateSlug(product.name);
           const { error } = await supabase
             .from("affiliate_links")
             .insert({
               user_id: user.id,
               product_name: product.name,
-              destination_url: product.url,
+              original_url: product.url,
+              cloaked_url: `${window.location.origin}/go/${slug}`,
+              slug: slug,
               short_code: this.generateShortCode(),
               status: "active",
               clicks: 0,
@@ -373,6 +376,16 @@ export const affiliateIntegrationService = {
    */
   generateShortCode(): string {
     return Math.random().toString(36).substring(2, 10);
+  },
+
+  /**
+   * Generate URL-friendly slug
+   */
+  generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '') + '-' + Math.random().toString(36).substring(2, 6);
   },
 
   /**
