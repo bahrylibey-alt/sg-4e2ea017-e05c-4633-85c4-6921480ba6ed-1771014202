@@ -34,6 +34,22 @@ export const affiliateLinkService = {
 
       console.log("✅ User:", user.id);
 
+      // Ensure profile exists
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        console.log("📝 Creating user profile...");
+        await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email || null,
+          full_name: null
+        });
+      }
+
       const slug = await this.generateUniqueSlug();
       const cloakedUrl = this.getCloakedUrl(slug);
 
@@ -87,6 +103,24 @@ export const affiliateLinkService = {
     const links: AffiliateLink[] = [];
     const errors: string[] = [];
     let successCount = 0;
+
+    // Ensure user profile exists once before batch
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email || null,
+          full_name: null
+        });
+      }
+    }
 
     for (const urlData of urls) {
       const result = await this.createLink(urlData);
