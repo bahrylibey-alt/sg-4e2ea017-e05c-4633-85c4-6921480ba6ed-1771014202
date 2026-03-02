@@ -438,7 +438,7 @@ export const affiliateLinkService = {
       .from("affiliate_links")
       .select("slug")
       .eq("slug", slug)
-      .single();
+      .maybeSingle();
 
     if (data) {
       return this.generateUniqueSlug(length + 1, attempts + 1);

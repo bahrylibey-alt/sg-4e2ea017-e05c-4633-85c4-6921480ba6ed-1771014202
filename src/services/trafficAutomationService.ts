@@ -142,7 +142,6 @@ export const trafficAutomationService = {
 
       const inserts: TrafficSourceInsert[] = sourcesToCreate.map(sourceConfig => ({
         campaign_id: config.campaignId,
-        user_id: user.id,
         source_name: sourceConfig.source_name,
         source_type: sourceConfig.source_type,
         status: config.autoActivate ? "active" : "pending",
