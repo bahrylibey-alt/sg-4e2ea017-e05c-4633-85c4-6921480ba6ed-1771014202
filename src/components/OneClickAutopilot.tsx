@@ -110,6 +110,10 @@ export function OneClickAutopilot() {
     setLaunchStep("Initializing...");
 
     try {
+      // Get user first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please log in to launch autopilot");
+
       // Check status first
       const status = await autopilotEngine.getAutopilotStatus();
       
@@ -122,7 +126,7 @@ export function OneClickAutopilot() {
         // Launch new campaign
         // 1. Setup products/links first
         setLaunchStep("Syncing product catalog...");
-        await affiliateIntegrationService.setupCompleteSystem(userId);
+        await affiliateIntegrationService.setupCompleteSystem(user.id);
         
         // 2. Launch engine
         setLaunchStep("Activating autopilot engine...");
@@ -134,7 +138,7 @@ export function OneClickAutopilot() {
           title: "✅ Autopilot Active",
           description: result.message || "System is running and generating traffic.",
         });
-        await checkStatus();
+        await loadAutopilotStatus();
       } else {
         throw new Error(result.message);
       }
