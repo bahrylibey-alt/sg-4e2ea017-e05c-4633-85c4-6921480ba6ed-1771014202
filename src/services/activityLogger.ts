@@ -79,7 +79,16 @@ export const activityLogger = {
         return [];
       }
 
-      return data || [];
+      // Map database records to ActivityLog interface
+      return (data || []).map(log => ({
+        id: log.id,
+        user_id: log.user_id,
+        timestamp: log.created_at, // Map created_at to timestamp
+        action: log.action,
+        status: log.status as "started" | "success" | "error" | "info",
+        details: log.details,
+        metadata: log.metadata as Record<string, any> | undefined
+      }));
     } catch (err) {
       console.error("Exception fetching logs:", err);
       return [];

@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 export function OneClickAutopilot() {
   const { toast } = useToast();
   const [isLaunching, setIsLaunching] = useState(false);
+  const [launchProgress, setLaunchProgress] = useState(0);
   const [launchStep, setLaunchStep] = useState("");
   const [isActive, setIsActive] = useState(false);
   const [systemStats, setSystemStats] = useState<any>(null);
@@ -48,28 +49,46 @@ export function OneClickAutopilot() {
     loadActivityLogs();
     const interval = setInterval(() => {
       loadAutopilotStatus();
-      if (isLaunching || showLogs) {
+      if (showLogs) {
         loadActivityLogs();
       }
-    }, 3000); // Refresh every 3s
+    }, 3000);
     return () => clearInterval(interval);
-  }, [isLaunching, showLogs]);
+  }, [showLogs]);
 
-  const loadActivityLogs = () => {
+  const loadActivityLogs = async () => {
     const logs = activityLogger.getLogs();
-    setActivityLogs(logs.slice(-20)); // Show last 20 logs
+    setActivityLogs(logs.slice(-20));
   };
 
   const loadAutopilotStatus = async () => {
     try {
       setLoadingStats(true);
-      const [status, stats, analytics] = await Promise.all([
-        autopilotEngine.getAutopilotStatus(),
+      
+      // Check user authentication
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log("No user authenticated");
+        setIsActive(false);
+        return;
+      }
+
+      // Check if autopilot is active
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const autopilotActive = settings?.autopilot_enabled || false;
+      setIsActive(autopilotActive);
+
+      // Load stats
+      const [stats, analytics] = await Promise.all([
         affiliateIntegrationService.getSystemStats(),
         realTimeAnalytics.getPerformanceSnapshot()
       ]);
 
-      setIsActive(status.isActive);
       setSystemStats(stats);
       
       if (analytics.topProducts) {
@@ -86,16 +105,40 @@ export function OneClickAutopilot() {
   };
 
   const launchAutopilot = async () => {
-    console.log("🚀 User clicked Launch Autopilot");
     setIsLaunching(true);
-    setLaunchStep("Initializing...");
     setShowLogs(true);
+    setLaunchProgress(0);
     activityLogger.clearLogs();
     
     try {
-      // Step 1: Setup complete system
+      // Step 1: Check authentication (5%)
+      setLaunchStep("Checking authentication...");
+      setLaunchProgress(5);
+      await activityLogger.log("launch", "started", "Checking user authentication");
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Please log in to launch autopilot");
+      }
+      
+      await activityLogger.log("launch", "success", `User authenticated: ${user.email}`);
+      
+      // Step 2: Ensure user profile (15%)
+      setLaunchStep("Setting up user profile...");
+      setLaunchProgress(15);
+      await activityLogger.log("setup", "started", "Ensuring user profile exists");
+      
+      const profileResult = await affiliateIntegrationService.ensureUserProfile(user.id, user.email || "");
+      if (!profileResult.success) {
+        throw new Error(profileResult.error || "Failed to setup user profile");
+      }
+      
+      await activityLogger.log("setup", "success", "User profile ready");
+      
+      // Step 3: Setup affiliate infrastructure (40%)
       setLaunchStep("Setting up affiliate infrastructure...");
-      console.log("Step 1: Setting up affiliate infrastructure...");
+      setLaunchProgress(40);
+      await activityLogger.log("setup", "started", "Setting up affiliate infrastructure");
       
       toast({
         title: "🚀 Launching Autopilot",
@@ -110,15 +153,16 @@ export function OneClickAutopilot() {
         minConversionRate: 8
       });
 
-      console.log("Setup result:", setupResult);
-
       if (!setupResult.success) {
-        throw new Error(setupResult.message);
+        throw new Error(setupResult.message || "Failed to setup affiliate infrastructure");
       }
-
-      // Step 2: Launch autopilot campaign
+      
+      await activityLogger.log("setup", "success", `Infrastructure ready: ${setupResult.stats.totalProducts} products, ${setupResult.stats.activeLinks} links`);
+      
+      // Step 4: Launch autopilot campaign (70%)
       setLaunchStep("Activating traffic automation...");
-      console.log("Step 2: Launching autopilot campaign...");
+      setLaunchProgress(70);
+      await activityLogger.log("launch", "started", "Launching autopilot campaign");
       
       toast({
         title: "⚡ Activating Automation",
@@ -127,44 +171,75 @@ export function OneClickAutopilot() {
 
       const launchResult = await autopilotEngine.launchAutopilot({
         campaignName: "Autopilot Campaign",
-        budget: 0, // Free traffic only
+        budget: 0,
         trafficChannels: ["seo", "social", "content", "email"]
       });
 
-      console.log("Launch result:", launchResult);
-
-      if (launchResult.success) {
-        setIsActive(true);
-        setLaunchStep("Complete!");
-        
-        toast({
-          title: "✅ Autopilot Active!",
-          description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
-        });
-        
-        await loadAutopilotStatus();
-      } else {
+      if (!launchResult.success) {
         throw new Error(launchResult.message || "Failed to launch autopilot");
       }
+      
+      await activityLogger.log("launch", "success", "Autopilot campaign activated");
+      
+      // Step 5: Enable autopilot in settings (90%)
+      setLaunchStep("Enabling autopilot...");
+      setLaunchProgress(90);
+      await activityLogger.log("settings", "started", "Updating autopilot settings");
+      
+      const { error: settingsError } = await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: true,
+          updated_at: new Date().toISOString()
+        });
+
+      if (settingsError) {
+        console.warn("Settings update warning:", settingsError);
+      } else {
+        await activityLogger.log("settings", "success", "Autopilot enabled in settings");
+      }
+      
+      // Step 6: Complete (100%)
+      setLaunchStep("Complete!");
+      setLaunchProgress(100);
+      setIsActive(true);
+      
+      await activityLogger.log("launch", "success", "Autopilot system is now ACTIVE");
+      
+      toast({
+        title: "✅ Autopilot Active!",
+        description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
+      });
+      
+      await loadAutopilotStatus();
+      await loadActivityLogs();
+      
     } catch (error: any) {
       console.error("💥 Launch failed:", error);
+      await activityLogger.log("launch", "error", error.message || "Launch failed");
       
       toast({
         title: "❌ Launch Failed",
         description: error.message || "Please check console for details",
         variant: "destructive"
       });
+      
+      setIsActive(false);
     } finally {
       setIsLaunching(false);
-      setLaunchStep("");
+      setTimeout(() => {
+        setLaunchStep("");
+        setLaunchProgress(0);
+      }, 2000);
     }
   };
 
   const stopAutopilot = async () => {
     try {
       setIsLaunching(true);
+      await activityLogger.log("pause", "started", "Pausing autopilot system");
       
-      // Get all active autopilot campaigns and pause them
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({
@@ -184,15 +259,11 @@ export function OneClickAutopilot() {
 
       if (campaignError) {
         console.error("Failed to pause campaigns:", campaignError);
-        toast({
-          title: "❌ Error",
-          description: "Failed to pause campaigns",
-          variant: "destructive"
-        });
-        return;
+      } else {
+        await activityLogger.log("pause", "success", "All campaigns paused");
       }
 
-      // Disable autopilot in user settings
+      // Disable autopilot in settings
       const { error: settingsError } = await supabase
         .from("user_settings")
         .upsert({
@@ -203,17 +274,25 @@ export function OneClickAutopilot() {
 
       if (settingsError) {
         console.error("Failed to update settings:", settingsError);
+      } else {
+        await activityLogger.log("pause", "success", "Autopilot disabled in settings");
       }
 
       setIsActive(false);
+      await activityLogger.log("pause", "success", "Autopilot system is now PAUSED");
+      
       toast({
         title: "⏸️ Autopilot Paused",
         description: "All automated campaigns have been paused"
       });
 
       await loadAutopilotStatus();
+      await loadActivityLogs();
+      
     } catch (error) {
       console.error("Failed to stop autopilot:", error);
+      await activityLogger.log("pause", "error", "Failed to pause autopilot");
+      
       toast({
         title: "❌ Error",
         description: "Failed to stop autopilot",
@@ -320,17 +399,17 @@ export function OneClickAutopilot() {
 
           <div className="flex gap-4">
             {!isActive ? (
-              <>
+              <div className="flex-1 space-y-3">
                 <Button
                   size="lg"
                   onClick={launchAutopilot}
                   disabled={isLaunching}
-                  className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  className="w-full h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 >
                   {isLaunching ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      {launchStep || "Processing..."}
+                      {launchStep || "Launching..."}
                     </>
                   ) : (
                     <>
@@ -340,12 +419,14 @@ export function OneClickAutopilot() {
                   )}
                 </Button>
                 {isLaunching && (
-                  <div className="flex-1">
-                    <Progress value={launchStep.includes("Complete") ? 100 : launchStep.includes("traffic") ? 75 : launchStep.includes("infrastructure") ? 50 : 25} className="h-14" />
-                    <p className="text-xs text-muted-foreground mt-2 text-center">{launchStep}</p>
+                  <div>
+                    <Progress value={launchProgress} className="h-3" />
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      {launchProgress}% - {launchStep}
+                    </p>
                   </div>
                 )}
-              </>
+              </div>
             ) : (
               <>
                 <Button
