@@ -1,15 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
-import { productCatalogService } from "@/services/productCatalogService";
-import { affiliateLinkService } from "@/services/affiliateLinkService";
-import { campaignService } from "@/services/campaignService";
-import type { Database } from "@/integrations/supabase/types";
+import { productCatalogService, type AffiliateProduct } from "@/services/productCatalogService";
+import { intelligentTrafficRouter } from "@/services/intelligentTrafficRouter";
 
-type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
-type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
-type Commission = Database["public"]["Tables"]["commissions"]["Row"];
-
-interface IntegrationConfig {
+export interface SystemSetupConfig {
   autoAddProducts?: boolean;
   autoGenerateLinks?: boolean;
   autoTrackConversions?: boolean;
@@ -17,200 +11,140 @@ interface IntegrationConfig {
   minConversionRate?: number;
 }
 
-interface SystemStats {
+export interface SystemStats {
   totalProducts: number;
   activeLinks: number;
+  activeCampaigns: number;
+  trafficSources: number;
   totalClicks: number;
   totalConversions: number;
   totalRevenue: number;
-  totalCommissions: number;
-  conversionRate: number;
-  averageCommission: number;
 }
 
 export const affiliateIntegrationService = {
-  // Complete system setup - integrates all features
-  async setupCompleteSystem(config: IntegrationConfig = {}) {
+  /**
+   * Setup complete affiliate system infrastructure
+   * Creates all necessary database records and configurations
+   */
+  async setupCompleteSystem(config: SystemSetupConfig = {}) {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) throw new Error("Authentication required");
+      if (!user) {
+        return { 
+          success: false, 
+          message: "Authentication required",
+          stats: this.getEmptyStats()
+        };
+      }
 
       console.log("🚀 Setting up complete affiliate system...");
 
-      const results = {
-        products: 0,
-        links: 0,
-        campaigns: 0,
-        integrations: 0
-      };
+      // Step 1: Ensure user profile exists
+      await this.ensureUserProfile(user.id, user.email || null);
 
-      // Step 1: Auto-add high-converting products if enabled
-      if (config.autoAddProducts !== false) {
-        const minRate = config.minConversionRate || 8;
-        const products = productCatalogService.getHighConvertingProducts(minRate);
-        results.products = products.length;
-        console.log(`✅ Loaded ${products.length} high-converting products`);
-      }
-
-      // Step 2: Create master campaign for tracking
-      const { data: existingCampaign } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-
-      let campaignId: string;
-
-      if (existingCampaign) {
-        campaignId = existingCampaign.id;
-        console.log("✅ Using existing active campaign");
-      } else {
-        const { data: newCampaign } = await supabase
-          .from("campaigns")
-          .insert({
-            user_id: user.id,
-            name: "Master Affiliate Campaign",
-            goal: "sales",
-            status: "active",
-            budget: 1000,
-            spent: 0,
-            revenue: 0,
-            target_audience: "General audience",
-            content_strategy: "AI-optimized affiliate marketing",
-            duration_days: 365,
-            start_date: new Date().toISOString(),
-            end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-          })
-          .select()
-          .single();
-
-        if (newCampaign) {
-          campaignId = newCampaign.id;
-          results.campaigns = 1;
-          console.log("✅ Created master campaign");
-        } else {
-          throw new Error("Failed to create campaign");
-        }
+      // Step 2: Auto-add high-converting products if enabled
+      let addedProducts = 0;
+      if (config.autoAddProducts) {
+        const result = await this.autoAddProducts(config.minConversionRate);
+        addedProducts = result.addedCount;
+        console.log(`✅ Added ${addedProducts} high-converting products`);
       }
 
       // Step 3: Auto-generate affiliate links if enabled
-      if (config.autoGenerateLinks !== false) {
-        const products = productCatalogService.getHighConvertingProducts(config.minConversionRate || 8);
-        const linksToGenerate = products.slice(0, 5); // Start with top 5
-
-        for (const product of linksToGenerate) {
-          try {
-            const result = await affiliateLinkService.createLink({
-              original_url: product.url,
-              product_name: product.name,
-              network: product.network,
-              commission_rate: parseFloat(product.commission.split('-')[0])
-            });
-
-            if (result.link && !result.error) {
-              results.links++;
-
-              // Add product to campaign
-              await supabase
-                .from("campaign_products")
-                .insert({
-                  campaign_id: campaignId,
-                  product_name: product.name
-                });
-            }
-          } catch (err) {
-            console.warn(`⚠️ Failed to generate link for ${product.name}:`, err);
-          }
-        }
-
-        console.log(`✅ Generated ${results.links} affiliate links`);
+      let generatedLinks = 0;
+      if (config.autoGenerateLinks) {
+        const result = await this.autoGenerateLinks();
+        generatedLinks = result.generatedCount;
+        console.log(`✅ Generated ${generatedLinks} affiliate links`);
       }
 
-      // Step 4: Enable real-time tracking
-      await supabase
-        .from("user_settings")
-        .upsert({
-          user_id: user.id,
-          autopilot_enabled: true,
-          updated_at: new Date().toISOString()
-        });
+      // Step 4: Setup conversion tracking if enabled
+      if (config.autoTrackConversions) {
+        await this.setupConversionTracking(user.id);
+        console.log("✅ Conversion tracking enabled");
+      }
 
-      console.log("✅ Real-time tracking enabled");
+      // Step 5: Enable commission calculations if enabled
+      if (config.autoCalculateCommissions) {
+        await this.enableCommissionCalculations(user.id);
+        console.log("✅ Commission calculations enabled");
+      }
 
-      // Step 5: Create optimization insights
-      await supabase
-        .from("optimization_insights")
-        .insert({
-          campaign_id: campaignId,
-          user_id: user.id,
-          title: "Affiliate System Active",
-          description: "Your complete affiliate marketing system is now live and monitoring performance.",
-          insight_type: "performance",
-          impact_score: 95,
-          status: "applied"
-        });
-
-      results.integrations = 1;
+      // Get final stats
+      const stats = await this.getSystemStats();
 
       return {
         success: true,
-        message: "Complete affiliate system is now live!",
-        stats: results
+        message: `System setup complete! ${addedProducts} products, ${generatedLinks} links active`,
+        stats
       };
     } catch (error: any) {
-      console.error("💥 System setup failed:", error);
+      console.error("❌ System setup failed:", error);
       return {
         success: false,
-        message: error.message || "Failed to setup system",
-        stats: { products: 0, links: 0, campaigns: 0, integrations: 0 }
+        message: error.message || "Setup failed",
+        stats: this.getEmptyStats()
       };
     }
   },
 
-  // Auto-discover and add new products
-  async autoAddProducts(categoryFilter?: string) {
+  /**
+   * Auto-add high-converting products from catalog
+   */
+  async autoAddProducts(minConversionRate: number = 8) {
     try {
       const user = await authService.getCurrentUser();
       if (!user) throw new Error("Authentication required");
 
-      const products = categoryFilter
-        ? productCatalogService.getProductsByCategory(categoryFilter)
-        : productCatalogService.getAllProducts();
+      // Get high-converting products from catalog
+      const products = productCatalogService.getHighConvertingProducts(minConversionRate);
+      console.log(`📦 Found ${products.length} high-converting products`);
 
-      // Filter out products we already have links for
-      const { data: existingLinks } = await supabase
-        .from("affiliate_links")
-        .select("original_url")
-        .eq("user_id", user.id);
+      let addedCount = 0;
 
-      const existingUrls = new Set(existingLinks?.map(l => l.original_url) || []);
-      const newProducts = products.filter(p => !existingUrls.has(p.url));
-
-      console.log(`🔍 Found ${newProducts.length} new products to add`);
-
-      const added = [];
-      for (const product of newProducts.slice(0, 10)) {
+      for (const product of products) {
         try {
-          const result = await affiliateLinkService.createLink({
-            original_url: product.url,
-            product_name: product.name,
-            network: product.network,
-            commission_rate: parseFloat(product.commission.split('-')[0])
-          });
+          // Check if product already exists
+          const { data: existing } = await supabase
+            .from("affiliate_links")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("destination_url", product.url)
+            .maybeSingle();
 
-          if (result.link && !result.error) {
-            added.push(result.link);
+          if (existing) {
+            console.log(`⏭️  Product already exists: ${product.name}`);
+            continue;
+          }
+
+          // Create affiliate link for product
+          const { error } = await supabase
+            .from("affiliate_links")
+            .insert({
+              user_id: user.id,
+              product_name: product.name,
+              destination_url: product.url,
+              short_code: this.generateShortCode(),
+              status: "active",
+              clicks: 0,
+              conversion_count: 0,
+              commission_earned: 0,
+              commission_rate: this.extractCommissionRate(product.commission)
+            });
+
+          if (!error) {
+            addedCount++;
+            console.log(`✅ Added: ${product.name}`);
           }
         } catch (err) {
-          console.warn(`⚠️ Failed to add ${product.name}:`, err);
+          console.warn(`⚠️  Failed to add ${product.name}:`, err);
         }
       }
 
       return {
         success: true,
-        addedCount: added.length,
-        products: added
+        addedCount,
+        products: products.slice(0, addedCount)
       };
     } catch (error: any) {
       console.error("❌ Auto-add products failed:", error);
@@ -222,279 +156,155 @@ export const affiliateIntegrationService = {
     }
   },
 
-  // Get product catalog
-  async getProductCatalog() {
-    try {
-      const products = productCatalogService.getAllProducts();
-      return {
-        success: true,
-        products
-      };
-    } catch (error: any) {
-      console.error("❌ Failed to get product catalog:", error);
-      return {
-        success: false,
-        products: []
-      };
-    }
-  },
-
-  // Get affiliate link statistics for a user
-  async getAffiliateLinkStats(userId: string) {
-    try {
-      const { data: links, error } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      const totalLinks = links?.length || 0;
-      const activeLinks = links?.filter(l => l.status === "active").length || 0;
-      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
-      const totalConversions = links?.reduce((sum, l) => sum + (l.conversion_count || 0), 0) || 0;
-      const totalCommissions = links?.reduce((sum, l) => sum + (l.commission_earned || 0), 0) || 0;
-
-      return {
-        success: true,
-        totalLinks,
-        activeLinks,
-        totalClicks,
-        totalConversions,
-        totalCommissions,
-        conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0
-      };
-    } catch (error: any) {
-      console.error("❌ Failed to get link stats:", error);
-      return {
-        success: false,
-        totalLinks: 0,
-        activeLinks: 0,
-        totalClicks: 0,
-        totalConversions: 0,
-        totalCommissions: 0,
-        conversionRate: 0
-      };
-    }
-  },
-
-  // Auto-discover products with configuration
-  async autoDiscoverProducts(config: {
-    category?: string;
-    minCommissionRate?: number;
-    autoGenerateLinks?: boolean;
-  }) {
+  /**
+   * Auto-generate affiliate links for existing products
+   */
+  async autoGenerateLinks() {
     try {
       const user = await authService.getCurrentUser();
       if (!user) throw new Error("Authentication required");
 
-      console.log("🔍 Auto-discovering products...", config);
-
-      // Get products based on criteria
-      let products = config.category
-        ? productCatalogService.getProductsByCategory(config.category)
-        : productCatalogService.getAllProducts();
-
-      // Filter by commission rate if specified
-      if (config.minCommissionRate) {
-        products = products.filter(p => {
-          const rate = parseFloat(p.commission.split('-')[0]);
-          return rate >= config.minCommissionRate!;
-        });
-      }
-
-      // Get existing links to avoid duplicates
-      const { data: existingLinks } = await supabase
+      // Get all products without links
+      const { data: links } = await supabase
         .from("affiliate_links")
-        .select("original_url")
-        .eq("user_id", user.id);
+        .select("*")
+        .eq("user_id", user.id)
+        .is("short_code", null);
 
-      const existingUrls = new Set(existingLinks?.map(l => l.original_url) || []);
-      const newProducts = products.filter(p => !existingUrls.has(p.url));
+      let generatedCount = 0;
 
-      console.log(`✅ Found ${newProducts.length} new products`);
+      if (links) {
+        for (const link of links) {
+          const { error } = await supabase
+            .from("affiliate_links")
+            .update({ short_code: this.generateShortCode() })
+            .eq("id", link.id);
 
-      let addedCount = 0;
-      const addedProducts = [];
-
-      // Auto-generate links if enabled
-      if (config.autoGenerateLinks && newProducts.length > 0) {
-        for (const product of newProducts.slice(0, 10)) {
-          try {
-            const result = await affiliateLinkService.createLink({
-              original_url: product.url,
-              product_name: product.name,
-              network: product.network,
-              commission_rate: parseFloat(product.commission.split('-')[0])
-            });
-
-            if (result.link && !result.error) {
-              addedCount++;
-              addedProducts.push(result.link);
-            }
-          } catch (err) {
-            console.warn(`⚠️ Failed to add ${product.name}:`, err);
-          }
+          if (!error) generatedCount++;
         }
       }
 
       return {
         success: true,
-        addedCount,
-        totalFound: newProducts.length,
-        products: addedProducts
+        generatedCount
       };
     } catch (error: any) {
-      console.error("❌ Auto-discover failed:", error);
+      console.error("❌ Auto-generate links failed:", error);
       return {
         success: false,
-        addedCount: 0,
-        totalFound: 0,
-        products: []
+        generatedCount: 0
       };
     }
   },
 
-  // Track click and auto-calculate commission
-  async trackClickAndCommission(linkId: string, referrer?: string) {
+  /**
+   * Setup conversion tracking for user
+   */
+  async setupConversionTracking(userId: string) {
     try {
-      // Get link details
-      const { data: link } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("id", linkId)
-        .single();
-
-      if (!link) throw new Error("Link not found");
-
-      // Increment click count
       await supabase
-        .from("affiliate_links")
-        .update({
-          clicks: (link.clicks || 0) + 1,
+        .from("user_settings")
+        .upsert({
+          user_id: userId,
+          conversion_tracking_enabled: true,
           updated_at: new Date().toISOString()
-        })
-        .eq("id", linkId);
-
-      // Create click event
-      await supabase
-        .from("click_events")
-        .insert({
-          link_id: linkId,
-          user_id: link.user_id,
-          referrer: referrer || "direct",
-          ip_address: "0.0.0.0",
-          user_agent: navigator.userAgent,
-          device_type: this.detectDeviceType(),
-          timestamp: new Date().toISOString()
         });
 
-      // Simulate conversion (10% chance for demo)
-      const isConversion = Math.random() < 0.1;
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Setup tracking failed:", error);
+      return { success: false };
+    }
+  },
 
-      if (isConversion) {
-        await this.recordConversion(linkId, link);
+  /**
+   * Enable commission calculations
+   */
+  async enableCommissionCalculations(userId: string) {
+    try {
+      await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: userId,
+          commission_calculations_enabled: true,
+          updated_at: new Date().toISOString()
+        });
+
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Enable commissions failed:", error);
+      return { success: false };
+    }
+  },
+
+  /**
+   * Ensure user profile exists
+   */
+  async ensureUserProfile(userId: string, email: string | null) {
+    try {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from("profiles").insert({
+          id: userId,
+          email,
+          full_name: null
+        });
+        console.log("✅ User profile created");
       }
 
-      return {
-        success: true,
-        clicked: true,
-        converted: isConversion
-      };
-    } catch (error: any) {
-      console.error("❌ Click tracking failed:", error);
-      return {
-        success: false,
-        clicked: false,
-        converted: false
-      };
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Profile creation failed:", error);
+      return { success: false };
     }
   },
 
-  // Record conversion and auto-calculate commission
-  async recordConversion(linkId: string, link: AffiliateLink) {
-    try {
-      const saleAmount = parseFloat(link.product_name?.match(/\$(\d+)/)?.[1] || "50");
-      const commissionRate = (link.commission_rate || 10) / 100;
-      const commissionAmount = saleAmount * commissionRate;
-
-      // Update link conversion count
-      await supabase
-        .from("affiliate_links")
-        .update({
-          conversion_count: (link.conversion_count || 0) + 1,
-          commission_earned: (link.commission_earned || 0) + commissionAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", linkId);
-
-      // Create commission record
-      await supabase
-        .from("commissions")
-        .insert({
-          user_id: link.user_id,
-          link_id: linkId,
-          campaign_id: null,
-          amount: commissionAmount,
-          status: "pending",
-          transaction_date: new Date().toISOString()
-        });
-
-      console.log(`💰 Commission recorded: $${commissionAmount.toFixed(2)}`);
-
-      return {
-        success: true,
-        commission: commissionAmount
-      };
-    } catch (error: any) {
-      console.error("❌ Commission recording failed:", error);
-      return {
-        success: false,
-        commission: 0
-      };
-    }
-  },
-
-  // Get comprehensive system statistics
+  /**
+   * Get comprehensive system statistics
+   */
   async getSystemStats(): Promise<SystemStats> {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) {
-        return this.getEmptyStats();
-      }
+      if (!user) return this.getEmptyStats();
 
-      // Get all links
-      const { data: links } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("user_id", user.id);
+      // Get all user data
+      const [linksRes, campaignsRes, commissionsRes] = await Promise.all([
+        supabase.from("affiliate_links").select("*").eq("user_id", user.id),
+        supabase.from("campaigns").select("*").eq("user_id", user.id),
+        supabase.from("commissions").select("*").eq("user_id", user.id)
+      ]);
 
-      // Get all commissions
-      const { data: commissions } = await supabase
-        .from("commissions")
-        .select("*")
-        .eq("user_id", user.id);
+      const links = linksRes.data || [];
+      const campaigns = campaignsRes.data || [];
+      const commissions = commissionsRes.data || [];
 
-      // Get all campaigns
-      const { data: campaigns } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("user_id", user.id);
+      // Get traffic sources count
+      const campaignIds = campaigns.map(c => c.id);
+      const { data: trafficSources } = campaignIds.length > 0
+        ? await supabase
+            .from("traffic_sources")
+            .select("id")
+            .in("campaign_id", campaignIds)
+        : { data: [] };
 
-      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
-      const totalConversions = links?.reduce((sum, l) => sum + (l.conversion_count || 0), 0) || 0;
-      const totalCommissions = commissions?.reduce((sum, c) => sum + Number(c.amount || 0), 0) || 0;
-      const totalRevenue = campaigns?.reduce((sum, c) => sum + Number(c.revenue || 0), 0) || 0;
+      // Calculate totals
+      const totalClicks = links.reduce((sum, link) => sum + (link.clicks || 0), 0);
+      const totalConversions = links.reduce((sum, link) => sum + (link.conversion_count || 0), 0);
+      const totalRevenue = commissions.reduce((sum, comm) => sum + Number(comm.amount || 0), 0);
 
       return {
-        totalProducts: productCatalogService.getAllProducts().length,
-        activeLinks: links?.filter(l => l.status === "active").length || 0,
+        totalProducts: links.length,
+        activeLinks: links.filter(l => l.status === "active").length,
+        activeCampaigns: campaigns.filter(c => c.status === "active").length,
+        trafficSources: trafficSources?.length || 0,
         totalClicks,
         totalConversions,
-        totalRevenue,
-        totalCommissions,
-        conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0,
-        averageCommission: totalConversions > 0 ? totalCommissions / totalConversions : 0
+        totalRevenue
       };
     } catch (error) {
       console.error("❌ Error getting system stats:", error);
@@ -502,93 +312,89 @@ export const affiliateIntegrationService = {
     }
   },
 
-  // Optimize system performance
+  /**
+   * Optimize system performance based on real data
+   */
   async optimizeSystem() {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) throw new Error("Authentication required");
+      if (!user) return { success: false, message: "Authentication required" };
 
-      console.log("🎯 Optimizing affiliate system...");
+      console.log("🎯 Starting system optimization...");
 
-      // Get all links
+      // Get all affiliate links
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("user_id", user.id);
 
       if (!links || links.length === 0) {
-        return {
-          success: true,
-          message: "No links to optimize",
-          optimizations: 0
-        };
+        return { success: false, message: "No links to optimize" };
       }
 
-      let optimizations = 0;
+      let optimizedCount = 0;
 
-      // Pause low-performing links
+      // Identify and pause low-performing links
       for (const link of links) {
         const clicks = link.clicks || 0;
         const conversions = link.conversion_count || 0;
         const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
 
-        // If link has >100 clicks but <2% conversion rate, pause it
-        if (clicks > 100 && conversionRate < 2 && link.status === "active") {
+        // If link has traffic but low conversion rate (< 2%), pause it
+        if (clicks > 50 && conversionRate < 2) {
           await supabase
             .from("affiliate_links")
-            .update({
-              status: "paused",
-              updated_at: new Date().toISOString()
-            })
+            .update({ status: "paused" })
             .eq("id", link.id);
+          
+          optimizedCount++;
+          console.log(`⏸️  Paused low-performing link: ${link.product_name}`);
+        }
 
-          optimizations++;
-          console.log(`⏸️ Paused low-performing link: ${link.slug}`);
+        // If link has high conversion rate (> 8%), boost it
+        if (conversionRate > 8 && link.status === "active") {
+          // Could add logic to increase traffic allocation
+          console.log(`🚀 High-performing link detected: ${link.product_name}`);
         }
       }
 
-      // Add new high-converting products
-      const newProducts = await this.autoAddProducts();
-      optimizations += newProducts.addedCount;
-
       return {
         success: true,
-        message: `System optimized with ${optimizations} changes`,
-        optimizations
+        message: `Optimized ${optimizedCount} underperforming links`
       };
     } catch (error: any) {
       console.error("❌ Optimization failed:", error);
-      return {
-        success: false,
-        message: error.message || "Optimization failed",
-        optimizations: 0
-      };
+      return { success: false, message: error.message };
     }
   },
 
-  // Helper: Detect device type
-  detectDeviceType(): "mobile" | "tablet" | "desktop" {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("mobile") || ua.includes("android") || ua.includes("iphone")) {
-      return "mobile";
-    }
-    if (ua.includes("tablet") || ua.includes("ipad")) {
-      return "tablet";
-    }
-    return "desktop";
+  /**
+   * Generate unique short code for affiliate links
+   */
+  generateShortCode(): string {
+    return Math.random().toString(36).substring(2, 10);
   },
 
-  // Helper: Empty stats
+  /**
+   * Extract commission rate percentage from string
+   */
+  extractCommissionRate(commission: string): number {
+    const match = commission.match(/\d+/);
+    return match ? parseInt(match[0]) : 10;
+  },
+
+  /**
+   * Get empty stats object
+   */
   getEmptyStats(): SystemStats {
     return {
       totalProducts: 0,
       activeLinks: 0,
+      activeCampaigns: 0,
+      trafficSources: 0,
       totalClicks: 0,
       totalConversions: 0,
-      totalRevenue: 0,
-      totalCommissions: 0,
-      conversionRate: 0,
-      averageCommission: 0
+      totalRevenue: 0
     };
   }
 };
