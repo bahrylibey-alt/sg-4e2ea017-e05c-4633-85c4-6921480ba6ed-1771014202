@@ -77,13 +77,15 @@ export default function Dashboard() {
       const campaignsResult = await campaignService.getUserCampaigns();
       
       if (campaignsResult.campaigns) {
-        setCampaigns(campaignsResult.campaigns);
+        // Cast to local Campaign type to handle optional extended properties
+        const typedCampaigns = campaignsResult.campaigns as unknown as Campaign[];
+        setCampaigns(typedCampaigns);
         
         // Calculate aggregate stats
-        const totalClicks = campaignsResult.campaigns.reduce((sum, c) => sum + (c.clicks || 0), 0);
-        const totalConversions = campaignsResult.campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
-        const totalRevenue = campaignsResult.campaigns.reduce((sum, c) => sum + (c.revenue || 0), 0);
-        const activeCampaigns = campaignsResult.campaigns.filter(c => c.status === "active").length;
+        const totalClicks = typedCampaigns.reduce((sum, c) => sum + (c.clicks || 0), 0);
+        const totalConversions = typedCampaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
+        const totalRevenue = typedCampaigns.reduce((sum, c) => sum + (c.revenue || 0), 0);
+        const activeCampaigns = typedCampaigns.filter(c => c.status === "active").length;
         
         setStats({
           totalClicks,

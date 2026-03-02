@@ -116,11 +116,24 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
         setSuccess(true);
       } else {
         console.error("❌ Failed:", result.error);
-        setError(result.error || "Failed to create campaign. Please try again.");
+        
+        // Better error message for authentication issues
+        if (result.error?.includes("logged in") || result.error?.includes("authenticated")) {
+          setError("You must be logged in to create campaigns. Please close this dialog and click 'Sign In' in the top navigation menu.");
+        } else {
+          setError(result.error || "Failed to create campaign. Please try again.");
+        }
       }
     } catch (err) {
       console.error("💥 Error:", err);
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred";
+      
+      // Check for authentication-related errors
+      if (errorMsg.includes("session") || errorMsg.includes("auth") || errorMsg.includes("login")) {
+        setError("Authentication required. Please close this dialog and sign in using the 'Sign In' button in the navigation menu.");
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -175,10 +188,16 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
               <div className="flex-1">
                 <p className="font-semibold text-red-900">Error</p>
                 <p className="text-red-700 text-sm mt-1">{error || validationError}</p>
-                {error && error.includes("logged in") && (
-                  <p className="text-red-600 text-xs mt-2">
-                    💡 Please sign in using the navigation menu, then try again.
-                  </p>
+                {(error?.includes("Sign In") || error?.includes("logged in") || error?.includes("Authentication")) && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-blue-800 text-sm font-medium mb-2">How to sign in:</p>
+                    <ol className="text-blue-700 text-xs space-y-1 list-decimal list-inside">
+                      <li>Close this dialog</li>
+                      <li>Click the "Sign In" button in the top navigation bar</li>
+                      <li>Create an account or log in with your existing account</li>
+                      <li>Return here to create your campaign</li>
+                    </ol>
+                  </div>
                 )}
               </div>
             </div>
@@ -275,7 +294,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
                 <Label htmlFor="productUrls">Product URLs * (one per line)</Label>
                 <Textarea
                   id="productUrls"
-                  placeholder="Enter product URLs, one per line:&#10;amazon.com/product1&#10;clickbank.com/product2&#10;yoursite.com/offer"
+                  placeholder="Enter affiliate product URLs, one per line:&#10;amazon.com/product1&#10;clickbank.com/product2&#10;shareasale.com/offer"
                   value={productUrls}
                   onChange={(e) => setProductUrls(e.target.value)}
                   rows={6}
@@ -284,7 +303,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
                   <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-800">
-                    Enter any affiliate product URLs from networks like Amazon Associates, ClickBank, ShareASale, CJ Affiliate, etc.
+                    Enter any affiliate product URLs from networks like Amazon Associates, ClickBank, ShareASale, CJ Affiliate, Impact, Rakuten, etc.
                     URLs will be automatically normalized.
                   </p>
                 </div>
