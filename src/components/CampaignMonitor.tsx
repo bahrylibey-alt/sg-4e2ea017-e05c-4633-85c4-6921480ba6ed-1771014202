@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, TrendingUp, Users, DollarSign, Eye, MousePointer, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Activity, TrendingUp, Users, DollarSign, Eye, MousePointer, ShoppingCart, AlertTriangle, AlertCircle } from "lucide-react";
 import { advancedAnalyticsService } from "@/services/advancedAnalyticsService";
 import { fraudDetectionService } from "@/services/fraudDetectionService";
 import { retargetingService } from "@/services/retargetingService";
@@ -12,6 +12,8 @@ import { campaignService } from "@/services/campaignService";
 export function CampaignMonitor() {
   const [activeTab, setActiveTab] = useState("overview");
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [realTimeData, setRealTimeData] = useState({
     activeVisitors: 0,
     clicksLastHour: 0,
@@ -28,19 +30,28 @@ export function CampaignMonitor() {
   useEffect(() => {
     if (activeCampaignId) {
       loadRealTimeData();
-      const interval = setInterval(loadRealTimeData, 10000); // Update every 10s
+      const interval = setInterval(loadRealTimeData, 30000);
       return () => clearInterval(interval);
     }
   }, [activeCampaignId]);
 
   const loadActiveCampaign = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      console.log("📊 Loading campaign monitor...");
+      
       const campaigns = await campaignService.listCampaigns();
+      console.log("📋 Campaigns found:", campaigns.length);
+      
       if (campaigns.length > 0) {
         setActiveCampaignId(campaigns[0].id);
       }
     } catch (err) {
-      console.error("Failed to load campaigns:", err);
+      console.error("❌ Failed to load campaigns:", err);
+      setError(err instanceof Error ? err.message : "Failed to load campaigns");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,20 +59,22 @@ export function CampaignMonitor() {
     if (!activeCampaignId) return;
 
     try {
+      console.log("📈 Loading real-time data for campaign:", activeCampaignId);
+      
       const [analytics, fraud, retargeting] = await Promise.all([
-        advancedAnalyticsService.getRealtimeMetrics(activeCampaignId),
-        fraudDetectionService.detectFraud(activeCampaignId),
-        retargetingService.getAudienceInsights(activeCampaignId)
+        advancedAnalyticsService.getRealtimeMetrics(activeCampaignId).catch(() => null),
+        fraudDetectionService.detectFraud(activeCampaignId).catch(() => null),
+        retargetingService.getAudienceInsights(activeCampaignId).catch(() => null)
       ]);
 
       setRealTimeData({
-        activeVisitors: analytics.metrics?.activeUsers || Math.floor(Math.random() * 100) + 50,
-        clicksLastHour: (analytics.metrics?.clicksPerMinute || 5) * 60,
-        conversionsLastHour: analytics.metrics?.conversionsPerHour || Math.floor(Math.random() * 20) + 5,
-        revenueLastHour: (analytics.metrics?.revenueToday || 1000) / 24
+        activeVisitors: analytics?.metrics?.activeUsers || 0,
+        clicksLastHour: analytics?.metrics?.clicksPerMinute ? analytics.metrics.clicksPerMinute * 60 : 0,
+        conversionsLastHour: analytics?.metrics?.conversionsPerHour || 0,
+        revenueLastHour: analytics?.metrics?.revenueToday ? analytics.metrics.revenueToday / 24 : 0
       });
 
-      if (fraud.alerts) {
+      if (fraud?.alerts) {
         setFraudAlerts(fraud.alerts.slice(0, 3));
       }
 
@@ -69,9 +82,45 @@ export function CampaignMonitor() {
         setRetargetingPool(retargeting.totalReach || 0);
       }
     } catch (err) {
-      console.error("Failed to load real-time data:", err);
+      console.error("❌ Failed to load real-time data:", err);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 animate-spin text-primary" />
+              <span>Loading campaign monitor...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-900">Failed to Load Monitor</p>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+                <Button onClick={loadActiveCampaign} variant="outline" className="mt-4">
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!activeCampaignId) {
     return (
@@ -102,10 +151,13 @@ export function CampaignMonitor() {
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-sm font-medium text-green-500">Live</span>
           </div>
+          <Button onClick={loadRealTimeData} variant="outline" size="sm">
+            <Activity className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
 
-      {/* Real-Time Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -114,7 +166,7 @@ export function CampaignMonitor() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{realTimeData.activeVisitors}</div>
-            <p className="text-xs text-muted-foreground mt-1">Right now on site</p>
+            <p className="text-xs text-muted-foreground mt-1">Currently browsing</p>
           </CardContent>
         </Card>
 
@@ -125,7 +177,7 @@ export function CampaignMonitor() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{realTimeData.clicksLastHour}</div>
-            <p className="text-xs text-green-500 mt-1">+23% from previous hour</p>
+            <p className="text-xs text-muted-foreground mt-1">Last hour</p>
           </CardContent>
         </Card>
 
@@ -136,7 +188,7 @@ export function CampaignMonitor() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{realTimeData.conversionsLastHour}</div>
-            <p className="text-xs text-green-500 mt-1">+15% from previous hour</p>
+            <p className="text-xs text-muted-foreground mt-1">Last hour</p>
           </CardContent>
         </Card>
 
@@ -146,13 +198,12 @@ export function CampaignMonitor() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${realTimeData.revenueLastHour}</div>
-            <p className="text-xs text-green-500 mt-1">+18% from previous hour</p>
+            <div className="text-2xl font-bold">${realTimeData.revenueLastHour.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Last hour</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Monitoring */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -164,43 +215,37 @@ export function CampaignMonitor() {
         <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Performance Trends</CardTitle>
-              <CardDescription>Last 24 hours activity</CardDescription>
+              <CardTitle>Performance Metrics</CardTitle>
+              <CardDescription>Real-time campaign performance</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Click-Through Rate</p>
-                    <p className="text-2xl font-bold">4.8%</p>
+                    <p className="text-sm font-medium">Active Visitors</p>
+                    <p className="text-2xl font-bold">{realTimeData.activeVisitors}</p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
-                      +0.5%
-                    </Badge>
-                  </div>
+                  <Badge variant="secondary" className="bg-blue-500/10 text-blue-500">
+                    Live
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Conversion Rate</p>
-                    <p className="text-2xl font-bold">3.2%</p>
+                    <p className="text-sm font-medium">Hourly Clicks</p>
+                    <p className="text-2xl font-bold">{realTimeData.clicksLastHour}</p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
-                      +0.3%
-                    </Badge>
-                  </div>
+                  <Badge variant="secondary" className="bg-green-500/10 text-green-500">
+                    Active
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Average Order Value</p>
-                    <p className="text-2xl font-bold">$127.50</p>
+                    <p className="text-sm font-medium">Conversions</p>
+                    <p className="text-2xl font-bold">{realTimeData.conversionsLastHour}</p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-500">
-                      +$12.30
-                    </Badge>
-                  </div>
+                  <Badge variant="secondary" className="bg-purple-500/10 text-purple-500">
+                    Tracking
+                  </Badge>
                 </div>
               </div>
             </CardContent>
@@ -210,27 +255,13 @@ export function CampaignMonitor() {
         <TabsContent value="traffic" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Top Traffic Sources</CardTitle>
-              <CardDescription>By conversion rate</CardDescription>
+              <CardTitle>Traffic Analysis</CardTitle>
+              <CardDescription>Active traffic sources and performance</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: "Google Ads", clicks: 2450, conversions: 98, rate: 4.0 },
-                  { name: "Facebook", clicks: 1820, conversions: 64, rate: 3.5 },
-                  { name: "Email", clicks: 980, conversions: 52, rate: 5.3 },
-                  { name: "Organic", clicks: 1560, conversions: 47, rate: 3.0 }
-                ].map((source, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium">{source.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {source.clicks} clicks • {source.conversions} conversions
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{source.rate}% CR</Badge>
-                  </div>
-                ))}
+              <div className="text-center py-8 text-muted-foreground">
+                <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Traffic source analytics will appear here once campaigns generate traffic</p>
               </div>
             </CardContent>
           </Card>
@@ -243,7 +274,7 @@ export function CampaignMonitor() {
                 <AlertTriangle className="h-5 w-5 text-orange-500" />
                 Fraud Detection
               </CardTitle>
-              <CardDescription>Security alerts and blocked traffic</CardDescription>
+              <CardDescription>Security monitoring and threat detection</CardDescription>
             </CardHeader>
             <CardContent>
               {fraudAlerts.length > 0 ? (
@@ -254,7 +285,7 @@ export function CampaignMonitor() {
                         <div className="space-y-1">
                           <p className="text-sm font-medium">{alert.details}</p>
                           <p className="text-xs text-muted-foreground">
-                            Estimated loss: ${alert.estimatedLoss.toFixed(2)}
+                            Estimated loss: ${alert.estimatedLoss?.toFixed(2) || "0.00"}
                           </p>
                         </div>
                         <Badge variant="outline" className="border-orange-500 text-orange-500">
@@ -270,7 +301,7 @@ export function CampaignMonitor() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No fraud detected - System is clean!</p>
+                  <p>No fraud detected - System is secure!</p>
                 </div>
               )}
             </CardContent>
@@ -292,23 +323,15 @@ export function CampaignMonitor() {
                   <p className="text-4xl font-bold">{retargetingPool.toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground mt-1">Retargetable users</p>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Abandoned Cart</span>
-                    <span className="font-semibold">1,234 users</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Viewed Product</span>
-                    <span className="font-semibold">2,856 users</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>High Intent</span>
-                    <span className="font-semibold">892 users</span>
-                  </div>
-                </div>
-                <Button className="w-full">
-                  Launch Retargeting Campaign
-                </Button>
+                {retargetingPool > 0 ? (
+                  <Button className="w-full">
+                    Launch Retargeting Campaign
+                  </Button>
+                ) : (
+                  <p className="text-sm text-center text-muted-foreground">
+                    Start generating traffic to build your retargeting audience
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
