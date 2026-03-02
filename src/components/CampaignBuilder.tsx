@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info } from "lucide-react";
+import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info, ExternalLink } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 
 export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -19,6 +19,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [createdCampaign, setCreatedCampaign] = useState<any>(null);
 
   const templates = smartCampaignService.getTemplates();
 
@@ -32,12 +33,10 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
     const trimmed = url.trim();
     if (!trimmed) return "";
     
-    // If already has protocol, return as-is
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
       return trimmed;
     }
     
-    // Remove www. if present before adding https://
     const withoutWww = trimmed.startsWith("www.") ? trimmed.substring(4) : trimmed;
     return `https://${withoutWww}`;
   };
@@ -46,7 +45,6 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
     try {
       const normalized = normalizeUrl(url);
       const urlObj = new URL(normalized);
-      // Basic validation: must have a host
       return urlObj.hostname.length > 0 && urlObj.hostname.includes(".");
     } catch {
       return false;
@@ -75,7 +73,6 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
         return;
       }
 
-      // Validate each URL
       for (let i = 0; i < urls.length; i++) {
         if (!validateUrl(urls[i])) {
           setValidationError(`Invalid URL on line ${i + 1}: "${urls[i]}". Please enter a valid website address.`);
@@ -93,9 +90,8 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
     setValidationError(null);
 
     try {
-      console.log("🚀 Starting campaign creation from UI...");
+      console.log("🚀 Creating campaign from builder...");
       
-      // Normalize all URLs
       const urls = productUrls
         .split("\n")
         .map(u => u.trim())
@@ -113,20 +109,17 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
         customBudget: customBudget || template?.suggestedBudget
       });
 
-      console.log("✅ Campaign creation result:", result);
+      console.log("✅ Campaign result:", result);
 
       if (result.success && result.campaign) {
+        setCreatedCampaign(result);
         setSuccess(true);
-        setTimeout(() => {
-          onOpenChange(false);
-          resetForm();
-        }, 2000);
       } else {
-        console.error("❌ Campaign creation failed:", result.error);
+        console.error("❌ Failed:", result.error);
         setError(result.error || "Failed to create campaign. Please try again.");
       }
     } catch (err) {
-      console.error("💥 Unexpected error in UI:", err);
+      console.error("💥 Error:", err);
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsCreating(false);
@@ -142,20 +135,26 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
     setError(null);
     setValidationError(null);
     setSuccess(false);
+    setCreatedCampaign(null);
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    setTimeout(resetForm, 300);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">Smart Campaign Builder</DialogTitle>
           <DialogDescription>
-            Create high-converting affiliate campaigns in 3 simple steps
+            Create automated affiliate campaigns with real traffic generation
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Progress Indicator */}
+          {/* Progress Steps */}
           <div className="flex items-center justify-between">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center">
@@ -169,7 +168,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
             ))}
           </div>
 
-          {/* Error Display */}
+          {/* Errors */}
           {(error || validationError) && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -178,28 +177,55 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
                 <p className="text-red-700 text-sm mt-1">{error || validationError}</p>
                 {error && error.includes("logged in") && (
                   <p className="text-red-600 text-xs mt-2">
-                    💡 Tip: Please sign in from the navigation menu, then try again.
+                    💡 Please sign in using the navigation menu, then try again.
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {/* Success Display */}
-          {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-green-900">Campaign Created Successfully!</p>
-                <p className="text-green-700 text-sm mt-1">Your campaign is now live and running.</p>
+          {/* Success */}
+          {success && createdCampaign && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-green-900 text-lg">Campaign Created Successfully!</p>
+                  <p className="text-green-700 text-sm mt-1">{createdCampaign.campaign.name} is now live</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-xs text-gray-600 mb-1">Affiliate Links</p>
+                  <p className="text-2xl font-bold text-green-700">{createdCampaign.affiliateLinks?.length || 0}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-xs text-gray-600 mb-1">Traffic Sources</p>
+                  <p className="text-2xl font-bold text-green-700">{createdCampaign.trafficSources?.length || 0}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                  <p className="text-xs text-gray-600 mb-1">Est. Daily Reach</p>
+                  <p className="text-2xl font-bold text-green-700">{(createdCampaign.estimatedReach || 0).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={handleClose} variant="outline" className="flex-1">
+                  Close
+                </Button>
+                <Button onClick={() => window.location.href = "/dashboard"} className="flex-1">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Dashboard
+                </Button>
               </div>
             </div>
           )}
 
           {/* Step 1: Template Selection */}
-          {step === 1 && (
+          {step === 1 && !success && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Choose a Campaign Template</h3>
+              <h3 className="text-lg font-semibold">Choose Campaign Template</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {templates.map((template) => (
                   <Card
@@ -231,7 +257,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
           )}
 
           {/* Step 2: Campaign Details */}
-          {step === 2 && (
+          {step === 2 && !success && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Campaign Details</h3>
               
@@ -249,7 +275,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
                 <Label htmlFor="productUrls">Product URLs * (one per line)</Label>
                 <Textarea
                   id="productUrls"
-                  placeholder="Enter product URLs, one per line:&#10;amazon.com/product1&#10;shopify.com/product2&#10;example.com/product3"
+                  placeholder="Enter product URLs, one per line:&#10;amazon.com/product1&#10;clickbank.com/product2&#10;yoursite.com/offer"
                   value={productUrls}
                   onChange={(e) => setProductUrls(e.target.value)}
                   rows={6}
@@ -258,10 +284,8 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
                   <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-800">
-                    You can paste URLs with or without https://. Examples:<br />
-                    ✓ amazon.com/dp/B123<br />
-                    ✓ https://shop.example.com/product<br />
-                    ✓ www.store.com/item
+                    Enter any affiliate product URLs from networks like Amazon Associates, ClickBank, ShareASale, CJ Affiliate, etc.
+                    URLs will be automatically normalized.
                   </p>
                 </div>
               </div>
@@ -280,7 +304,7 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
           )}
 
           {/* Step 3: Review & Launch */}
-          {step === 3 && (
+          {step === 3 && !success && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Review & Launch</h3>
               
@@ -314,55 +338,56 @@ export function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenC
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-sm text-yellow-800">
-                  <strong>Ready to launch!</strong> Your campaign will be created with automated traffic sources and optimization enabled.
+                  <strong>Ready to launch!</strong> This will create real affiliate tracking links and activate automated traffic sources.
                 </p>
               </div>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-between pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (step === 1) {
-                  onOpenChange(false);
-                  resetForm();
-                } else {
-                  setStep(step - 1);
-                  setError(null);
-                  setValidationError(null);
-                }
-              }}
-              disabled={isCreating}
-            >
-              {step === 1 ? "Cancel" : "Back"}
-            </Button>
-
-            {step < 3 ? (
-              <Button onClick={handleNextStep}>
-                Next Step
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleCreateCampaign} 
+          {!success && (
+            <div className="flex justify-between pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (step === 1) {
+                    handleClose();
+                  } else {
+                    setStep(step - 1);
+                    setError(null);
+                    setValidationError(null);
+                  }
+                }}
                 disabled={isCreating}
-                className="bg-blue-600 hover:bg-blue-700"
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Campaign...
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="w-4 h-4 mr-2" />
-                    Launch Campaign
-                  </>
-                )}
+                {step === 1 ? "Cancel" : "Back"}
               </Button>
-            )}
-          </div>
+
+              {step < 3 ? (
+                <Button onClick={handleNextStep}>
+                  Next Step
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleCreateCampaign} 
+                  disabled={isCreating}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating Campaign...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="w-4 h-4 mr-2" />
+                      Launch Campaign
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

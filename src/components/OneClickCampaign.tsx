@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Zap, Sparkles, TrendingUp, Target, DollarSign, CheckCircle2, Loader2, ExternalLink, Copy, BarChart3 } from "lucide-react";
+import { Zap, Sparkles, TrendingUp, Target, DollarSign, CheckCircle2, Loader2, ExternalLink, Copy, BarChart3, AlertCircle } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,14 +19,40 @@ export function OneClickCampaign() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [campaignResult, setCampaignResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const normalizeUrl = (url: string): string => {
+    const trimmed = url.trim();
+    if (!trimmed) return "";
+    
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    
+    const withoutWww = trimmed.startsWith("www.") ? trimmed.substring(4) : trimmed;
+    return `https://${withoutWww}`;
+  };
+
+  const validateUrl = (url: string): boolean => {
+    try {
+      const normalized = normalizeUrl(url);
+      const urlObj = new URL(normalized);
+      return urlObj.hostname.length > 0 && urlObj.hostname.includes(".");
+    } catch {
+      return false;
+    }
+  };
 
   const handleQuickSetup = async () => {
-    if (!productUrl || !productUrl.startsWith("http")) {
-      toast({
-        title: "Invalid URL",
-        description: "Please enter a valid product URL starting with http:// or https://",
-        variant: "destructive"
-      });
+    setError(null);
+
+    if (!productUrl.trim()) {
+      setError("Please enter a product URL");
+      return;
+    }
+
+    if (!validateUrl(productUrl)) {
+      setError("Please enter a valid URL (e.g., amazon.com/product or https://yoursite.com/offer)");
       return;
     }
 
@@ -34,50 +60,47 @@ export function OneClickCampaign() {
     setProgress(0);
 
     const progressSteps = [
-      { percent: 15, message: "🔍 Analyzing product URL and extracting data..." },
-      { percent: 30, message: "🎯 Creating optimized campaign structure..." },
-      { percent: 50, message: "🔗 Generating trackable affiliate links..." },
-      { percent: 65, message: "📊 Setting up analytics and conversion tracking..." },
-      { percent: 80, message: "🚀 Configuring automated traffic sources..." },
-      { percent: 95, message: "✨ Activating AI optimization engine..." },
-      { percent: 100, message: "✅ Campaign is live and running!" }
+      { percent: 15, message: "🔍 Analyzing product and creating campaign structure..." },
+      { percent: 30, message: "🔗 Generating trackable affiliate links..." },
+      { percent: 50, message: "🚀 Setting up automated traffic sources..." },
+      { percent: 70, message: "📊 Configuring analytics and tracking..." },
+      { percent: 90, message: "✨ Activating AI optimization..." },
+      { percent: 100, message: "✅ Campaign is live!" }
     ];
 
     for (const progressStep of progressSteps) {
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await new Promise(resolve => setTimeout(resolve, 500));
       setProgress(progressStep.percent);
       setProgressMessage(progressStep.message);
     }
 
     try {
+      const normalizedUrl = normalizeUrl(productUrl);
+      console.log("🚀 Creating campaign with URL:", normalizedUrl);
+
       const result = await smartCampaignService.quickSetup({
-        productUrl,
+        productUrl: normalizedUrl,
         goal: campaignGoal
       });
+
+      console.log("✅ Campaign result:", result);
 
       if (result.success && result.campaign) {
         setCampaignResult(result);
         setStep("success");
         toast({
-          title: "🎉 Campaign Launched Successfully!",
-          description: `${result.campaign.name} is now live and generating traffic.`
+          title: "🎉 Campaign Live!",
+          description: `${result.campaign.name} is generating traffic`
         });
       } else {
-        toast({
-          title: "Campaign Creation Failed",
-          description: result.error || "An unexpected error occurred. Please try again.",
-          variant: "destructive"
-        });
+        console.error("❌ Failed:", result.error);
+        setError(result.error || "Failed to create campaign");
         setStep("input");
         setProgress(0);
       }
-    } catch (error) {
-      console.error("Campaign creation error:", error);
-      toast({
-        title: "System Error",
-        description: "Failed to create campaign. Please check your connection and try again.",
-        variant: "destructive"
-      });
+    } catch (err) {
+      console.error("💥 Error:", err);
+      setError("System error. Please try again.");
       setStep("input");
       setProgress(0);
     }
@@ -90,6 +113,7 @@ export function OneClickCampaign() {
     setProgress(0);
     setProgressMessage("");
     setCampaignResult(null);
+    setError(null);
   };
 
   const copyToClipboard = (text: string) => {
@@ -106,25 +130,37 @@ export function OneClickCampaign() {
         <div className="text-center mb-12">
           <Badge className="mb-4 bg-gradient-to-r from-primary to-accent text-white">
             <Zap className="w-3 h-3 mr-1" />
-            Revolutionary One-Click System
+            One-Click Automation
           </Badge>
           <h2 className="text-4xl font-bold mb-4">
-            Launch Your Campaign in <span className="text-primary">30 Seconds</span>
+            Launch in <span className="text-primary">30 Seconds</span>
           </h2>
           <p className="text-xl text-muted-foreground">
-            AI-powered automation with real-time traffic generation & conversion optimization
+            Real traffic generation & conversion tracking
           </p>
         </div>
+
+        {error && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="w-4 h-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              {error}
+              {error.includes("logged in") && (
+                <span className="block mt-2 text-sm">💡 Please sign in first, then try again.</span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {step === "input" && (
           <Card className="shadow-xl border-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-2xl">
                 <Sparkles className="w-6 h-6 text-primary" />
-                Smart Campaign Builder
+                Quick Campaign Setup
               </CardTitle>
               <CardDescription>
-                Enter your product URL and let our AI handle everything else
+                Enter your affiliate product URL and launch
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -134,19 +170,19 @@ export function OneClickCampaign() {
                 </Label>
                 <Input
                   id="product-url"
-                  placeholder="https://example.com/product-page"
+                  placeholder="amazon.com/dp/B123 or https://yoursite.com/product"
                   value={productUrl}
                   onChange={(e) => setProductUrl(e.target.value)}
                   className="h-12 text-lg"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Enter any product URL from Amazon, ClickBank, ShareASale, or your own site
+                  Works with Amazon, ClickBank, ShareASale, CJ, or any affiliate URL
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="goal" className="text-base">
-                  Primary Campaign Goal
+                  Campaign Goal
                 </Label>
                 <Select value={campaignGoal} onValueChange={(value: any) => setCampaignGoal(value)}>
                   <SelectTrigger id="goal" className="h-12">
@@ -158,7 +194,7 @@ export function OneClickCampaign() {
                         <DollarSign className="w-4 h-4" />
                         <div>
                           <div className="font-medium">Maximize Sales</div>
-                          <div className="text-xs text-muted-foreground">High-converting traffic to drive revenue</div>
+                          <div className="text-xs text-muted-foreground">High-converting traffic</div>
                         </div>
                       </div>
                     </SelectItem>
@@ -167,7 +203,7 @@ export function OneClickCampaign() {
                         <Target className="w-4 h-4" />
                         <div>
                           <div className="font-medium">Generate Leads</div>
-                          <div className="text-xs text-muted-foreground">Build email list and capture prospects</div>
+                          <div className="text-xs text-muted-foreground">Build email list</div>
                         </div>
                       </div>
                     </SelectItem>
@@ -176,7 +212,7 @@ export function OneClickCampaign() {
                         <TrendingUp className="w-4 h-4" />
                         <div>
                           <div className="font-medium">Drive Traffic</div>
-                          <div className="text-xs text-muted-foreground">Maximize visitors and brand exposure</div>
+                          <div className="text-xs text-muted-foreground">Maximum visitors</div>
                         </div>
                       </div>
                     </SelectItem>
@@ -187,14 +223,13 @@ export function OneClickCampaign() {
               <Alert className="bg-primary/5 border-primary/20">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <AlertDescription>
-                  <strong>🤖 AI Autopilot Will Automatically:</strong>
+                  <strong>🤖 Automated System Will:</strong>
                   <ul className="mt-2 space-y-1 text-sm">
-                    <li>• Generate cloaked tracking links with conversion pixels</li>
-                    <li>• Deploy traffic to 5+ high-converting channels</li>
-                    <li>• Set up real-time analytics dashboard</li>
-                    <li>• Activate retargeting campaigns</li>
-                    <li>• Optimize budget allocation across channels</li>
-                    <li>• Launch A/B tests for continuous improvement</li>
+                    <li>• Generate trackable affiliate links</li>
+                    <li>• Deploy traffic to multiple channels</li>
+                    <li>• Set up conversion tracking</li>
+                    <li>• Activate real-time analytics</li>
+                    <li>• Optimize budget automatically</li>
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -202,15 +237,11 @@ export function OneClickCampaign() {
               <Button
                 onClick={handleQuickSetup}
                 size="lg"
-                className="w-full h-14 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+                className="w-full h-14 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90"
               >
                 <Zap className="w-5 h-5 mr-2" />
                 Launch Campaign Now
               </Button>
-
-              <p className="text-center text-sm text-muted-foreground">
-                No credit card required • Free trial included
-              </p>
             </CardContent>
           </Card>
         )}
@@ -226,23 +257,12 @@ export function OneClickCampaign() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold mb-2">Building Your Campaign</h3>
+                  <h3 className="text-2xl font-bold mb-2">Building Campaign</h3>
                   <p className="text-muted-foreground">{progressMessage}</p>
                 </div>
                 <div className="max-w-md mx-auto space-y-2">
                   <Progress value={progress} className="h-3" />
                   <p className="text-sm text-muted-foreground">{progress}% Complete</p>
-                </div>
-                <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto text-xs text-muted-foreground">
-                  <div className={progress >= 30 ? "text-primary font-medium" : ""}>
-                    ✓ Campaign Structure
-                  </div>
-                  <div className={progress >= 65 ? "text-primary font-medium" : ""}>
-                    ✓ Tracking Setup
-                  </div>
-                  <div className={progress >= 100 ? "text-primary font-medium" : ""}>
-                    ✓ Traffic Automation
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -259,7 +279,7 @@ export function OneClickCampaign() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-3xl font-bold mb-2">🎉 Campaign Is Live!</h3>
+                  <h3 className="text-3xl font-bold mb-2">🎉 Campaign Live!</h3>
                   <p className="text-xl text-muted-foreground">
                     {campaignResult.campaign?.name || "Your Campaign"}
                   </p>
@@ -271,7 +291,7 @@ export function OneClickCampaign() {
                       <div className="text-3xl font-bold text-primary">
                         {campaignResult.affiliateLinks?.length || 0}
                       </div>
-                      <div className="text-sm text-muted-foreground">Tracking Links</div>
+                      <div className="text-sm text-muted-foreground">Links</div>
                     </CardContent>
                   </Card>
                   <Card className="bg-accent/5">
@@ -279,7 +299,7 @@ export function OneClickCampaign() {
                       <div className="text-3xl font-bold text-accent">
                         {campaignResult.trafficSources?.length || 0}
                       </div>
-                      <div className="text-sm text-muted-foreground">Traffic Channels</div>
+                      <div className="text-sm text-muted-foreground">Channels</div>
                     </CardContent>
                   </Card>
                   <Card className="bg-green-500/5">
@@ -303,7 +323,7 @@ export function OneClickCampaign() {
                 {campaignResult.affiliateLinks && campaignResult.affiliateLinks.length > 0 && (
                   <Card className="text-left max-w-2xl mx-auto">
                     <CardHeader>
-                      <CardTitle className="text-lg">Your Tracking Links</CardTitle>
+                      <CardTitle className="text-lg">Tracking Links</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {campaignResult.affiliateLinks.map((link: any, idx: number) => (
@@ -334,20 +354,6 @@ export function OneClickCampaign() {
                   </Card>
                 )}
 
-                {campaignResult.optimizations && campaignResult.optimizations.length > 0 && (
-                  <Alert className="text-left max-w-2xl mx-auto">
-                    <BarChart3 className="w-4 h-4" />
-                    <AlertDescription>
-                      <strong>🎯 AI Optimization Insights:</strong>
-                      <ul className="mt-2 space-y-1 text-sm">
-                        {campaignResult.optimizations.map((rec: string, idx: number) => (
-                          <li key={idx}>• {rec}</li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 <div className="flex gap-4 justify-center flex-wrap">
                   <Button
                     onClick={handleReset}
@@ -355,7 +361,7 @@ export function OneClickCampaign() {
                     size="lg"
                   >
                     <Zap className="w-4 h-4 mr-2" />
-                    Create Another Campaign
+                    Create Another
                   </Button>
                   <Button
                     onClick={() => window.location.href = "/dashboard"}
@@ -363,7 +369,7 @@ export function OneClickCampaign() {
                     className="bg-primary"
                   >
                     <BarChart3 className="w-4 h-4 mr-2" />
-                    View Analytics Dashboard
+                    View Dashboard
                   </Button>
                 </div>
               </div>
@@ -377,7 +383,7 @@ export function OneClickCampaign() {
               <Zap className="w-12 h-12 mx-auto mb-4 text-primary" />
               <h3 className="font-semibold mb-2">30-Second Setup</h3>
               <p className="text-sm text-muted-foreground">
-                Complete campaign launch faster than making coffee
+                Fastest campaign launch in the industry
               </p>
             </CardContent>
           </Card>
@@ -386,16 +392,16 @@ export function OneClickCampaign() {
               <Sparkles className="w-12 h-12 mx-auto mb-4 text-accent" />
               <h3 className="font-semibold mb-2">AI-Powered</h3>
               <p className="text-sm text-muted-foreground">
-                Machine learning optimizes every aspect automatically
+                Automated optimization & traffic routing
               </p>
             </CardContent>
           </Card>
           <Card className="text-center">
             <CardContent className="pt-6">
               <Target className="w-12 h-12 mx-auto mb-4 text-green-500" />
-              <h3 className="font-semibold mb-2">Real-Time Tracking</h3>
+              <h3 className="font-semibold mb-2">Real Tracking</h3>
               <p className="text-sm text-muted-foreground">
-                Monitor every click, conversion, and dollar earned
+                Monitor clicks, conversions & earnings
               </p>
             </CardContent>
           </Card>
