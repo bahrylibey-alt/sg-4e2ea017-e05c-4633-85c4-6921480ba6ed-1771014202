@@ -29,6 +29,7 @@ import { campaignService } from "@/services/campaignService";
 import { CampaignBuilder } from "@/components/CampaignBuilder";
 import { AutopilotControl } from "@/components/AutopilotControl";
 import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
+import { OneClickAutopilot } from "@/components/OneClickAutopilot";
 
 interface Campaign {
   id: string;
@@ -192,8 +193,8 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Autopilot Control */}
-          <AutopilotControl />
+          {/* One-Click Autopilot */}
+          <OneClickAutopilot />
 
           {/* Advanced Analytics Dashboard */}
           <div className="mt-8">
