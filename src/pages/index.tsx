@@ -30,8 +30,19 @@ export default function Home() {
       <div className="min-h-screen bg-background font-sans antialiased">
         <Header />
         <main>
-          <Hero />
-          <FeaturedContent />
+          <div className="relative isolate">
+            <Hero />
+            <ProductShowcase />
+            <SmartTools 
+              onOpenContentGenerator={() => setShowContentGenerator(true)}
+              onOpenCampaignBuilder={() => setShowCampaignBuilder(true)}
+            />
+            <FeaturedContent />
+            <Analytics />
+            <Integrations />
+            <Pricing />
+            <Newsletter />
+          </div>
           <OneClickCampaign />
           <DashboardOverview />
           <AutopilotDashboard />
