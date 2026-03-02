@@ -55,8 +55,30 @@ export const affiliateLinkService = {
     error?: string;
   }> {
     console.log("🔗 Creating affiliate link:", params.productName);
+    console.log("🎯 Destination URL:", params.destinationUrl);
 
     try {
+      // CRITICAL VALIDATION: Ensure destination URL is REAL and valid
+      if (!params.destinationUrl || params.destinationUrl.trim() === "") {
+        console.error("❌ Empty destination URL");
+        return {
+          success: false,
+          error: "Destination URL is required"
+        };
+      }
+
+      // Validate URL format
+      try {
+        const urlTest = new URL(params.destinationUrl);
+        console.log("✅ Valid URL format:", urlTest.hostname);
+      } catch (urlError) {
+        console.error("❌ Invalid URL format:", params.destinationUrl);
+        return {
+          success: false,
+          error: "Invalid URL format"
+        };
+      }
+
       // Get authenticated user
       const session = await authService.getCurrentSession();
       if (!session?.user?.id) {
@@ -67,28 +89,25 @@ export const affiliateLinkService = {
         };
       }
 
-      // Validate destination URL
-      if (!params.destinationUrl || params.destinationUrl.trim() === "") {
-        console.error("❌ Empty destination URL");
-        return {
-          success: false,
-          error: "Destination URL is required"
-        };
-      }
+      console.log("✅ User authenticated:", session.user.id);
 
-      // Generate unique slug
+      // Generate unique slug and short code
       const shortCode = this.generateShortCode();
-      const slug = params.customSlug || 
-        `${params.productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)}-${shortCode}`;
+      const baseSlug = params.productName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .substring(0, 30);
+      const slug = params.customSlug || `${baseSlug}-${shortCode}`;
       
       console.log("✅ Generated slug:", slug);
+      console.log("✅ Generated short code:", shortCode);
 
       // Generate the cloaked URL
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://salemakseb.com';
       const cloakedUrl = `${baseUrl}/go/${slug}`;
 
       console.log("✅ Cloaked URL:", cloakedUrl);
-      console.log("✅ Destination:", params.destinationUrl);
+      console.log("🎯 Will redirect to:", params.destinationUrl);
 
       // Insert into database with ALL required fields
       const insertData: AffiliateLinkInsert = {
@@ -111,6 +130,8 @@ export const affiliateLinkService = {
       };
 
       console.log("📝 Inserting link to database...");
+      console.log("📝 Insert data:", JSON.stringify(insertData, null, 2));
+
       const { data, error } = await supabase
         .from("affiliate_links")
         .insert(insertData)
@@ -119,17 +140,36 @@ export const affiliateLinkService = {
 
       if (error) {
         console.error("❌ Failed to create affiliate link:", error);
+        console.error("❌ Error details:", JSON.stringify(error, null, 2));
         return { 
           success: false, 
           error: error.message 
         };
       }
 
+      // VERIFICATION: Confirm the link was saved correctly
       console.log("✅ Affiliate link created successfully!");
       console.log("   ID:", data.id);
       console.log("   Slug:", data.slug);
       console.log("   Short URL:", cloakedUrl);
-      console.log("   Destination:", data.original_url);
+      console.log("   Original URL (saved):", data.original_url);
+      console.log("   Status:", data.status);
+
+      // Double-check: Verify the link can be retrieved
+      const { data: verifyData, error: verifyError } = await supabase
+        .from("affiliate_links")
+        .select("id, slug, original_url, status")
+        .eq("slug", slug)
+        .single();
+
+      if (verifyError) {
+        console.warn("⚠️ Could not verify link creation:", verifyError);
+      } else {
+        console.log("✅ VERIFICATION PASSED - Link is retrievable:");
+        console.log("   Slug:", verifyData.slug);
+        console.log("   Destination:", verifyData.original_url);
+        console.log("   Status:", verifyData.status);
+      }
 
       return { 
         success: true, 
@@ -138,6 +178,7 @@ export const affiliateLinkService = {
       };
     } catch (error: any) {
       console.error("💥 Exception creating affiliate link:", error);
+      console.error("💥 Stack trace:", error.stack);
       return { 
         success: false, 
         error: error.message || "Failed to create affiliate link" 
@@ -215,51 +256,36 @@ export const affiliateLinkService = {
   },
 
   /**
-   * Get user's affiliate links with optional filters
+   * Get all links for current user
    */
-  async getUserLinks(filters?: {
-    status?: "active" | "paused" | "archived";
-    network?: string;
-    minClicks?: number;
-    minRevenue?: number;
-  }): Promise<{ links: AffiliateLink[]; error: string | null }> {
+  async getUserLinks() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user) {
-        return { links: [], error: "User not authenticated" };
+        console.warn("No authenticated user - returning empty links");
+        return { links: [], error: null };
       }
 
-      let query = supabase
+      console.log("📊 Fetching affiliate links for user:", user.id);
+
+      const { data, error } = await supabase
         .from("affiliate_links")
         .select("*")
-        .eq("user_id", user.id);
-
-      if (filters?.status) {
-        query = query.eq("status", filters.status);
-      }
-      if (filters?.network) {
-        query = query.eq("network", filters.network);
-      }
-      if (filters?.minClicks !== undefined) {
-        query = query.gte("clicks", filters.minClicks);
-      }
-      if (filters?.minRevenue !== undefined) {
-        query = query.gte("commission_earned", filters.minRevenue);
-      }
-
-      query = query.order("created_at", { ascending: false });
-
-      const { data, error } = await query;
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching links:", error);
+        console.error("❌ Error fetching user links:", error);
+        // Return empty array instead of throwing - might be RLS or permissions issue
         return { links: [], error: error.message };
       }
 
+      console.log(`✅ Found ${data?.length || 0} affiliate links`);
       return { links: data || [], error: null };
     } catch (err: any) {
-      console.error("Unexpected error:", err);
-      return { links: [], error: "Failed to fetch links" };
+      console.error("💥 Exception in getUserLinks:", err);
+      return { links: [], error: err.message || "Failed to fetch user links" };
     }
   },
 
@@ -273,19 +299,46 @@ export const affiliateLinkService = {
     country?: string;
     device_type?: string;
   }): Promise<{ success: boolean; redirect_url: string | null; linkId: string | null }> {
+    console.log("🖱️ Tracking click for slug:", slug);
+    
     try {
+      // CRITICAL: Lookup link with detailed logging
+      console.log("🔍 Looking up link in database...");
       const { data: link, error: linkError } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("slug", slug)
         .eq("status", "active")
-        .single();
+        .maybeSingle();
 
-      if (linkError || !link) {
-        console.error("Link not found:", linkError);
+      if (linkError) {
+        console.error("❌ Database error looking up link:", linkError);
         return { success: false, redirect_url: null, linkId: null };
       }
 
+      if (!link) {
+        console.error("❌ Link not found for slug:", slug);
+        console.log("🔍 Trying to find ANY link with similar slug...");
+        
+        // Fallback: Try to find any active link (for debugging)
+        const { data: anyLinks } = await supabase
+          .from("affiliate_links")
+          .select("slug, status")
+          .eq("status", "active")
+          .limit(5);
+        
+        console.log("📋 Active links in database:", anyLinks?.map(l => l.slug));
+        return { success: false, redirect_url: null, linkId: null };
+      }
+
+      console.log("✅ Link found!");
+      console.log("   ID:", link.id);
+      console.log("   Product:", link.product_name);
+      console.log("   Destination:", link.original_url);
+      console.log("   Current clicks:", link.clicks);
+
+      // Record click event
+      console.log("📝 Recording click event...");
       const { error: clickError } = await supabase
         .from("click_events")
         .insert({
@@ -299,20 +352,39 @@ export const affiliateLinkService = {
         });
 
       if (clickError) {
-        console.error("Error tracking click:", clickError);
+        console.warn("⚠️ Failed to record click event:", clickError);
+        // Continue anyway - don't block redirect
+      } else {
+        console.log("✅ Click event recorded");
       }
 
-      await supabase
+      // Update click counter
+      console.log("📊 Updating click counter...");
+      const newClickCount = (link.clicks || 0) + 1;
+      const { error: updateError } = await supabase
         .from("affiliate_links")
         .update({ 
-          clicks: (link.clicks || 0) + 1,
-          click_count: (link.click_count || 0) + 1
+          clicks: newClickCount,
+          click_count: newClickCount
         })
         .eq("id", link.id);
 
-      return { success: true, redirect_url: link.original_url, linkId: link.id };
-    } catch (err) {
-      console.error("Unexpected error:", err);
+      if (updateError) {
+        console.warn("⚠️ Failed to update click counter:", updateError);
+        // Continue anyway - don't block redirect
+      } else {
+        console.log(`✅ Click counter updated: ${link.clicks} → ${newClickCount}`);
+      }
+
+      console.log("🎯 Redirecting to:", link.original_url);
+      return { 
+        success: true, 
+        redirect_url: link.original_url, 
+        linkId: link.id 
+      };
+    } catch (err: any) {
+      console.error("💥 Unexpected error tracking click:", err);
+      console.error("💥 Stack trace:", err.stack);
       return { success: false, redirect_url: null, linkId: null };
     }
   },

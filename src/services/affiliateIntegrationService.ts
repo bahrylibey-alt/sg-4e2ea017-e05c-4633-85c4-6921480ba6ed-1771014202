@@ -33,18 +33,65 @@ export const affiliateIntegrationService = {
   },
 
   /**
-   * Get affiliate link stats for a specific user
+   * Get affiliate link statistics for user
    */
   async getAffiliateLinkStats(userId: string) {
-    // Re-use getSystemStats but return format expected by dashboard
-    const stats = await this.getSystemStats();
-    return {
-      totalLinks: stats.totalProducts,
-      activeLinks: stats.activeLinks,
-      clicks: stats.totalClicks,
-      conversions: stats.totalConversions,
-      revenue: stats.totalRevenue
-    };
+    try {
+      console.log("📊 Fetching affiliate link stats for user:", userId);
+
+      // Get all user's links
+      const { data: links, error: linksError } = await supabase
+        .from("affiliate_links")
+        .select("id, clicks, conversions, revenue, status")
+        .eq("user_id", userId);
+
+      if (linksError) {
+        console.error("❌ Error fetching links for stats:", linksError);
+        return {
+          totalLinks: 0,
+          activeLinks: 0,
+          totalClicks: 0,
+          totalConversions: 0,
+          totalRevenue: 0,
+          conversionRate: 0
+        };
+      }
+
+      const totalLinks = links?.length || 0;
+      const activeLinks = links?.filter(l => l.status === "active").length || 0;
+      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+      const totalConversions = links?.reduce((sum, l) => sum + (l.conversions || 0), 0) || 0;
+      const totalRevenue = links?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0;
+      const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+
+      console.log("✅ Affiliate link stats:", {
+        totalLinks,
+        activeLinks,
+        totalClicks,
+        totalConversions,
+        totalRevenue,
+        conversionRate: conversionRate.toFixed(2) + "%"
+      });
+
+      return {
+        totalLinks,
+        activeLinks,
+        totalClicks,
+        totalConversions,
+        totalRevenue,
+        conversionRate
+      };
+    } catch (error: any) {
+      console.error("💥 Exception fetching link stats:", error);
+      return {
+        totalLinks: 0,
+        activeLinks: 0,
+        totalClicks: 0,
+        totalConversions: 0,
+        totalRevenue: 0,
+        conversionRate: 0
+      };
+    }
   },
 
   /**
@@ -395,51 +442,54 @@ export const affiliateIntegrationService = {
   },
 
   /**
-   * Ensure user profile exists
+   * Ensure user profile exists in profiles table
    */
-  async ensureUserProfile(userId: string, email: string | null) {
+  async ensureUserProfile(userId: string, email?: string) {
     try {
-      console.log(`Checking profile for user: ${userId}`);
-      
-      const { data: existing, error: checkError } = await supabase
+      console.log("👤 Ensuring user profile exists:", userId);
+
+      // Check if profile already exists
+      const { data: existing, error: fetchError } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", userId)
         .maybeSingle();
 
-      if (checkError) {
-        console.error("❌ Error checking profile:", checkError);
-        // Profile table might not exist or RLS blocking - try to create anyway
+      if (fetchError && fetchError.code !== "PGRST116") {
+        console.error("❌ Error checking profile:", fetchError);
+        return { success: false, error: fetchError.message };
       }
 
       if (existing) {
-        console.log("✅ User profile already exists");
+        console.log("✅ Profile already exists");
         return { success: true };
       }
 
-      console.log("Creating new user profile...");
+      // Create profile
+      console.log("📝 Creating new profile...");
       const { error: insertError } = await supabase
         .from("profiles")
         .insert({
           id: userId,
-          email,
-          full_name: null
+          email: email || null,
+          full_name: email?.split("@")[0] || "User",
+          created_at: new Date().toISOString()
         });
 
       if (insertError) {
-        console.error("❌ Profile creation error:", insertError);
-        // Check if it's a duplicate key error (profile already exists)
-        if (insertError.code === '23505') {
-          console.log("✅ Profile already exists (duplicate key)");
+        // Ignore duplicate key errors - profile was created by another process
+        if (insertError.code === "23505") {
+          console.log("✅ Profile already exists (concurrent creation)");
           return { success: true };
         }
+        console.error("❌ Error creating profile:", insertError);
         return { success: false, error: insertError.message };
       }
 
-      console.log("✅ User profile created successfully");
+      console.log("✅ Profile created successfully");
       return { success: true };
     } catch (error: any) {
-      console.error("❌ Profile creation exception:", error);
+      console.error("💥 Exception in ensureUserProfile:", error);
       return { success: false, error: error.message };
     }
   },
