@@ -448,16 +448,19 @@ export type Database = {
           budget: number | null
           content_strategy: string | null
           created_at: string | null
+          daily_budget: number | null
           duration_days: number | null
           end_date: string | null
           goal: string
           id: string
+          is_autopilot: boolean | null
           name: string
           revenue: number | null
           spent: number | null
           start_date: string | null
           status: string | null
           target_audience: string | null
+          type: string | null
           updated_at: string | null
           user_id: string
         }
@@ -465,16 +468,19 @@ export type Database = {
           budget?: number | null
           content_strategy?: string | null
           created_at?: string | null
+          daily_budget?: number | null
           duration_days?: number | null
           end_date?: string | null
           goal: string
           id?: string
+          is_autopilot?: boolean | null
           name: string
           revenue?: number | null
           spent?: number | null
           start_date?: string | null
           status?: string | null
           target_audience?: string | null
+          type?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -482,16 +488,19 @@ export type Database = {
           budget?: number | null
           content_strategy?: string | null
           created_at?: string | null
+          daily_budget?: number | null
           duration_days?: number | null
           end_date?: string | null
           goal?: string
           id?: string
+          is_autopilot?: boolean | null
           name?: string
           revenue?: number | null
           spent?: number | null
           start_date?: string | null
           status?: string | null
           target_audience?: string | null
+          type?: string | null
           updated_at?: string | null
           user_id?: string
         }

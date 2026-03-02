@@ -91,21 +91,20 @@ export function AutopilotControl() {
       const productUrls = products.slice(0, 5).map(p => p.url);
 
       // Launch autopilot campaign
-      const result = await autopilotEngine.launchAutopilotCampaign({
+      const result = await autopilotEngine.launchAutopilot({
         budget: 100,
-        products: productUrls,
-        targetAudience: "General audience interested in online shopping and deals",
-        trafficChannels: ["SEO Content Marketing", "Social Media Automation", "Email Marketing", "YouTube Shorts & Reels"]
+        trafficChannels: ["seo", "social", "email", "content"]
       });
 
       // Activate intelligent traffic routing
-      if (result.campaign) {
-        await intelligentTrafficRouter.distributeTraffic(result.campaign.id, productUrls);
+      if (result.campaignId) {
+        // We handle routing internally in the engine now, but keep this hook for future extensions
+        console.log("Autopilot launched with campaign:", result.campaignId);
       }
 
       toast({
         title: "🚀 Autopilot Launched Successfully!",
-        description: `${result.links.length} products activated with 4 free traffic channels. Traffic generation starting now!`,
+        description: `System activated with ${result.activeChannels} traffic channels. Traffic generation starting now!`,
       });
 
       await loadStats();

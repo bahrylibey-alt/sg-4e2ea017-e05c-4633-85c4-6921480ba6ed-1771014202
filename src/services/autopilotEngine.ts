@@ -301,5 +301,62 @@ export const autopilotEngine = {
         hasPausedCampaigns: false
       };
     }
+  },
+
+  /**
+   * Get comprehensive autopilot stats
+   */
+  async getAutopilotStats() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      // Get stats from traffic_sources
+      const { data: sources } = await supabase
+        .from("traffic_sources")
+        .select("clicks, conversions, revenue, source_name")
+        .eq("user_id", user.id);
+
+      // Get stats from campaigns
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id, status, is_autopilot")
+        .eq("user_id", user.id)
+        .eq("is_autopilot", true);
+
+      // Calculate totals
+      const totalClicks = sources?.reduce((sum, s) => sum + (s.clicks || 0), 0) || 0;
+      const totalConversions = sources?.reduce((sum, s) => sum + (s.conversions || 0), 0) || 0;
+      const totalRevenue = sources?.reduce((sum, s) => sum + (s.revenue || 0), 0) || 0;
+      
+      const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
+      
+      // Get affiliate links count
+      const { count: activeLinks } = await supabase
+        .from("affiliate_links")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", user.id);
+
+      return {
+        totalClicks,
+        totalConversions,
+        totalRevenue,
+        totalCommissions: totalRevenue * 0.4, // Estimated 40% commission
+        activeCampaigns,
+        activeLinks: activeLinks || 0,
+        trafficSources: sources?.length || 0
+      };
+    } catch (error) {
+      console.error("Error fetching autopilot stats:", error);
+      return {
+        totalClicks: 0,
+        totalConversions: 0,
+        totalRevenue: 0,
+        totalCommissions: 0,
+        activeCampaigns: 0,
+        activeLinks: 0,
+        trafficSources: 0
+      };
+    }
   }
 };
