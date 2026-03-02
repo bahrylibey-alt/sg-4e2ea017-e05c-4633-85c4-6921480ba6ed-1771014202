@@ -57,21 +57,24 @@ export default function RedirectPage() {
           clickData.user_agent = navigator.userAgent || null;
         }
 
-        // Record the click in the database
+        // Record the click in the database using the CORRECT table name
         const { error: clickError } = await supabase
-          .from("link_clicks")
+          .from("click_events") // Changed from "link_clicks" to "click_events"
           .insert(clickData);
 
         if (clickError) {
           console.error("Failed to track click:", clickError);
+          // Don't block redirect if tracking fails
         }
 
         // Update click count on the link
+        // Use click_count which seems to be the preferred column based on schema
         await supabase
           .from("affiliate_links")
           .update({ 
-            clicks: (link.clicks || 0) + 1,
-            last_clicked_at: new Date().toISOString()
+            click_count: (link.click_count || 0) + 1,
+            clicks: (link.clicks || 0) + 1, // Update both for compatibility
+            updated_at: new Date().toISOString() // Correct column name based on schema context
           })
           .eq("id", link.id);
 
