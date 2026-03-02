@@ -104,16 +104,16 @@ export function OneClickAutopilot() {
 
   const loadCampaignData = async () => {
     try {
-      const status = await autopilotEngine.getAutopilotStatus();
-      const analytics = await realTimeAnalytics.getDashboardStats();
+      const status = await autopilotEngine.getAutopilotStats();
+      const analytics = await realTimeAnalytics.getPerformanceSnapshot();
       
       if (status && analytics) {
         setCampaignStats({
           totalProducts: analytics.topProducts?.length || 0,
-          linksGenerated: analytics.totalClicks || 0,
+          linksGenerated: analytics.clicks || 0,
           trafficChannelsActive: analytics.topTrafficSources?.length || 0,
-          estimatedReach: Math.floor((analytics.totalClicks || 0) * 4.2),
-          status: status.isActive ? "active" : "ready"
+          estimatedReach: Math.floor((analytics.clicks || 0) * 4.2),
+          status: status.activeCampaigns > 0 ? "active" : "ready"
         });
       }
     } catch (error) {
@@ -127,7 +127,7 @@ export function OneClickAutopilot() {
     try {
       // Step 1: Select Products
       updateStepStatus("products", "active", 0);
-      const products = productCatalogService.getTopProducts(10);
+      const products = productCatalogService.getHighConvertingProducts(10);
       
       for (let i = 0; i <= 100; i += 20) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -137,23 +137,27 @@ export function OneClickAutopilot() {
 
       // Step 2: Generate Links
       updateStepStatus("links", "active", 0);
-      const result = await autopilotEngine.launchAutopilot({
-        productIds: products.map(p => p.id),
-        budget: 0,
-        trafficChannels: [
-          "SEO Content",
-          "Social Media",
-          "Email Marketing",
-          "Video Marketing",
-          "Blog Network",
-          "Forum Marketing",
-          "Influencer Network",
-          "Partner Sites"
-        ]
+      
+      const trafficChannelNames = [
+        "SEO Content",
+        "Social Media",
+        "Email Marketing",
+        "Video Marketing",
+        "Blog Network",
+        "Forum Marketing",
+        "Influencer Network",
+        "Partner Sites"
+      ];
+
+      const result = await autopilotEngine.launchAutopilotCampaign({
+        products: products.map(p => p.url),
+        budget: 1000,
+        targetAudience: "General Audience",
+        trafficChannels: trafficChannelNames
       });
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to launch autopilot");
+        throw new Error(result.message || "Failed to launch autopilot");
       }
 
       for (let i = 0; i <= 100; i += 25) {
@@ -164,10 +168,17 @@ export function OneClickAutopilot() {
 
       // Step 3: Activate Traffic
       updateStepStatus("traffic", "active", 0);
-      const campaignId = result.campaignId;
+      const campaignId = result.campaign.id;
       
       if (campaignId) {
-        await intelligentTrafficRouter.startAutomatedTraffic(campaignId, trafficChannels);
+        // Activate each channel individually since startAutomatedTraffic doesn't exist
+        for (const channel of trafficChannels) {
+           try {
+             await intelligentTrafficRouter.activateTrafficSource(campaignId, channel.name);
+           } catch (e) {
+             console.warn(`Could not activate channel ${channel.name}`, e);
+           }
+        }
       }
 
       for (let i = 0; i <= 100; i += 12.5) {
