@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function RedirectPage() {
   const router = useRouter();
@@ -13,32 +14,74 @@ export default function RedirectPage() {
   const [redirecting, setRedirecting] = useState(true);
 
   useEffect(() => {
-    if (!slug || typeof slug !== "string") return;
-
     const handleRedirect = async () => {
+      if (!slug || typeof slug !== "string") {
+        setError("Invalid link");
+        return;
+      }
+
       try {
-        // Get user agent and referrer for tracking
-        const metadata = {
-          user_agent: window.navigator.userAgent,
-          referrer: document.referrer,
-          device_type: affiliateLinkService.detectDeviceType(window.navigator.userAgent)
+        // Look up the affiliate link by slug
+        const { data: link, error: linkError } = await supabase
+          .from("affiliate_links")
+          .select("*")
+          .eq("slug", slug)
+          .eq("status", "active")
+          .single();
+
+        if (linkError || !link) {
+          console.error("Link not found:", linkError);
+          setError("This affiliate link was not found or is no longer active");
+          setRedirecting(false);
+          return;
+        }
+
+        // Check if we have a valid destination URL
+        if (!link.original_url) {
+          console.error("Link has no destination URL:", link);
+          setError("This link is not configured properly");
+          setRedirecting(false);
+          return;
+        }
+
+        // Track the click
+        const clickData: any = {
+          link_id: link.id,
+          user_id: link.user_id,
+          clicked_at: new Date().toISOString()
         };
 
-        // Track click and get redirect URL
-        const result = await affiliateLinkService.trackClick(slug, metadata);
-
-        if (result.success && result.redirect_url) {
-          // Wait a moment for tracking to complete
-          setTimeout(() => {
-            window.location.href = result.redirect_url!;
-          }, 500);
-        } else {
-          setError("This link is no longer available or has expired.");
-          setRedirecting(false);
+        // Add optional tracking data if available
+        if (typeof window !== 'undefined') {
+          clickData.referrer = document.referrer || null;
+          clickData.user_agent = navigator.userAgent || null;
         }
-      } catch (err) {
-        console.error("Redirect error:", err);
-        setError("An error occurred while processing your request.");
+
+        // Record the click in the database
+        const { error: clickError } = await supabase
+          .from("link_clicks")
+          .insert(clickData);
+
+        if (clickError) {
+          console.error("Failed to track click:", clickError);
+        }
+
+        // Update click count on the link
+        await supabase
+          .from("affiliate_links")
+          .update({ 
+            clicks: (link.clicks || 0) + 1,
+            last_clicked_at: new Date().toISOString()
+          })
+          .eq("id", link.id);
+
+        // Redirect to the actual product URL
+        console.log("Redirecting to:", link.original_url);
+        window.location.href = link.original_url;
+        
+      } catch (error) {
+        console.error("Redirect error:", error);
+        setError("An error occurred while processing this link");
         setRedirecting(false);
       }
     };

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { authService } from "@/services/authService";
 
 type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 type AffiliateLinkInsert = Database["public"]["Tables"]["affiliate_links"]["Insert"];
@@ -17,6 +18,77 @@ export interface LinkAnalytics {
 }
 
 export const affiliateLinkService = {
+  /**
+   * Create a new affiliate link
+   */
+  async createAffiliateLink(params: {
+    productId: string;
+    productName: string;
+    destinationUrl: string;
+    network?: string;
+    commissionRate?: number;
+    customSlug?: string;
+  }): Promise<{
+    success: boolean;
+    link?: AffiliateLink;
+    shortUrl?: string;
+    error?: string;
+  }> {
+    const shortCode = this.generateShortCode();
+    const slug = params.customSlug || `${params.productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)}-${shortCode}`;
+    
+    // Generate the cloaked URL (the short link users will share)
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com';
+    const cloakedUrl = `${baseUrl}/go/${slug}`;
+
+    try {
+      const session = await authService.getCurrentSession();
+      if (!session?.user?.id) {
+        return { 
+          success: false, 
+          error: "Authentication required to create affiliate links" 
+        };
+      }
+
+      // Insert the affiliate link into database with REAL original_url
+      const { data, error } = await supabase
+        .from("affiliate_links")
+        .insert({
+          user_id: session.user.id,
+          product_id: params.productId,
+          product_name: params.productName,
+          original_url: params.destinationUrl, // CRITICAL: Real product URL
+          cloaked_url: cloakedUrl,
+          slug: slug,
+          network: params.network || "Direct",
+          commission_rate: params.commissionRate || 0,
+          status: "active"
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to create affiliate link:", error);
+        return { 
+          success: false, 
+          error: error.message 
+        };
+      }
+
+      return { 
+        success: true, 
+        link: data,
+        shortUrl: cloakedUrl
+      };
+    } catch (error) {
+      console.error("Error creating affiliate link:", error);
+      return { 
+        success: false, 
+        error: "Failed to create affiliate link" 
+      };
+    }
+  },
+
   async createLink(data: {
     original_url: string;
     product_name?: string;

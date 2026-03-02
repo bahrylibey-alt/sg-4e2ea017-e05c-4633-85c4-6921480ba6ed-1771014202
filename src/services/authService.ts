@@ -57,7 +57,7 @@ export const authService = {
   },
 
   // Get current session
-  async getCurrentSession(): Promise<Session | null> {
+  async getCurrentSession() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       
@@ -68,7 +68,7 @@ export const authService = {
       
       return session;
     } catch (error) {
-      console.log("Exception in getCurrentSession:", error);
+      console.error("Session check failed:", error);
       return null;
     }
   },
