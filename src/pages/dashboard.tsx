@@ -427,7 +427,9 @@ export default function Dashboard() {
           </div>
 
           {/* One-Click Autopilot */}
+          <OneClickAutopilot />
 
+          {/* Advanced Analytics Dashboard */}
           <div className="mt-8">
             <AdvancedAnalyticsDashboard />
           </div>
