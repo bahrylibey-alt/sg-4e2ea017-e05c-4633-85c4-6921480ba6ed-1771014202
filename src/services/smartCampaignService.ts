@@ -40,7 +40,6 @@ export interface OneClickResult {
 }
 
 export const smartCampaignService = {
-  // Pre-defined campaign templates
   templates: [
     {
       id: "quick-sales",
@@ -87,25 +86,10 @@ export const smartCampaignService = {
       targetAudience: "Broad audience, new market segments, cold traffic"
     },
     {
-      id: "brand-awareness",
-      name: "Brand Builder",
-      goal: "awareness" as const,
-      description: "Establish brand presence and thought leadership",
-      suggestedBudget: 600,
-      suggestedDuration: 21,
-      defaultChannels: [
-        { id: "blog", name: "Content Marketing" },
-        { id: "social", name: "Social Media" },
-        { id: "youtube", name: "PR & Media" }
-      ],
-      contentStrategy: "Authority content, brand storytelling, educational series, and consistent messaging",
-      targetAudience: "Industry professionals, potential partners, general public"
-    },
-    {
       id: "evergreen",
-      name: "Evergreen Performer",
+      name: "Evergreen Sales System",
       goal: "sales" as const,
-      description: "Sustainable long-term sales machine",
+      description: "Sustainable long-term automated sales funnel",
       suggestedBudget: 800,
       suggestedDuration: 30,
       defaultChannels: [
@@ -118,28 +102,24 @@ export const smartCampaignService = {
     }
   ] as CampaignTemplate[],
 
-  // Get all templates
   getTemplates(): CampaignTemplate[] {
     return this.templates;
   },
 
-  // Get template by ID
   getTemplate(templateId: string): CampaignTemplate | null {
     return this.templates.find(t => t.id === templateId) || null;
   },
 
-  // Smart campaign suggestion based on product analysis
   suggestTemplate(productUrls: string[]): CampaignTemplate {
     if (productUrls.length === 1) {
-      return this.templates[0]; // Quick sales for single product
+      return this.templates[0];
     } else if (productUrls.length <= 3) {
-      return this.templates[1]; // Lead generation for few products
+      return this.templates[1];
     } else {
-      return this.templates[4]; // Evergreen for multiple products
+      return this.templates[3];
     }
   },
 
-  // Generate smart campaign name
   generateCampaignName(productNames: string[], goal: string): string {
     const timestamp = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
     if (productNames.length === 1) {
@@ -147,11 +127,10 @@ export const smartCampaignService = {
     } else if (productNames.length <= 3) {
       return `Multi-Product ${goal.charAt(0).toUpperCase() + goal.slice(1)} - ${timestamp}`;
     } else {
-      return `${productNames.length} Products ${goal.charAt(0).toUpperCase() + goal.slice(1)} - ${timestamp}`;
+      return `${productNames.length} Products Campaign - ${timestamp}`;
     }
   },
 
-  // Extract product name from URL
   extractProductName(url: string): string {
     try {
       const urlObj = new URL(url);
@@ -162,41 +141,37 @@ export const smartCampaignService = {
         .replace(/_/g, " ")
         .split(" ")
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+        .join(" ")
+        .slice(0, 50);
     } catch {
       return "Product";
     }
   },
 
-  // CRITICAL: Robust profile existence check and creation
   async ensureProfileExists(userId: string, userEmail: string | null): Promise<{ success: boolean; error: string | null }> {
     try {
-      console.log("🔍 Checking profile existence for user:", userId);
+      console.log("🔍 Verifying profile for user:", userId);
 
-      // Step 1: Try to fetch the profile with maybeSingle (won't throw error if not found)
       const { data: existingProfile, error: fetchError } = await supabase
         .from("profiles")
         .select("id, email, full_name")
         .eq("id", userId)
         .maybeSingle();
 
-      // If there's a real error (not just "not found"), return it
       if (fetchError) {
-        console.error("❌ Error fetching profile:", fetchError);
+        console.error("❌ Profile fetch error:", fetchError);
         return { 
           success: false, 
-          error: `Database error: ${fetchError.message}. Please contact support.` 
+          error: `Database error: ${fetchError.message}` 
         };
       }
 
-      // Profile exists - success!
       if (existingProfile) {
-        console.log("✅ Profile already exists:", existingProfile);
+        console.log("✅ Profile exists");
         return { success: true, error: null };
       }
 
-      // Step 2: Profile doesn't exist - create it
-      console.log("📝 Profile not found. Creating new profile...");
+      console.log("📝 Creating profile...");
       
       const { data: newProfile, error: createError } = await supabase
         .from("profiles")
@@ -210,50 +185,47 @@ export const smartCampaignService = {
         .single();
 
       if (createError) {
-        console.error("❌ Error creating profile:", createError);
+        console.error("❌ Profile creation error:", createError);
         
-        // Handle specific error cases
         if (createError.code === "23503") {
           return {
             success: false,
-            error: "Authentication session expired. Please sign out and sign in again."
+            error: "Session expired. Please sign out and sign in again."
           };
         }
 
         if (createError.code === "23505") {
-          // Profile already exists (race condition) - this is actually fine
-          console.log("ℹ️ Profile already exists (race condition detected)");
+          console.log("ℹ️ Profile exists (race condition)");
           return { success: true, error: null };
         }
 
         return {
           success: false,
-          error: `Failed to create profile: ${createError.message}. Please try again or contact support.`
+          error: `Profile creation failed: ${createError.message}`
         };
       }
 
-      console.log("✅ Profile created successfully:", newProfile);
+      console.log("✅ Profile created:", newProfile.id);
       return { success: true, error: null };
 
     } catch (err) {
-      console.error("💥 Unexpected error in ensureProfileExists:", err);
+      console.error("💥 Profile verification error:", err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : "Profile verification failed unexpectedly"
+        error: err instanceof Error ? err.message : "Profile verification failed"
       };
     }
   },
 
-  // REVOLUTIONARY ONE-CLICK AUTOMATED CAMPAIGN SYSTEM
   async createQuickCampaign(input: QuickCampaignInput): Promise<OneClickResult> {
     try {
-      console.log("🚀 Starting campaign creation with input:", input);
+      console.log("🚀 ONE-CLICK CAMPAIGN START");
+      console.log("📦 Input:", JSON.stringify(input, null, 2));
 
-      // Step 1: Verify authentication and get user details
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
-      if (authError) {
-        console.error("❌ Auth error:", authError);
+      if (authError || !user) {
+        console.error("❌ Auth failed:", authError);
         return { 
           success: false, 
           campaign: null, 
@@ -261,30 +233,16 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "Authentication failed. Please sign in again." 
+          error: "You must be logged in. Please sign in and try again." 
         };
       }
 
-      if (!user) {
-        console.error("❌ No user found");
-        return { 
-          success: false, 
-          campaign: null, 
-          affiliateLinks: [], 
-          trafficSources: [],
-          estimatedReach: 0,
-          optimizations: [],
-          error: "You must be logged in to create campaigns. Please sign in and try again." 
-        };
-      }
+      console.log("✅ User authenticated:", user.id);
 
-      console.log("✅ User authenticated:", { id: user.id, email: user.email });
-
-      // Step 2: Ensure profile exists (CRITICAL)
       const profileCheck = await this.ensureProfileExists(user.id, user.email || null);
       
       if (!profileCheck.success) {
-        console.error("❌ Profile check/creation failed:", profileCheck.error);
+        console.error("❌ Profile check failed:", profileCheck.error);
         return {
           success: false,
           campaign: null,
@@ -292,13 +250,12 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: profileCheck.error || "Profile verification failed. Please try again or contact support."
+          error: profileCheck.error || "Profile verification failed"
         };
       }
 
-      console.log("✅ Profile verified/created successfully");
+      console.log("✅ Profile verified");
 
-      // Step 3: Validate input
       if (!input.productUrls || input.productUrls.length === 0) {
         return {
           success: false,
@@ -307,13 +264,12 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "Please provide at least one product URL"
+          error: "At least one product URL is required"
         };
       }
 
-      console.log("✅ URLs validated:", input.productUrls);
+      console.log("✅ Input validated");
 
-      // Step 4: Determine template
       const template = input.templateId 
         ? this.getTemplate(input.templateId) 
         : this.suggestTemplate(input.productUrls);
@@ -326,22 +282,18 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "Invalid campaign template selected" 
+          error: "Invalid template" 
         };
       }
 
-      console.log("✅ Template selected:", template.name);
+      console.log("✅ Template:", template.name);
 
-      // Step 5: Extract/use product names
       const productNames = input.productNames || input.productUrls.map(url => this.extractProductName(url));
-      console.log("✅ Product names:", productNames);
-
-      // Step 6: Generate campaign name
       const campaignName = this.generateCampaignName(productNames, input.customGoal || template.goal);
-      console.log("✅ Campaign name generated:", campaignName);
 
-      // Step 7: Create campaign
-      console.log("📝 Creating campaign...");
+      console.log("✅ Campaign name:", campaignName);
+      console.log("📝 Creating campaign in database...");
+
       const { campaign, error: campaignError } = await campaignService.createCampaign({
         name: campaignName,
         goal: input.customGoal || template.goal,
@@ -362,32 +314,31 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: `Campaign creation failed: ${campaignError || "Unknown error"}. Please try again.` 
+          error: campaignError || "Failed to create campaign" 
         };
       }
 
-      console.log("✅ Campaign created successfully:", campaign.id);
-
-      // Step 8: Create affiliate links for all products
+      console.log("✅ Campaign created:", campaign.id);
       console.log("🔗 Creating affiliate links...");
+
       const linkPromises = input.productUrls.map(async (url, index) => {
         try {
           const { link, error } = await affiliateLinkService.createLink({
             original_url: url,
             product_name: productNames[index],
-            network: "auto-generated",
+            network: "direct",
             commission_rate: 10
           });
 
           if (error || !link) {
-            console.error(`❌ Failed to create link for ${url}:`, error);
+            console.error(`❌ Link creation failed for ${url}:`, error);
             return null;
           }
 
-          console.log(`✅ Link created for ${productNames[index]}`);
+          console.log(`✅ Link created: ${link.slug}`);
           return link;
         } catch (err) {
-          console.error(`❌ Exception creating link for ${url}:`, err);
+          console.error(`❌ Link exception for ${url}:`, err);
           return null;
         }
       });
@@ -395,10 +346,10 @@ export const smartCampaignService = {
       const affiliateLinksResults = await Promise.all(linkPromises);
       const affiliateLinks = affiliateLinksResults.filter(Boolean) as AffiliateLink[];
 
-      console.log(`✅ Created ${affiliateLinks.length}/${input.productUrls.length} affiliate links`);
+      console.log(`✅ Created ${affiliateLinks.length}/${input.productUrls.length} links`);
 
       if (affiliateLinks.length === 0) {
-        console.error("❌ No affiliate links were created");
+        console.error("❌ No links created");
         return { 
           success: false, 
           campaign: null, 
@@ -406,11 +357,10 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
-          error: "Failed to create affiliate links. Please check your URLs and try again." 
+          error: "Failed to create affiliate links" 
         };
       }
 
-      // Step 9: Launch traffic automation
       console.log("🚦 Launching traffic automation...");
       const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
         campaignId: campaign.id,
@@ -420,11 +370,10 @@ export const smartCampaignService = {
       if (!trafficResult.success) {
         console.warn("⚠️ Traffic automation warning:", trafficResult.error);
       } else {
-        console.log("✅ Traffic sources activated:", trafficResult.sources?.length || 0);
+        console.log("✅ Traffic sources:", trafficResult.sources?.length || 0);
       }
 
-      // Step 10: Get optimization insights
-      console.log("🔍 Analyzing optimization opportunities...");
+      console.log("🔍 Getting optimization insights...");
       const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
 
       const optimizationInsights = optimizationResult.insights.map(i => ({
@@ -433,10 +382,8 @@ export const smartCampaignService = {
         impact: i.impact
       }));
 
-      console.log(`✅ Found ${optimizationInsights.length} optimization insights`);
-
-      // Step 11: Success!
-      console.log("🎉 Campaign creation completed successfully!");
+      console.log(`✅ Insights: ${optimizationInsights.length}`);
+      console.log("🎉 CAMPAIGN CREATION COMPLETE!");
 
       return {
         success: true,
@@ -449,7 +396,7 @@ export const smartCampaignService = {
         error: null
       };
     } catch (err) {
-      console.error("💥 Unexpected error in campaign creation:", err);
+      console.error("💥 Unexpected error:", err);
       return { 
         success: false, 
         campaign: null, 
@@ -458,12 +405,11 @@ export const smartCampaignService = {
         estimatedReach: 0, 
         optimizations: [],
         optimizationInsights: [], 
-        error: err instanceof Error ? err.message : "An unexpected error occurred. Please try again." 
+        error: err instanceof Error ? err.message : "Unexpected error" 
       };
     }
   },
 
-  // Batch create campaigns from multiple products
   async createBatchCampaigns(productGroups: Array<{
     urls: string[];
     names?: string[];
@@ -496,14 +442,12 @@ export const smartCampaignService = {
         results.errors.push(result.error || "Unknown error");
       }
 
-      // Rate limiting: wait 500ms between campaigns
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     return results;
   },
 
-  // Get Optimization Insights
   async getOptimizationInsights(campaignId: string): Promise<{
     insights: Array<{ title: string; description: string; impact: string }>;
     error: string | null;
@@ -520,7 +464,6 @@ export const smartCampaignService = {
     };
   },
 
-  // SIMPLIFIED ONE-CLICK SETUP (For UI)
   async quickSetup(params: { 
     productUrl: string; 
     budget?: number;

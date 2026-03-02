@@ -17,7 +17,6 @@ export interface LinkAnalytics {
 }
 
 export const affiliateLinkService = {
-  // Create a new affiliate link with automatic slug generation
   async createLink(data: {
     original_url: string;
     product_name?: string;
@@ -25,14 +24,20 @@ export const affiliateLinkService = {
     commission_rate?: number;
   }): Promise<{ link: AffiliateLink | null; error: string | null }> {
     try {
+      console.log("🔗 Creating affiliate link for:", data.original_url);
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.error("❌ No user authenticated");
         return { link: null, error: "User not authenticated" };
       }
 
-      // Generate unique slug
+      console.log("✅ User:", user.id);
+
       const slug = await this.generateUniqueSlug();
       const cloakedUrl = this.getCloakedUrl(slug);
+
+      console.log("✅ Generated slug:", slug);
 
       const insertData: AffiliateLinkInsert = {
         user_id: user.id,
@@ -43,10 +48,12 @@ export const affiliateLinkService = {
         network: data.network || "direct",
         commission_rate: data.commission_rate || 10,
         clicks: 0,
-        conversions: 0,
-        revenue: 0,
+        conversion_count: 0,
+        commission_earned: 0,
         status: "active"
       };
+
+      console.log("📝 Inserting link:", insertData.product_name);
 
       const { data: link, error } = await supabase
         .from("affiliate_links")
@@ -55,19 +62,18 @@ export const affiliateLinkService = {
         .single();
 
       if (error) {
-        console.error("Error creating link:", error);
+        console.error("❌ Link creation error:", error);
         return { link: null, error: error.message };
       }
 
-      console.log("Link created successfully:", link);
+      console.log("✅ Link created successfully:", link.id);
       return { link, error: null };
     } catch (err) {
-      console.error("Unexpected error:", err);
+      console.error("💥 Link creation exception:", err);
       return { link: null, error: "Failed to create link" };
     }
   },
 
-  // Batch create multiple links at once
   async createBatchLinks(urls: Array<{
     original_url: string;
     product_name?: string;
@@ -91,14 +97,12 @@ export const affiliateLinkService = {
         errors.push(result.error || "Unknown error");
       }
       
-      // Rate limiting: 100ms delay between creates
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     return { links, errors, successCount };
   },
 
-  // Get all links for current user with enhanced filtering
   async getUserLinks(filters?: {
     status?: "active" | "paused" | "archived";
     network?: string;
@@ -126,7 +130,7 @@ export const affiliateLinkService = {
         query = query.gte("clicks", filters.minClicks);
       }
       if (filters?.minRevenue !== undefined) {
-        query = query.gte("revenue", filters.minRevenue);
+        query = query.gte("commission_earned", filters.minRevenue);
       }
 
       query = query.order("created_at", { ascending: false });
@@ -145,19 +149,14 @@ export const affiliateLinkService = {
     }
   },
 
-  // Track a click on an affiliate link with advanced metadata
   async trackClick(slug: string, metadata?: {
     ip_address?: string;
     user_agent?: string;
     referrer?: string;
     country?: string;
     device_type?: string;
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
   }): Promise<{ success: boolean; redirect_url: string | null; linkId: string | null }> {
     try {
-      // Get the link by slug
       const { data: link, error: linkError } = await supabase
         .from("affiliate_links")
         .select("*")
@@ -170,7 +169,6 @@ export const affiliateLinkService = {
         return { success: false, redirect_url: null, linkId: null };
       }
 
-      // Record click event with enhanced metadata
       const { error: clickError } = await supabase
         .from("click_events")
         .insert({
@@ -186,7 +184,6 @@ export const affiliateLinkService = {
         console.error("Error tracking click:", clickError);
       }
 
-      // Increment click count on link
       await supabase
         .from("affiliate_links")
         .update({ clicks: (link.clicks || 0) + 1 })
@@ -199,12 +196,7 @@ export const affiliateLinkService = {
     }
   },
 
-  // Track conversion with revenue
-  async trackConversion(linkId: string, revenue: number, metadata?: {
-    order_id?: string;
-    product_name?: string;
-    quantity?: number;
-  }): Promise<{ success: boolean; error: string | null }> {
+  async trackConversion(linkId: string, revenue: number): Promise<{ success: boolean; error: string | null }> {
     try {
       const { data: link } = await supabase
         .from("affiliate_links")
@@ -216,16 +208,14 @@ export const affiliateLinkService = {
         return { success: false, error: "Link not found" };
       }
 
-      // Update link metrics
       await supabase
         .from("affiliate_links")
         .update({
-          conversions: (link.conversions || 0) + 1,
-          revenue: (link.revenue || 0) + revenue
+          conversion_count: (link.conversion_count || 0) + 1,
+          commission_earned: (link.commission_earned || 0) + revenue
         })
         .eq("id", linkId);
 
-      // Update the click event that led to conversion
       const { data: recentClick } = await supabase
         .from("click_events")
         .select("*")
@@ -247,7 +237,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Get detailed analytics for a link
   async getLinkAnalytics(linkId: string): Promise<LinkAnalytics | null> {
     try {
       const { data: link } = await supabase
@@ -266,13 +255,12 @@ export const affiliateLinkService = {
 
       const clicksArray = clicks || [];
       const conversionRate = link.clicks > 0 
-        ? ((link.conversions || 0) / link.clicks) * 100 
+        ? ((link.conversion_count || 0) / link.clicks) * 100 
         : 0;
-      const avgOrderValue = (link.conversions || 0) > 0 
-        ? (link.revenue || 0) / (link.conversions || 0) 
+      const avgOrderValue = (link.conversion_count || 0) > 0 
+        ? (link.commission_earned || 0) / (link.conversion_count || 0) 
         : 0;
 
-      // Top countries
       const countryMap = new Map<string, number>();
       clicksArray.forEach(click => {
         if (click.country) {
@@ -284,7 +272,6 @@ export const affiliateLinkService = {
         .sort((a, b) => b.clicks - a.clicks)
         .slice(0, 5);
 
-      // Top devices
       const deviceMap = new Map<string, number>();
       clicksArray.forEach(click => {
         if (click.device_type) {
@@ -295,7 +282,6 @@ export const affiliateLinkService = {
         .map(([device, clicks]) => ({ device, clicks }))
         .sort((a, b) => b.clicks - a.clicks);
 
-      // Hourly data (last 24 hours)
       const hourlyMap = new Map<string, number>();
       const now = new Date();
       for (let i = 23; i >= 0; i--) {
@@ -317,8 +303,8 @@ export const affiliateLinkService = {
       return {
         linkId: link.id,
         clicks: link.clicks || 0,
-        conversions: link.conversions || 0,
-        revenue: link.revenue || 0,
+        conversions: link.conversion_count || 0,
+        revenue: link.commission_earned || 0,
         conversionRate,
         avgOrderValue,
         topCountries,
@@ -331,7 +317,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Update link status
   async toggleLinkStatus(linkId: string, status: "active" | "paused" | "archived"): Promise<{ success: boolean; error: string | null }> {
     try {
       const { error } = await supabase
@@ -349,7 +334,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Bulk update link status
   async bulkUpdateStatus(linkIds: string[], status: "active" | "paused" | "archived"): Promise<{
     success: boolean;
     updated: number;
@@ -371,7 +355,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Delete a link
   async deleteLink(linkId: string): Promise<{ success: boolean; error: string | null }> {
     try {
       const { error } = await supabase
@@ -389,7 +372,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Bulk delete links
   async bulkDeleteLinks(linkIds: string[]): Promise<{
     success: boolean;
     deleted: number;
@@ -411,7 +393,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Generate unique slug with collision detection
   async generateUniqueSlug(length: number = 8, attempts: number = 0): Promise<string> {
     if (attempts > 10) {
       throw new Error("Failed to generate unique slug");
@@ -419,7 +400,6 @@ export const affiliateLinkService = {
 
     const slug = this.generateSlug(length);
     
-    // Check if slug already exists
     const { data } = await supabase
       .from("affiliate_links")
       .select("slug")
@@ -427,14 +407,12 @@ export const affiliateLinkService = {
       .single();
 
     if (data) {
-      // Slug collision, try again with longer length
       return this.generateUniqueSlug(length + 1, attempts + 1);
     }
 
     return slug;
   },
 
-  // Generate random slug for short URL
   generateSlug(length: number = 8): string {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let slug = "";
@@ -444,7 +422,6 @@ export const affiliateLinkService = {
     return slug;
   },
 
-  // Extract product name from URL
   extractProductName(url: string): string {
     try {
       const urlObj = new URL(url);
@@ -456,13 +433,12 @@ export const affiliateLinkService = {
         .split(" ")
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ")
-        .slice(0, 50); // Limit to 50 chars
+        .slice(0, 50);
     } catch {
       return "Product";
     }
   },
 
-  // Detect device type from user agent
   detectDeviceType(userAgent?: string): string {
     if (!userAgent) return "unknown";
     
@@ -476,7 +452,6 @@ export const affiliateLinkService = {
     }
   },
 
-  // Get cloaked URL for display
   getCloakedUrl(slug: string): string {
     if (typeof window !== "undefined") {
       return `${window.location.origin}/go/${slug}`;
@@ -484,7 +459,6 @@ export const affiliateLinkService = {
     return `https://salemakseb.com/go/${slug}`;
   },
 
-  // Get top performing links
   async getTopPerformingLinks(limit: number = 10): Promise<{
     links: AffiliateLink[];
     error: string | null;
@@ -500,7 +474,7 @@ export const affiliateLinkService = {
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "active")
-        .order("revenue", { ascending: false })
+        .order("commission_earned", { ascending: false })
         .limit(limit);
 
       if (error) {
