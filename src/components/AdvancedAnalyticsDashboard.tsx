@@ -12,10 +12,8 @@ import {
   ShoppingCart,
   Target,
   Users,
-  BarChart3,
-  Radio,
   ExternalLink,
-  Zap
+  Radio
 } from "lucide-react";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +38,10 @@ export function AdvancedAnalyticsDashboard() {
   const loadAllData = async () => {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       // Load analytics snapshot
       const snapshot = await realTimeAnalytics.getPerformanceSnapshot();
@@ -48,7 +49,7 @@ export function AdvancedAnalyticsDashboard() {
 
       // Load product performance
       const productPerf = await realTimeAnalytics.getProductPerformance();
-      setProducts(productPerf);
+      setProducts(productPerf || []);
 
       // Load all affiliate links with full details
       const { data: linksData } = await supabase
@@ -98,7 +99,12 @@ export function AdvancedAnalyticsDashboard() {
     }
   };
 
-  if (loading || !analytics) {
+  // Safe access helper function with default values
+  const safeNumber = (value: any, defaultValue: number = 0): number => {
+    return typeof value === 'number' && !isNaN(value) ? value : defaultValue;
+  };
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
         <div className="text-center space-y-4">
@@ -108,6 +114,16 @@ export function AdvancedAnalyticsDashboard() {
       </div>
     );
   }
+
+  // Ensure analytics has default values
+  const analyticsData = {
+    clicks: safeNumber(analytics?.clicks),
+    conversions: safeNumber(analytics?.conversions),
+    revenue: safeNumber(analytics?.revenue),
+    commissions: safeNumber(analytics?.commissions),
+    conversionRate: safeNumber(analytics?.conversionRate),
+    averageOrderValue: safeNumber(analytics?.averageOrderValue)
+  };
 
   return (
     <div className="space-y-6">
@@ -131,7 +147,7 @@ export function AdvancedAnalyticsDashboard() {
             <MousePointerClick className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.clicks.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{analyticsData.clicks.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               From {links.length} active links
             </p>
@@ -144,9 +160,9 @@ export function AdvancedAnalyticsDashboard() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.conversions.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{analyticsData.conversions.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {analytics.conversionRate.toFixed(2)}% conversion rate
+              {analyticsData.conversionRate.toFixed(2)}% conversion rate
             </p>
           </CardContent>
         </Card>
@@ -157,9 +173,9 @@ export function AdvancedAnalyticsDashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${analytics.revenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">${analyticsData.revenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">
-              ${analytics.averageOrderValue.toFixed(2)} avg order value
+              ${analyticsData.averageOrderValue.toFixed(2)} avg order value
             </p>
           </CardContent>
         </Card>
@@ -170,7 +186,7 @@ export function AdvancedAnalyticsDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">${analytics.commissions.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-green-600">${analyticsData.commissions.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">
               {recentConversions.length} pending payments
             </p>
@@ -215,23 +231,23 @@ export function AdvancedAnalyticsDashboard() {
                   </TableHeader>
                   <TableBody>
                     {products.map((product) => (
-                      <TableRow key={product.productId}>
-                        <TableCell className="font-medium">{product.productName}</TableCell>
-                        <TableCell className="text-right">{product.clicks.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{product.conversions.toLocaleString()}</TableCell>
+                      <TableRow key={product.productId || Math.random()}>
+                        <TableCell className="font-medium">{product.productName || "Unknown"}</TableCell>
+                        <TableCell className="text-right">{safeNumber(product.clicks).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{safeNumber(product.conversions).toLocaleString()}</TableCell>
                         <TableCell className="text-right">
-                          <Badge variant={product.conversionRate > 5 ? "default" : "secondary"}>
-                            {product.conversionRate.toFixed(1)}%
+                          <Badge variant={safeNumber(product.conversionRate) > 5 ? "default" : "secondary"}>
+                            {safeNumber(product.conversionRate).toFixed(1)}%
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          ${product.revenue.toFixed(2)}
+                          ${safeNumber(product.revenue).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right text-green-600 font-semibold">
-                          ${product.commission.toFixed(2)}
+                          ${safeNumber(product.commission).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge variant="outline">{product.roi.toFixed(0)}%</Badge>
+                          <Badge variant="outline">{safeNumber(product.roi).toFixed(0)}%</Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -286,14 +302,14 @@ export function AdvancedAnalyticsDashboard() {
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </TableCell>
-                        <TableCell className="text-right">{link.clicks || 0}</TableCell>
-                        <TableCell className="text-right">{link.conversions || 0}</TableCell>
+                        <TableCell className="text-right">{safeNumber(link.clicks)}</TableCell>
+                        <TableCell className="text-right">{safeNumber(link.conversions)}</TableCell>
                         <TableCell className="text-right font-semibold">
-                          ${(link.revenue || 0).toFixed(2)}
+                          ${safeNumber(link.revenue).toFixed(2)}
                         </TableCell>
                         <TableCell>
                           <Badge variant={link.status === "active" ? "default" : "secondary"}>
-                            {link.status}
+                            {link.status || "unknown"}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -333,29 +349,29 @@ export function AdvancedAnalyticsDashboard() {
                   </TableHeader>
                   <TableBody>
                     {trafficSources.map((source) => {
-                      const convRate = source.total_clicks > 0 
-                        ? ((source.total_conversions || 0) / source.total_clicks) * 100 
-                        : 0;
+                      const totalClicks = safeNumber(source.total_clicks);
+                      const totalConversions = safeNumber(source.total_conversions);
+                      const convRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
                       
                       return (
                         <TableRow key={source.id}>
-                          <TableCell className="font-medium">{source.source_name}</TableCell>
+                          <TableCell className="font-medium">{source.source_name || "Unknown"}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{source.source_type}</Badge>
+                            <Badge variant="outline">{source.source_type || "unknown"}</Badge>
                           </TableCell>
-                          <TableCell className="text-right">{source.total_clicks || 0}</TableCell>
-                          <TableCell className="text-right">{source.total_conversions || 0}</TableCell>
+                          <TableCell className="text-right">{totalClicks}</TableCell>
+                          <TableCell className="text-right">{totalConversions}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={convRate > 3 ? "default" : "secondary"}>
                               {convRate.toFixed(1)}%
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            ${(source.total_spend || 0).toFixed(2)}
+                            ${safeNumber(source.total_spend).toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Badge variant={source.status === "active" ? "default" : "secondary"}>
-                              {source.status}
+                              {source.status || "unknown"}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -395,9 +411,9 @@ export function AdvancedAnalyticsDashboard() {
                   </TableHeader>
                   <TableBody>
                     {recentConversions.map((conv) => {
-                      const commissionRate = conv.sale_amount > 0 
-                        ? (conv.amount / conv.sale_amount) * 100 
-                        : 0;
+                      const saleAmount = safeNumber(conv.sale_amount);
+                      const commissionAmount = safeNumber(conv.amount);
+                      const commissionRate = saleAmount > 0 ? (commissionAmount / saleAmount) * 100 : 0;
                       
                       return (
                         <TableRow key={conv.id}>
@@ -408,10 +424,10 @@ export function AdvancedAnalyticsDashboard() {
                             {conv.affiliate_links?.product_name || "Unknown Product"}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            ${(conv.sale_amount || 0).toFixed(2)}
+                            ${saleAmount.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right text-green-600 font-bold">
-                            ${(conv.amount || 0).toFixed(2)}
+                            ${commissionAmount.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant="outline">{commissionRate.toFixed(0)}%</Badge>
@@ -424,7 +440,7 @@ export function AdvancedAnalyticsDashboard() {
                                 "outline"
                               }
                             >
-                              {conv.status}
+                              {conv.status || "pending"}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -447,16 +463,17 @@ export function AdvancedAnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {trafficSources.slice(0, 5).map((source, index) => {
-                const totalTraffic = trafficSources.reduce((sum, s) => sum + (s.total_clicks || 0), 0);
-                const percentage = totalTraffic > 0 ? ((source.total_clicks || 0) / totalTraffic) * 100 : 0;
+              {trafficSources.slice(0, 5).map((source) => {
+                const totalTraffic = trafficSources.reduce((sum, s) => sum + safeNumber(s.total_clicks), 0);
+                const sourceClicks = safeNumber(source.total_clicks);
+                const percentage = totalTraffic > 0 ? (sourceClicks / totalTraffic) * 100 : 0;
                 
                 return (
                   <div key={source.id} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{source.source_name}</span>
+                      <span className="font-medium">{source.source_name || "Unknown"}</span>
                       <span className="text-muted-foreground">
-                        {source.total_clicks || 0} clicks ({percentage.toFixed(1)}%)
+                        {sourceClicks} clicks ({percentage.toFixed(1)}%)
                       </span>
                     </div>
                     <Progress value={percentage} className="h-2" />
