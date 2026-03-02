@@ -230,14 +230,14 @@ export const smartLinkRouter = {
 
     // Update link counters (only for non-bot traffic)
     if (!isBot || fraudScore < 0.7) {
-      await supabase
-        .from("affiliate_links")
-        .update({
-          click_count: supabase.raw("click_count + 1"),
-          clicks: supabase.raw("clicks + 1"),
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", linkId);
+      // Use RPC for atomic increment to prevent race conditions
+      const { error } = await supabase.rpc('increment_link_clicks', { 
+        link_uuid: linkId 
+      });
+
+      if (error) {
+        console.error("⚠️ Failed to increment clicks:", error);
+      }
     } else {
       console.log("🤖 Bot detected, not counting click");
     }
@@ -280,15 +280,11 @@ export const smartLinkRouter = {
 
       const isWorking = response.ok;
 
-      // Update link health status
-      await supabase
-        .from("affiliate_links")
-        .update({
-          last_checked_at: new Date().toISOString(),
-          is_working: isWorking,
-          check_failures: isWorking ? 0 : supabase.raw("check_failures + 1")
-        })
-        .eq("id", linkId);
+      // Update link health status using atomic RPC
+      await supabase.rpc('update_link_health_status', {
+        link_uuid: linkId,
+        is_healthy: isWorking
+      });
 
       return isWorking;
     } catch (error) {

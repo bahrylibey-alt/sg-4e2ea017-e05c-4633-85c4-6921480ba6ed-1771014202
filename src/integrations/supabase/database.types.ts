@@ -1418,7 +1418,12 @@ export type Database = {
       }
     }
     Functions: {
+      increment_link_clicks: { Args: { link_uuid: string }; Returns: undefined }
       refresh_link_performance_summary: { Args: never; Returns: undefined }
+      update_link_health_status: {
+        Args: { is_healthy: boolean; link_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
