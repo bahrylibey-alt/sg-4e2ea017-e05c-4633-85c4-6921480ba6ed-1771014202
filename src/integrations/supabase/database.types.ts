@@ -1097,6 +1097,7 @@ export type Database = {
       }
       traffic_sources: {
         Row: {
+          automation_enabled: boolean | null
           campaign_id: string
           conversion_rate: number | null
           cpc: number | null
@@ -1114,6 +1115,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          automation_enabled?: boolean | null
           campaign_id: string
           conversion_rate?: number | null
           cpc?: number | null
@@ -1131,6 +1133,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          automation_enabled?: boolean | null
           campaign_id?: string
           conversion_rate?: number | null
           cpc?: number | null

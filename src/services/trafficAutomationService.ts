@@ -153,7 +153,8 @@ export const trafficAutomationService = {
         total_revenue: 0,
         cpc: sourceConfig.base_cpc,
         ctr: 0,
-        conversion_rate: 0
+        conversion_rate: 0,
+        automation_enabled: config.autoActivate || false
       }));
 
       console.log("💾 Creating traffic source records...");
