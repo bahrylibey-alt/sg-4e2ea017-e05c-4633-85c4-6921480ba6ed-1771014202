@@ -126,7 +126,11 @@ export function OneClickAutopilot() {
         // Launch new campaign
         // 1. Setup products/links first
         setLaunchStep("Syncing product catalog...");
-        await affiliateIntegrationService.setupCompleteSystem(user.id);
+        await affiliateIntegrationService.setupCompleteSystem({
+          autoAddProducts: true,
+          autoGenerateLinks: true,
+          autoTrackConversions: true
+        });
         
         // 2. Launch engine
         setLaunchStep("Activating autopilot engine...");
