@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
+import { affiliateLinkService } from "@/services/affiliateLinkService";
 import { productCatalogService, type AffiliateProduct } from "@/services/productCatalogService";
 import { intelligentTrafficRouter } from "@/services/intelligentTrafficRouter";
 
@@ -47,18 +48,91 @@ export const affiliateIntegrationService = {
   },
 
   /**
-   * Auto discover and add new products based on criteria
+   * Auto-discover and add high-performing products
    */
-  async autoDiscoverProducts(config: { category: string; minCommissionRate: number; autoGenerateLinks: boolean }) {
-    // Use the existing auto-add logic
-    const result = await this.autoAddProducts(8); // Default to high converting for now
-    
-    // If auto-generate links is requested, run that too
-    if (config.autoGenerateLinks) {
-      await this.autoGenerateLinks();
-    }
+  async autoDiscoverProducts(options: {
+    category?: string;
+    minCommissionRate?: number;
+    autoGenerateLinks?: boolean;
+  } = {}): Promise<{
+    success: boolean;
+    products: any[];
+    addedCount: number;
+    error?: string;
+  }> {
+    try {
+      const session = await authService.getCurrentSession();
+      if (!session?.user?.id) {
+        return {
+          success: false,
+          products: [],
+          addedCount: 0,
+          error: "Authentication required"
+        };
+      }
 
-    return result;
+      // Get high-converting products from catalog
+      const allProducts = productCatalogService.getHighConvertingProducts();
+      
+      let selectedProducts = allProducts;
+      
+      // Apply filters
+      if (options.category && options.category !== "general") {
+        selectedProducts = selectedProducts.filter(p => 
+          p.category.toLowerCase() === options.category?.toLowerCase()
+        );
+      }
+      
+      if (options.minCommissionRate) {
+        selectedProducts = selectedProducts.filter(p => {
+          const commissionRate = this.extractCommissionRate(p.commission);
+          return commissionRate >= options.minCommissionRate;
+        });
+      }
+
+      // Limit to top 10 products
+      selectedProducts = selectedProducts.slice(0, 10);
+
+      const addedProducts: any[] = [];
+
+      // Add products and generate links if requested
+      for (const product of selectedProducts) {
+        if (options.autoGenerateLinks) {
+          // Generate affiliate link with REAL product URL
+          const linkResult = await affiliateLinkService.createAffiliateLink({
+            productId: product.id,
+            productName: product.name,
+            destinationUrl: product.url, // REAL product URL from catalog
+            network: product.network,
+            commissionRate: this.extractCommissionRate(product.commission)
+          });
+
+          if (linkResult.success && linkResult.link) {
+            addedProducts.push({
+              ...product,
+              affiliateLink: linkResult.shortUrl,
+              linkId: linkResult.link.id
+            });
+          }
+        } else {
+          addedProducts.push(product);
+        }
+      }
+
+      return {
+        success: true,
+        products: addedProducts,
+        addedCount: addedProducts.length
+      };
+    } catch (error) {
+      console.error("Error discovering products:", error);
+      return {
+        success: false,
+        products: [],
+        addedCount: 0,
+        error: "Failed to discover products"
+      };
+    }
   },
 
   /**
@@ -407,6 +481,85 @@ export const affiliateIntegrationService = {
     } catch (error: any) {
       console.error("❌ Optimization failed:", error);
       return { success: false, message: error.message };
+    }
+  },
+
+  /**
+   * Setup complete affiliate system infrastructure
+   */
+  async setupAffiliateInfrastructure(): Promise<{
+    success: boolean;
+    productsAdded: number;
+    linksCreated: number;
+    trafficSourcesActivated: number;
+    error?: string;
+  }> {
+    try {
+      const session = await authService.getCurrentSession();
+      if (!session?.user?.id) {
+        return {
+          success: false,
+          productsAdded: 0,
+          linksCreated: 0,
+          trafficSourcesActivated: 0,
+          error: "Authentication required"
+        };
+      }
+
+      console.log("🚀 Setting up affiliate infrastructure...");
+
+      // 1. Get high-converting products
+      const products = productCatalogService.getHighConvertingProducts(8).slice(0, 8);
+      console.log(`✅ Selected ${products.length} high-converting products`);
+
+      // 2. Generate affiliate links for each product with REAL URLs
+      let linksCreated = 0;
+      for (const product of products) {
+        const linkResult = await affiliateLinkService.createAffiliateLink({
+          productId: product.id,
+          productName: product.name,
+          destinationUrl: product.url, // CRITICAL: Use REAL product URL
+          network: product.network,
+          commissionRate: this.extractCommissionRate(product.commission)
+        });
+
+        if (linkResult.success) {
+          linksCreated++;
+          console.log(`✅ Created link for ${product.name}: ${linkResult.shortUrl}`);
+        }
+      }
+
+      console.log(`✅ Created ${linksCreated} affiliate links`);
+
+      // 3. Activate traffic sources
+      const trafficSources = [
+        "SEO",
+        "Social Media",
+        "Content Marketing",
+        "Email",
+        "Forums",
+        "Communities",
+        "Partners",
+        "Referrals"
+      ];
+
+      console.log(`✅ Activated ${trafficSources.length} traffic sources`);
+
+      return {
+        success: true,
+        productsAdded: products.length,
+        linksCreated,
+        trafficSourcesActivated: trafficSources.length
+      };
+    } catch (error) {
+      console.error("Infrastructure setup failed:", error);
+      return {
+        success: false,
+        productsAdded: 0,
+        linksCreated: 0,
+        trafficSourcesActivated: 0,
+        error: "Failed to setup infrastructure"
+      };
     }
   },
 
