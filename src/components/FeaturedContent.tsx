@@ -1,136 +1,135 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, ArrowUpRight } from "lucide-react";
+import { TrendingUp, Target, DollarSign, Users, Clock, Star } from "lucide-react";
 
-const featuredArticles = [
+const featuredOffers = [
   {
     id: 1,
-    title: "The Ancient Coffee Ceremony",
-    description: "Discover the sacred Ethiopian coffee ceremony, a ritual that brings communities together for centuries.",
-    category: "Traditions",
-    author: "Abebe Kebede",
-    date: "Feb 10, 2026",
-    image: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=800&auto=format&fit=crop",
-    readTime: "5 min read"
+    title: "High-Converting Tech Products",
+    description: "Premium electronics and gadgets with commission rates up to 8% from Amazon Associates and Best Buy.",
+    category: "Electronics",
+    commission: "5-8%",
+    icon: <TrendingUp className="w-5 h-5" />,
+    trending: true,
   },
   {
     id: 2,
-    title: "Ethiopian Orthodox Christianity",
-    description: "Explore the deep spiritual traditions and unique practices of one of the oldest Christian denominations.",
-    category: "Religion",
-    author: "Rahel Tesfaye",
-    date: "Feb 9, 2026",
-    image: "https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&auto=format&fit=crop",
-    readTime: "7 min read"
+    title: "Health & Wellness Supplements",
+    description: "Top-performing health products with recurring commissions from ClickBank and Commission Junction.",
+    category: "Health",
+    commission: "30-50%",
+    icon: <Target className="w-5 h-5" />,
+    trending: true,
   },
   {
     id: 3,
-    title: "Traditional Ethiopian Cuisine",
-    description: "From injera to doro wat, experience the rich flavors and stories behind Ethiopia's beloved dishes.",
-    category: "Food",
-    author: "Mulugeta Alemu",
-    date: "Feb 8, 2026",
-    image: "https://images.unsplash.com/photo-1604567290864-512f0dba4c3e?w=800&auto=format&fit=crop",
-    readTime: "6 min read"
+    title: "Financial Services & Tools",
+    description: "High-ticket affiliate programs for credit cards, investment platforms, and financial education.",
+    category: "Finance",
+    commission: "$50-$500 CPA",
+    icon: <DollarSign className="w-5 h-5" />,
+    trending: false,
   },
   {
     id: 4,
-    title: "The Legend of Queen Sheba",
-    description: "Uncover the fascinating tale of the Queen of Sheba and her journey to King Solomon.",
-    category: "History",
-    author: "Selam Desta",
-    date: "Feb 7, 2026",
-    image: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop",
-    readTime: "8 min read"
+    title: "SaaS & Software Tools",
+    description: "Recurring commission programs for business software, productivity tools, and cloud services.",
+    category: "Software",
+    commission: "20-30% recurring",
+    icon: <Users className="w-5 h-5" />,
+    trending: true,
   },
   {
     id: 5,
-    title: "Ethiopian Music & Dance",
-    description: "Experience the vibrant rhythms and movements that define Ethiopian cultural expression.",
-    category: "Arts",
-    author: "Dawit Bekele",
-    date: "Feb 6, 2026",
-    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&auto=format&fit=crop",
-    readTime: "5 min read"
+    title: "Fashion & Lifestyle Products",
+    description: "Trending fashion items, accessories, and lifestyle products from major retailers and boutique brands.",
+    category: "Fashion",
+    commission: "10-15%",
+    icon: <Star className="w-5 h-5" />,
+    trending: false,
   },
   {
     id: 6,
-    title: "Ancient Rock Churches of Lalibela",
-    description: "Marvel at the architectural wonders carved from solid rock centuries ago.",
-    category: "Architecture",
-    author: "Hanna Girma",
-    date: "Feb 5, 2026",
-    image: "https://images.unsplash.com/photo-1555840280-c372ae5d57e6?w=800&auto=format&fit=crop",
-    readTime: "9 min read"
-  }
+    title: "Online Courses & Education",
+    description: "High-converting educational products and courses with generous affiliate payouts from platforms like Udemy and Teachable.",
+    category: "Education",
+    commission: "20-50%",
+    icon: <Clock className="w-5 h-5" />,
+    trending: true,
+  },
 ];
 
 export function FeaturedContent() {
   return (
-    <section className="py-20 px-6 bg-background">
-      <div className="container">
-        {/* Section header */}
-        <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-          <Badge variant="outline" className="text-primary border-primary/30">
-            Featured Stories
+    <section className="py-20 bg-gradient-to-b from-background to-muted/20" data-section="features">
+      <div className="container px-6">
+        <div className="text-center mb-12">
+          <Badge className="mb-4" variant="secondary">
+            Featured Opportunities
           </Badge>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground">
-            Explore Our <span className="text-primary">Latest</span> Articles
+          <h2 className="text-4xl font-bold mb-4">
+            Top Performing Affiliate Niches
           </h2>
-          <p className="text-lg text-muted-foreground">
-            Dive into captivating stories about Ethiopian culture, history, and traditions
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Discover high-converting affiliate programs across multiple niches with proven ROI
           </p>
         </div>
 
-        {/* Articles grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredArticles.map((article, index) => (
-            <Card 
-              key={article.id} 
-              className="group overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer border-border/50 hover:border-primary/30"
-              style={{ animationDelay: `${index * 100}ms` }}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {featuredOffers.map((offer) => (
+            <Card
+              key={offer.id}
+              className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 relative overflow-hidden"
             >
-              {/* Image */}
-              <div className="relative h-56 overflow-hidden bg-muted">
-                <img 
-                  src={article.image} 
-                  alt={article.title}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <Badge className="absolute top-4 left-4 bg-primary text-primary-foreground">
-                  {article.category}
-                </Badge>
-              </div>
-
-              <CardHeader className="space-y-3">
-                <CardTitle className="text-xl group-hover:text-primary transition-colors line-clamp-2">
-                  {article.title}
-                  <ArrowUpRight className="inline-block ml-2 w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {article.description}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <User className="w-4 h-4" />
-                      <span>{article.author}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{article.date}</span>
-                    </div>
-                  </div>
-                  <span className="text-primary font-medium">{article.readTime}</span>
+              {offer.trending && (
+                <div className="absolute top-4 right-4">
+                  <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                    🔥 Trending
+                  </Badge>
                 </div>
+              )}
+              <CardHeader>
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  {offer.icon}
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="outline">{offer.category}</Badge>
+                  <Badge variant="secondary" className="font-semibold">
+                    {offer.commission}
+                  </Badge>
+                </div>
+                <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                  {offer.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-sm leading-relaxed">
+                  {offer.description}
+                </CardDescription>
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        <div className="mt-12 text-center">
+          <p className="text-sm text-muted-foreground mb-4">
+            All offers are curated and verified for quality and conversion rates
+          </p>
+          <div className="flex items-center justify-center gap-8 text-sm">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-green-600" />
+              <span>High Conversion Rates</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-blue-600" />
+              <span>Verified Programs</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-purple-600" />
+              <span>Competitive Payouts</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
