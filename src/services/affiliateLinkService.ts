@@ -31,6 +31,14 @@ export const affiliateLinkService = {
   },
 
   /**
+   * Generate a unique slug for a product (Helper method)
+   */
+  generateUniqueSlug(productName: string): string {
+    const shortCode = this.generateShortCode();
+    return `${productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)}-${shortCode}`;
+  },
+
+  /**
    * Create a new affiliate link (MAIN METHOD - Used by UI components)
    */
   async createAffiliateLink(params: {

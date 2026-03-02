@@ -327,7 +327,7 @@ export const affiliateIntegrationService = {
       if (links) {
         for (const link of links) {
           const shortCode = affiliateLinkService.generateShortCode();
-          const slug = link.slug || (await affiliateLinkService.generateUniqueSlug());
+          const slug = link.slug || affiliateLinkService.generateUniqueSlug(link.product_name || "product");
           
           const { error } = await supabase
             .from("affiliate_links")
