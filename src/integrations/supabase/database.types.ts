@@ -159,6 +159,7 @@ export type Database = {
       }
       affiliate_links: {
         Row: {
+          check_failures: number | null
           click_count: number | null
           clicks: number | null
           cloaked_url: string
@@ -168,6 +169,8 @@ export type Database = {
           conversions: number | null
           created_at: string | null
           id: string
+          is_working: boolean | null
+          last_checked_at: string | null
           network: string | null
           original_url: string
           product_id: string | null
@@ -180,6 +183,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          check_failures?: number | null
           click_count?: number | null
           clicks?: number | null
           cloaked_url: string
@@ -189,6 +193,8 @@ export type Database = {
           conversions?: number | null
           created_at?: string | null
           id?: string
+          is_working?: boolean | null
+          last_checked_at?: string | null
           network?: string | null
           original_url: string
           product_id?: string | null
@@ -201,6 +207,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          check_failures?: number | null
           click_count?: number | null
           clicks?: number | null
           cloaked_url?: string
@@ -210,6 +217,8 @@ export type Database = {
           conversions?: number | null
           created_at?: string | null
           id?: string
+          is_working?: boolean | null
+          last_checked_at?: string | null
           network?: string | null
           original_url?: string
           product_id?: string | null
@@ -520,8 +529,10 @@ export type Database = {
           converted: boolean | null
           country: string | null
           device_type: string | null
+          fraud_score: number | null
           id: string
           ip_address: string | null
+          is_bot: boolean | null
           link_id: string
           referrer: string | null
           user_agent: string | null
@@ -532,8 +543,10 @@ export type Database = {
           converted?: boolean | null
           country?: string | null
           device_type?: string | null
+          fraud_score?: number | null
           id?: string
           ip_address?: string | null
+          is_bot?: boolean | null
           link_id: string
           referrer?: string | null
           user_agent?: string | null
@@ -544,8 +557,10 @@ export type Database = {
           converted?: boolean | null
           country?: string | null
           device_type?: string | null
+          fraud_score?: number | null
           id?: string
           ip_address?: string | null
+          is_bot?: boolean | null
           link_id?: string
           referrer?: string | null
           user_agent?: string | null
@@ -558,6 +573,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "affiliate_links"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "click_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
           },
           {
             foreignKeyName: "click_events_user_id_fkey"
@@ -631,6 +653,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "affiliate_links"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
           },
           {
             foreignKeyName: "commissions_user_id_fkey"
@@ -814,6 +843,105 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      geo_routing_rules: {
+        Row: {
+          country_code: string
+          created_at: string | null
+          destination_url: string
+          id: string
+          is_active: boolean | null
+          link_id: string
+          priority: number | null
+        }
+        Insert: {
+          country_code: string
+          created_at?: string | null
+          destination_url: string
+          id?: string
+          is_active?: boolean | null
+          link_id: string
+          priority?: number | null
+        }
+        Update: {
+          country_code?: string
+          created_at?: string | null
+          destination_url?: string
+          id?: string
+          is_active?: boolean | null
+          link_id?: string
+          priority?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geo_routing_rules_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geo_routing_rules_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
+          },
+        ]
+      }
+      link_variants: {
+        Row: {
+          clicks: number | null
+          conversions: number | null
+          created_at: string | null
+          destination_url: string
+          id: string
+          is_active: boolean | null
+          parent_link_id: string
+          traffic_percentage: number | null
+          updated_at: string | null
+          variant_name: string
+        }
+        Insert: {
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          destination_url: string
+          id?: string
+          is_active?: boolean | null
+          parent_link_id: string
+          traffic_percentage?: number | null
+          updated_at?: string | null
+          variant_name: string
+        }
+        Update: {
+          clicks?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          destination_url?: string
+          id?: string
+          is_active?: boolean | null
+          parent_link_id?: string
+          traffic_percentage?: number | null
+          updated_at?: string | null
+          variant_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_variants_parent_link_id_fkey"
+            columns: ["parent_link_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "link_variants_parent_link_id_fkey"
+            columns: ["parent_link_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
           },
         ]
       }
@@ -1262,10 +1390,35 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      link_performance_summary: {
+        Row: {
+          click_count: number | null
+          commission_earned: number | null
+          conversion_count: number | null
+          conversion_rate: number | null
+          days_active: number | null
+          last_click_at: string | null
+          link_id: string | null
+          product_name: string | null
+          slug: string | null
+          status: string | null
+          total_conversions: number | null
+          total_events: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      refresh_link_performance_summary: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
