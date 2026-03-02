@@ -30,55 +30,78 @@ export const autopilotEngine = {
   async launchAutopilotCampaign(config: AutopilotConfig) {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) throw new Error("Authentication required");
+      if (!user) {
+        console.error("❌ No authenticated user");
+        throw new Error("Authentication required");
+      }
 
-      console.log("🚀 Launching Autopilot Campaign:", config);
+      console.log("🚀 Launching Autopilot Campaign for user:", user.id);
+      console.log("📋 Config:", config);
 
-      // Ensure user profile exists
-      const { data: profile } = await supabase
+      // Step 1: Ensure user profile exists
+      console.log("📝 Step 1: Checking user profile...");
+      const { data: profile, error: profileCheckError } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!profile) {
-        console.log("📝 Creating user profile...");
-        await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email || null,
-          full_name: null
-        });
+      if (profileCheckError) {
+        console.error("❌ Profile check error:", profileCheckError);
       }
 
-      // Step 0: Setup complete affiliate system first
-      console.log("🔧 Setting up complete affiliate system...");
+      if (!profile) {
+        console.log("📝 Creating user profile...");
+        const { error: profileCreateError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            email: user.email || null,
+            full_name: user.user_metadata?.full_name || null
+          });
+
+        if (profileCreateError) {
+          console.error("❌ Failed to create profile:", profileCreateError);
+          throw new Error(`Profile creation failed: ${profileCreateError.message}`);
+        }
+        console.log("✅ Profile created");
+      } else {
+        console.log("✅ Profile exists");
+      }
+
+      // Step 2: Setup complete affiliate system
+      console.log("🔧 Step 2: Setting up affiliate infrastructure...");
       const systemSetup = await affiliateIntegrationService.setupCompleteSystem({
         autoAddProducts: true,
         autoGenerateLinks: true,
         autoTrackConversions: true,
         autoCalculateCommissions: true,
-        minConversionRate: 8
+        minConversionRate: 5
       });
 
       if (!systemSetup.success) {
-        console.warn("⚠️ System setup had issues:", systemSetup.message);
+        console.error("❌ System setup failed:", systemSetup.message);
+        throw new Error(`System setup failed: ${systemSetup.message}`);
       }
 
-      console.log("✅ Affiliate system ready:", systemSetup.stats);
+      console.log("✅ Affiliate system ready");
+      console.log("📊 Setup stats:", systemSetup.stats);
 
-      // Step 1: Create campaign
+      // Step 3: Create campaign
+      console.log("📋 Step 3: Creating campaign...");
+      const campaignName = `Autopilot Campaign - ${new Date().toLocaleDateString()}`;
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert({
           user_id: user.id,
-          name: `Autopilot Campaign - ${new Date().toLocaleDateString()}`,
+          name: campaignName,
           goal: "sales",
           status: "active",
-          budget: config.budget,
+          budget: config.budget || 0,
           spent: 0,
           revenue: 0,
-          target_audience: config.targetAudience,
-          content_strategy: "AI-generated content with smart traffic routing",
+          target_audience: config.targetAudience || "General Audience",
+          content_strategy: "AI-powered multi-channel traffic automation",
           duration_days: 30,
           start_date: new Date().toISOString(),
           end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -86,28 +109,31 @@ export const autopilotEngine = {
         .select()
         .single();
 
-      if (campaignError || !campaign) {
-        console.error("❌ Campaign creation failed:", campaignError);
-        throw new Error(campaignError?.message || "Failed to create campaign");
+      if (campaignError) {
+        console.error("❌ Campaign creation error:", campaignError);
+        throw new Error(`Campaign creation failed: ${campaignError.message}`);
+      }
+
+      if (!campaign) {
+        console.error("❌ No campaign returned");
+        throw new Error("Campaign creation returned no data");
       }
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 2: Auto-add high-converting products
-      console.log("📦 Auto-adding high-converting products...");
-      const productResult = await affiliateIntegrationService.autoAddProducts();
-      console.log(`✅ Added ${productResult.addedCount} products`);
+      // Step 4: Activate traffic sources
+      console.log("📡 Step 4: Activating traffic sources...");
+      const trafficChannels = config.trafficChannels || ["seo", "social", "content", "email"];
+      const channelBudget = (config.budget || 0) / 30 / trafficChannels.length;
 
-      // Step 3: Activate traffic sources
-      const channelBudget = config.budget / 30 / config.trafficChannels.length;
-      for (const channel of config.trafficChannels) {
+      for (const channel of trafficChannels) {
         try {
-          await supabase
+          const { error: trafficError } = await supabase
             .from("traffic_sources")
             .insert({
               campaign_id: campaign.id,
               source_type: this.mapChannelToType(channel),
-              source_name: channel,
+              source_name: channel.toUpperCase(),
               status: "active",
               daily_budget: channelBudget,
               total_clicks: 0,
@@ -115,16 +141,20 @@ export const autopilotEngine = {
               total_spent: 0,
               automation_enabled: true
             });
-          console.log(`📡 Traffic source activated: ${channel}`);
+
+          if (trafficError) {
+            console.warn(`⚠️ Failed to activate ${channel}:`, trafficError);
+          } else {
+            console.log(`✅ Activated traffic source: ${channel}`);
+          }
         } catch (err) {
-          console.warn(`⚠️ Failed to activate ${channel}:`, err);
+          console.warn(`⚠️ Error activating ${channel}:`, err);
         }
       }
 
-      console.log("✅ Traffic sources activated");
-
-      // Step 4: Enable user autopilot settings
-      await supabase
+      // Step 5: Enable autopilot in user settings
+      console.log("⚙️ Step 5: Enabling autopilot settings...");
+      const { error: settingsError } = await supabase
         .from("user_settings")
         .upsert({
           user_id: user.id,
@@ -132,8 +162,15 @@ export const autopilotEngine = {
           updated_at: new Date().toISOString()
         });
 
-      // Step 5: Create initial performance records
-      await supabase
+      if (settingsError) {
+        console.warn("⚠️ Settings update warning:", settingsError);
+      } else {
+        console.log("✅ Autopilot enabled in settings");
+      }
+
+      // Step 6: Create initial performance record
+      console.log("📊 Step 6: Creating performance record...");
+      const { error: perfError } = await supabase
         .from("campaign_performance")
         .insert({
           campaign_id: campaign.id,
@@ -145,26 +182,43 @@ export const autopilotEngine = {
           spent: 0
         });
 
-      // Step 6: Start optimization monitoring
+      if (perfError) {
+        console.warn("⚠️ Performance record warning:", perfError);
+      } else {
+        console.log("✅ Performance tracking initialized");
+      }
+
+      // Step 7: Create optimization insight
+      console.log("🎯 Step 7: Starting optimization monitoring...");
       await this.startOptimizationMonitoring(campaign.id, user.id);
 
-      // Step 7: Start automated traffic optimization
-      console.log("🎯 Starting automated optimization...");
-      await affiliateIntegrationService.optimizeSystem();
+      console.log("🎉 AUTOPILOT LAUNCH COMPLETE!");
+      console.log("📈 Final stats:", {
+        campaignId: campaign.id,
+        products: systemSetup.stats.totalProducts,
+        links: systemSetup.stats.activeLinks,
+        trafficChannels: trafficChannels.length
+      });
 
       return {
         success: true,
         campaign,
-        links: productResult.products,
-        message: `Autopilot activated! ${productResult.addedCount} products configured with ${config.trafficChannels.length} traffic channels. System is now live and monitoring performance.`
+        links: systemSetup.stats.activeLinks,
+        message: `Autopilot activated! ${systemSetup.stats.totalProducts} products configured with ${trafficChannels.length} traffic channels.`
       };
     } catch (error: any) {
-      console.error("💥 Autopilot launch failed:", error);
+      console.error("💥 AUTOPILOT LAUNCH FAILED:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
       return {
         success: false,
         campaign: null,
-        links: [],
-        message: error.message || "Failed to launch autopilot"
+        links: 0,
+        message: error.message || "Failed to launch autopilot - check console for details"
       };
     }
   },

@@ -70,12 +70,15 @@ export function OneClickAutopilot() {
   };
 
   const launchAutopilot = async () => {
+    console.log("🚀 User clicked Launch Autopilot");
     setIsLaunching(true);
     setLaunchStep("Initializing...");
     
     try {
       // Step 1: Setup complete system
       setLaunchStep("Setting up affiliate infrastructure...");
+      console.log("Step 1: Setting up affiliate infrastructure...");
+      
       toast({
         title: "🚀 Launching Autopilot",
         description: "Setting up affiliate infrastructure..."
@@ -89,12 +92,16 @@ export function OneClickAutopilot() {
         minConversionRate: 8
       });
 
+      console.log("Setup result:", setupResult);
+
       if (!setupResult.success) {
         throw new Error(setupResult.message);
       }
 
       // Step 2: Launch autopilot campaign
       setLaunchStep("Activating traffic automation...");
+      console.log("Step 2: Launching autopilot campaign...");
+      
       toast({
         title: "⚡ Activating Automation",
         description: "Launching campaigns and traffic..."
@@ -106,9 +113,12 @@ export function OneClickAutopilot() {
         trafficChannels: ["seo", "social", "content", "email"]
       });
 
+      console.log("Launch result:", launchResult);
+
       if (launchResult.success) {
         setIsActive(true);
         setLaunchStep("Complete!");
+        
         toast({
           title: "✅ Autopilot Active!",
           description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
@@ -116,13 +126,14 @@ export function OneClickAutopilot() {
         
         await loadAutopilotStatus();
       } else {
-        throw new Error("Failed to launch autopilot");
+        throw new Error(launchResult.message || "Failed to launch autopilot");
       }
     } catch (error: any) {
-      console.error("Launch failed:", error);
+      console.error("💥 Launch failed:", error);
+      
       toast({
         title: "❌ Launch Failed",
-        description: error.message || "Please try again",
+        description: error.message || "Please check console for details",
         variant: "destructive"
       });
     } finally {
@@ -251,44 +262,7 @@ export function OneClickAutopilot() {
               <>
                 <Button
                   size="lg"
-                  onClick={async () => {
-                    // Check if there are paused campaigns to resume
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (user) {
-                      const { data: pausedCampaigns } = await supabase
-                        .from("campaigns")
-                        .select("id")
-                        .eq("user_id", user.id)
-                        .eq("status", "paused");
-
-                      if (pausedCampaigns && pausedCampaigns.length > 0) {
-                        // Resume existing campaigns
-                        setIsLaunching(true);
-                        const result = await autopilotEngine.resumeAutopilot();
-                        setIsLaunching(false);
-                        
-                        if (result.success) {
-                          setIsActive(true);
-                          toast({
-                            title: "✅ Autopilot Resumed!",
-                            description: `Resumed ${result.resumedCampaigns} campaigns`
-                          });
-                          await loadAutopilotStatus();
-                        } else {
-                          toast({
-                            title: "❌ Resume Failed",
-                            description: result.message,
-                            variant: "destructive"
-                          });
-                        }
-                      } else {
-                        // Launch new autopilot
-                        launchAutopilot();
-                      }
-                    } else {
-                      launchAutopilot();
-                    }
-                  }}
+                  onClick={launchAutopilot}
                   disabled={isLaunching}
                   className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 >
