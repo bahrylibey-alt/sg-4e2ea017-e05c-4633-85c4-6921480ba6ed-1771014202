@@ -143,6 +143,7 @@ export const affiliateIntegrationService = {
     try {
       const user = await authService.getCurrentUser();
       if (!user) {
+        console.error("❌ No authenticated user");
         return { 
           success: false, 
           message: "Authentication required",
@@ -150,49 +151,64 @@ export const affiliateIntegrationService = {
         };
       }
 
-      console.log("🚀 Setting up complete affiliate system...");
+      console.log("🚀 Setting up complete affiliate system for user:", user.id);
 
       // Step 1: Ensure user profile exists
-      await this.ensureUserProfile(user.id, user.email || null);
+      console.log("Step 1: Checking user profile...");
+      const profileResult = await this.ensureUserProfile(user.id, user.email || null);
+      if (!profileResult.success) {
+        console.error("❌ Failed to ensure profile exists");
+        return {
+          success: false,
+          message: "Failed to create user profile",
+          stats: this.getEmptyStats()
+        };
+      }
+      console.log("✅ Profile verified");
 
       // Step 2: Auto-add high-converting products if enabled
       let addedProducts = 0;
       if (config.autoAddProducts) {
-        const result = await this.autoAddProducts(config.minConversionRate);
+        console.log("Step 2: Auto-adding products...");
+        const result = await this.autoAddProducts(config.minConversionRate || 8);
         addedProducts = result.addedCount;
         console.log(`✅ Added ${addedProducts} high-converting products`);
       }
 
-      // Step 3: Auto-generate affiliate links if enabled
-      let generatedLinks = 0;
-      if (config.autoGenerateLinks) {
-        const result = await this.autoGenerateLinks();
-        generatedLinks = result.generatedCount;
-        console.log(`✅ Generated ${generatedLinks} affiliate links`);
-      }
+      // Step 3: Auto-generate affiliate links if enabled (this is now handled by autoAddProducts)
+      const generatedLinks = addedProducts; // Links are generated when products are added
+      console.log(`✅ Generated ${generatedLinks} affiliate links`);
 
       // Step 4: Setup conversion tracking if enabled
       if (config.autoTrackConversions) {
+        console.log("Step 4: Setting up conversion tracking...");
         await this.setupConversionTracking(user.id);
         console.log("✅ Conversion tracking enabled");
       }
 
       // Step 5: Enable commission calculations if enabled
       if (config.autoCalculateCommissions) {
+        console.log("Step 5: Enabling commission calculations...");
         await this.enableCommissionCalculations(user.id);
         console.log("✅ Commission calculations enabled");
       }
 
       // Get final stats
+      console.log("Step 6: Getting system stats...");
       const stats = await this.getSystemStats();
+      console.log("✅ System stats:", stats);
 
       return {
         success: true,
-        message: `System setup complete! ${addedProducts} products, ${generatedLinks} links active`,
+        message: `System setup complete! ${stats.totalProducts} products, ${stats.activeLinks} links active`,
         stats
       };
     } catch (error: any) {
       console.error("❌ System setup failed:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack
+      });
       return {
         success: false,
         message: error.message || "Setup failed",
@@ -207,30 +223,53 @@ export const affiliateIntegrationService = {
   async autoAddProducts(minConversionRate: number = 8) {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) throw new Error("Authentication required");
+      if (!user) {
+        console.error("❌ No authenticated user");
+        throw new Error("Authentication required");
+      }
 
+      console.log(`📦 Getting high-converting products (min rate: ${minConversionRate}%)...`);
+      
       // Get high-converting products from catalog
       const products = productCatalogService.getHighConvertingProducts(minConversionRate);
       console.log(`📦 Found ${products.length} high-converting products`);
 
+      if (products.length === 0) {
+        console.warn("⚠️ No products found in catalog");
+        return {
+          success: true,
+          addedCount: 0,
+          products: []
+        };
+      }
+
       let addedCount = 0;
+      const addedProducts = [];
 
       for (const product of products) {
         try {
+          console.log(`Processing product: ${product.name}`);
+          
           // Check if product already exists
-          const { data: existing } = await supabase
+          const { data: existing, error: checkError } = await supabase
             .from("affiliate_links")
             .select("id")
             .eq("user_id", user.id)
             .eq("original_url", product.url)
             .maybeSingle();
 
-          if (existing) {
-            console.log(`⏭️  Product already exists: ${product.name}`);
+          if (checkError) {
+            console.error(`❌ Error checking existing link for ${product.name}:`, checkError);
             continue;
           }
 
-          // Use affiliateLinkService to create links instead of direct DB insert
+          if (existing) {
+            console.log(`⏭️ Product already exists: ${product.name}`);
+            continue;
+          }
+
+          // Create affiliate link using the service
+          console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createAffiliateLink({
             productId: product.id,
             productName: product.name,
@@ -241,17 +280,22 @@ export const affiliateIntegrationService = {
 
           if (linkResult.success) {
             addedCount++;
-            console.log(`✅ Added: ${product.name}`);
+            addedProducts.push(product);
+            console.log(`✅ Successfully added: ${product.name}`);
+          } else {
+            console.error(`❌ Failed to create link for ${product.name}:`, linkResult.error);
           }
         } catch (err) {
-          console.warn(`⚠️  Failed to add ${product.name}:`, err);
+          console.error(`❌ Exception processing ${product.name}:`, err);
         }
       }
+
+      console.log(`✅ Auto-add complete: ${addedCount} products added`);
 
       return {
         success: true,
         addedCount,
-        products: products.slice(0, addedCount)
+        products: addedProducts
       };
     } catch (error: any) {
       console.error("❌ Auto-add products failed:", error);
@@ -355,25 +399,48 @@ export const affiliateIntegrationService = {
    */
   async ensureUserProfile(userId: string, email: string | null) {
     try {
-      const { data: existing } = await supabase
+      console.log(`Checking profile for user: ${userId}`);
+      
+      const { data: existing, error: checkError } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", userId)
         .maybeSingle();
 
-      if (!existing) {
-        await supabase.from("profiles").insert({
+      if (checkError) {
+        console.error("❌ Error checking profile:", checkError);
+        // Profile table might not exist or RLS blocking - try to create anyway
+      }
+
+      if (existing) {
+        console.log("✅ User profile already exists");
+        return { success: true };
+      }
+
+      console.log("Creating new user profile...");
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({
           id: userId,
           email,
           full_name: null
         });
-        console.log("✅ User profile created");
+
+      if (insertError) {
+        console.error("❌ Profile creation error:", insertError);
+        // Check if it's a duplicate key error (profile already exists)
+        if (insertError.code === '23505') {
+          console.log("✅ Profile already exists (duplicate key)");
+          return { success: true };
+        }
+        return { success: false, error: insertError.message };
       }
 
+      console.log("✅ User profile created successfully");
       return { success: true };
-    } catch (error) {
-      console.error("❌ Profile creation failed:", error);
-      return { success: false };
+    } catch (error: any) {
+      console.error("❌ Profile creation exception:", error);
+      return { success: false, error: error.message };
     }
   },
 
