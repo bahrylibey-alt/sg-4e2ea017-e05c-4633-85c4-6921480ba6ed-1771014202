@@ -73,15 +73,35 @@ export function OneClickAutopilot() {
         return;
       }
 
-      // Check if autopilot is active
+      // Check if autopilot campaigns are active
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .eq("is_autopilot", true)
+        .eq("status", "active");
+
+      const hasActiveCampaigns = (campaigns?.length || 0) > 0;
+
+      // Check user settings
       const { data: settings } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const autopilotActive = settings?.autopilot_enabled || false;
-      setIsActive(autopilotActive);
+      const settingsEnabled = settings?.autopilot_enabled || false;
+
+      // Autopilot is active if BOTH conditions are true
+      const isAutopilotActive = hasActiveCampaigns && settingsEnabled;
+      
+      console.log("📊 Autopilot Status Check:", {
+        hasActiveCampaigns,
+        settingsEnabled,
+        isAutopilotActive
+      });
+
+      setIsActive(isAutopilotActive);
 
       // Load stats
       const [stats, analytics] = await Promise.all([
@@ -114,40 +134,79 @@ export function OneClickAutopilot() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please log in to launch autopilot");
 
-      // Check status first
-      const status = await autopilotEngine.getAutopilotStatus();
-      
+      console.log("✅ User authenticated:", user.id);
+
+      // Check if there are paused campaigns to resume
+      const { data: pausedCampaigns } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .eq("is_autopilot", true)
+        .eq("status", "paused");
+
+      console.log("📊 Found paused campaigns:", pausedCampaigns?.length || 0);
+
       let result;
-      if (status.hasPausedCampaigns) {
+      
+      if (pausedCampaigns && pausedCampaigns.length > 0) {
         // Resume existing campaigns
+        console.log("▶️ Resuming paused campaigns...");
         setLaunchStep("Resuming paused campaigns...");
+        
         result = await autopilotEngine.resumeAutopilot();
+        console.log("Resume result:", result);
       } else {
         // Launch new campaign
+        console.log("🚀 Launching new autopilot campaign...");
+        
         // 1. Setup products/links first
         setLaunchStep("Syncing product catalog...");
-        await affiliateIntegrationService.setupCompleteSystem({
+        console.log("📦 Setting up complete system...");
+        
+        const setupResult = await affiliateIntegrationService.setupCompleteSystem({
           autoAddProducts: true,
           autoGenerateLinks: true,
           autoTrackConversions: true
         });
         
+        console.log("Setup result:", setupResult);
+        
+        if (!setupResult.success) {
+          throw new Error(setupResult.message || "Failed to setup system");
+        }
+        
         // 2. Launch engine
         setLaunchStep("Activating autopilot engine...");
+        console.log("🎯 Launching autopilot engine...");
+        
         result = await autopilotEngine.launchAutopilot();
+        console.log("Launch result:", result);
       }
 
       if (result.success) {
+        console.log("✅ Autopilot launch successful!");
+        
         toast({
           title: "✅ Autopilot Active",
           description: result.message || "System is running and generating traffic.",
         });
-        await loadAutopilotStatus();
+        
+        // CRITICAL: Wait for database to commit changes
+        console.log("⏳ Waiting for database commit...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Force immediate status refresh
+        console.log("🔄 Refreshing status...");
+        setIsActive(true); // Set state immediately for instant UI feedback
+        await loadAutopilotStatus(); // Then load full stats
+        await loadActivityLogs(); // Refresh logs
+        
+        console.log("✅ Status refresh complete");
       } else {
         throw new Error(result.message);
       }
     } catch (error: any) {
-      console.error("Launch error:", error);
+      console.error("❌ Launch error:", error);
       toast({
         title: "❌ Launch Failed",
         description: error.message || "Could not start autopilot",
@@ -161,8 +220,8 @@ export function OneClickAutopilot() {
 
   const stopAutopilot = async () => {
     try {
+      console.log("⏸️ User clicked Pause Autopilot");
       setIsLaunching(true);
-      await activityLogger.log("pause", "started", "Pausing autopilot system");
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -174,52 +233,69 @@ export function OneClickAutopilot() {
         return;
       }
 
-      // Pause all active campaigns
-      const { error: campaignError } = await supabase
+      console.log("👤 User:", user.id);
+
+      // 1. Pause all active autopilot campaigns
+      console.log("⏸️ Pausing campaigns...");
+      const { data: pausedCampaigns, error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: "paused" })
         .eq("user_id", user.id)
-        .eq("status", "active");
+        .eq("is_autopilot", true)
+        .eq("status", "active")
+        .select();
 
       if (campaignError) {
-        console.error("Failed to pause campaigns:", campaignError);
-      } else {
-        await activityLogger.log("pause", "success", "All campaigns paused");
+        console.error("❌ Failed to pause campaigns:", campaignError);
+        throw new Error(campaignError.message);
       }
 
-      // Disable autopilot in settings
+      console.log(`✅ Paused ${pausedCampaigns?.length || 0} campaigns`);
+
+      // 2. Disable autopilot in settings
+      console.log("⚙️ Updating user settings...");
       const { error: settingsError } = await supabase
         .from("user_settings")
         .upsert({
           user_id: user.id,
           autopilot_enabled: false,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
 
       if (settingsError) {
-        console.error("Failed to update settings:", settingsError);
-      } else {
-        await activityLogger.log("pause", "success", "Autopilot disabled in settings");
+        console.error("❌ Failed to update settings:", settingsError);
+        throw new Error(settingsError.message);
       }
 
+      console.log("✅ Settings updated");
+
+      // CRITICAL: Wait for database to commit changes
+      console.log("⏳ Waiting for database commit...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Update UI state
+      console.log("🔄 Updating UI state...");
       setIsActive(false);
-      await activityLogger.log("pause", "success", "Autopilot system is now PAUSED");
       
       toast({
         title: "⏸️ Autopilot Paused",
         description: "All automated campaigns have been paused"
       });
 
+      console.log("✅ Autopilot paused successfully");
+
+      // Refresh status and logs
       await loadAutopilotStatus();
       await loadActivityLogs();
       
-    } catch (error) {
-      console.error("Failed to stop autopilot:", error);
-      await activityLogger.log("pause", "error", "Failed to pause autopilot");
+    } catch (error: any) {
+      console.error("❌ Failed to stop autopilot:", error);
       
       toast({
         title: "❌ Error",
-        description: "Failed to stop autopilot",
+        description: error.message || "Failed to stop autopilot",
         variant: "destructive"
       });
     } finally {
