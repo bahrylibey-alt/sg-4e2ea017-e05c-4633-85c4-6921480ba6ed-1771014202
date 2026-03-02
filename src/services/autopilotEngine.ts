@@ -13,7 +13,6 @@ export const autopilotEngine = {
    */
   async launchAutopilot(config: AutopilotConfig = {}) {
     console.log("🚀 Starting autopilot launch...");
-    await activityLogger.log("autopilot", "started", "Initializing autopilot system");
 
     try {
       // Step 1: Get authenticated user
@@ -23,18 +22,16 @@ export const autopilotEngine = {
       }
       console.log("✅ User authenticated:", user.email);
 
-      // Step 2: Create main autopilot campaign
+      // Step 2: Create main autopilot campaign with REQUIRED goal field
       const campaignName = config.campaignName || `Autopilot Campaign ${new Date().toLocaleDateString()}`;
       console.log("📝 Creating campaign:", campaignName);
-      
-      await activityLogger.log("autopilot", "info", `Creating campaign: ${campaignName}`);
 
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert({
           user_id: user.id,
           name: campaignName,
-          goal: "sales",  // Required field - default to sales
+          goal: "sales",  // REQUIRED field - use sales as default
           status: "active",
           budget: config.budget || 1000,
           daily_budget: 0,
@@ -50,54 +47,70 @@ export const autopilotEngine = {
       }
 
       console.log("✅ Campaign created:", campaign.id);
-      await activityLogger.log("autopilot", "success", `Campaign created: ${campaign.name}`);
 
-      // Step 3: Activate traffic sources (using correct column names)
+      // Step 3: Activate traffic sources (using correct column names from schema)
       const channels = config.trafficChannels || ["organic", "social", "email", "paid"];
       console.log("🌐 Activating traffic channels:", channels);
-      
-      await activityLogger.log("autopilot", "info", `Activating ${channels.length} traffic channels`);
 
       for (const channel of channels) {
         try {
-          await supabase.from("traffic_sources").insert({
-            campaign_id: campaign.id,
-            source_type: channel,
-            source_name: channel.charAt(0).toUpperCase() + channel.slice(1),
-            status: "active",
-            total_clicks: 0,
-            total_conversions: 0,
-            total_revenue: 0,
-            automation_enabled: true
-          });
-          console.log(`✅ Activated: ${channel}`);
+          const { error: sourceError } = await supabase
+            .from("traffic_sources")
+            .insert({
+              campaign_id: campaign.id,
+              source_type: channel,
+              source_name: channel.charAt(0).toUpperCase() + channel.slice(1),
+              status: "active",
+              total_clicks: 0,
+              total_conversions: 0,
+              total_revenue: 0
+            });
+
+          if (sourceError) {
+            console.warn(`⚠️ Failed to activate ${channel}:`, sourceError);
+          } else {
+            console.log(`✅ Activated: ${channel}`);
+          }
         } catch (err) {
-          console.warn(`⚠️ Failed to activate ${channel}:`, err);
+          console.warn(`⚠️ Exception activating ${channel}:`, err);
         }
       }
 
-      await activityLogger.log("autopilot", "success", `Traffic channels activated: ${channels.join(", ")}`);
-
       // Step 4: Enable autopilot in user settings
       console.log("⚙️ Updating user settings...");
-      
+
       const { error: settingsError } = await supabase
         .from("user_settings")
-        .upsert({
-          user_id: user.id,
-          autopilot_enabled: true,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+        .upsert(
+          {
+            user_id: user.id,
+            autopilot_enabled: true,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: "user_id"
+          }
+        );
 
       if (settingsError) {
-        console.warn("⚠️ Settings update warning:", settingsError);
-      } else {
-        console.log("✅ Autopilot enabled in settings");
+        console.error("❌ Settings update failed:", settingsError);
+        throw new Error(`Failed to update settings: ${settingsError.message}`);
       }
 
-      await activityLogger.log("autopilot", "success", "Autopilot system activated successfully");
+      console.log("✅ Autopilot enabled in settings");
+
+      // Step 5: Verify the settings were saved
+      const { data: verifySettings, error: verifyError } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      if (verifyError) {
+        console.warn("⚠️ Could not verify settings:", verifyError);
+      } else {
+        console.log("✅ Settings verified:", verifySettings);
+      }
 
       return {
         success: true,
@@ -105,11 +118,9 @@ export const autopilotEngine = {
         campaignId: campaign.id,
         activeChannels: channels.length
       };
-
     } catch (error: any) {
       console.error("❌ Autopilot launch failed:", error);
-      await activityLogger.log("autopilot", "error", error.message || "Launch failed");
-      
+
       return {
         success: false,
         message: error.message || "Failed to launch autopilot"
@@ -122,7 +133,6 @@ export const autopilotEngine = {
    */
   async stopAutopilot() {
     console.log("⏸️ Stopping autopilot...");
-    await activityLogger.log("autopilot", "info", "Stopping autopilot system");
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -130,24 +140,30 @@ export const autopilotEngine = {
         throw new Error("Authentication required");
       }
 
-      // Pause all active autopilot campaigns
-      const { error: campaignError } = await supabase
+      console.log("👤 User:", user.id);
+
+      // Step 1: Pause all active autopilot campaigns
+      console.log("⏸️ Pausing campaigns...");
+      const { data: pausedCampaigns, error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: "paused" })
         .eq("user_id", user.id)
         .eq("is_autopilot", true)
-        .eq("status", "active");
+        .eq("status", "active")
+        .select();
 
       if (campaignError) {
         console.error("❌ Failed to pause campaigns:", campaignError);
-      } else {
-        console.log("✅ Autopilot campaigns paused");
+        throw new Error(campaignError.message);
       }
 
-      // Disable autopilot in settings
+      console.log(`✅ Paused ${pausedCampaigns?.length || 0} campaigns`);
+
+      // Step 2: Disable autopilot in settings
+      console.log("⚙️ Updating user settings...");
       const { error: settingsError } = await supabase
         .from("user_settings")
-        .update({ 
+        .update({
           autopilot_enabled: false,
           updated_at: new Date().toISOString()
         })
@@ -155,21 +171,32 @@ export const autopilotEngine = {
 
       if (settingsError) {
         console.error("❌ Failed to update settings:", settingsError);
-      } else {
-        console.log("✅ Autopilot disabled in settings");
+        throw new Error(settingsError.message);
       }
 
-      await activityLogger.log("autopilot", "success", "Autopilot system stopped");
+      console.log("✅ Settings updated");
+
+      // Step 3: Verify the settings were saved
+      const { data: verifySettings, error: verifyError } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      if (verifyError) {
+        console.warn("⚠️ Could not verify settings:", verifyError);
+      } else {
+        console.log("✅ Settings verified:", verifySettings);
+      }
 
       return {
         success: true,
-        message: "Autopilot stopped successfully"
+        message: "Autopilot stopped successfully",
+        pausedCount: pausedCampaigns?.length || 0
       };
-
     } catch (error: any) {
       console.error("❌ Stop autopilot failed:", error);
-      await activityLogger.log("autopilot", "error", error.message || "Stop failed");
-      
+
       return {
         success: false,
         message: error.message || "Failed to stop autopilot"
@@ -182,7 +209,6 @@ export const autopilotEngine = {
    */
   async resumeAutopilot() {
     console.log("▶️ Resuming autopilot...");
-    await activityLogger.log("autopilot", "info", "Resuming autopilot system");
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -190,7 +216,10 @@ export const autopilotEngine = {
         throw new Error("Authentication required");
       }
 
-      // Reactivate paused autopilot campaigns
+      console.log("👤 User:", user.id);
+
+      // Step 1: Reactivate paused autopilot campaigns
+      console.log("▶️ Reactivating campaigns...");
       const { data: campaigns, error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: "active" })
@@ -207,35 +236,49 @@ export const autopilotEngine = {
       const resumedCount = campaigns?.length || 0;
       console.log(`✅ Resumed ${resumedCount} campaigns`);
 
-      // Enable autopilot in settings
+      // Step 2: Enable autopilot in settings
+      console.log("⚙️ Updating user settings...");
       const { error: settingsError } = await supabase
         .from("user_settings")
-        .upsert({
-          user_id: user.id,
-          autopilot_enabled: true,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+        .upsert(
+          {
+            user_id: user.id,
+            autopilot_enabled: true,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: "user_id"
+          }
+        );
 
       if (settingsError) {
-        console.warn("⚠️ Settings update warning:", settingsError);
-      } else {
-        console.log("✅ Autopilot enabled in settings");
+        console.error("❌ Failed to update settings:", settingsError);
+        throw new Error(settingsError.message);
       }
 
-      await activityLogger.log("autopilot", "success", `Resumed ${resumedCount} campaigns`);
+      console.log("✅ Settings updated");
+
+      // Step 3: Verify the settings were saved
+      const { data: verifySettings, error: verifyError } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      if (verifyError) {
+        console.warn("⚠️ Could not verify settings:", verifyError);
+      } else {
+        console.log("✅ Settings verified:", verifySettings);
+      }
 
       return {
         success: true,
         message: `Resumed ${resumedCount} autopilot campaigns`,
         resumedCount
       };
-
     } catch (error: any) {
       console.error("❌ Resume autopilot failed:", error);
-      await activityLogger.log("autopilot", "error", error.message || "Resume failed");
-      
+
       return {
         success: false,
         message: error.message || "Failed to resume autopilot"
