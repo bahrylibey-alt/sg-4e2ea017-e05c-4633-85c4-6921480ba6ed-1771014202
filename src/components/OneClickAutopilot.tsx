@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Rocket,
   Zap,
@@ -20,12 +21,14 @@ import {
   Target,
   Globe,
   BarChart3,
-  ShoppingCart
+  ShoppingCart,
+  Terminal
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { autopilotEngine } from "@/services/autopilotEngine";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
 import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
+import { activityLogger, type ActivityLog } from "@/services/activityLogger";
 import { useToast } from "@/hooks/use-toast";
 
 export function OneClickAutopilot() {
@@ -37,12 +40,25 @@ export function OneClickAutopilot() {
   const [productPerformance, setProductPerformance] = useState<any[]>([]);
   const [trafficSources, setTrafficSources] = useState<any[]>([]);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   useEffect(() => {
     loadAutopilotStatus();
-    const interval = setInterval(loadAutopilotStatus, 15000); // Refresh every 15s
+    loadActivityLogs();
+    const interval = setInterval(() => {
+      loadAutopilotStatus();
+      if (isLaunching || showLogs) {
+        loadActivityLogs();
+      }
+    }, 3000); // Refresh every 3s
     return () => clearInterval(interval);
-  }, []);
+  }, [isLaunching, showLogs]);
+
+  const loadActivityLogs = () => {
+    const logs = activityLogger.getLogs();
+    setActivityLogs(logs.slice(-20)); // Show last 20 logs
+  };
 
   const loadAutopilotStatus = async () => {
     try {
@@ -73,6 +89,8 @@ export function OneClickAutopilot() {
     console.log("🚀 User clicked Launch Autopilot");
     setIsLaunching(true);
     setLaunchStep("Initializing...");
+    setShowLogs(true);
+    activityLogger.clearLogs();
     
     try {
       // Step 1: Setup complete system
@@ -208,6 +226,49 @@ export function OneClickAutopilot() {
 
   return (
     <div className="space-y-6">
+      {/* Activity Log Section */}
+      {showLogs && activityLogs.length > 0 && (
+        <Card className="border-blue-500/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                Activity Log
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowLogs(false)}
+              >
+                Hide
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              <div className="space-y-2">
+                {activityLogs.map((log, index) => (
+                  <div key={index} className="flex items-start gap-2 text-sm font-mono">
+                    <span className="text-muted-foreground">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className={
+                      log.status === "success" ? "text-green-500" :
+                      log.status === "error" ? "text-red-500" :
+                      log.status === "started" ? "text-blue-500" :
+                      "text-muted-foreground"
+                    }>
+                      [{log.status.toUpperCase()}]
+                    </span>
+                    <span className="flex-1">{log.action}: {log.details}</span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Control Card */}
       <Card className="border-2">
         <CardHeader>
