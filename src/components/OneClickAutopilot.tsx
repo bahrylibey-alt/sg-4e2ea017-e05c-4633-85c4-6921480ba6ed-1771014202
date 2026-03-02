@@ -22,6 +22,7 @@ import {
   BarChart3,
   ShoppingCart
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { autopilotEngine } from "@/services/autopilotEngine";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
 import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
@@ -132,14 +133,65 @@ export function OneClickAutopilot() {
 
   const stopAutopilot = async () => {
     try {
-      // In a real implementation, this would pause all active campaigns
+      setIsLaunching(true);
+      
+      // Get all active autopilot campaigns and pause them
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "❌ Authentication Error",
+          description: "Please log in to control autopilot",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Pause all active campaigns
+      const { error: campaignError } = await supabase
+        .from("campaigns")
+        .update({ status: "paused" })
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      if (campaignError) {
+        console.error("Failed to pause campaigns:", campaignError);
+        toast({
+          title: "❌ Error",
+          description: "Failed to pause campaigns",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Disable autopilot in user settings
+      const { error: settingsError } = await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: false,
+          updated_at: new Date().toISOString()
+        });
+
+      if (settingsError) {
+        console.error("Failed to update settings:", settingsError);
+      }
+
       setIsActive(false);
       toast({
         title: "⏸️ Autopilot Paused",
-        description: "All automated campaigns paused"
+        description: "All automated campaigns have been paused"
       });
+
+      await loadAutopilotStatus();
     } catch (error) {
       console.error("Failed to stop autopilot:", error);
+      toast({
+        title: "❌ Error",
+        description: "Failed to stop autopilot",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLaunching(false);
     }
   };
 
@@ -199,14 +251,51 @@ export function OneClickAutopilot() {
               <>
                 <Button
                   size="lg"
-                  onClick={launchAutopilot}
+                  onClick={async () => {
+                    // Check if there are paused campaigns to resume
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                      const { data: pausedCampaigns } = await supabase
+                        .from("campaigns")
+                        .select("id")
+                        .eq("user_id", user.id)
+                        .eq("status", "paused");
+
+                      if (pausedCampaigns && pausedCampaigns.length > 0) {
+                        // Resume existing campaigns
+                        setIsLaunching(true);
+                        const result = await autopilotEngine.resumeAutopilot();
+                        setIsLaunching(false);
+                        
+                        if (result.success) {
+                          setIsActive(true);
+                          toast({
+                            title: "✅ Autopilot Resumed!",
+                            description: `Resumed ${result.resumedCampaigns} campaigns`
+                          });
+                          await loadAutopilotStatus();
+                        } else {
+                          toast({
+                            title: "❌ Resume Failed",
+                            description: result.message,
+                            variant: "destructive"
+                          });
+                        }
+                      } else {
+                        // Launch new autopilot
+                        launchAutopilot();
+                      }
+                    } else {
+                      launchAutopilot();
+                    }
+                  }}
                   disabled={isLaunching}
                   className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 >
                   {isLaunching ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      {launchStep || "Launching..."}
+                      {launchStep || "Processing..."}
                     </>
                   ) : (
                     <>
@@ -228,10 +317,20 @@ export function OneClickAutopilot() {
                   size="lg"
                   variant="outline"
                   onClick={stopAutopilot}
+                  disabled={isLaunching}
                   className="flex-1 h-14 text-lg"
                 >
-                  <Pause className="w-5 h-5 mr-2" />
-                  Pause Autopilot
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Pausing...
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-5 h-5 mr-2" />
+                      Pause Autopilot
+                    </>
+                  )}
                 </Button>
                 <Button
                   size="lg"

@@ -330,15 +330,110 @@ export const autopilotEngine = {
 
   async getAutopilotStatus() {
     try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        return { isActive: false, activeCampaigns: 0, totalRevenue: 0 };
+      }
+
+      // Check for active campaigns with autopilot characteristics
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      // Check user settings
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       const stats = await this.getAutopilotStats();
+      
+      // Consider autopilot active if there are active campaigns OR autopilot_enabled is true
+      const isActive = (campaigns && campaigns.length > 0) || settings?.autopilot_enabled === true;
+
       return {
-        isActive: stats.activeCampaigns > 0,
-        activeCampaigns: stats.activeCampaigns,
+        isActive,
+        activeCampaigns: campaigns?.length || 0,
         totalRevenue: stats.totalRevenue
       };
     } catch (error) {
       console.error("Error getting status:", error);
       return { isActive: false, activeCampaigns: 0, totalRevenue: 0 };
+    }
+  },
+
+  /**
+   * Resume/reactivate paused autopilot campaigns
+   */
+  async resumeAutopilot(): Promise<{
+    success: boolean;
+    message: string;
+    resumedCampaigns: number;
+  }> {
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        return {
+          success: false,
+          message: "Authentication required",
+          resumedCampaigns: 0
+        };
+      }
+
+      // Reactivate paused campaigns
+      const { data: pausedCampaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "paused");
+
+      if (!pausedCampaigns || pausedCampaigns.length === 0) {
+        return {
+          success: false,
+          message: "No paused campaigns to resume",
+          resumedCampaigns: 0
+        };
+      }
+
+      const { error: updateError } = await supabase
+        .from("campaigns")
+        .update({ status: "active" })
+        .eq("user_id", user.id)
+        .eq("status", "paused");
+
+      if (updateError) {
+        console.error("Failed to resume campaigns:", updateError);
+        return {
+          success: false,
+          message: "Failed to resume campaigns",
+          resumedCampaigns: 0
+        };
+      }
+
+      // Enable autopilot in settings
+      await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: true,
+          updated_at: new Date().toISOString()
+        });
+
+      return {
+        success: true,
+        message: `Resumed ${pausedCampaigns.length} campaigns`,
+        resumedCampaigns: pausedCampaigns.length
+      };
+    } catch (error: any) {
+      console.error("Resume autopilot error:", error);
+      return {
+        success: false,
+        message: error.message || "Failed to resume autopilot",
+        resumedCampaigns: 0
+      };
     }
   }
 };
