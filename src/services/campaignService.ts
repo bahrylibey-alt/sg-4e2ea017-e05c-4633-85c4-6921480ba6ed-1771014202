@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -86,9 +87,9 @@ export const campaignService = {
       console.log("🚀 Starting campaign creation:", data.name);
 
       // Step 1: Verify authentication
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error("❌ Authentication failed:", authError);
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        console.error("❌ Authentication failed: No user found");
         return { campaign: null, error: "You must be logged in to create campaigns" };
       }
       console.log("✅ User authenticated:", user.id);
@@ -204,7 +205,7 @@ export const campaignService = {
     maxBudget?: number;
   }): Promise<{ campaigns: Campaign[]; error: string | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await authService.getCurrentUser();
       if (!user) {
         return { campaigns: [], error: "User not authenticated" };
       }
@@ -308,7 +309,7 @@ export const campaignService = {
       })) || [];
 
       // 2. Get real top products from affiliate links
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await authService.getCurrentUser();
       const { data: allLinks } = await supabase
         .from("affiliate_links")
         .select("product_name, conversion_count, commission_earned")
@@ -519,7 +520,7 @@ export const campaignService = {
     error: string | null;
   }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await authService.getCurrentUser();
       if (!user) {
         return {
           totalCampaigns: 0,

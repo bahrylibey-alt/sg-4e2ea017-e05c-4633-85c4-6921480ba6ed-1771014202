@@ -24,7 +24,7 @@ import {
   Activity
 } from "lucide-react";
 import { authService } from "@/services/authService";
-import { campaignService } from "@/services/smartCampaignService";
+import { campaignService } from "@/services/campaignService";
 import { CampaignBuilder } from "@/components/CampaignBuilder";
 
 interface Campaign {

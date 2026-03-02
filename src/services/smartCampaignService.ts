@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { campaignService } from "./campaignService";
+import { authService } from "./authService";
 import { affiliateLinkService } from "./affiliateLinkService";
 import { trafficAutomationService } from "./trafficAutomationService";
 import { conversionOptimizationService } from "./conversionOptimizationService";
@@ -222,10 +223,10 @@ export const smartCampaignService = {
       console.log("🚀 ONE-CLICK CAMPAIGN START");
       console.log("📦 Input:", JSON.stringify(input, null, 2));
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const user = await authService.getCurrentUser();
       
-      if (authError || !user) {
-        console.error("❌ Auth failed:", authError);
+      if (!user) {
+        console.error("❌ Auth failed: No user found");
         return { 
           success: false, 
           campaign: null, 
