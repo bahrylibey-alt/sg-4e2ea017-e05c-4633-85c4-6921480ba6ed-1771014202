@@ -91,7 +91,7 @@ export default function SystemTest() {
         productName: `TEST - ${testProduct.name}`,
         destinationUrl: testProduct.url,
         network: testProduct.network,
-        commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, "")) || 0
+        commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, ""))
       });
 
       if (result.success && result.link) {
@@ -285,7 +285,7 @@ export default function SystemTest() {
               <li>✅ Run this test suite and verify all tests pass</li>
               <li>✅ Click the generated test link and verify it redirects to Amazon</li>
               <li>✅ Go to /dashboard and verify it loads without network errors</li>
-              <li>✅ Click "Sync New" and verify products are added</li>
+              <li>✅ Click "Sync New Products" and verify products are added</li>
               <li>✅ Launch autopilot and verify it shows "ACTIVE" status</li>
               <li>✅ Check browser console for any errors (F12)</li>
             </ul>
