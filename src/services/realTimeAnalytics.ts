@@ -7,6 +7,25 @@ type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 type ClickEvent = Database["public"]["Tables"]["click_events"]["Row"];
 type Commission = Database["public"]["Tables"]["commissions"]["Row"];
 
+export interface ProductPerformance {
+  productId: string;
+  productName: string;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  commission: number;
+  conversionRate: number;
+  roi: number;
+}
+
+export interface TrafficSourcePerformance {
+  name: string;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  conversionRate: number;
+}
+
 export interface PerformanceSnapshot {
   timestamp: string;
   totalClicks: number;
@@ -18,6 +37,8 @@ export interface PerformanceSnapshot {
   activeLinks: number;
   activeCampaigns: number;
   recentActivity: ActivityEvent[];
+  topProducts: ProductPerformance[];
+  topTrafficSources: TrafficSourcePerformance[];
 }
 
 export interface ActivityEvent {
@@ -83,6 +104,19 @@ export const realTimeAnalytics = {
       // Build recent activity
       const recentActivity = this.buildActivityFeed(links, commissions, recentClicks);
 
+      // Get top products
+      const topProducts = await this.getProductPerformance();
+
+      // Get top traffic sources
+      const trafficInsights = await this.getTrafficInsights();
+      const topTrafficSources: TrafficSourcePerformance[] = trafficInsights.slice(0, 5).map(t => ({
+        name: t.source,
+        clicks: t.clicks,
+        conversions: t.conversions,
+        revenue: t.revenue,
+        conversionRate: t.conversionRate
+      }));
+
       return {
         timestamp: new Date().toISOString(),
         totalClicks,
@@ -93,11 +127,52 @@ export const realTimeAnalytics = {
         averageCommissionPerSale,
         activeLinks: links?.filter(l => l.status === "active").length || 0,
         activeCampaigns: campaigns?.filter(c => c.status === "active").length || 0,
-        recentActivity: recentActivity.slice(0, 10)
+        recentActivity: recentActivity.slice(0, 10),
+        topProducts: topProducts.slice(0, 5),
+        topTrafficSources
       };
     } catch (error) {
       console.error("❌ Error getting performance snapshot:", error);
       return this.getEmptySnapshot();
+    }
+  },
+
+  // Get product performance data
+  async getProductPerformance(): Promise<ProductPerformance[]> {
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) return [];
+
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("commission_earned", { ascending: false });
+
+      if (!links || links.length === 0) return [];
+
+      return links.map(link => {
+        const clicks = link.clicks || 0;
+        const conversions = link.conversion_count || 0;
+        const revenue = link.commission_earned || 0;
+        const commission = revenue;
+        const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+        const roi = revenue > 0 ? (revenue / Math.max(clicks * 0.1, 1)) * 100 : 0;
+
+        return {
+          productId: link.id,
+          productName: link.product_name || "Unknown Product",
+          clicks,
+          conversions,
+          revenue,
+          commission,
+          conversionRate,
+          roi
+        };
+      });
+    } catch (error) {
+      console.error("❌ Error getting product performance:", error);
+      return [];
     }
   },
 
@@ -195,7 +270,7 @@ export const realTimeAnalytics = {
         sourceMap.set(source, {
           clicks: existing.clicks + 1,
           conversions: existing.conversions + (click.converted ? 1 : 0),
-          revenue: existing.revenue + (click.converted ? 50 : 0) // Estimate $50 per conversion
+          revenue: existing.revenue + (click.converted ? 50 : 0)
         });
       }
 
@@ -254,18 +329,18 @@ export const realTimeAnalytics = {
           type: "conversion",
           timestamp: click.clicked_at,
           description: `Conversion from ${click.referrer || "direct"}`,
-          amount: 50 // Estimate
+          amount: 50
         });
       });
     }
 
-    // Add recent commissions
+    // Add recent commissions - FIXED: use created_at instead of transaction_date
     if (commissions) {
       commissions.slice(0, 10).forEach(comm => {
         activities.push({
           id: `commission-${comm.id}`,
           type: "commission",
-          timestamp: comm.transaction_date,
+          timestamp: comm.created_at,
           description: `Commission earned`,
           amount: Number(comm.amount || 0)
         });
@@ -290,7 +365,9 @@ export const realTimeAnalytics = {
       averageCommissionPerSale: 0,
       activeLinks: 0,
       activeCampaigns: 0,
-      recentActivity: []
+      recentActivity: [],
+      topProducts: [],
+      topTrafficSources: []
     };
   }
 };

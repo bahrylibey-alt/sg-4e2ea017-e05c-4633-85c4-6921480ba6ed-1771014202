@@ -110,9 +110,9 @@ export function OneClickAutopilot() {
       if (status && analytics) {
         setCampaignStats({
           totalProducts: analytics.topProducts?.length || 0,
-          linksGenerated: analytics.clicks || 0,
+          linksGenerated: analytics.totalClicks || 0,
           trafficChannelsActive: analytics.topTrafficSources?.length || 0,
-          estimatedReach: Math.floor((analytics.clicks || 0) * 4.2),
+          estimatedReach: Math.floor((analytics.totalClicks || 0) * 4.2),
           status: status.activeCampaigns > 0 ? "active" : "ready"
         });
       }
