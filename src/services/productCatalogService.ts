@@ -181,5 +181,10 @@ export const productCatalogService = {
   // Get all available networks
   getNetworks(): string[] {
     return [...new Set(PRODUCT_CATALOG.map(p => p.network))];
+  },
+
+  // Get top performing products
+  getTopProducts(limit: number = 10): AffiliateProduct[] {
+    return this.getHighConvertingProducts().slice(0, limit);
   }
 };

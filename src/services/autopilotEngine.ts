@@ -307,5 +307,38 @@ export const autopilotEngine = {
       "Partner Sites": "referral"
     };
     return mapping[channel] || "direct";
+  },
+
+  // Alias for compatibility
+  async launchAutopilot(config: any) {
+    // Map the new config format to the expected one
+    const mappedConfig: AutopilotConfig = {
+      budget: config.budget || 0,
+      products: config.productIds || [],
+      targetAudience: "Auto-optimized Audience",
+      trafficChannels: config.trafficChannels || []
+    };
+    
+    const result = await this.launchAutopilotCampaign(mappedConfig);
+    return {
+      success: result.success,
+      campaignId: result.campaign?.id,
+      message: result.message,
+      error: result.success ? null : result.message
+    };
+  },
+
+  async getAutopilotStatus() {
+    try {
+      const stats = await this.getAutopilotStats();
+      return {
+        isActive: stats.activeCampaigns > 0,
+        activeCampaigns: stats.activeCampaigns,
+        totalRevenue: stats.totalRevenue
+      };
+    } catch (error) {
+      console.error("Error getting status:", error);
+      return { isActive: false, activeCampaigns: 0, totalRevenue: 0 };
+    }
   }
 };

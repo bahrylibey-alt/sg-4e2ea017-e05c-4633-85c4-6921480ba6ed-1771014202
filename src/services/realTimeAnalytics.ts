@@ -369,5 +369,10 @@ export const realTimeAnalytics = {
       topProducts: [],
       topTrafficSources: []
     };
+  },
+
+  // Alias for compatibility
+  async getDashboardStats() {
+    return this.getPerformanceSnapshot();
   }
 };

@@ -199,5 +199,25 @@ export const intelligentTrafficRouter = {
     if (channel.includes("Email")) return "email";
     if (channel.includes("Reddit") || channel.includes("Quora")) return "referral";
     return "organic";
+  },
+
+  // Start automated traffic for multiple channels
+  async startAutomatedTraffic(campaignId: string, channels: any[]) {
+    const results = [];
+    
+    // Extract channel names if objects are passed, or use strings directly
+    const channelNames = channels.map(c => typeof c === 'string' ? c : c.name);
+    
+    for (const channelName of channelNames) {
+      try {
+        const result = await this.activateTrafficSource(campaignId, channelName);
+        results.push({ channel: channelName, success: true, data: result });
+      } catch (error) {
+        console.error(`Failed to start traffic for ${channelName}:`, error);
+        results.push({ channel: channelName, success: false, error });
+      }
+    }
+    
+    return results;
   }
 };
