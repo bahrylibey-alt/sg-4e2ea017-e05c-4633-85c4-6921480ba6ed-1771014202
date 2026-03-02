@@ -28,6 +28,7 @@ import { authService } from "@/services/authService";
 import { campaignService } from "@/services/campaignService";
 import { CampaignBuilder } from "@/components/CampaignBuilder";
 import { AutopilotControl } from "@/components/AutopilotControl";
+import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
 
 interface Campaign {
   id: string;
@@ -193,6 +194,11 @@ export default function Dashboard() {
 
           {/* Autopilot Control */}
           <AutopilotControl />
+
+          {/* Advanced Analytics Dashboard */}
+          <div className="mt-8">
+            <AdvancedAnalyticsDashboard />
+          </div>
         </main>
 
         <Footer />
