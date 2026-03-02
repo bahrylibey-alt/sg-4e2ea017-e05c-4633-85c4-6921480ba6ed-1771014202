@@ -9,12 +9,10 @@ import {
   DollarSign, 
   MousePointerClick, 
   ShoppingCart,
-  Link as LinkIcon,
   Radio,
   Rocket,
   CheckCircle2,
   Loader2,
-  BarChart3,
   Activity,
   Target,
   Users
@@ -46,9 +44,19 @@ export function AutopilotControl() {
     try {
       const data = await autopilotEngine.getAutopilotStats();
       setStats(data);
-      setIsAutopilotActive(data.activeCampaigns > 0);
+      setIsAutopilotActive(data?.activeCampaigns > 0);
     } catch (error) {
       console.error("Failed to load stats:", error);
+      // Set default values on error
+      setStats({
+        totalClicks: 0,
+        totalConversions: 0,
+        totalRevenue: 0,
+        totalCommissions: 0,
+        activeCampaigns: 0,
+        activeLinks: 0,
+        trafficSources: 0
+      });
     }
   };
 
@@ -59,9 +67,19 @@ export function AutopilotControl() {
         realTimeAnalytics.getProductPerformance()
       ]);
       setAnalytics(snapshot);
-      setProductPerformance(products);
+      setProductPerformance(Array.isArray(products) ? products : []);
     } catch (error) {
       console.error("Failed to load analytics:", error);
+      setAnalytics({
+        totalClicks: 0,
+        conversions: 0,
+        revenue: 0,
+        commissions: 0,
+        conversionRate: 0,
+        averageOrderValue: 0,
+        topProducts: [],
+        topTrafficSources: []
+      });
     }
   };
 
@@ -104,6 +122,11 @@ export function AutopilotControl() {
     }
   };
 
+  // Safe number helper
+  const safeNum = (val: any, def: number = 0): number => {
+    return typeof val === 'number' && !isNaN(val) ? val : def;
+  };
+
   if (!stats) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -111,6 +134,29 @@ export function AutopilotControl() {
       </div>
     );
   }
+
+  // Safe stats with defaults
+  const safeStats = {
+    totalClicks: safeNum(stats?.totalClicks),
+    totalConversions: safeNum(stats?.totalConversions),
+    totalRevenue: safeNum(stats?.totalRevenue),
+    totalCommissions: safeNum(stats?.totalCommissions),
+    activeCampaigns: safeNum(stats?.activeCampaigns),
+    activeLinks: safeNum(stats?.activeLinks),
+    trafficSources: safeNum(stats?.trafficSources)
+  };
+
+  // Safe analytics with defaults
+  const safeAnalytics = analytics ? {
+    totalClicks: safeNum(analytics.totalClicks),
+    conversions: safeNum(analytics.conversions),
+    revenue: safeNum(analytics.revenue),
+    commissions: safeNum(analytics.commissions),
+    conversionRate: safeNum(analytics.conversionRate),
+    averageOrderValue: safeNum(analytics.averageOrderValue),
+    topProducts: Array.isArray(analytics.topProducts) ? analytics.topProducts : [],
+    topTrafficSources: Array.isArray(analytics.topTrafficSources) ? analytics.topTrafficSources : []
+  } : null;
 
   return (
     <div className="space-y-6">
@@ -144,7 +190,7 @@ export function AutopilotControl() {
                 <MousePointerClick className="h-4 w-4" />
                 Total Clicks
               </div>
-              <div className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{safeStats.totalClicks.toLocaleString()}</div>
             </div>
 
             <div className="bg-background rounded-lg p-4 border">
@@ -152,7 +198,7 @@ export function AutopilotControl() {
                 <ShoppingCart className="h-4 w-4" />
                 Conversions
               </div>
-              <div className="text-2xl font-bold">{stats.totalConversions.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{safeStats.totalConversions.toLocaleString()}</div>
             </div>
 
             <div className="bg-background rounded-lg p-4 border">
@@ -160,7 +206,7 @@ export function AutopilotControl() {
                 <DollarSign className="h-4 w-4" />
                 Revenue
               </div>
-              <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">${safeStats.totalRevenue.toFixed(2)}</div>
             </div>
 
             <div className="bg-background rounded-lg p-4 border">
@@ -168,22 +214,22 @@ export function AutopilotControl() {
                 <TrendingUp className="h-4 w-4" />
                 Commissions
               </div>
-              <div className="text-2xl font-bold text-green-600">${stats.totalCommissions.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-green-600">${safeStats.totalCommissions.toFixed(2)}</div>
             </div>
           </div>
 
           {/* Active Resources */}
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-primary">{stats.activeCampaigns}</div>
+              <div className="text-2xl font-bold text-primary">{safeStats.activeCampaigns}</div>
               <div className="text-sm text-muted-foreground">Active Campaigns</div>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-primary">{stats.activeLinks}</div>
+              <div className="text-2xl font-bold text-primary">{safeStats.activeLinks}</div>
               <div className="text-sm text-muted-foreground">Active Links</div>
             </div>
             <div className="text-center p-3 bg-background rounded-lg border">
-              <div className="text-2xl font-bold text-primary">{stats.trafficSources}</div>
+              <div className="text-2xl font-bold text-primary">{safeStats.trafficSources}</div>
               <div className="text-sm text-muted-foreground">Traffic Sources</div>
             </div>
           </div>
@@ -221,7 +267,7 @@ export function AutopilotControl() {
       </Card>
 
       {/* Real-Time Analytics */}
-      {analytics && (
+      {safeAnalytics && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -243,11 +289,11 @@ export function AutopilotControl() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <div className="text-sm text-muted-foreground mb-1">Conversion Rate</div>
-                <div className="text-2xl font-bold text-primary">{analytics.conversionRate.toFixed(2)}%</div>
+                <div className="text-2xl font-bold text-primary">{safeAnalytics.conversionRate.toFixed(2)}%</div>
               </div>
               <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <div className="text-sm text-muted-foreground mb-1">Avg Order Value</div>
-                <div className="text-2xl font-bold text-primary">${analytics.averageOrderValue.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-primary">${safeAnalytics.averageOrderValue.toFixed(2)}</div>
               </div>
               <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <div className="text-sm text-muted-foreground mb-1">Active Products</div>
@@ -255,7 +301,7 @@ export function AutopilotControl() {
               </div>
               <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <div className="text-sm text-muted-foreground mb-1">Traffic Sources</div>
-                <div className="text-2xl font-bold text-primary">{analytics.topTrafficSources.length}</div>
+                <div className="text-2xl font-bold text-primary">{safeAnalytics.topTrafficSources.length}</div>
               </div>
             </div>
 
@@ -268,21 +314,21 @@ export function AutopilotControl() {
                 </h4>
                 <div className="space-y-2">
                   {productPerformance.slice(0, 5).map((product, index) => (
-                    <div key={product.productId} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                    <div key={product.productId || index} className="flex items-center justify-between p-3 bg-background rounded-lg border">
                       <div className="flex items-center gap-3 flex-1">
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{product.productName}</div>
+                          <div className="font-medium truncate">{product.productName || "Unknown"}</div>
                           <div className="text-xs text-muted-foreground">
-                            {product.clicks} clicks • {product.conversions} sales
+                            {safeNum(product.clicks)} clicks • {safeNum(product.conversions)} sales
                           </div>
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 ml-4">
-                        <div className="font-bold text-green-600">${product.revenue.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">{product.conversionRate.toFixed(1)}% CR</div>
+                        <div className="font-bold text-green-600">${safeNum(product.revenue).toFixed(2)}</div>
+                        <div className="text-xs text-muted-foreground">{safeNum(product.conversionRate).toFixed(1)}% CR</div>
                       </div>
                     </div>
                   ))}
@@ -291,34 +337,40 @@ export function AutopilotControl() {
             )}
 
             {/* Top Traffic Sources */}
-            {analytics.topTrafficSources.length > 0 && (
+            {safeAnalytics.topTrafficSources.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-3 flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   Top Traffic Sources
                 </h4>
                 <div className="space-y-2">
-                  {analytics.topTrafficSources.map((source: any, index: number) => (
-                    <div key={source.name} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium">{source.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {source.clicks} clicks • {source.conversions} conversions
+                  {safeAnalytics.topTrafficSources.map((source: any, index: number) => {
+                    const sourceClicks = safeNum(source.clicks);
+                    const totalClicks = safeNum(safeAnalytics.totalClicks, 1); // Avoid division by zero
+                    const percentage = (sourceClicks / totalClicks) * 100;
+                    
+                    return (
+                      <div key={source.name || index} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium">{source.name || "Unknown"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {sourceClicks} clicks • {safeNum(source.conversions)} conversions
+                            </div>
                           </div>
                         </div>
+                        <div className="flex-shrink-0">
+                          <Progress 
+                            value={percentage} 
+                            className="w-24 h-2"
+                          />
+                        </div>
                       </div>
-                      <div className="flex-shrink-0">
-                        <Progress 
-                          value={(source.clicks / analytics.clicks) * 100} 
-                          className="w-24 h-2"
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
