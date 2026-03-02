@@ -29,7 +29,7 @@ export const affiliateLinkService = {
    * Create a new affiliate link
    */
   async createAffiliateLink(params: {
-    productId: string;
+    productId?: string;
     productName: string;
     destinationUrl: string;
     network?: string;
@@ -62,9 +62,9 @@ export const affiliateLinkService = {
         .from("affiliate_links")
         .insert({
           user_id: session.user.id,
-          product_id: params.productId,
+          product_id: params.productId || null,
           product_name: params.productName,
-          original_url: params.destinationUrl, // CRITICAL: Real product URL
+          original_url: params.destinationUrl,
           cloaked_url: cloakedUrl,
           slug: slug,
           network: params.network || "Direct",
@@ -99,6 +99,7 @@ export const affiliateLinkService = {
   async createLink(data: {
     original_url: string;
     product_name?: string;
+    product_id?: string;
     network?: string;
     commission_rate?: number;
   }): Promise<{ link: AffiliateLink | null; error: string | null }> {
@@ -139,6 +140,7 @@ export const affiliateLinkService = {
         original_url: data.original_url,
         cloaked_url: cloakedUrl,
         slug,
+        product_id: data.product_id || null,
         product_name: data.product_name || this.extractProductName(data.original_url),
         network: data.network || "direct",
         commission_rate: data.commission_rate || 10,
@@ -172,6 +174,7 @@ export const affiliateLinkService = {
   async createBatchLinks(urls: Array<{
     original_url: string;
     product_name?: string;
+    product_id?: string;
     network?: string;
     commission_rate?: number;
   }>): Promise<{ 

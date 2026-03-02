@@ -132,6 +132,7 @@ export type Database = {
           id: string
           network: string | null
           original_url: string
+          product_id: string | null
           product_name: string | null
           revenue: number | null
           short_code: string | null
@@ -152,6 +153,7 @@ export type Database = {
           id?: string
           network?: string | null
           original_url: string
+          product_id?: string | null
           product_name?: string | null
           revenue?: number | null
           short_code?: string | null
@@ -172,6 +174,7 @@ export type Database = {
           id?: string
           network?: string | null
           original_url?: string
+          product_id?: string | null
           product_name?: string | null
           revenue?: number | null
           short_code?: string | null
