@@ -105,133 +105,49 @@ export function OneClickAutopilot() {
   };
 
   const launchAutopilot = async () => {
+    console.log("🚀 User clicked Launch Autopilot");
     setIsLaunching(true);
-    setShowLogs(true);
-    setLaunchProgress(0);
-    activityLogger.clearLogs();
-    
+    setLaunchStep("Initializing...");
+
     try {
-      // Step 1: Check authentication (5%)
-      setLaunchStep("Checking authentication...");
-      setLaunchProgress(5);
-      await activityLogger.log("launch", "started", "Checking user authentication");
+      // Check status first
+      const status = await autopilotEngine.getAutopilotStatus();
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("Please log in to launch autopilot");
-      }
-      
-      await activityLogger.log("launch", "success", `User authenticated: ${user.email}`);
-      
-      // Step 2: Ensure user profile (15%)
-      setLaunchStep("Setting up user profile...");
-      setLaunchProgress(15);
-      await activityLogger.log("setup", "started", "Ensuring user profile exists");
-      
-      const profileResult = await affiliateIntegrationService.ensureUserProfile(user.id, user.email || "");
-      if (!profileResult.success) {
-        throw new Error(profileResult.error || "Failed to setup user profile");
-      }
-      
-      await activityLogger.log("setup", "success", "User profile ready");
-      
-      // Step 3: Setup affiliate infrastructure (40%)
-      setLaunchStep("Setting up affiliate infrastructure...");
-      setLaunchProgress(40);
-      await activityLogger.log("setup", "started", "Setting up affiliate infrastructure");
-      
-      toast({
-        title: "🚀 Launching Autopilot",
-        description: "Setting up affiliate infrastructure..."
-      });
-
-      const setupResult = await affiliateIntegrationService.setupCompleteSystem({
-        autoAddProducts: true,
-        autoGenerateLinks: true,
-        autoTrackConversions: true,
-        autoCalculateCommissions: true,
-        minConversionRate: 8
-      });
-
-      if (!setupResult.success) {
-        throw new Error(setupResult.message || "Failed to setup affiliate infrastructure");
-      }
-      
-      await activityLogger.log("setup", "success", `Infrastructure ready: ${setupResult.stats.totalProducts} products, ${setupResult.stats.activeLinks} links`);
-      
-      // Step 4: Launch autopilot campaign (70%)
-      setLaunchStep("Activating traffic automation...");
-      setLaunchProgress(70);
-      await activityLogger.log("launch", "started", "Launching autopilot campaign");
-      
-      toast({
-        title: "⚡ Activating Automation",
-        description: "Launching campaigns and traffic..."
-      });
-
-      const launchResult = await autopilotEngine.launchAutopilot({
-        campaignName: "Autopilot Campaign",
-        budget: 0,
-        trafficChannels: ["seo", "social", "content", "email"]
-      });
-
-      if (!launchResult.success) {
-        throw new Error(launchResult.message || "Failed to launch autopilot");
-      }
-      
-      await activityLogger.log("launch", "success", "Autopilot campaign activated");
-      
-      // Step 5: Enable autopilot in settings (90%)
-      setLaunchStep("Enabling autopilot...");
-      setLaunchProgress(90);
-      await activityLogger.log("settings", "started", "Updating autopilot settings");
-      
-      const { error: settingsError } = await supabase
-        .from("user_settings")
-        .upsert({
-          user_id: user.id,
-          autopilot_enabled: true,
-          updated_at: new Date().toISOString()
-        });
-
-      if (settingsError) {
-        console.warn("Settings update warning:", settingsError);
+      let result;
+      if (status.hasPausedCampaigns) {
+        // Resume existing campaigns
+        setLaunchStep("Resuming paused campaigns...");
+        result = await autopilotEngine.resumeAutopilot();
       } else {
-        await activityLogger.log("settings", "success", "Autopilot enabled in settings");
+        // Launch new campaign
+        // 1. Setup products/links first
+        setLaunchStep("Syncing product catalog...");
+        await affiliateIntegrationService.setupCompleteSystem(userId);
+        
+        // 2. Launch engine
+        setLaunchStep("Activating autopilot engine...");
+        result = await autopilotEngine.launchAutopilot();
       }
-      
-      // Step 6: Complete (100%)
-      setLaunchStep("Complete!");
-      setLaunchProgress(100);
-      setIsActive(true);
-      
-      await activityLogger.log("launch", "success", "Autopilot system is now ACTIVE");
-      
-      toast({
-        title: "✅ Autopilot Active!",
-        description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
-      });
-      
-      await loadAutopilotStatus();
-      await loadActivityLogs();
-      
+
+      if (result.success) {
+        toast({
+          title: "✅ Autopilot Active",
+          description: result.message || "System is running and generating traffic.",
+        });
+        await checkStatus();
+      } else {
+        throw new Error(result.message);
+      }
     } catch (error: any) {
-      console.error("💥 Launch failed:", error);
-      await activityLogger.log("launch", "error", error.message || "Launch failed");
-      
+      console.error("Launch error:", error);
       toast({
         title: "❌ Launch Failed",
-        description: error.message || "Please check console for details",
+        description: error.message || "Could not start autopilot",
         variant: "destructive"
       });
-      
-      setIsActive(false);
     } finally {
       setIsLaunching(false);
-      setTimeout(() => {
-        setLaunchStep("");
-        setLaunchProgress(0);
-      }, 2000);
+      setLaunchStep("");
     }
   };
 

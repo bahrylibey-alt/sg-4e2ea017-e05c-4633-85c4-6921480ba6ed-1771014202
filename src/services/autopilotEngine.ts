@@ -309,18 +309,6 @@ export const autopilotEngine = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      // Get stats from traffic_sources (using correct column names)
-      const { data: sources } = await supabase
-        .from("traffic_sources")
-        .select("total_clicks, total_conversions, total_revenue, source_name, campaign_id")
-        .in("campaign_id", 
-          supabase
-            .from("campaigns")
-            .select("id")
-            .eq("user_id", user.id)
-            .eq("is_autopilot", true)
-        );
-
       // Get stats from campaigns
       const { data: campaigns } = await supabase
         .from("campaigns")
@@ -328,12 +316,25 @@ export const autopilotEngine = {
         .eq("user_id", user.id)
         .eq("is_autopilot", true);
 
+      const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
+      const campaignIds = campaigns?.map(c => c.id) || [];
+
+      // Get stats from traffic_sources (using correct column names)
+      let sources: any[] = [];
+      
+      if (campaignIds.length > 0) {
+        const { data } = await supabase
+          .from("traffic_sources")
+          .select("total_clicks, total_conversions, total_revenue, source_name, campaign_id")
+          .in("campaign_id", campaignIds);
+          
+        sources = data || [];
+      }
+
       // Calculate totals
       const totalClicks = sources?.reduce((sum, s) => sum + (s.total_clicks || 0), 0) || 0;
       const totalConversions = sources?.reduce((sum, s) => sum + (s.total_conversions || 0), 0) || 0;
       const totalRevenue = sources?.reduce((sum, s) => sum + (s.total_revenue || 0), 0) || 0;
-      
-      const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
       
       // Get affiliate links count
       const { count: activeLinks } = await supabase
