@@ -101,13 +101,14 @@ export const affiliateIntegrationService = {
 
         for (const product of linksToGenerate) {
           try {
-            const result = await affiliateLinkService.generateLink(
-              product.url,
-              product.name,
-              product.network
-            );
+            const result = await affiliateLinkService.createLink({
+              original_url: product.url,
+              product_name: product.name,
+              network: product.network,
+              commission_rate: parseFloat(product.commission.split('-')[0])
+            });
 
-            if (result.success && result.link) {
+            if (result.link && !result.error) {
               results.links++;
 
               // Add product to campaign
@@ -191,13 +192,14 @@ export const affiliateIntegrationService = {
       const added = [];
       for (const product of newProducts.slice(0, 10)) {
         try {
-          const result = await affiliateLinkService.generateLink(
-            product.url,
-            product.name,
-            product.network
-          );
+          const result = await affiliateLinkService.createLink({
+            original_url: product.url,
+            product_name: product.name,
+            network: product.network,
+            commission_rate: parseFloat(product.commission.split('-')[0])
+          });
 
-          if (result.success && result.link) {
+          if (result.link && !result.error) {
             added.push(result.link);
           }
         } catch (err) {

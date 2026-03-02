@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
+import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -49,6 +50,22 @@ export const autopilotEngine = {
         });
       }
 
+      // Step 0: Setup complete affiliate system first
+      console.log("🔧 Setting up complete affiliate system...");
+      const systemSetup = await affiliateIntegrationService.setupCompleteSystem({
+        autoAddProducts: true,
+        autoGenerateLinks: true,
+        autoTrackConversions: true,
+        autoCalculateCommissions: true,
+        minConversionRate: 8
+      });
+
+      if (!systemSetup.success) {
+        console.warn("⚠️ System setup had issues:", systemSetup.message);
+      }
+
+      console.log("✅ Affiliate system ready:", systemSetup.stats);
+
       // Step 1: Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
@@ -76,39 +93,10 @@ export const autopilotEngine = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 2: Generate affiliate links for each product
-      const links: AffiliateLink[] = [];
-      for (const product of config.products) {
-        try {
-          const slug = this.generateSlug();
-          const { data: link, error: linkError } = await supabase
-            .from("affiliate_links")
-            .insert({
-              user_id: user.id,
-              original_url: product,
-              cloaked_url: `https://salemakseb.com/go/${slug}`,
-              slug,
-              product_name: this.extractProductName(product),
-              network: this.detectNetwork(product),
-              commission_rate: 10,
-              clicks: 0,
-              conversion_count: 0,
-              commission_earned: 0,
-              status: "active"
-            })
-            .select()
-            .single();
-
-          if (!linkError && link) {
-            links.push(link);
-            console.log("🔗 Link generated:", link.slug);
-          } else {
-            console.warn("⚠️ Failed to create link:", linkError?.message);
-          }
-        } catch (err) {
-          console.warn("⚠️ Link creation error:", err);
-        }
-      }
+      // Step 2: Auto-add high-converting products
+      console.log("📦 Auto-adding high-converting products...");
+      const productResult = await affiliateIntegrationService.autoAddProducts();
+      console.log(`✅ Added ${productResult.addedCount} products`);
 
       // Step 3: Activate traffic sources
       const channelBudget = config.budget / 30 / config.trafficChannels.length;
@@ -124,7 +112,8 @@ export const autopilotEngine = {
               daily_budget: channelBudget,
               total_clicks: 0,
               total_conversions: 0,
-              total_spent: 0
+              total_spent: 0,
+              automation_enabled: true
             });
           console.log(`📡 Traffic source activated: ${channel}`);
         } catch (err) {
@@ -134,17 +123,7 @@ export const autopilotEngine = {
 
       console.log("✅ Traffic sources activated");
 
-      // Step 4: Create initial campaign products
-      if (links.length > 0) {
-        const productInserts = links.map(link => ({
-          campaign_id: campaign.id,
-          product_name: link.product_name || "Product"
-        }));
-
-        await supabase.from("campaign_products").insert(productInserts);
-      }
-
-      // Step 5: Enable user autopilot settings
+      // Step 4: Enable user autopilot settings
       await supabase
         .from("user_settings")
         .upsert({
@@ -153,7 +132,7 @@ export const autopilotEngine = {
           updated_at: new Date().toISOString()
         });
 
-      // Step 6: Create initial performance records
+      // Step 5: Create initial performance records
       await supabase
         .from("campaign_performance")
         .insert({
@@ -166,11 +145,18 @@ export const autopilotEngine = {
           spent: 0
         });
 
+      // Step 6: Start optimization monitoring
+      await this.startOptimizationMonitoring(campaign.id, user.id);
+
+      // Step 7: Start automated traffic optimization
+      console.log("🎯 Starting automated optimization...");
+      await affiliateIntegrationService.optimizeSystem();
+
       return {
         success: true,
         campaign,
-        links,
-        message: `Autopilot activated! ${links.length} products configured with ${config.trafficChannels.length} traffic channels.`
+        links: productResult.products,
+        message: `Autopilot activated! ${productResult.addedCount} products configured with ${config.trafficChannels.length} traffic channels. System is now live and monitoring performance.`
       };
     } catch (error: any) {
       console.error("💥 Autopilot launch failed:", error);
