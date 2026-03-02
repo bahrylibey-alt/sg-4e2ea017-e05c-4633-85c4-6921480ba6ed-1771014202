@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 export function OneClickAutopilot() {
   const { toast } = useToast();
   const [isLaunching, setIsLaunching] = useState(false);
+  const [launchStep, setLaunchStep] = useState("");
   const [isActive, setIsActive] = useState(false);
   const [systemStats, setSystemStats] = useState<any>(null);
   const [productPerformance, setProductPerformance] = useState<any[]>([]);
@@ -69,8 +70,11 @@ export function OneClickAutopilot() {
 
   const launchAutopilot = async () => {
     setIsLaunching(true);
+    setLaunchStep("Initializing...");
+    
     try {
       // Step 1: Setup complete system
+      setLaunchStep("Setting up affiliate infrastructure...");
       toast({
         title: "🚀 Launching Autopilot",
         description: "Setting up affiliate infrastructure..."
@@ -89,6 +93,7 @@ export function OneClickAutopilot() {
       }
 
       // Step 2: Launch autopilot campaign
+      setLaunchStep("Activating traffic automation...");
       toast({
         title: "⚡ Activating Automation",
         description: "Launching campaigns and traffic..."
@@ -102,6 +107,7 @@ export function OneClickAutopilot() {
 
       if (launchResult.success) {
         setIsActive(true);
+        setLaunchStep("Complete!");
         toast({
           title: "✅ Autopilot Active!",
           description: `System launched with ${setupResult.stats.totalProducts} products and ${setupResult.stats.activeLinks} active links`
@@ -120,6 +126,7 @@ export function OneClickAutopilot() {
       });
     } finally {
       setIsLaunching(false);
+      setLaunchStep("");
     }
   };
 
@@ -189,24 +196,32 @@ export function OneClickAutopilot() {
 
           <div className="flex gap-4">
             {!isActive ? (
-              <Button
-                size="lg"
-                onClick={launchAutopilot}
-                disabled={isLaunching}
-                className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              >
-                {isLaunching ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Launching Autopilot...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 mr-2" />
-                    Launch One-Click Autopilot
-                  </>
+              <>
+                <Button
+                  size="lg"
+                  onClick={launchAutopilot}
+                  disabled={isLaunching}
+                  className="flex-1 h-14 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      {launchStep || "Launching..."}
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 mr-2" />
+                      Launch One-Click Autopilot
+                    </>
+                  )}
+                </Button>
+                {isLaunching && (
+                  <div className="flex-1">
+                    <Progress value={launchStep.includes("Complete") ? 100 : launchStep.includes("traffic") ? 75 : launchStep.includes("infrastructure") ? 50 : 25} className="h-14" />
+                    <p className="text-xs text-muted-foreground mt-2 text-center">{launchStep}</p>
+                  </div>
                 )}
-              </Button>
+              </>
             ) : (
               <>
                 <Button
