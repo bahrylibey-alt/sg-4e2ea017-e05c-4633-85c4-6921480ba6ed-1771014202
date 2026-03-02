@@ -1,7 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { authService } from "./authService";
-import { campaignService } from "./campaignService";
-import { trafficAutomationService } from "./trafficAutomationService";
 import { activityLogger } from "./activityLogger";
 
 export interface AutopilotConfig {
@@ -37,8 +34,9 @@ export const autopilotEngine = {
         .insert({
           user_id: user.id,
           name: campaignName,
+          goal: "sales",  // Required field - default to sales
           status: "active",
-          budget: config.budget || 0,
+          budget: config.budget || 1000,
           daily_budget: 0,
           type: "autopilot",
           is_autopilot: true
@@ -54,8 +52,8 @@ export const autopilotEngine = {
       console.log("✅ Campaign created:", campaign.id);
       await activityLogger.log("autopilot", "success", `Campaign created: ${campaign.name}`);
 
-      // Step 3: Activate traffic sources
-      const channels = config.trafficChannels || ["seo", "social", "content", "email"];
+      // Step 3: Activate traffic sources (using correct column names)
+      const channels = config.trafficChannels || ["organic", "social", "email", "paid"];
       console.log("🌐 Activating traffic channels:", channels);
       
       await activityLogger.log("autopilot", "info", `Activating ${channels.length} traffic channels`);
@@ -63,14 +61,14 @@ export const autopilotEngine = {
       for (const channel of channels) {
         try {
           await supabase.from("traffic_sources").insert({
-            user_id: user.id,
             campaign_id: campaign.id,
-            source_name: channel,
             source_type: channel,
+            source_name: channel.charAt(0).toUpperCase() + channel.slice(1),
             status: "active",
-            clicks: 0,
-            conversions: 0,
-            revenue: 0
+            total_clicks: 0,
+            total_conversions: 0,
+            total_revenue: 0,
+            automation_enabled: true
           });
           console.log(`✅ Activated: ${channel}`);
         } catch (err) {
@@ -311,11 +309,17 @@ export const autopilotEngine = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      // Get stats from traffic_sources
+      // Get stats from traffic_sources (using correct column names)
       const { data: sources } = await supabase
         .from("traffic_sources")
-        .select("clicks, conversions, revenue, source_name")
-        .eq("user_id", user.id);
+        .select("total_clicks, total_conversions, total_revenue, source_name, campaign_id")
+        .in("campaign_id", 
+          supabase
+            .from("campaigns")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("is_autopilot", true)
+        );
 
       // Get stats from campaigns
       const { data: campaigns } = await supabase
@@ -325,9 +329,9 @@ export const autopilotEngine = {
         .eq("is_autopilot", true);
 
       // Calculate totals
-      const totalClicks = sources?.reduce((sum, s) => sum + (s.clicks || 0), 0) || 0;
-      const totalConversions = sources?.reduce((sum, s) => sum + (s.conversions || 0), 0) || 0;
-      const totalRevenue = sources?.reduce((sum, s) => sum + (s.revenue || 0), 0) || 0;
+      const totalClicks = sources?.reduce((sum, s) => sum + (s.total_clicks || 0), 0) || 0;
+      const totalConversions = sources?.reduce((sum, s) => sum + (s.total_conversions || 0), 0) || 0;
+      const totalRevenue = sources?.reduce((sum, s) => sum + (s.total_revenue || 0), 0) || 0;
       
       const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
       
