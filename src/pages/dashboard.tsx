@@ -101,11 +101,33 @@ export default function Dashboard() {
 
   const loadDashboardData = async (isRefresh = false) => {
     try {
+      console.log("📊 Loading dashboard data...");
+      
+      // Load all data with error handling
       const [campaignsResult, analyticsSnapshot, systemHealth] = await Promise.all([
-        campaignService.getUserCampaigns(),
-        realTimeAnalytics.getPerformanceSnapshot(),
-        getSystemHealth()
+        campaignService.getUserCampaigns().catch(err => {
+          console.error("Failed to load campaigns:", err);
+          return { campaigns: [], error: err.message };
+        }),
+        realTimeAnalytics.getPerformanceSnapshot().catch(err => {
+          console.error("Failed to load analytics:", err);
+          return null;
+        }),
+        getSystemHealth().catch(err => {
+          console.error("Failed to check system health:", err);
+          return {
+            autopilotActive: false,
+            productsCount: 0,
+            linksCount: 0
+          };
+        })
       ]);
+      
+      console.log("✅ Dashboard data loaded:", {
+        campaigns: campaignsResult.campaigns?.length || 0,
+        analytics: analyticsSnapshot ? "loaded" : "failed",
+        health: systemHealth
+      });
       
       if (campaignsResult.campaigns) {
         const typedCampaigns = campaignsResult.campaigns as unknown as Campaign[];
@@ -132,7 +154,8 @@ export default function Dashboard() {
         setLastUpdate(new Date());
       }
     } catch (error) {
-      console.error("Failed to load dashboard data:", error);
+      console.error("💥 Critical error loading dashboard:", error);
+      // Continue with empty data instead of crashing
     }
   };
 
