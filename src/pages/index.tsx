@@ -43,27 +43,6 @@ export default function Home() {
             <Pricing />
             <Newsletter />
           </div>
-          <OneClickCampaign />
-          <DashboardOverview />
-          <AutopilotDashboard />
-          <CampaignMonitor />
-          
-          <div className="container py-12">
-            <h2 className="text-3xl font-bold mb-8">Smart Automation Tools</h2>
-            <div className="grid gap-8 lg:grid-cols-2">
-              <QuickCampaignSetup />
-              <SmartTools 
-                onOpenContentGenerator={() => setShowContentGenerator(true)}
-                onOpenCampaignBuilder={() => setShowCampaignBuilder(true)}
-              />
-            </div>
-          </div>
-
-          <ProductShowcase />
-          <Analytics />
-          <Integrations />
-          <Pricing />
-          <Newsletter />
         </main>
         <Footer />
         <AIChatbot />
