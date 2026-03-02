@@ -91,7 +91,7 @@ export default function SystemTest() {
         productName: `TEST - ${testProduct.name}`,
         destinationUrl: testProduct.url,
         network: testProduct.network,
-        commissionRate: testProduct.commission
+        commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, "")) || 0
       });
 
       if (result.success && result.link) {
