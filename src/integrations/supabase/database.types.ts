@@ -1081,6 +1081,51 @@ export type Database = {
           },
         ]
       }
+      product_catalog: {
+        Row: {
+          affiliate_url: string
+          category: string | null
+          commission_rate: number | null
+          created_at: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          network: string | null
+          price: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          affiliate_url: string
+          category?: string | null
+          commission_rate?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          network?: string | null
+          price?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          affiliate_url?: string
+          category?: string | null
+          commission_rate?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          network?: string | null
+          price?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
