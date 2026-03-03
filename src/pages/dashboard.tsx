@@ -488,6 +488,21 @@ export default function Dashboard() {
           <div className="mt-8">
             <AdvancedAnalyticsDashboard />
           </div>
+
+          {/* Integrations Dashboard */}
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Connected Integrations</CardTitle>
+                <CardDescription>
+                  Manage your third-party service connections
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <IntegrationsDashboard />
+              </CardContent>
+            </Card>
+          </div>
         </main>
 
         <Footer />
