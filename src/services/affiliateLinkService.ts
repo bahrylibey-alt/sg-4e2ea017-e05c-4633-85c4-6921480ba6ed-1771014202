@@ -123,6 +123,23 @@ export const affiliateLinkService = {
       console.log("✅ Generated slug:", slug);
       console.log("✅ Generated short code:", shortCode);
 
+      // CRITICAL: Validate product_id - MUST be valid UUID or null
+      let validatedProductId: string | null = null;
+      if (params.productId) {
+        // UUID format: 8-4-4-4-12 hexadecimal characters
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(params.productId)) {
+          validatedProductId = params.productId;
+          console.log("✅ Valid UUID product_id:", validatedProductId);
+        } else {
+          console.warn("⚠️ Invalid product_id format (not UUID), setting to null:", params.productId);
+          validatedProductId = null;
+        }
+      } else {
+        console.log("✅ No product_id provided, using null (catalog product)");
+        validatedProductId = null;
+      }
+
       // Generate the cloaked URL
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://salemakseb.com';
       const cloakedUrl = `${baseUrl}/go/${slug}`;
@@ -131,20 +148,6 @@ export const affiliateLinkService = {
       console.log("🎯 Will redirect to:", params.destinationUrl);
       console.log("📊 Product:", params.productName);
       console.log("💰 Commission Rate:", params.commissionRate);
-
-      // CRITICAL: Ensure product_id is either a valid UUID or null
-      let validatedProductId: string | null = null;
-      if (params.productId) {
-        // Validate UUID format (8-4-4-4-12 hex digits)
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(params.productId)) {
-          validatedProductId = params.productId;
-          console.log("✅ Valid UUID product_id:", validatedProductId);
-        } else {
-          console.warn("⚠️ Invalid UUID format for product_id, setting to null:", params.productId);
-          validatedProductId = null;
-        }
-      }
 
       // Insert into database with ALL required fields
       const insertData: AffiliateLinkInsert = {

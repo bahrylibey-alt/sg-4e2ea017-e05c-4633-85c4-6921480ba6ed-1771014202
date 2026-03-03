@@ -54,7 +54,7 @@ export default function TestLinks() {
         });
 
         // Test link lookup
-        const { data: lookupResult } = await affiliateLinkService.getUserLinks();
+        const { links: lookupResult } = await affiliateLinkService.getUserLinks();
         const foundLink = lookupResult?.find((l: any) => l.id === linkResult.link?.id);
         
         if (foundLink) {

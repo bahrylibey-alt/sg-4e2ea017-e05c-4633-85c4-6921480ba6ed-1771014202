@@ -318,7 +318,7 @@ export const affiliateIntegrationService = {
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createAffiliateLink({
-            productId: undefined, // CRITICAL: Don't pass catalog product ID to avoid UUID error
+            productId: undefined, // FORCE UNDEFINED for catalog products
             productName: product.name,
             destinationUrl: product.url,
             network: product.network,
@@ -630,7 +630,7 @@ export const affiliateIntegrationService = {
       let linksCreated = 0;
       for (const product of products) {
         const linkResult = await affiliateLinkService.createAffiliateLink({
-          productId: undefined, // CRITICAL: Don't pass string ID to UUID field
+          productId: undefined, // FORCE UNDEFINED
           productName: product.name,
           destinationUrl: product.url, // CRITICAL: Use REAL product URL
           network: product.network,
