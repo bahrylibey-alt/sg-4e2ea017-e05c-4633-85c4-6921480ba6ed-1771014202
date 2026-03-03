@@ -78,7 +78,11 @@ export const affiliateLinkService = {
           "placeholder",
           "test.com",
           "localhost",
-          "0.0.0.0"
+          "0.0.0.0",
+          "salemakseb.com", // Don't redirect to ourselves
+          "/member/404", // CJ 404 page
+          "/404",
+          "127.0.0.1"
         ];
         
         const isInvalid = invalidPatterns.some(pattern => 
@@ -89,14 +93,34 @@ export const affiliateLinkService = {
           console.error("❌ Invalid placeholder URL detected:", params.destinationUrl);
           return {
             success: false,
-            error: "Please provide a real product URL, not a placeholder"
+            error: "Please provide a real product URL, not a placeholder or 404 page"
           };
         }
+
+        // Check that it's a valid domain with proper TLD
+        const hostname = urlTest.hostname.toLowerCase();
+        if (!hostname.includes(".") || hostname.split(".").length < 2) {
+          console.error("❌ Invalid domain format:", hostname);
+          return {
+            success: false,
+            error: "Invalid domain format - must be a valid website URL"
+          };
+        }
+
+        // Ensure it's not a local/private IP
+        if (hostname.startsWith("192.168.") || hostname.startsWith("10.") || hostname.startsWith("172.")) {
+          console.error("❌ Private IP address detected:", hostname);
+          return {
+            success: false,
+            error: "Cannot use private/local IP addresses"
+          };
+        }
+
       } catch (urlError) {
         console.error("❌ Invalid URL format:", params.destinationUrl);
         return {
           success: false,
-          error: "Invalid URL format"
+          error: "Invalid URL format - must be a complete URL including https://"
         };
       }
 
@@ -152,7 +176,7 @@ export const affiliateLinkService = {
       // Insert into database with ALL required fields
       const insertData: AffiliateLinkInsert = {
         user_id: session.user.id,
-        product_id: validatedProductId, // CRITICAL: Only valid UUID or null
+        product_id: validatedProductId,
         product_name: params.productName,
         original_url: params.destinationUrl, // CRITICAL: Real destination URL
         cloaked_url: cloakedUrl,
@@ -170,7 +194,6 @@ export const affiliateLinkService = {
       };
 
       console.log("📝 Inserting link to database...");
-      console.log("📝 Insert data:", JSON.stringify(insertData, null, 2));
 
       const { data, error } = await supabase
         .from("affiliate_links")
@@ -180,7 +203,6 @@ export const affiliateLinkService = {
 
       if (error) {
         console.error("❌ Failed to create affiliate link:", error);
-        console.error("❌ Error details:", JSON.stringify(error, null, 2));
         return { 
           success: false, 
           error: error.message 
@@ -195,22 +217,6 @@ export const affiliateLinkService = {
       console.log("   Original URL (saved):", data.original_url);
       console.log("   Status:", data.status);
 
-      // Double-check: Verify the link can be retrieved
-      const { data: verifyData, error: verifyError } = await supabase
-        .from("affiliate_links")
-        .select("id, slug, original_url, status")
-        .eq("slug", slug)
-        .single();
-
-      if (verifyError) {
-        console.warn("⚠️ Could not verify link creation:", verifyError);
-      } else {
-        console.log("✅ VERIFICATION PASSED - Link is retrievable:");
-        console.log("   Slug:", verifyData.slug);
-        console.log("   Destination:", verifyData.original_url);
-        console.log("   Status:", verifyData.status);
-      }
-
       return { 
         success: true, 
         link: data,
@@ -218,7 +224,6 @@ export const affiliateLinkService = {
       };
     } catch (error: any) {
       console.error("💥 Exception creating affiliate link:", error);
-      console.error("💥 Stack trace:", error.stack);
       return { 
         success: false, 
         error: error.message || "Failed to create affiliate link" 
