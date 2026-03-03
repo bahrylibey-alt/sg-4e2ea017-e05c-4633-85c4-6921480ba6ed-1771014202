@@ -11,19 +11,15 @@ export interface IntegrationConfig {
   stripeSecretKey?: string;
   stripeWebhookSecret?: string;
   
-  // Email (Mailchimp, SendGrid)
+  // Generic / Email / Automation
   apiKey?: string;
   listId?: string;
   audienceId?: string;
-  
-  // Automation (Zapier, Make)
   webhookUrl?: string;
-  apiKey?: string;
   
   // Affiliate Networks
   affiliateId?: string;
   trackingCode?: string;
-  apiKey?: string;
   siteId?: string;
   
   // Analytics
