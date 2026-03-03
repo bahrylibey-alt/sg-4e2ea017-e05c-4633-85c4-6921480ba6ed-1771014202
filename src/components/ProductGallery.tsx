@@ -33,35 +33,45 @@ export function ProductGallery() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [networkFilter, setNetworkFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
-  const [generatingLinks, setGeneratingLinks] = useState<Set<string>>(new Set());
+  
+  // Track which product is currently being linked
+  const [creatingLinkId, setCreatingLinkId] = useState<string | null>(null);
+  
+  // Map of product ID to generated affiliate link
   const [affiliateLinks, setAffiliateLinks] = useState<Map<string, string>>(new Map());
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load products
+    const loadProducts = () => {
+      setLoading(true);
+      try {
+        let result = [];
+        // Use categoryFilter instead of selectedCategory
+        if (categoryFilter === "all") {
+          result = productCatalogService.getAllProducts();
+        } else {
+          result = productCatalogService.getProductsByCategory(categoryFilter);
+        }
+        setProducts(result);
+      } catch (err) {
+        console.error("Error loading products:", err);
+        toast({
+          title: "Error",
+          description: "Failed to load product catalog",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadProducts();
-  }, []);
+  }, [categoryFilter]); // Dependency updated to categoryFilter
 
   useEffect(() => {
     filterProducts();
   }, [searchQuery, categoryFilter, networkFilter, products]);
-
-  const loadProducts = async () => {
-    try {
-      setLoading(true);
-      const catalog = productCatalogService.getAllProducts();
-      setProducts(catalog);
-      setFilteredProducts(catalog);
-    } catch (error) {
-      console.error("Failed to load products:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load product catalog",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filterProducts = () => {
     let filtered = [...products];
@@ -85,38 +95,40 @@ export function ProductGallery() {
     setFilteredProducts(filtered);
   };
 
-  const generateAffiliateLink = async (product: AffiliateProduct) => {
-    setGeneratingLinks(prev => new Set(prev).add(product.id));
-    
+  const handleCreateLink = async (product: AffiliateProduct) => {
+    setCreatingLinkId(product.id);
     try {
-      const result = await affiliateLinkService.createLink({
-        original_url: product.url,
-        product_name: product.name,
+      const result = await affiliateLinkService.createAffiliateLink({
+        productId: undefined, // CRITICAL: Don't use catalog ID (string) for database UUID
+        productName: product.name,
+        destinationUrl: product.url,
         network: product.network,
-        commission_rate: parseFloat(product.commission.replace(/[^0-9.]/g, '')) || 10
+        commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
       });
 
-      if (result.link) {
-        setAffiliateLinks(prev => new Map(prev).set(product.id, result.link!.cloaked_url));
+      if (result.success && result.link) {
         toast({
-          title: "✅ Link Generated!",
-          description: `Trackable link created for ${product.name}`
+          title: "Link Created",
+          description: `Affiliate link for ${product.name} created successfully!`,
+        });
+        
+        // Update local state with the new link
+        setAffiliateLinks(prev => {
+          const newMap = new Map(prev);
+          newMap.set(product.id, result.shortUrl || "");
+          return newMap;
         });
       } else {
-        throw new Error(result.error || "Failed to generate link");
+        throw new Error(result.error);
       }
-    } catch (error: any) {
+    } catch (err: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to generate affiliate link",
+        title: "Creation Failed",
+        description: err.message || "Failed to create link",
         variant: "destructive"
       });
     } finally {
-      setGeneratingLinks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(product.id);
-        return newSet;
-      });
+      setCreatingLinkId(null);
     }
   };
 
@@ -199,7 +211,7 @@ export function ProductGallery() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map(product => {
               const hasLink = affiliateLinks.has(product.id);
-              const isGenerating = generatingLinks.has(product.id);
+              const isGenerating = creatingLinkId === product.id;
               const affiliateLink = affiliateLinks.get(product.id);
 
               return (
@@ -213,7 +225,7 @@ export function ProductGallery() {
                             {product.category}
                           </Badge>
                           {product.conversionRate && product.conversionRate >= 8 && (
-                            <Badge className="text-xs bg-green-500">
+                            <Badge className="text-xs bg-green-500 text-white">
                               <TrendingUp className="w-3 h-3 mr-1" />
                               High Converter
                             </Badge>
@@ -241,7 +253,7 @@ export function ProductGallery() {
                     </div>
 
                     <div className="space-y-2">
-                      {hasLink ? (
+                      {hasLink && affiliateLink ? (
                         <>
                           <div className="flex gap-2">
                             <Button
@@ -255,7 +267,7 @@ export function ProductGallery() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => copyLink(affiliateLink!, product.name)}
+                              onClick={() => copyLink(affiliateLink, product.name)}
                             >
                               {copiedLink === affiliateLink ? (
                                 <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -264,7 +276,7 @@ export function ProductGallery() {
                               )}
                             </Button>
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate font-mono bg-muted p-1 rounded">
                             {affiliateLink}
                           </p>
                         </>
@@ -272,7 +284,7 @@ export function ProductGallery() {
                         <Button
                           size="sm"
                           className="w-full"
-                          onClick={() => generateAffiliateLink(product)}
+                          onClick={() => handleCreateLink(product)}
                           disabled={isGenerating}
                         >
                           {isGenerating ? (

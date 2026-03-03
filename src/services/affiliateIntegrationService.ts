@@ -630,7 +630,7 @@ export const affiliateIntegrationService = {
       let linksCreated = 0;
       for (const product of products) {
         const linkResult = await affiliateLinkService.createAffiliateLink({
-          productId: product.id,
+          productId: undefined, // CRITICAL: Don't pass string ID to UUID field
           productName: product.name,
           destinationUrl: product.url, // CRITICAL: Use REAL product URL
           network: product.network,
