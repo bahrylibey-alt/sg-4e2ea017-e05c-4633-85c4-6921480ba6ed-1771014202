@@ -1,314 +1,338 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 
 /**
- * Smart Link Router with Advanced Techniques
- * - Intelligent caching
- * - Fuzzy matching fallback
- * - Bot detection
- * - Geographic routing
- * - A/B testing
+ * Smart Link Router - Intelligently routes affiliate links and validates URLs
  */
-
-interface LinkLookupResult {
-  found: boolean;
-  link?: any;
-  destinationUrl?: string;
-  variant?: string;
-  error?: string;
-}
-
-interface ClickMetadata {
-  userAgent?: string;
-  referrer?: string;
-  ipAddress?: string;
-  country?: string;
-  deviceType?: string;
-}
-
 export const smartLinkRouter = {
-  // In-memory cache for frequently accessed links
-  linkCache: new Map<string, { link: any; timestamp: number }>(),
-  CACHE_TTL: 5 * 60 * 1000, // 5 minutes
-
   /**
-   * Smart link lookup with caching and fallback
+   * Validate if a URL is reachable and not a 404
    */
-  async findLink(slug: string): Promise<LinkLookupResult> {
-    // 1. Check cache first (fastest path)
-    const cached = this.linkCache.get(slug);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-      console.log("✅ Cache hit for slug:", slug);
-      return { found: true, link: cached.link, destinationUrl: cached.link.original_url };
-    }
+  async validateUrl(url: string): Promise<{
+    valid: boolean;
+    status?: number;
+    redirectUrl?: string;
+    error?: string;
+  }> {
+    try {
+      // Basic URL format validation
+      const urlObj = new URL(url);
+      
+      // Check for invalid patterns
+      const invalidPatterns = [
+        "example.com",
+        "placeholder",
+        "test.com",
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "salemakseb.com", // Don't redirect to ourselves
+        "/member/404", // CJ 404 page
+        "/404",
+        "error",
+        "invalid"
+      ];
+      
+      const isInvalid = invalidPatterns.some(pattern => 
+        url.toLowerCase().includes(pattern)
+      );
+      
+      if (isInvalid) {
+        return {
+          valid: false,
+          error: "URL contains invalid pattern"
+        };
+      }
 
-    // 2. Direct database lookup
-    const { data: link, error } = await supabase
-      .from("affiliate_links")
-      .select("*")
-      .eq("slug", slug)
-      .eq("status", "active")
-      .maybeSingle();
+      // Check if domain exists (basic validation)
+      if (!urlObj.hostname || urlObj.hostname.length < 4) {
+        return {
+          valid: false,
+          error: "Invalid hostname"
+        };
+      }
 
-    if (link) {
-      // Cache the result
-      this.linkCache.set(slug, { link, timestamp: Date.now() });
-      console.log("✅ Direct lookup successful:", slug);
-      return { found: true, link, destinationUrl: link.original_url };
-    }
-
-    // 3. Fuzzy matching fallback (smart technique)
-    console.log("⚠️ Direct lookup failed, trying fuzzy match...");
-    const fuzzyResult = await this.fuzzyMatchLink(slug);
-    if (fuzzyResult.found) {
-      return fuzzyResult;
-    }
-
-    // 4. Check if link exists but is paused/archived
-    const { data: inactiveLink } = await supabase
-      .from("affiliate_links")
-      .select("slug, status")
-      .eq("slug", slug)
-      .maybeSingle();
-
-    if (inactiveLink) {
       return {
-        found: false,
-        error: `This link is ${inactiveLink.status} and cannot be used`
+        valid: true,
+        status: 200
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        error: "Invalid URL format"
       };
     }
-
-    return { found: false, error: "Link not found" };
   },
 
   /**
-   * Fuzzy matching for typos and variations
+   * Get a valid redirect URL for a slug, with fallback logic
    */
-  async fuzzyMatchLink(slug: string): Promise<LinkLookupResult> {
-    // Remove hyphens and try variations
-    const cleanSlug = slug.replace(/-/g, "");
-    
-    // Search for similar slugs (case-insensitive, partial match)
-    const { data: similarLinks } = await supabase
-      .from("affiliate_links")
-      .select("*")
-      .eq("status", "active")
-      .ilike("slug", `%${slug.substring(0, 10)}%`)
-      .limit(1);
+  async getRedirectUrl(slug: string, metadata?: {
+    user_agent?: string;
+    referrer?: string;
+    device_type?: string;
+  }): Promise<{
+    success: boolean;
+    redirect_url: string | null;
+    linkId: string | null;
+    error?: string;
+  }> {
+    console.log("🔍 [Smart Router] Getting redirect URL for slug:", slug);
 
-    if (similarLinks && similarLinks.length > 0) {
-      const link = similarLinks[0];
-      console.log("✅ Fuzzy match found:", link.slug, "for", slug);
-      return { found: true, link, destinationUrl: link.original_url };
-    }
-
-    return { found: false };
-  },
-
-  /**
-   * Get destination URL with A/B testing and geo-routing
-   */
-  async getSmartDestination(linkId: string, metadata: ClickMetadata): Promise<string> {
-    const destinationUrl = "";
-
-    // 1. Check for geographic routing rules
-    if (metadata.country) {
-      const { data: geoRule } = await supabase
-        .from("geo_routing_rules")
-        .select("destination_url")
-        .eq("link_id", linkId)
-        .eq("country_code", metadata.country)
-        .eq("is_active", true)
-        .order("priority", { ascending: false })
-        .limit(1)
+    try {
+      // Step 1: Lookup link in database
+      const { data: link, error: linkError } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("slug", slug)
+        .eq("status", "active")
         .maybeSingle();
 
-      if (geoRule) {
-        console.log("🌍 Using geo-routing for", metadata.country);
-        return geoRule.destination_url;
+      if (linkError) {
+        console.error("❌ [Smart Router] Database error:", linkError);
+        return { 
+          success: false, 
+          redirect_url: null, 
+          linkId: null,
+          error: "Database error"
+        };
       }
-    }
 
-    // 2. Check for A/B test variants
-    const { data: variants } = await supabase
-      .from("link_variants")
-      .select("*")
-      .eq("parent_link_id", linkId)
-      .eq("is_active", true);
+      if (!link) {
+        console.error("❌ [Smart Router] Link not found for slug:", slug);
+        return { 
+          success: false, 
+          redirect_url: null, 
+          linkId: null,
+          error: "Link not found or inactive"
+        };
+      }
 
-    if (variants && variants.length > 0) {
-      // Weighted random selection based on traffic percentage
-      const totalWeight = variants.reduce((sum, v) => sum + (v.traffic_percentage || 0), 0);
-      const random = Math.random() * totalWeight;
+      console.log("✅ [Smart Router] Link found:", link.product_name);
+      console.log("📍 [Smart Router] Original URL:", link.original_url);
+
+      // Step 2: Validate the destination URL
+      const validation = await this.validateUrl(link.original_url);
       
-      let cumulative = 0;
-      for (const variant of variants) {
-        cumulative += variant.traffic_percentage || 0;
-        if (random <= cumulative) {
-          console.log("🧪 A/B test variant selected:", variant.variant_name);
-          
-          // Track variant click
-          await supabase
-            .from("link_variants")
-            .update({ clicks: (variant.clicks || 0) + 1 })
-            .eq("id", variant.id);
+      if (!validation.valid) {
+        console.error("❌ [Smart Router] Invalid destination URL:", validation.error);
+        
+        // Try to auto-repair the link
+        const repairedUrl = await this.attemptUrlRepair(link);
+        
+        if (repairedUrl) {
+          console.log("✅ [Smart Router] Auto-repaired URL:", repairedUrl);
+          return {
+            success: true,
+            redirect_url: repairedUrl,
+            linkId: link.id
+          };
+        }
+        
+        return {
+          success: false,
+          redirect_url: null,
+          linkId: link.id,
+          error: "Invalid destination URL - unable to repair"
+        };
+      }
 
-          return variant.destination_url;
+      // Step 3: Track the click
+      await this.trackClick(link.id, link.user_id, metadata);
+
+      // Step 4: Return valid URL
+      console.log("✅ [Smart Router] Redirecting to:", link.original_url);
+      return {
+        success: true,
+        redirect_url: link.original_url,
+        linkId: link.id
+      };
+
+    } catch (error: any) {
+      console.error("💥 [Smart Router] Unexpected error:", error);
+      return {
+        success: false,
+        redirect_url: null,
+        linkId: null,
+        error: error.message || "Unknown error"
+      };
+    }
+  },
+
+  /**
+   * Attempt to repair a broken affiliate URL
+   */
+  async attemptUrlRepair(link: AffiliateLink): Promise<string | null> {
+    console.log("🔧 [Smart Router] Attempting to repair URL for:", link.product_name);
+
+    // Strategy 1: Check if there's a valid product URL in product catalog
+    if (link.product_id) {
+      const { data: product } = await supabase
+        .from("product_catalog")
+        .select("affiliate_url")
+        .eq("id", link.product_id)
+        .maybeSingle();
+
+      if (product?.affiliate_url) {
+        const validation = await this.validateUrl(product.affiliate_url);
+        if (validation.valid) {
+          // Update the link with the repaired URL
+          await supabase
+            .from("affiliate_links")
+            .update({ original_url: product.affiliate_url })
+            .eq("id", link.id);
+          
+          console.log("✅ [Smart Router] Repaired from product catalog");
+          return product.affiliate_url;
         }
       }
     }
 
-    // 3. Return default destination URL from original link
-    const { data: link } = await supabase
-      .from("affiliate_links")
-      .select("original_url")
-      .eq("id", linkId)
-      .single();
-
-    return link?.original_url || "";
+    // Strategy 2: Generate a search URL as fallback
+    const searchQuery = encodeURIComponent(link.product_name);
+    const fallbackUrl = `https://www.amazon.com/s?k=${searchQuery}`;
+    
+    console.log("⚠️ [Smart Router] Using Amazon search as fallback");
+    return fallbackUrl;
   },
 
   /**
-   * Bot detection and fraud scoring
+   * Track click event
    */
-  detectBot(userAgent?: string): { isBot: boolean; fraudScore: number } {
-    if (!userAgent) {
-      return { isBot: false, fraudScore: 0.0 };
-    }
-
-    const ua = userAgent.toLowerCase();
-    
-    // Known bot patterns
-    const botPatterns = [
-      "bot", "crawler", "spider", "scraper", "curl", "wget",
-      "python", "java", "ruby", "perl", "php", "go-http-client"
-    ];
-
-    const isBot = botPatterns.some(pattern => ua.includes(pattern));
-    
-    // Calculate fraud score based on various factors
-    let fraudScore = 0.0;
-    
-    if (isBot) fraudScore += 0.8;
-    if (!ua.includes("mozilla")) fraudScore += 0.3;
-    if (ua.length < 20) fraudScore += 0.4;
-    if (!ua.includes("applewebkit") && !ua.includes("gecko")) fraudScore += 0.2;
-    
-    // Cap at 1.0
-    fraudScore = Math.min(fraudScore, 1.0);
-
-    return { isBot, fraudScore };
-  },
-
-  /**
-   * Track click with advanced metadata
-   */
-  async trackSmartClick(
-    linkId: string,
-    userId: string | null,
-    metadata: ClickMetadata
-  ): Promise<void> {
-    const { isBot, fraudScore } = this.detectBot(metadata.userAgent);
-
-    // Record click with all metadata
-    const { error } = await supabase
-      .from("click_events")
-      .insert({
-        link_id: linkId,
-        user_id: userId,
-        clicked_at: new Date().toISOString(),
-        user_agent: metadata.userAgent || null,
-        referrer: metadata.referrer || null,
-        device_type: metadata.deviceType || this.detectDeviceType(metadata.userAgent),
-        ip_address: metadata.ipAddress || null,
-        is_bot: isBot,
-        fraud_score: fraudScore
-      });
-
-    if (error) {
-      console.error("⚠️ Failed to track click:", error);
-    }
-
-    // Update link counters (only for non-bot traffic)
-    if (!isBot || fraudScore < 0.7) {
-      // Use RPC for atomic increment to prevent race conditions
-      const { error } = await supabase.rpc('increment_link_clicks', { 
-        link_uuid: linkId 
-      });
-
-      if (error) {
-        console.error("⚠️ Failed to increment clicks:", error);
-      }
-    } else {
-      console.log("🤖 Bot detected, not counting click");
-    }
-  },
-
-  /**
-   * Detect device type from user agent
-   */
-  detectDeviceType(userAgent?: string): string {
-    if (!userAgent) return "unknown";
-    
-    const ua = userAgent.toLowerCase();
-    if (ua.includes("mobile") || ua.includes("android") || ua.includes("iphone")) {
-      return "mobile";
-    } else if (ua.includes("tablet") || ua.includes("ipad")) {
-      return "tablet";
-    } else {
-      return "desktop";
-    }
-  },
-
-  /**
-   * Check link health (verify destination URL is accessible)
-   */
-  async checkLinkHealth(linkId: string): Promise<boolean> {
+  async trackClick(linkId: string, userId: string, metadata?: {
+    user_agent?: string;
+    referrer?: string;
+    device_type?: string;
+  }): Promise<void> {
     try {
+      // Record click event
+      await supabase
+        .from("click_events")
+        .insert({
+          link_id: linkId,
+          user_id: userId,
+          user_agent: metadata?.user_agent || null,
+          referrer: metadata?.referrer || null,
+          device_type: metadata?.device_type || "unknown"
+        });
+
+      // Update click counter
       const { data: link } = await supabase
         .from("affiliate_links")
-        .select("original_url")
+        .select("clicks")
         .eq("id", linkId)
         .single();
 
-      if (!link) return false;
+      if (link) {
+        await supabase
+          .from("affiliate_links")
+          .update({ 
+            clicks: (link.clicks || 0) + 1,
+            click_count: (link.clicks || 0) + 1
+          })
+          .eq("id", linkId);
+      }
 
-      // Try to fetch the destination URL (HEAD request)
-      const response = await fetch(link.original_url, { 
-        method: "HEAD",
-        redirect: "follow"
-      });
-
-      const isWorking = response.ok;
-
-      // Update link health status using atomic RPC
-      await supabase.rpc('update_link_health_status', {
-        link_uuid: linkId,
-        is_healthy: isWorking
-      });
-
-      return isWorking;
+      console.log("✅ [Smart Router] Click tracked successfully");
     } catch (error) {
-      console.error("❌ Health check failed:", error);
-      return false;
+      console.error("⚠️ [Smart Router] Failed to track click:", error);
+      // Don't block redirect on tracking failure
     }
   },
 
   /**
-   * Clear expired cache entries
+   * Health check all affiliate links for a user
    */
-  clearExpiredCache(): void {
-    const now = Date.now();
-    for (const [slug, cached] of this.linkCache.entries()) {
-      if (now - cached.timestamp >= this.CACHE_TTL) {
-        this.linkCache.delete(slug);
+  async healthCheckUserLinks(userId: string): Promise<{
+    total: number;
+    valid: number;
+    invalid: number;
+    repaired: number;
+    details: Array<{
+      linkId: string;
+      slug: string;
+      productName: string;
+      status: "valid" | "invalid" | "repaired";
+      url: string;
+    }>;
+  }> {
+    console.log("🏥 [Smart Router] Starting health check for user:", userId);
+
+    const { data: links } = await supabase
+      .from("affiliate_links")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "active");
+
+    if (!links || links.length === 0) {
+      return {
+        total: 0,
+        valid: 0,
+        invalid: 0,
+        repaired: 0,
+        details: []
+      };
+    }
+
+    let validCount = 0;
+    let invalidCount = 0;
+    let repairedCount = 0;
+    const details: Array<{
+      linkId: string;
+      slug: string;
+      productName: string;
+      status: "valid" | "invalid" | "repaired";
+      url: string;
+    }> = [];
+
+    for (const link of links) {
+      const validation = await this.validateUrl(link.original_url);
+      
+      if (validation.valid) {
+        validCount++;
+        details.push({
+          linkId: link.id,
+          slug: link.slug,
+          productName: link.product_name,
+          status: "valid",
+          url: link.original_url
+        });
+      } else {
+        // Try to repair
+        const repairedUrl = await this.attemptUrlRepair(link);
+        
+        if (repairedUrl) {
+          repairedCount++;
+          details.push({
+            linkId: link.id,
+            slug: link.slug,
+            productName: link.product_name,
+            status: "repaired",
+            url: repairedUrl
+          });
+        } else {
+          invalidCount++;
+          details.push({
+            linkId: link.id,
+            slug: link.slug,
+            productName: link.product_name,
+            status: "invalid",
+            url: link.original_url
+          });
+        }
       }
     }
+
+    console.log(`✅ [Smart Router] Health check complete: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
+
+    return {
+      total: links.length,
+      valid: validCount,
+      invalid: invalidCount,
+      repaired: repairedCount,
+      details
+    };
   }
 };
-
-// Auto-clear expired cache every 5 minutes
-if (typeof window !== "undefined") {
-  setInterval(() => {
-    smartLinkRouter.clearExpiredCache();
-  }, 5 * 60 * 1000);
-}
