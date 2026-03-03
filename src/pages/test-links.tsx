@@ -1,203 +1,158 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { SEO } from "@/components/SEO";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ExternalLink, Copy, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { affiliateLinkService } from "@/services/affiliateLinkService";
+import { productCatalogService } from "@/services/productCatalogService";
 import { authService } from "@/services/authService";
-import { supabase } from "@/integrations/supabase/client";
 
-interface AffiliateLink {
-  id: string;
-  slug: string;
-  product_name: string;
-  original_url: string;
-  cloaked_url: string;
-  clicks: number;
-  conversion_count: number;
-  status: string;
-}
+export default function TestLinks() {
+  const [testResults, setTestResults] = useState<any[]>([]);
+  const [testing, setTesting] = useState(false);
 
-export default function TestLinksPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [links, setLinks] = useState<AffiliateLink[]>([]);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const runLinkTest = async () => {
+    setTesting(true);
+    setTestResults([]);
+    const results: any[] = [];
 
-  useEffect(() => {
-    checkAuthAndLoadLinks();
-  }, []);
-
-  const checkAuthAndLoadLinks = async () => {
-    const session = await authService.getCurrentSession();
-    
-    if (!session) {
-      router.push("/?auth=login");
-      return;
-    }
-
-    await loadLinks();
-    setLoading(false);
-  };
-
-  const loadLinks = async () => {
     try {
-      const { data, error } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error loading links:", error);
+      // Check authentication
+      const session = await authService.getCurrentSession();
+      if (!session) {
+        results.push({ test: "Auth", status: "FAIL", message: "Not logged in" });
+        setTestResults(results);
+        setTesting(false);
         return;
       }
+      results.push({ test: "Auth", status: "PASS", message: `Logged in as ${session.user.email}` });
 
-      setLinks(data || []);
-    } catch (error) {
-      console.error("Failed to load links:", error);
+      // Get a test product
+      const products = productCatalogService.getHighConvertingProducts(10);
+      const testProduct = products[0];
+      results.push({ 
+        test: "Product Catalog", 
+        status: "PASS", 
+        message: `Found ${products.length} products. Testing with: ${testProduct.name}` 
+      });
+
+      // Test link creation with EXPLICIT undefined product_id
+      console.log("🧪 Creating test link with productId: undefined");
+      const linkResult = await affiliateLinkService.createAffiliateLink({
+        productId: undefined, // CRITICAL: Must be undefined for catalog products
+        productName: testProduct.name,
+        destinationUrl: testProduct.url,
+        network: testProduct.network,
+        commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, "")) || 0
+      });
+
+      if (linkResult.success && linkResult.link) {
+        results.push({ 
+          test: "Link Creation", 
+          status: "PASS", 
+          message: `Created link: ${linkResult.shortUrl}`,
+          link: linkResult.shortUrl,
+          destination: testProduct.url
+        });
+
+        // Test link lookup
+        const { data: lookupResult } = await affiliateLinkService.getUserLinks();
+        const foundLink = lookupResult?.find((l: any) => l.id === linkResult.link?.id);
+        
+        if (foundLink) {
+          results.push({ 
+            test: "Link Lookup", 
+            status: "PASS", 
+            message: `Found link in database. Destination: ${foundLink.original_url}` 
+          });
+        } else {
+          results.push({ 
+            test: "Link Lookup", 
+            status: "FAIL", 
+            message: "Link not found in database" 
+          });
+        }
+      } else {
+        results.push({ 
+          test: "Link Creation", 
+          status: "FAIL", 
+          message: linkResult.error || "Unknown error" 
+        });
+      }
+
+    } catch (error: any) {
+      results.push({ 
+        test: "System", 
+        status: "ERROR", 
+        message: error.message 
+      });
     }
-  };
 
-  const copyLink = (link: AffiliateLink) => {
-    const fullUrl = `${window.location.origin}/go/${link.slug}`;
-    navigator.clipboard.writeText(fullUrl);
-    setCopiedId(link.id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setTestResults(results);
+    setTesting(false);
   };
-
-  const testLink = (link: AffiliateLink) => {
-    window.open(`/go/${link.slug}`, "_blank");
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading links...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <>
-      <SEO title="Test Affiliate Links - Sale Makseb" description="Test and verify all your affiliate links" />
-      <div className="min-h-screen bg-background">
-        <Header />
-        
-        <main className="container py-8">
-          <div className="mb-6">
-            <h1 className="text-4xl font-bold mb-2">Test Affiliate Links</h1>
-            <p className="text-muted-foreground">
-              Verify all your affiliate links are working correctly
-            </p>
-          </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <Card className="max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle>🔗 Affiliate Link System Test</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button 
+            onClick={runLinkTest} 
+            disabled={testing}
+            className="w-full"
+          >
+            {testing ? "Testing..." : "Run Link Test"}
+          </Button>
 
-          {links.length === 0 ? (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                No affiliate links found. Go to the Dashboard and launch the One-Click Autopilot to generate links.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <div className="space-y-4">
-              <Alert className="border-blue-500/50 bg-blue-500/10">
-                <CheckCircle2 className="h-4 w-4 text-blue-500" />
-                <AlertDescription className="text-blue-700 dark:text-blue-400">
-                  <strong>{links.length} Affiliate Links Generated</strong> - Click "Test Link" to verify each one redirects correctly to the product page.
-                </AlertDescription>
-              </Alert>
-
-              {links.map((link) => (
-                <Card key={link.id} className="border-l-4 border-l-primary">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{link.product_name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          Slug: <code className="text-xs bg-muted px-2 py-1 rounded">{link.slug}</code>
-                        </CardDescription>
-                      </div>
-                      <Badge variant={link.status === "active" ? "default" : "secondary"}>
-                        {link.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-3 text-sm">
-                      <div>
-                        <p className="text-muted-foreground mb-1">Clicks</p>
-                        <p className="text-2xl font-bold">{link.clicks || 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Conversions</p>
-                        <p className="text-2xl font-bold">{link.conversion_count || 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Conv. Rate</p>
-                        <p className="text-2xl font-bold">
-                          {link.clicks > 0 ? ((link.conversion_count / link.clicks) * 100).toFixed(1) : "0.0"}%
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Your Affiliate Link:</p>
-                        <code className="text-sm break-all">
-                          {window.location.origin}/go/{link.slug}
-                        </code>
-                      </div>
-                      
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Redirects To:</p>
-                        <code className="text-sm break-all text-green-600">
-                          {link.original_url}
-                        </code>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={() => testLink(link)}
-                        className="flex-1"
+          {testResults.length > 0 && (
+            <div className="space-y-2 mt-4">
+              {testResults.map((result, i) => (
+                <div 
+                  key={i}
+                  className={`p-4 rounded-lg border ${
+                    result.status === "PASS" 
+                      ? "bg-green-50 border-green-200" 
+                      : result.status === "FAIL"
+                      ? "bg-red-50 border-red-200"
+                      : "bg-yellow-50 border-yellow-200"
+                  }`}
+                >
+                  <div className="font-bold">
+                    {result.status === "PASS" ? "✅" : result.status === "FAIL" ? "❌" : "⚠️"} {result.test}
+                  </div>
+                  <div className="text-sm mt-1">{result.message}</div>
+                  {result.link && (
+                    <div className="mt-2">
+                      <a 
+                        href={result.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-sm"
                       >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Test Link (Opens Product)
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        onClick={() => copyLink(link)}
-                        className="flex-1"
-                      >
-                        {copiedId === link.id ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy Link
-                          </>
-                        )}
-                      </Button>
+                        Test Link: {result.link}
+                      </a>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Destination: {result.destination}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
               ))}
             </div>
           )}
-        </main>
 
-        <Footer />
-      </div>
-    </>
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-bold mb-2">📋 Test Instructions:</h3>
+            <ol className="text-sm space-y-1 list-decimal list-inside">
+              <li>Click "Run Link Test" to create a test affiliate link</li>
+              <li>If all tests pass (✅), click the generated test link</li>
+              <li>It should redirect to a real Amazon product page (not 404)</li>
+              <li>If it works, the UUID error is completely fixed!</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

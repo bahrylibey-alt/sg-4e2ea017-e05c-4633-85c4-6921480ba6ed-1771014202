@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
 import { campaignService } from "@/services/campaignService";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
@@ -170,18 +171,42 @@ export default function Dashboard() {
         };
       }
 
-      const [campaignsData, productsData, linksData] = await Promise.all([
+      console.log("🔍 Checking system health...");
+
+      // Check BOTH user_settings AND campaigns for autopilot status
+      const [settingsData, campaignsData, productsData, linksData] = await Promise.all([
+        supabase
+          .from("user_settings")
+          .select("autopilot_enabled")
+          .eq("user_id", session.user.id)
+          .maybeSingle(),
         campaignService.getUserCampaigns(),
         affiliateIntegrationService.getProductCatalog(),
         affiliateIntegrationService.getAffiliateLinkStats(session.user.id)
       ]);
 
-      const hasAutopilot = campaignsData.campaigns?.some(c => 
-        c.status === "active" && (c as any).autopilot_enabled
+      console.log("📊 Settings data:", settingsData.data);
+      console.log("📊 Campaigns data:", campaignsData.campaigns?.length);
+
+      // Check if autopilot is enabled in user_settings
+      const settingsEnabled = settingsData.data?.autopilot_enabled === true;
+      
+      // Check if there are any active autopilot campaigns
+      const hasActiveCampaigns = campaignsData.campaigns?.some(c => 
+        c.status === "active" && (c as any).is_autopilot === true
       ) || false;
 
+      // Autopilot is ACTIVE if BOTH conditions are true
+      const isAutopilotActive = settingsEnabled && hasActiveCampaigns;
+
+      console.log("🎯 Autopilot status check:", {
+        settingsEnabled,
+        hasActiveCampaigns,
+        finalStatus: isAutopilotActive
+      });
+
       return {
-        autopilotActive: hasAutopilot,
+        autopilotActive: isAutopilotActive,
         productsCount: productsData.products?.length || 0,
         linksCount: linksData.totalLinks || 0
       };

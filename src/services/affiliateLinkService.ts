@@ -132,10 +132,24 @@ export const affiliateLinkService = {
       console.log("📊 Product:", params.productName);
       console.log("💰 Commission Rate:", params.commissionRate);
 
+      // CRITICAL: Ensure product_id is either a valid UUID or null
+      let validatedProductId: string | null = null;
+      if (params.productId) {
+        // Validate UUID format (8-4-4-4-12 hex digits)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(params.productId)) {
+          validatedProductId = params.productId;
+          console.log("✅ Valid UUID product_id:", validatedProductId);
+        } else {
+          console.warn("⚠️ Invalid UUID format for product_id, setting to null:", params.productId);
+          validatedProductId = null;
+        }
+      }
+
       // Insert into database with ALL required fields
       const insertData: AffiliateLinkInsert = {
         user_id: session.user.id,
-        product_id: params.productId || null,
+        product_id: validatedProductId, // CRITICAL: Only valid UUID or null
         product_name: params.productName,
         original_url: params.destinationUrl, // CRITICAL: Real destination URL
         cloaked_url: cloakedUrl,

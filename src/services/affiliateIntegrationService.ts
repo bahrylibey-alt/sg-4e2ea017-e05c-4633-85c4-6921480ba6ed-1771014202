@@ -147,7 +147,7 @@ export const affiliateIntegrationService = {
         if (options.autoGenerateLinks) {
           // Generate affiliate link with REAL product URL
           const linkResult = await affiliateLinkService.createAffiliateLink({
-            productId: product.id,
+            productId: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
             productName: product.name,
             destinationUrl: product.url, // REAL product URL from catalog
             network: product.network,
