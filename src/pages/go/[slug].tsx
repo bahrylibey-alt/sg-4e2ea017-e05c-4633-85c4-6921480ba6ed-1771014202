@@ -5,11 +5,14 @@ import { Loader2, ExternalLink, AlertCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { smartLinkRouter } from "@/services/smartLinkRouter";
+import { affiliateLinkService } from "@/services/affiliateLinkService";
 
 export default function RedirectPage() {
   const router = useRouter();
   const { slug } = router.query;
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("Initializing...");
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>("");
   const [isSmartRouting, setIsSmartRouting] = useState(false);
 
