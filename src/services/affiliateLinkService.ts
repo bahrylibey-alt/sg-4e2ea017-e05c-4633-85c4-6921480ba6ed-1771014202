@@ -67,10 +67,31 @@ export const affiliateLinkService = {
         };
       }
 
-      // Validate URL format
+      // Validate URL format and ensure it's a real product URL
       try {
         const urlTest = new URL(params.destinationUrl);
         console.log("✅ Valid URL format:", urlTest.hostname);
+        
+        // Additional validation: Ensure it's not a placeholder URL
+        const invalidPatterns = [
+          "example.com",
+          "placeholder",
+          "test.com",
+          "localhost",
+          "0.0.0.0"
+        ];
+        
+        const isInvalid = invalidPatterns.some(pattern => 
+          params.destinationUrl.toLowerCase().includes(pattern)
+        );
+        
+        if (isInvalid) {
+          console.error("❌ Invalid placeholder URL detected:", params.destinationUrl);
+          return {
+            success: false,
+            error: "Please provide a real product URL, not a placeholder"
+          };
+        }
       } catch (urlError) {
         console.error("❌ Invalid URL format:", params.destinationUrl);
         return {
@@ -108,6 +129,8 @@ export const affiliateLinkService = {
 
       console.log("✅ Cloaked URL:", cloakedUrl);
       console.log("🎯 Will redirect to:", params.destinationUrl);
+      console.log("📊 Product:", params.productName);
+      console.log("💰 Commission Rate:", params.commissionRate);
 
       // Insert into database with ALL required fields
       const insertData: AffiliateLinkInsert = {

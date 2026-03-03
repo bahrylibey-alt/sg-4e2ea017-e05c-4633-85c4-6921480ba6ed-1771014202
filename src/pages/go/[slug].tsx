@@ -15,82 +15,56 @@ export default function RedirectPage() {
 
   useEffect(() => {
     const handleRedirect = async () => {
-      if (!slug || typeof slug !== "string") {
-        console.error("❌ Invalid slug:", slug);
-        setError("Invalid link - no slug provided");
-        setDebugInfo(`Slug type: ${typeof slug}, Value: ${JSON.stringify(slug)}`);
+      if (!router.isReady || !slug) {
+        console.log("⏳ Router not ready yet or no slug");
         return;
       }
 
-      console.log("🔗 Smart Link Router: Looking up slug:", slug);
-      setIsSmartRouting(true);
+      console.log("🔍 Redirect page loaded for slug:", slug);
+      setStatus("Verifying link...");
 
       try {
-        // Step 1: Smart link lookup (with caching, fuzzy matching, fallback)
-        const lookupResult = await smartLinkRouter.findLink(slug);
+        // Get visitor metadata
+        const metadata = {
+          user_agent: navigator.userAgent,
+          referrer: document.referrer,
+          device_type: /mobile/i.test(navigator.userAgent) ? "mobile" : "desktop"
+        };
 
-        if (!lookupResult.found) {
-          console.error("❌ Link not found:", slug);
-          setError(lookupResult.error || "This affiliate link was not found");
-          setDebugInfo(`No link found with slug: ${slug}\nTried: direct lookup, fuzzy matching, inactive links`);
-          setIsSmartRouting(false);
-          return;
+        console.log("📱 Visitor metadata:", metadata);
+        console.log("🔗 Looking up link in database...");
+
+        // Track click and get redirect URL
+        const result = await affiliateLinkService.trackClick(slug as string, metadata);
+
+        console.log("📊 Track click result:", result);
+
+        if (result.success && result.redirect_url) {
+          console.log("✅ Link found! Redirecting to:", result.redirect_url);
+          setStatus("Redirecting...");
+          setRedirectUrl(result.redirect_url);
+
+          // Add small delay to show the loading screen
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          console.log("🚀 Executing redirect now...");
+          window.location.href = result.redirect_url;
+        } else {
+          console.error("❌ Link not found for slug:", slug);
+          console.error("❌ Result:", result);
+          setError("Link not found or expired");
+          setStatus("Error");
         }
-
-        const link = lookupResult.link;
-        console.log("✅ Link found:", {
-          id: link.id,
-          product_name: link.product_name,
-          slug: link.slug,
-          clicks: link.click_count
-        });
-
-        // Step 2: Gather metadata for smart routing
-        const metadata: any = {};
-        if (typeof window !== 'undefined') {
-          metadata.userAgent = navigator.userAgent || undefined;
-          metadata.referrer = document.referrer || undefined;
-          metadata.deviceType = /mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
-          
-          // Try to detect country (would need IP geolocation API in production)
-          // For now, we'll use browser language as a proxy
-          const language = navigator.language || "en-US";
-          metadata.country = language.split('-')[1] || "US";
-        }
-
-        // Step 3: Get smart destination (A/B testing, geo-routing)
-        console.log("🎯 Getting smart destination with A/B testing & geo-routing...");
-        const destinationUrl = await smartLinkRouter.getSmartDestination(
-          link.id,
-          metadata
-        ) || link.original_url;
-
-        if (!destinationUrl || destinationUrl.trim() === "") {
-          console.error("❌ No destination URL configured");
-          setError("This link is not configured properly - missing destination URL");
-          setDebugInfo(`Link ID: ${link.id}\nProduct: ${link.product_name}\nDestination URL is empty`);
-          setIsSmartRouting(false);
-          return;
-        }
-
-        // Step 4: Track click with advanced metadata (bot detection, fraud scoring)
-        console.log("📊 Tracking click with bot detection & fraud prevention...");
-        await smartLinkRouter.trackSmartClick(link.id, link.user_id, metadata);
-
-        // Step 5: Redirect to destination
-        console.log("🚀 Smart routing complete. Redirecting to:", destinationUrl);
-        window.location.href = destinationUrl;
-        
-      } catch (error: any) {
-        console.error("💥 Smart router error:", error);
-        setError("An unexpected error occurred during smart routing");
-        setDebugInfo(`Error: ${error.message}\nStack: ${error.stack}`);
-        setIsSmartRouting(false);
+      } catch (err: any) {
+        console.error("💥 Redirect error:", err);
+        console.error("💥 Stack trace:", err.stack);
+        setError(err.message || "Failed to process redirect");
+        setStatus("Error");
       }
     };
 
     handleRedirect();
-  }, [slug]);
+  }, [router.isReady, slug]);
 
   if (error) {
     return (
