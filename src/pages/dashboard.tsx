@@ -31,6 +31,7 @@ import { CampaignBuilder } from "@/components/CampaignBuilder";
 import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
 import { OneClickAutopilot } from "@/components/OneClickAutopilot";
 import { ProductGallery } from "@/components/ProductGallery";
+import { IntegrationsDashboard } from "@/components/IntegrationsDashboard";
 
 interface Campaign {
   id: string;
