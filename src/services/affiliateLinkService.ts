@@ -377,6 +377,39 @@ export const affiliateLinkService = {
       console.log("   Destination:", link.original_url);
       console.log("   Current clicks:", link.clicks);
 
+      // CRITICAL: Validate destination URL
+      if (!link.original_url || link.original_url.trim() === "") {
+        console.error("❌ Link has no destination URL");
+        return { success: false, redirect_url: null, linkId: link.id };
+      }
+
+      // Validate URL format
+      try {
+        const urlTest = new URL(link.original_url);
+        console.log("✅ Valid URL format:", urlTest.hostname);
+        
+        // Check for invalid patterns
+        const invalidPatterns = [
+          "example.com",
+          "placeholder",
+          "test.com",
+          "localhost",
+          "salemakseb.com" // Don't redirect to ourselves
+        ];
+        
+        const isInvalid = invalidPatterns.some(pattern => 
+          link.original_url.toLowerCase().includes(pattern)
+        );
+        
+        if (isInvalid) {
+          console.error("❌ Invalid URL pattern detected:", link.original_url);
+          return { success: false, redirect_url: null, linkId: link.id };
+        }
+      } catch (urlError) {
+        console.error("❌ Invalid URL format:", link.original_url);
+        return { success: false, redirect_url: null, linkId: link.id };
+      }
+
       // Record click event
       console.log("📝 Recording click event...");
       const { error: clickError } = await supabase
