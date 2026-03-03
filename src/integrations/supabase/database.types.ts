@@ -891,6 +891,71 @@ export type Database = {
           },
         ]
       }
+      integrations: {
+        Row: {
+          access_token: string | null
+          category: string
+          config: Json | null
+          connected_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          last_sync_at: string | null
+          provider: string
+          provider_logo: string | null
+          provider_name: string
+          refresh_token: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          category: string
+          config?: Json | null
+          connected_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_sync_at?: string | null
+          provider: string
+          provider_logo?: string | null
+          provider_name: string
+          refresh_token?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          category?: string
+          config?: Json | null
+          connected_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_sync_at?: string | null
+          provider?: string
+          provider_logo?: string | null
+          provider_name?: string
+          refresh_token?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       link_variants: {
         Row: {
           clicks: number | null
