@@ -1,158 +1,385 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { CheckCircle, XCircle, RefreshCw, ExternalLink, Loader2, AlertTriangle } from "lucide-react";
 import { affiliateLinkService } from "@/services/affiliateLinkService";
-import { productCatalogService } from "@/services/productCatalogService";
-import { authService } from "@/services/authService";
+import { smartLinkRouter } from "@/services/smartLinkRouter";
+import Link from "next/link";
 
-export default function TestLinks() {
-  const [testResults, setTestResults] = useState<any[]>([]);
+interface LinkStatus {
+  id: string;
+  slug: string;
+  productName: string;
+  originalUrl: string;
+  cloakedUrl: string;
+  status: "valid" | "invalid" | "repaired" | "testing";
+  repairedUrl?: string;
+  error?: string;
+}
+
+export default function TestLinksPage() {
+  const [links, setLinks] = useState<LinkStatus[]>([]);
+  const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [filter, setFilter] = useState<"all" | "valid" | "invalid" | "repaired">("all");
 
-  const runLinkTest = async () => {
-    setTesting(true);
-    setTestResults([]);
-    const results: any[] = [];
+  useEffect(() => {
+    loadLinks();
+  }, []);
 
+  const loadLinks = async () => {
+    setLoading(true);
     try {
-      // Check authentication
-      const session = await authService.getCurrentSession();
-      if (!session) {
-        results.push({ test: "Auth", status: "FAIL", message: "Not logged in" });
-        setTestResults(results);
-        setTesting(false);
-        return;
-      }
-      results.push({ test: "Auth", status: "PASS", message: `Logged in as ${session.user.email}` });
+      const { links: userLinks } = await affiliateLinkService.getUserLinks();
+      
+      const linkStatuses: LinkStatus[] = userLinks.map(link => ({
+        id: link.id,
+        slug: link.slug,
+        productName: link.product_name,
+        originalUrl: link.original_url,
+        cloakedUrl: link.cloaked_url,
+        status: "testing" as const
+      }));
 
-      // Get a test product
-      const products = productCatalogService.getHighConvertingProducts(10);
-      const testProduct = products[0];
-      results.push({ 
-        test: "Product Catalog", 
-        status: "PASS", 
-        message: `Found ${products.length} products. Testing with: ${testProduct.name}` 
-      });
+      setLinks(linkStatuses);
+    } catch (error) {
+      console.error("Failed to load links:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Test link creation with EXPLICIT undefined product_id
-      console.log("🧪 Creating test link with productId: undefined");
-      const linkResult = await affiliateLinkService.createAffiliateLink({
-        productId: undefined, // CRITICAL: Must be undefined for catalog products
-        productName: testProduct.name,
-        destinationUrl: testProduct.url,
-        network: testProduct.network,
-        commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, "")) || 0
-      });
+  const testAllLinks = async () => {
+    setTesting(true);
+    
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
+      
+      // Update status to testing
+      setLinks(prev => prev.map((l, idx) => 
+        idx === i ? { ...l, status: "testing" as const } : l
+      ));
 
-      if (linkResult.success && linkResult.link) {
-        results.push({ 
-          test: "Link Creation", 
-          status: "PASS", 
-          message: `Created link: ${linkResult.shortUrl}`,
-          link: linkResult.shortUrl,
-          destination: testProduct.url
-        });
+      // Test the URL
+      const validation = await smartLinkRouter.validateUrl(link.originalUrl);
+      
+      // Update status based on validation
+      setLinks(prev => prev.map((l, idx) => 
+        idx === i ? {
+          ...l,
+          status: validation.valid ? "valid" as const : "invalid" as const,
+          error: validation.error
+        } : l
+      ));
 
-        // Test link lookup
-        const { links: lookupResult } = await affiliateLinkService.getUserLinks();
-        const foundLink = lookupResult?.find((l: any) => l.id === linkResult.link?.id);
-        
-        if (foundLink) {
-          results.push({ 
-            test: "Link Lookup", 
-            status: "PASS", 
-            message: `Found link in database. Destination: ${foundLink.original_url}` 
-          });
-        } else {
-          results.push({ 
-            test: "Link Lookup", 
-            status: "FAIL", 
-            message: "Link not found in database" 
-          });
-        }
-      } else {
-        results.push({ 
-          test: "Link Creation", 
-          status: "FAIL", 
-          message: linkResult.error || "Unknown error" 
-        });
-      }
-
-    } catch (error: any) {
-      results.push({ 
-        test: "System", 
-        status: "ERROR", 
-        message: error.message 
-      });
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    setTestResults(results);
     setTesting(false);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle>🔗 Affiliate Link System Test</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button 
-            onClick={runLinkTest} 
-            disabled={testing}
-            className="w-full"
-          >
-            {testing ? "Testing..." : "Run Link Test"}
-          </Button>
+  const repairAllLinks = async () => {
+    setRepairing(true);
+    
+    // Only repair invalid links
+    const invalidLinks = links.filter(l => l.status === "invalid");
+    
+    for (const link of invalidLinks) {
+      try {
+        // Get the full link data
+        const { links: userLinks } = await affiliateLinkService.getUserLinks();
+        const fullLink = userLinks.find(l => l.id === link.id);
+        
+        if (fullLink) {
+          const repairedUrl = await smartLinkRouter.attemptUrlRepair(fullLink);
+          
+          if (repairedUrl) {
+            setLinks(prev => prev.map(l => 
+              l.id === link.id ? {
+                ...l,
+                status: "repaired" as const,
+                repairedUrl
+              } : l
+            ));
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to repair link ${link.id}:`, error);
+      }
+    }
 
-          {testResults.length > 0 && (
-            <div className="space-y-2 mt-4">
-              {testResults.map((result, i) => (
-                <div 
-                  key={i}
-                  className={`p-4 rounded-lg border ${
-                    result.status === "PASS" 
-                      ? "bg-green-50 border-green-200" 
-                      : result.status === "FAIL"
-                      ? "bg-red-50 border-red-200"
-                      : "bg-yellow-50 border-yellow-200"
-                  }`}
+    setRepairing(false);
+  };
+
+  const filteredLinks = links.filter(link => {
+    if (filter === "all") return true;
+    return link.status === filter;
+  });
+
+  const stats = {
+    total: links.length,
+    valid: links.filter(l => l.status === "valid").length,
+    invalid: links.filter(l => l.status === "invalid").length,
+    repaired: links.filter(l => l.status === "repaired").length
+  };
+
+  return (
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold">Affiliate Link Tester</h1>
+          <p className="text-muted-foreground mt-2">
+            Test and repair your affiliate links to ensure they redirect properly
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-sm text-muted-foreground">Total Links</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-green-600">{stats.valid}</div>
+              <p className="text-sm text-muted-foreground">Valid Links</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-red-600">{stats.invalid}</div>
+              <p className="text-sm text-muted-foreground">Invalid Links</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-blue-600">{stats.repaired}</div>
+              <p className="text-sm text-muted-foreground">Repaired Links</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions</CardTitle>
+            <CardDescription>Test and repair your affiliate links</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              <Button 
+                onClick={testAllLinks} 
+                disabled={testing || loading}
+              >
+                {testing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Test All Links
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                onClick={repairAllLinks} 
+                disabled={repairing || stats.invalid === 0}
+                variant="secondary"
+              >
+                {repairing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Repairing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Repair Invalid Links ({stats.invalid})
+                  </>
+                )}
+              </Button>
+
+              <Button onClick={loadLinks} variant="outline">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reload Links
+              </Button>
+
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  variant={filter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("all")}
                 >
-                  <div className="font-bold">
-                    {result.status === "PASS" ? "✅" : result.status === "FAIL" ? "❌" : "⚠️"} {result.test}
-                  </div>
-                  <div className="text-sm mt-1">{result.message}</div>
-                  {result.link && (
-                    <div className="mt-2">
-                      <a 
-                        href={result.link} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        Test Link: {result.link}
-                      </a>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Destination: {result.destination}
+                  All
+                </Button>
+                <Button
+                  variant={filter === "valid" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("valid")}
+                >
+                  Valid
+                </Button>
+                <Button
+                  variant={filter === "invalid" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("invalid")}
+                >
+                  Invalid
+                </Button>
+                <Button
+                  variant={filter === "repaired" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("repaired")}
+                >
+                  Repaired
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Links List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Affiliate Links ({filteredLinks.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {loading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+                  <p className="text-muted-foreground">Loading links...</p>
+                </div>
+              ) : filteredLinks.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    {filter === "all" 
+                      ? "No affiliate links found. Create some links first!"
+                      : `No ${filter} links found.`}
+                  </p>
+                  <Link href="/dashboard">
+                    <Button className="mt-4">Go to Dashboard</Button>
+                  </Link>
+                </div>
+              ) : (
+                filteredLinks.map((link) => (
+                  <div
+                    key={link.id}
+                    className="border rounded-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{link.productName}</h3>
+                          {link.status === "valid" && (
+                            <Badge className="bg-green-500">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Valid
+                            </Badge>
+                          )}
+                          {link.status === "invalid" && (
+                            <Badge variant="destructive">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Invalid
+                            </Badge>
+                          )}
+                          {link.status === "repaired" && (
+                            <Badge className="bg-blue-500">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Repaired
+                            </Badge>
+                          )}
+                          {link.status === "testing" && (
+                            <Badge variant="secondary">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Testing
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Slug: {link.slug}
+                        </p>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
 
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-bold mb-2">📋 Test Instructions:</h3>
-            <ol className="text-sm space-y-1 list-decimal list-inside">
-              <li>Click "Run Link Test" to create a test affiliate link</li>
-              <li>If all tests pass (✅), click the generated test link</li>
-              <li>It should redirect to a real Amazon product page (not 404)</li>
-              <li>If it works, the UUID error is completely fixed!</li>
-            </ol>
-          </div>
-        </CardContent>
-      </Card>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium">Cloaked URL:</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
+                            {link.cloakedUrl}
+                          </code>
+                          <a
+                            href={link.cloakedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="font-medium">Destination URL:</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="bg-muted px-2 py-1 rounded text-xs flex-1 break-all">
+                            {link.originalUrl}
+                          </code>
+                          <a
+                            href={link.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+
+                      {link.repairedUrl && (
+                        <div>
+                          <span className="font-medium text-blue-600">Repaired URL:</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <code className="bg-blue-50 border-blue-200 px-2 py-1 rounded text-xs flex-1 break-all">
+                              {link.repairedUrl}
+                            </code>
+                            <a
+                              href={link.repairedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {link.error && (
+                        <div className="text-red-600 text-xs">
+                          <span className="font-medium">Error:</span> {link.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

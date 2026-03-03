@@ -190,7 +190,28 @@ export const smartLinkRouter = {
       }
     }
 
-    // Strategy 2: Generate a search URL as fallback
+    // Strategy 2: Try to find product by name in catalog
+    const { data: catalogProduct } = await supabase
+      .from("product_catalog")
+      .select("affiliate_url")
+      .ilike("name", `%${link.product_name}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (catalogProduct?.affiliate_url) {
+      const validation = await this.validateUrl(catalogProduct.affiliate_url);
+      if (validation.valid) {
+        await supabase
+          .from("affiliate_links")
+          .update({ original_url: catalogProduct.affiliate_url })
+          .eq("id", link.id);
+        
+        console.log("✅ [Smart Router] Repaired from catalog search");
+        return catalogProduct.affiliate_url;
+      }
+    }
+
+    // Strategy 3: Generate a search URL as fallback
     const searchQuery = encodeURIComponent(link.product_name);
     const fallbackUrl = `https://www.amazon.com/s?k=${searchQuery}`;
     
