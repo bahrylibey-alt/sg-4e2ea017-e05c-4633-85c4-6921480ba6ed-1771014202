@@ -290,56 +290,85 @@ export const autopilotEngine = {
    * Get autopilot status
    */
   async getAutopilotStatus() {
+    console.log("📊 Checking autopilot status...");
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log("❌ No user logged in");
         return {
           isActive: false,
-          hasActiveCampaigns: false,
-          hasPausedCampaigns: false
+          activeCampaigns: 0,
+          totalLinks: 0,
+          totalClicks: 0,
+          totalRevenue: 0,
+          settings: null
         };
       }
 
-      // Check for active campaigns
-      const { data: activeCampaigns } = await supabase
+      // Check user settings
+      console.log("🔍 Checking user_settings...");
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      console.log("⚙️ User settings:", settings);
+
+      // Check active autopilot campaigns
+      console.log("🔍 Checking active autopilot campaigns...");
+      const { data: campaigns, error: campaignsError } = await supabase
         .from("campaigns")
-        .select("id")
+        .select("*")
         .eq("user_id", user.id)
         .eq("is_autopilot", true)
         .eq("status", "active");
 
-      // Check for paused campaigns
-      const { data: pausedCampaigns } = await supabase
-        .from("campaigns")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_autopilot", true)
-        .eq("status", "paused");
+      if (campaignsError) {
+        console.error("❌ Error fetching campaigns:", campaignsError);
+      }
 
-      // Check settings
-      const { data: settings } = await supabase
-        .from("user_settings")
-        .select("autopilot_enabled")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      console.log("🎯 Active autopilot campaigns:", campaigns?.length || 0);
 
-      const hasActive = (activeCampaigns?.length || 0) > 0;
-      const hasPaused = (pausedCampaigns?.length || 0) > 0;
-      const settingsEnabled = settings?.autopilot_enabled || false;
+      // Check affiliate links
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      // Calculate totals
+      const totalClicks = links?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
+      const totalRevenue = links?.reduce((sum, link) => sum + (link.commission_earned || 0), 0) || 0;
+
+      // CRITICAL: Autopilot is active if BOTH conditions are true:
+      // 1. user_settings.autopilot_enabled = true
+      // 2. There are active autopilot campaigns
+      const isActive = (settings?.autopilot_enabled === true) && ((campaigns?.length || 0) > 0);
+
+      console.log("✅ Autopilot status calculated:");
+      console.log("   Settings enabled:", settings?.autopilot_enabled);
+      console.log("   Active campaigns:", campaigns?.length || 0);
+      console.log("   Final status:", isActive ? "ACTIVE" : "OFF");
 
       return {
-        isActive: hasActive && settingsEnabled,
-        hasActiveCampaigns: hasActive,
-        hasPausedCampaigns: hasPaused,
-        settingsEnabled
+        isActive,
+        activeCampaigns: campaigns?.length || 0,
+        totalLinks: links?.length || 0,
+        totalClicks,
+        totalRevenue,
+        settings
       };
-
-    } catch (error) {
-      console.error("Failed to get autopilot status:", error);
+    } catch (error: any) {
+      console.error("💥 Error getting autopilot status:", error);
       return {
         isActive: false,
-        hasActiveCampaigns: false,
-        hasPausedCampaigns: false
+        activeCampaigns: 0,
+        totalLinks: 0,
+        totalClicks: 0,
+        totalRevenue: 0,
+        settings: null
       };
     }
   },

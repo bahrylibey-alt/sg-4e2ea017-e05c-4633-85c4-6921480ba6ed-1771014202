@@ -318,11 +318,11 @@ export const affiliateIntegrationService = {
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createAffiliateLink({
-            productId: product.id,
+            productId: undefined, // CRITICAL: Don't pass catalog product ID to avoid UUID error
             productName: product.name,
             destinationUrl: product.url,
             network: product.network,
-            commissionRate: this.extractCommissionRate(product.commission)
+            commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
           });
 
           if (linkResult.success) {
