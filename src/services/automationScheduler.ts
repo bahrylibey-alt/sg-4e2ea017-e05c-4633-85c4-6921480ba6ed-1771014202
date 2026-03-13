@@ -172,7 +172,7 @@ export const automationScheduler = {
   async generateContent(campaignId: string, userId: string): Promise<boolean> {
     try {
       const db: any = supabase;
-      const { data: campaign } = await db
+      const { data: campaign } = await supabase
         .from("campaigns")
         .select("*, affiliate_links(*)")
         .eq("id", campaignId)
@@ -216,7 +216,7 @@ export const automationScheduler = {
     try {
       const db: any = supabase;
       // Get campaign links
-      const { data: links } = await db
+      const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId)
@@ -232,7 +232,7 @@ export const automationScheduler = {
       const randomLink = links[Math.floor(Math.random() * links.length)];
       const newClicks = Math.floor(Math.random() * 20) + 5;
 
-      await db
+      await supabase
         .from("affiliate_links")
         .update({
           clicks: (randomLink.clicks || 0) + newClicks,
@@ -264,8 +264,7 @@ export const automationScheduler = {
    */
   async optimizeCampaign(campaignId: string, userId: string): Promise<boolean> {
     try {
-      const db: any = supabase;
-      const { data: links } = await db
+      const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId);
@@ -300,7 +299,7 @@ export const automationScheduler = {
   async trackConversions(campaignId: string, userId: string): Promise<boolean> {
     try {
       const db: any = supabase;
-      const { data: links } = await db
+      const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId);
@@ -308,7 +307,7 @@ export const automationScheduler = {
       if (!links) return false;
 
       // Calculate conversion rate (simulate for now)
-      const totalClicks = (links as any[]).reduce((sum, l) => sum + (l.clicks || 0), 0);
+      const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
       const conversionRate = 0.02; // 2% conversion rate
       const estimatedConversions = Math.floor(totalClicks * conversionRate);
 
