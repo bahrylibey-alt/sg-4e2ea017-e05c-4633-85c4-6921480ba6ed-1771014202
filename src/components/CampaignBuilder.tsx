@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info, ExternalLink } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export function CampaignBuilder({ 
   open, 
@@ -20,15 +20,16 @@ export function CampaignBuilder({
   onCampaignCreated?: () => void;
 }) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    name: "",
-    productUrls: [""],
-    goal: "sales" as "sales" | "leads" | "traffic",
-    budget: 500,
-    trafficChannels: [] as string[]
-  });
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [campaignName, setCampaignName] = useState("");
+  const [productUrls, setProductUrls] = useState("");
+  const [customBudget, setCustomBudget] = useState<number | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [createdCampaign, setCreatedCampaign] = useState<any>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const templates = smartCampaignService.getTemplates();
 
@@ -95,73 +96,32 @@ export function CampaignBuilder({
 
   const handleCreateCampaign = async () => {
     try {
-      setLoading(true);
-      
-      console.log("🚀 Creating campaign with data:", formData);
+      setIsCreating(true);
+      setError(null);
+      setValidationError(null);
 
-      // Validate inputs
-      if (!formData.name.trim()) {
-        toast({
-          title: "❌ Error",
-          description: "Please enter a campaign name",
-          variant: "destructive"
-        });
-        return;
-      }
+      const urls = productUrls.split("\n").map(u => u.trim()).filter(Boolean).map(normalizeUrl);
 
-      const validUrls = formData.productUrls.filter(url => url.trim());
-      if (validUrls.length === 0) {
-        toast({
-          title: "❌ Error",
-          description: "Please add at least one product URL",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create campaign using smart campaign service
+      // Attempt to pass campaignName if the service supports it, otherwise it's just extra props.
       const result = await smartCampaignService.createQuickCampaign({
-        campaignName: formData.name,
-        productUrls: validUrls,
-        customBudget: formData.budget,
-        customGoal: formData.goal,
-        trafficChannels: formData.trafficChannels
-      });
-
-      console.log("✅ Campaign result:", result);
+        productUrls: urls,
+        customBudget,
+        customGoal: selectedTemplate ? (smartCampaignService.getTemplate(selectedTemplate)?.goal as any) : "sales",
+        ...(campaignName ? { campaignName } : {})
+      } as any);
 
       if (result.success && result.campaign) {
-        toast({
-          title: "🎉 Campaign Created!",
-          description: `${result.campaign.name} is now live with ${result.affiliateLinks?.length || 0} tracking links`,
-        });
-        
-        // Reset form
-        setFormData({
-          name: "",
-          productUrls: [""],
-          goal: "sales",
-          budget: 500,
-          trafficChannels: []
-        });
-        setStep(1);
+        setSuccess(true);
+        setCreatedCampaign(result);
+        if (onCampaignCreated) onCampaignCreated();
       } else {
-        console.error("❌ Campaign creation failed:", result.error);
-        toast({
-          title: "❌ Creation Failed",
-          description: result.error || "Failed to create campaign. Please try again.",
-          variant: "destructive"
-        });
+        setError(result.error || "Failed to create campaign. Please try again.");
       }
-    } catch (error: any) {
-      console.error("💥 Campaign creation error:", error);
-      toast({
-        title: "❌ System Error",
-        description: error.message || "An unexpected error occurred. Please try again.",
-        variant: "destructive"
-      });
+    } catch (err: any) {
+      console.error("💥 Campaign creation error:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
     } finally {
-      setLoading(false);
+      setIsCreating(false);
     }
   };
 
@@ -193,7 +153,6 @@ export function CampaignBuilder({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Progress Steps */}
           <div className="flex items-center justify-between">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center">
@@ -207,7 +166,6 @@ export function CampaignBuilder({
             ))}
           </div>
 
-          {/* Errors */}
           {(error || validationError) && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -229,7 +187,6 @@ export function CampaignBuilder({
             </div>
           )}
 
-          {/* Success */}
           {success && createdCampaign && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">
               <div className="flex items-start gap-3 mb-4">
@@ -267,7 +224,6 @@ export function CampaignBuilder({
             </div>
           )}
 
-          {/* Step 1: Template Selection */}
           {step === 1 && !success && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Choose Campaign Template</h3>
@@ -301,7 +257,6 @@ export function CampaignBuilder({
             </div>
           )}
 
-          {/* Step 2: Campaign Details */}
           {step === 2 && !success && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Campaign Details</h3>
@@ -348,7 +303,6 @@ export function CampaignBuilder({
             </div>
           )}
 
-          {/* Step 3: Review & Launch */}
           {step === 3 && !success && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Review & Launch</h3>
@@ -389,7 +343,6 @@ export function CampaignBuilder({
             </div>
           )}
 
-          {/* Action Buttons */}
           {!success && (
             <div className="flex justify-between pt-4 border-t">
               <Button
