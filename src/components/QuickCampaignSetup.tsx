@@ -90,10 +90,10 @@ export function QuickCampaignSetup() {
       const normalizedUrl = normalizeUrl(formData.productUrl);
       console.log("🚀 Creating quick campaign:", normalizedUrl);
 
-      const result = await smartCampaignService.quickSetup({
-        productUrl: normalizedUrl,
-        budget: parseFloat(formData.budget),
-        goal: formData.goal
+      const result = await smartCampaignService.createQuickCampaign({
+        productUrls: [normalizedUrl],
+        customBudget: parseFloat(formData.budget),
+        customGoal: formData.goal
       });
 
       console.log("✅ Campaign result:", result);

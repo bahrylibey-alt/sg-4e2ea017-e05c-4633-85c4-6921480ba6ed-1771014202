@@ -310,7 +310,7 @@ export const autopilotEngine = {
         .limit(30);
 
       const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
-      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_tracked || 0), 0) || 0;
+      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
       const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
 
       // Check if scheduler is actually running
@@ -378,15 +378,11 @@ export const autopilotEngine = {
         .limit(30);
 
       const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
-      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_tracked || 0), 0) || 0;
+      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
       const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
 
-      // Get active traffic sources
-      const { data: trafficSources } = await supabase
-        .from("traffic_sources_config")
-        .select("*", { count: "exact" })
-        .in("campaign_id", campaignIds)
-        .eq("status", "active");
+      // Get active campaigns count as proxy for traffic sources
+      const activeTrafficSources = campaigns?.filter(c => c.status === 'active').length || 0;
 
       return {
         totalClicks,
@@ -395,7 +391,7 @@ export const autopilotEngine = {
         totalCommissions: totalRevenue * 0.4,
         activeCampaigns,
         activeLinks: campaigns?.length || 0,
-        trafficSources: trafficSources?.length || 0,
+        trafficSources: activeTrafficSources,
         schedulerStatus: automationScheduler.isRunning ? "running" : "stopped"
       };
     } catch (error) {
