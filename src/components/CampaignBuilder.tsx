@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info, ExternalLink } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
+import { useToast } from "@/components/ui/use-toast";
 
 export function CampaignBuilder({ 
   open, 
@@ -18,16 +19,16 @@ export function CampaignBuilder({
   onOpenChange: (open: boolean) => void;
   onCampaignCreated?: () => void;
 }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [campaignName, setCampaignName] = useState("");
-  const [productUrls, setProductUrls] = useState("");
-  const [customBudget, setCustomBudget] = useState<number | undefined>(undefined);
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [createdCampaign, setCreatedCampaign] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    productUrls: [""],
+    goal: "sales" as "sales" | "leads" | "traffic",
+    budget: 500,
+    trafficChannels: [] as string[]
+  });
 
   const templates = smartCampaignService.getTemplates();
 
@@ -93,62 +94,74 @@ export function CampaignBuilder({
   };
 
   const handleCreateCampaign = async () => {
-    setIsCreating(true);
-    setError(null);
-    setValidationError(null);
-
     try {
-      console.log("🚀 Creating campaign from builder...");
+      setLoading(true);
       
-      const urls = productUrls
-        .split("\n")
-        .map(u => u.trim())
-        .filter(Boolean)
-        .map(normalizeUrl);
+      console.log("🚀 Creating campaign with data:", formData);
 
-      console.log("📝 Normalized URLs:", urls);
+      // Validate inputs
+      if (!formData.name.trim()) {
+        toast({
+          title: "❌ Error",
+          description: "Please enter a campaign name",
+          variant: "destructive"
+        });
+        return;
+      }
 
-      const template = selectedTemplate ? smartCampaignService.getTemplate(selectedTemplate) : null;
+      const validUrls = formData.productUrls.filter(url => url.trim());
+      if (validUrls.length === 0) {
+        toast({
+          title: "❌ Error",
+          description: "Please add at least one product URL",
+          variant: "destructive"
+        });
+        return;
+      }
 
+      // Create campaign using smart campaign service
       const result = await smartCampaignService.createQuickCampaign({
-        productUrls: urls,
-        templateId: selectedTemplate || undefined,
-        customGoal: template?.goal,
-        customBudget: customBudget || template?.suggestedBudget
+        campaignName: formData.name,
+        productUrls: validUrls,
+        customBudget: formData.budget,
+        customGoal: formData.goal,
+        trafficChannels: formData.trafficChannels
       });
 
       console.log("✅ Campaign result:", result);
 
       if (result.success && result.campaign) {
-        setCreatedCampaign(result);
-        setSuccess(true);
+        toast({
+          title: "🎉 Campaign Created!",
+          description: `${result.campaign.name} is now live with ${result.affiliateLinks?.length || 0} tracking links`,
+        });
         
-        // Call the callback if provided
-        if (onCampaignCreated) {
-          onCampaignCreated();
-        }
+        // Reset form
+        setFormData({
+          name: "",
+          productUrls: [""],
+          goal: "sales",
+          budget: 500,
+          trafficChannels: []
+        });
+        setStep(1);
       } else {
-        console.error("❌ Failed:", result.error);
-        
-        // Better error message for authentication issues
-        if (result.error?.includes("logged in") || result.error?.includes("authenticated")) {
-          setError("You must be logged in to create campaigns. Please close this dialog and click 'Sign In' in the top navigation menu.");
-        } else {
-          setError(result.error || "Failed to create campaign. Please try again.");
-        }
+        console.error("❌ Campaign creation failed:", result.error);
+        toast({
+          title: "❌ Creation Failed",
+          description: result.error || "Failed to create campaign. Please try again.",
+          variant: "destructive"
+        });
       }
-    } catch (err) {
-      console.error("💥 Error:", err);
-      const errorMsg = err instanceof Error ? err.message : "An unexpected error occurred";
-      
-      // Check for authentication-related errors
-      if (errorMsg.includes("session") || errorMsg.includes("auth") || errorMsg.includes("login")) {
-        setError("Authentication required. Please close this dialog and sign in using the 'Sign In' button in the navigation menu.");
-      } else {
-        setError(errorMsg);
-      }
+    } catch (error: any) {
+      console.error("💥 Campaign creation error:", error);
+      toast({
+        title: "❌ System Error",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      });
     } finally {
-      setIsCreating(false);
+      setLoading(false);
     }
   };
 
