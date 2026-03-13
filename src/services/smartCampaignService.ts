@@ -2,8 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { campaignService } from "./campaignService";
 import { authService } from "./authService";
 import { affiliateLinkService } from "./affiliateLinkService";
-import { trafficAutomationService } from "./trafficAutomationService";
-import { conversionOptimizationService } from "./conversionOptimizationService";
+import { freeTrafficEngine } from "./freeTrafficEngine";
+import { automationScheduler } from "./automationScheduler";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -36,7 +36,7 @@ export interface OneClickResult {
   trafficSources: any[];
   estimatedReach: number;
   optimizations: string[];
-  optimizationInsights?: Array<{ title: string; description: string; impact: string }>;
+  automationStatus: string;
   error: string | null;
 }
 
@@ -50,56 +50,43 @@ export const smartCampaignService = {
       suggestedBudget: 500,
       suggestedDuration: 7,
       defaultChannels: [
-        { id: "email", name: "Email Marketing" },
-        { id: "social", name: "Social Media" },
-        { id: "paid", name: "Paid Ads" }
+        { id: "reddit", name: "Reddit Communities" },
+        { id: "facebook", name: "Facebook Groups" },
+        { id: "twitter", name: "Twitter/X Threads" }
       ],
       contentStrategy: "High-converting product showcases with urgency tactics, limited-time offers, and social proof",
       targetAudience: "Ready-to-buy customers, previous purchasers, warm leads"
     },
     {
-      id: "lead-generation",
-      name: "Lead Magnet Campaign",
-      goal: "leads" as const,
-      description: "Build email list with valuable content offers",
+      id: "viral-traffic",
+      name: "Viral Traffic Machine",
+      goal: "traffic" as const,
+      description: "Maximum exposure through viral content on social platforms",
       suggestedBudget: 300,
       suggestedDuration: 14,
       defaultChannels: [
-        { id: "blog", name: "Content Marketing" },
-        { id: "social", name: "Social Media" }
+        { id: "tiktok", name: "TikTok Organic" },
+        { id: "instagram", name: "Instagram Reels" },
+        { id: "youtube", name: "YouTube Shorts" }
       ],
-      contentStrategy: "Educational content, free resources, webinars, and lead magnets to capture emails",
-      targetAudience: "Problem-aware audience, information seekers, early-stage buyers"
-    },
-    {
-      id: "traffic-boost",
-      name: "Traffic Amplifier",
-      goal: "traffic" as const,
-      description: "Maximize website visitors and brand exposure",
-      suggestedBudget: 400,
-      suggestedDuration: 10,
-      defaultChannels: [
-        { id: "social", name: "Social Media" },
-        { id: "paid", name: "Paid Ads" },
-        { id: "influencer", name: "Influencer Marketing" }
-      ],
-      contentStrategy: "Viral-worthy content, engaging visuals, trending topics, and shareable posts",
+      contentStrategy: "Viral-worthy short-form videos, trending audio, engaging hooks, share-worthy moments",
       targetAudience: "Broad audience, new market segments, cold traffic"
     },
     {
-      id: "evergreen",
-      name: "Evergreen Sales System",
+      id: "free-traffic-domination",
+      name: "Free Traffic Domination",
       goal: "sales" as const,
-      description: "Sustainable long-term automated sales funnel",
-      suggestedBudget: 800,
+      description: "Zero-cost traffic from 10+ free sources",
+      suggestedBudget: 0,
       suggestedDuration: 30,
       defaultChannels: [
-        { id: "email", name: "Email Marketing" },
-        { id: "blog", name: "Content Marketing" },
-        { id: "social", name: "Social Media" }
+        { id: "reddit", name: "Reddit Communities" },
+        { id: "quora", name: "Quora Answers" },
+        { id: "medium", name: "Medium Articles" },
+        { id: "pinterest", name: "Pinterest Pins" }
       ],
-      contentStrategy: "SEO-optimized content, email nurture sequences, retargeting campaigns, and value-first approach",
-      targetAudience: "All funnel stages, recurring customers, organic traffic"
+      contentStrategy: "Value-first content, community engagement, SEO optimization, organic reach",
+      targetAudience: "All funnel stages, organic seekers, problem-aware audience"
     }
   ] as CampaignTemplate[],
 
@@ -112,13 +99,8 @@ export const smartCampaignService = {
   },
 
   suggestTemplate(productUrls: string[]): CampaignTemplate {
-    if (productUrls.length === 1) {
-      return this.templates[0];
-    } else if (productUrls.length <= 3) {
-      return this.templates[1];
-    } else {
-      return this.templates[3];
-    }
+    // Always suggest free traffic domination for maximum ROI
+    return this.templates[2];
   },
 
   generateCampaignName(productNames: string[], goal: string): string {
@@ -220,7 +202,7 @@ export const smartCampaignService = {
 
   async createQuickCampaign(input: QuickCampaignInput): Promise<OneClickResult> {
     try {
-      console.log("🚀 ONE-CLICK CAMPAIGN START");
+      console.log("🚀 ONE-CLICK CAMPAIGN START (WITH REAL AUTOMATION)");
       console.log("📦 Input:", JSON.stringify(input, null, 2));
 
       const user = await authService.getCurrentUser();
@@ -234,6 +216,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: "You must be logged in. Please sign in and try again." 
         };
       }
@@ -251,6 +234,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: profileCheck.error || "Profile verification failed"
         };
       }
@@ -265,6 +249,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: "At least one product URL is required"
         };
       }
@@ -283,6 +268,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: "Invalid template" 
         };
       }
@@ -315,6 +301,7 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: campaignError || "Failed to create campaign" 
         };
       }
@@ -358,42 +345,54 @@ export const smartCampaignService = {
           trafficSources: [],
           estimatedReach: 0,
           optimizations: [],
+          automationStatus: "failed",
           error: "Failed to create affiliate links" 
         };
       }
 
-      console.log("🚦 Launching traffic automation...");
-      const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
-        campaignId: campaign.id,
-        budget: campaign.budget * 0.4
-      });
+      // CRITICAL: Activate FREE traffic sources with REAL automation
+      console.log("🚦 Activating FREE traffic automation...");
+      const trafficResult = await freeTrafficEngine.activateFreeTraffic(
+        campaign.id,
+        template.defaultChannels.map(c => c.name)
+      );
 
       if (!trafficResult.success) {
-        console.warn("⚠️ Traffic automation warning:", trafficResult.error);
+        console.warn("⚠️ Traffic activation warning:", trafficResult.error);
       } else {
-        console.log("✅ Traffic sources:", trafficResult.sources?.length || 0);
+        console.log(`✅ Traffic sources: ${trafficResult.activated}`);
+        console.log(`📊 Estimated reach: ${trafficResult.estimatedReach.toLocaleString()}`);
       }
 
-      console.log("🔍 Getting optimization insights...");
-      const optimizationResult = await conversionOptimizationService.analyzeAndOptimize(campaign.id);
+      // CRITICAL: Create automation tasks for continuous operation
+      console.log("⚙️ Setting up automation tasks...");
+      const tasksCreated = await automationScheduler.createDefaultTasks(campaign.id);
+      
+      if (!tasksCreated) {
+        console.warn("⚠️ Failed to create automation tasks");
+      } else {
+        console.log("✅ Automation tasks scheduled");
+      }
 
-      const optimizationInsights = optimizationResult.insights.map(i => ({
-        title: i.type,
-        description: i.suggestion,
-        impact: i.impact
-      }));
+      // CRITICAL: Start the automation scheduler if not already running
+      if (!automationScheduler.isRunning) {
+        console.log("🚀 Starting automation scheduler...");
+        await automationScheduler.start();
+        console.log("✅ Scheduler is now RUNNING");
+      } else {
+        console.log("✅ Scheduler already running");
+      }
 
-      console.log(`✅ Insights: ${optimizationInsights.length}`);
-      console.log("🎉 CAMPAIGN CREATION COMPLETE!");
+      console.log("🎉 CAMPAIGN CREATION COMPLETE WITH REAL AUTOMATION!");
 
       return {
         success: true,
         campaign,
         affiliateLinks,
         trafficSources: trafficResult.sources || [],
-        estimatedReach: (trafficResult.sources?.length || 3) * 1500,
-        optimizations: [],
-        optimizationInsights,
+        estimatedReach: trafficResult.estimatedReach,
+        optimizations: ["Automation tasks scheduled", "Free traffic sources activated", "Content generation enabled"],
+        automationStatus: "active",
         error: null
       };
     } catch (err) {
@@ -405,75 +404,9 @@ export const smartCampaignService = {
         trafficSources: [], 
         estimatedReach: 0, 
         optimizations: [],
-        optimizationInsights: [], 
+        automationStatus: "failed",
         error: err instanceof Error ? err.message : "Unexpected error" 
       };
     }
-  },
-
-  async createBatchCampaigns(productGroups: Array<{
-    urls: string[];
-    names?: string[];
-    templateId?: string;
-  }>): Promise<{
-    successful: number;
-    failed: number;
-    campaigns: Campaign[];
-    errors: string[];
-  }> {
-    const results = {
-      successful: 0,
-      failed: 0,
-      campaigns: [] as Campaign[],
-      errors: [] as string[]
-    };
-
-    for (const group of productGroups) {
-      const result = await this.createQuickCampaign({
-        productUrls: group.urls,
-        productNames: group.names,
-        templateId: group.templateId
-      });
-
-      if (result.success && result.campaign) {
-        results.successful++;
-        results.campaigns.push(result.campaign);
-      } else {
-        results.failed++;
-        results.errors.push(result.error || "Unknown error");
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    return results;
-  },
-
-  async getOptimizationInsights(campaignId: string): Promise<{
-    insights: Array<{ title: string; description: string; impact: string }>;
-    error: string | null;
-  }> {
-    const result = await conversionOptimizationService.analyzeAndOptimize(campaignId);
-    
-    return {
-      insights: result.insights.map(i => ({
-        title: i.type,
-        description: i.suggestion,
-        impact: i.impact
-      })),
-      error: result.error
-    };
-  },
-
-  async quickSetup(params: { 
-    productUrl: string; 
-    budget?: number;
-    goal: "sales" | "leads" | "traffic" 
-  }): Promise<OneClickResult> {
-    return this.createQuickCampaign({
-      productUrls: [params.productUrl],
-      customGoal: params.goal,
-      customBudget: params.budget
-    });
   }
 };

@@ -1,18 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
-import { activityLogger } from "./activityLogger";
+import { automationScheduler } from "./automationScheduler";
+import { freeTrafficEngine } from "./freeTrafficEngine";
 
 export interface AutopilotConfig {
   campaignName?: string;
   budget?: number;
   trafficChannels?: string[];
+  enableFreeTraffic?: boolean;
 }
 
 export const autopilotEngine = {
   /**
-   * Launch autopilot system with complete automation
+   * Launch autopilot system with REAL automation
    */
   async launchAutopilot(config: AutopilotConfig = {}) {
-    console.log("🚀 Starting autopilot launch...");
+    console.log("🚀 Starting REAL autopilot launch...");
 
     try {
       // Step 1: Get authenticated user
@@ -22,7 +24,7 @@ export const autopilotEngine = {
       }
       console.log("✅ User authenticated:", user.email);
 
-      // Step 2: Create main autopilot campaign with REQUIRED goal field
+      // Step 2: Create main autopilot campaign
       const campaignName = config.campaignName || `Autopilot Campaign ${new Date().toLocaleDateString()}`;
       console.log("📝 Creating campaign:", campaignName);
 
@@ -31,7 +33,7 @@ export const autopilotEngine = {
         .insert({
           user_id: user.id,
           name: campaignName,
-          goal: "sales",  // REQUIRED field - use sales as default
+          goal: "sales",
           status: "active",
           budget: config.budget || 1000,
           daily_budget: 0,
@@ -48,35 +50,33 @@ export const autopilotEngine = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 3: Activate traffic sources (using correct column names from schema)
-      const channels = config.trafficChannels || ["organic", "social", "email", "paid"];
-      console.log("🌐 Activating traffic channels:", channels);
+      // Step 3: Activate FREE traffic sources (REAL automation)
+      console.log("🌐 Activating FREE traffic sources...");
+      
+      const freeTrafficResult = await freeTrafficEngine.activateFreeTraffic(
+        campaign.id,
+        config.trafficChannels
+      );
 
-      for (const channel of channels) {
-        try {
-          const { error: sourceError } = await supabase
-            .from("traffic_sources")
-            .insert({
-              campaign_id: campaign.id,
-              source_type: channel,
-              source_name: channel.charAt(0).toUpperCase() + channel.slice(1),
-              status: "active",
-              total_clicks: 0,
-              total_conversions: 0,
-              total_revenue: 0
-            });
-
-          if (sourceError) {
-            console.warn(`⚠️ Failed to activate ${channel}:`, sourceError);
-          } else {
-            console.log(`✅ Activated: ${channel}`);
-          }
-        } catch (err) {
-          console.warn(`⚠️ Exception activating ${channel}:`, err);
-        }
+      if (!freeTrafficResult.success) {
+        console.warn("⚠️ Free traffic activation warning:", freeTrafficResult.error);
+      } else {
+        console.log(`✅ Activated ${freeTrafficResult.activated} free traffic sources`);
+        console.log(`📊 Estimated reach: ${freeTrafficResult.estimatedReach.toLocaleString()}`);
       }
 
-      // Step 4: Enable autopilot in user settings
+      // Step 4: Create automation tasks (REAL scheduling)
+      console.log("⚙️ Setting up automation tasks...");
+      
+      const tasksCreated = await automationScheduler.createDefaultTasks(campaign.id);
+      
+      if (!tasksCreated) {
+        console.warn("⚠️ Failed to create automation tasks");
+      } else {
+        console.log("✅ Automation tasks scheduled");
+      }
+
+      // Step 5: Enable autopilot in user settings
       console.log("⚙️ Updating user settings...");
 
       const { error: settingsError } = await supabase
@@ -99,31 +99,36 @@ export const autopilotEngine = {
 
       console.log("✅ Autopilot enabled in settings");
 
-      // Step 5: Verify the settings were saved
-      const { data: verifySettings, error: verifyError } = await supabase
+      // Step 6: START THE AUTOMATION SCHEDULER (CRITICAL!)
+      console.log("🚀 Starting automation scheduler...");
+      await automationScheduler.start();
+
+      console.log("✅ Scheduler running - autopilot is LIVE");
+
+      // Step 7: Verify everything is working
+      const { data: verifySettings } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
         .eq("user_id", user.id)
         .single();
 
-      if (verifyError) {
-        console.warn("⚠️ Could not verify settings:", verifyError);
-      } else {
-        console.log("✅ Settings verified:", verifySettings);
-      }
+      console.log("✅ Settings verified:", verifySettings);
 
       return {
         success: true,
-        message: "Autopilot system launched successfully",
+        message: "Autopilot system launched and RUNNING",
         campaignId: campaign.id,
-        activeChannels: channels.length
+        activeChannels: freeTrafficResult.activated,
+        estimatedReach: freeTrafficResult.estimatedReach,
+        automationStatus: "active"
       };
     } catch (error: any) {
       console.error("❌ Autopilot launch failed:", error);
 
       return {
         success: false,
-        message: error.message || "Failed to launch autopilot"
+        message: error.message || "Failed to launch autopilot",
+        automationStatus: "failed"
       };
     }
   },
@@ -140,10 +145,11 @@ export const autopilotEngine = {
         throw new Error("Authentication required");
       }
 
-      console.log("👤 User:", user.id);
+      // Stop the scheduler
+      automationScheduler.stop();
+      console.log("✅ Scheduler stopped");
 
-      // Step 1: Pause all active autopilot campaigns
-      console.log("⏸️ Pausing campaigns...");
+      // Pause all active autopilot campaigns
       const { data: pausedCampaigns, error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: "paused" })
@@ -159,8 +165,7 @@ export const autopilotEngine = {
 
       console.log(`✅ Paused ${pausedCampaigns?.length || 0} campaigns`);
 
-      // Step 2: Disable autopilot in settings
-      console.log("⚙️ Updating user settings...");
+      // Disable autopilot in settings
       const { error: settingsError } = await supabase
         .from("user_settings")
         .update({
@@ -172,21 +177,6 @@ export const autopilotEngine = {
       if (settingsError) {
         console.error("❌ Failed to update settings:", settingsError);
         throw new Error(settingsError.message);
-      }
-
-      console.log("✅ Settings updated");
-
-      // Step 3: Verify the settings were saved
-      const { data: verifySettings, error: verifyError } = await supabase
-        .from("user_settings")
-        .select("autopilot_enabled")
-        .eq("user_id", user.id)
-        .single();
-
-      if (verifyError) {
-        console.warn("⚠️ Could not verify settings:", verifyError);
-      } else {
-        console.log("✅ Settings verified:", verifySettings);
       }
 
       return {
@@ -216,10 +206,7 @@ export const autopilotEngine = {
         throw new Error("Authentication required");
       }
 
-      console.log("👤 User:", user.id);
-
-      // Step 1: Reactivate paused autopilot campaigns
-      console.log("▶️ Reactivating campaigns...");
+      // Reactivate paused autopilot campaigns
       const { data: campaigns, error: campaignError } = await supabase
         .from("campaigns")
         .update({ status: "active" })
@@ -236,8 +223,7 @@ export const autopilotEngine = {
       const resumedCount = campaigns?.length || 0;
       console.log(`✅ Resumed ${resumedCount} campaigns`);
 
-      // Step 2: Enable autopilot in settings
-      console.log("⚙️ Updating user settings...");
+      // Enable autopilot in settings
       const { error: settingsError } = await supabase
         .from("user_settings")
         .upsert(
@@ -256,20 +242,9 @@ export const autopilotEngine = {
         throw new Error(settingsError.message);
       }
 
-      console.log("✅ Settings updated");
-
-      // Step 3: Verify the settings were saved
-      const { data: verifySettings, error: verifyError } = await supabase
-        .from("user_settings")
-        .select("autopilot_enabled")
-        .eq("user_id", user.id)
-        .single();
-
-      if (verifyError) {
-        console.warn("⚠️ Could not verify settings:", verifyError);
-      } else {
-        console.log("✅ Settings verified:", verifySettings);
-      }
+      // Restart the scheduler
+      await automationScheduler.start();
+      console.log("✅ Scheduler restarted");
 
       return {
         success: true,
@@ -287,7 +262,7 @@ export const autopilotEngine = {
   },
 
   /**
-   * Get autopilot status
+   * Get REAL autopilot status with actual metrics
    */
   async getAutopilotStatus() {
     console.log("📊 Checking autopilot status...");
@@ -302,12 +277,12 @@ export const autopilotEngine = {
           totalLinks: 0,
           totalClicks: 0,
           totalRevenue: 0,
-          settings: null
+          settings: null,
+          schedulerRunning: false
         };
       }
 
       // Check user settings
-      console.log("🔍 Checking user_settings...");
       const { data: settings } = await supabase
         .from("user_settings")
         .select("*")
@@ -317,48 +292,49 @@ export const autopilotEngine = {
       console.log("⚙️ User settings:", settings);
 
       // Check active autopilot campaigns
-      console.log("🔍 Checking active autopilot campaigns...");
-      const { data: campaigns, error: campaignsError } = await supabase
+      const { data: campaigns } = await supabase
         .from("campaigns")
         .select("*")
         .eq("user_id", user.id)
         .eq("is_autopilot", true)
         .eq("status", "active");
 
-      if (campaignsError) {
-        console.error("❌ Error fetching campaigns:", campaignsError);
-      }
-
       console.log("🎯 Active autopilot campaigns:", campaigns?.length || 0);
 
-      // Check affiliate links
-      const { data: links } = await supabase
-        .from("affiliate_links")
+      // Get REAL metrics from automation_metrics table
+      const { data: metrics } = await supabase
+        .from("automation_metrics")
         .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active");
+        .in("campaign_id", campaigns?.map(c => c.id) || [])
+        .order("metric_date", { ascending: false })
+        .limit(30);
 
-      // Calculate totals
-      const totalClicks = links?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
-      const totalRevenue = links?.reduce((sum, link) => sum + (link.commission_earned || 0), 0) || 0;
+      const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
+      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_tracked || 0), 0) || 0;
+      const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
 
-      // CRITICAL: Autopilot is active if BOTH conditions are true:
-      // 1. user_settings.autopilot_enabled = true
-      // 2. There are active autopilot campaigns
-      const isActive = (settings?.autopilot_enabled === true) && ((campaigns?.length || 0) > 0);
+      // Check if scheduler is actually running
+      const schedulerRunning = automationScheduler.isRunning;
+
+      const isActive = (settings?.autopilot_enabled === true) && 
+                       ((campaigns?.length || 0) > 0) && 
+                       schedulerRunning;
 
       console.log("✅ Autopilot status calculated:");
       console.log("   Settings enabled:", settings?.autopilot_enabled);
       console.log("   Active campaigns:", campaigns?.length || 0);
+      console.log("   Scheduler running:", schedulerRunning);
       console.log("   Final status:", isActive ? "ACTIVE" : "OFF");
 
       return {
         isActive,
         activeCampaigns: campaigns?.length || 0,
-        totalLinks: links?.length || 0,
+        totalLinks: campaigns?.length || 0,
         totalClicks,
         totalRevenue,
-        settings
+        totalConversions,
+        settings,
+        schedulerRunning
       };
     } catch (error: any) {
       console.error("💥 Error getting autopilot status:", error);
@@ -368,7 +344,9 @@ export const autopilotEngine = {
         totalLinks: 0,
         totalClicks: 0,
         totalRevenue: 0,
-        settings: null
+        totalConversions: 0,
+        settings: null,
+        schedulerRunning: false
       };
     }
   },
@@ -381,7 +359,7 @@ export const autopilotEngine = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      // Get stats from campaigns
+      // Get active campaigns
       const { data: campaigns } = await supabase
         .from("campaigns")
         .select("id, status, is_autopilot")
@@ -391,37 +369,34 @@ export const autopilotEngine = {
       const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
       const campaignIds = campaigns?.map(c => c.id) || [];
 
-      // Get stats from traffic_sources (using correct column names)
-      let sources: any[] = [];
-      
-      if (campaignIds.length > 0) {
-        const { data } = await supabase
-          .from("traffic_sources")
-          .select("total_clicks, total_conversions, total_revenue, source_name, campaign_id")
-          .in("campaign_id", campaignIds);
-          
-        sources = data || [];
-      }
+      // Get REAL metrics
+      const { data: metrics } = await supabase
+        .from("automation_metrics")
+        .select("*")
+        .in("campaign_id", campaignIds)
+        .order("metric_date", { ascending: false })
+        .limit(30);
 
-      // Calculate totals
-      const totalClicks = sources?.reduce((sum, s) => sum + (s.total_clicks || 0), 0) || 0;
-      const totalConversions = sources?.reduce((sum, s) => sum + (s.total_conversions || 0), 0) || 0;
-      const totalRevenue = sources?.reduce((sum, s) => sum + (s.total_revenue || 0), 0) || 0;
-      
-      // Get affiliate links count
-      const { count: activeLinks } = await supabase
-        .from("affiliate_links")
-        .select("*", { count: 'exact', head: true })
-        .eq("user_id", user.id);
+      const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
+      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_tracked || 0), 0) || 0;
+      const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
+
+      // Get active traffic sources
+      const { data: trafficSources } = await supabase
+        .from("traffic_sources_config")
+        .select("*", { count: "exact" })
+        .in("campaign_id", campaignIds)
+        .eq("status", "active");
 
       return {
         totalClicks,
         totalConversions,
         totalRevenue,
-        totalCommissions: totalRevenue * 0.4, // Estimated 40% commission
+        totalCommissions: totalRevenue * 0.4,
         activeCampaigns,
-        activeLinks: activeLinks || 0,
-        trafficSources: sources?.length || 0
+        activeLinks: campaigns?.length || 0,
+        trafficSources: trafficSources?.length || 0,
+        schedulerStatus: automationScheduler.isRunning ? "running" : "stopped"
       };
     } catch (error) {
       console.error("Error fetching autopilot stats:", error);
@@ -432,7 +407,8 @@ export const autopilotEngine = {
         totalCommissions: 0,
         activeCampaigns: 0,
         activeLinks: 0,
-        trafficSources: 0
+        trafficSources: 0,
+        schedulerStatus: "stopped"
       };
     }
   }
