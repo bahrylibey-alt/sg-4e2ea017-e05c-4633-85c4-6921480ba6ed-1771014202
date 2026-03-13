@@ -142,6 +142,7 @@ export const freeTrafficEngine = {
    */
   async generateInitialContent(campaignId: string, userId: string, sources: typeof this.FREE_SOURCES) {
     try {
+      const db: any = supabase;
       const { data: campaign } = await supabase
         .from("campaigns")
         .select("name, goal, content_strategy, affiliate_links(*)")
@@ -167,7 +168,7 @@ export const freeTrafficEngine = {
         });
       }
 
-      await (supabase as any)
+      await db
         .from("content_queue")
         .insert(contentPieces);
 
@@ -251,7 +252,8 @@ export const freeTrafficEngine = {
    */
   async getTrafficStats(campaignId?: string) {
     try {
-      let query = (supabase as any)
+      const db: any = supabase;
+      let query = db
         .from("automation_metrics")
         .select("*");
 

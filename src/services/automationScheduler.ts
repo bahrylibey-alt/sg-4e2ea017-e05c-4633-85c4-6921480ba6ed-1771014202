@@ -59,6 +59,7 @@ export const automationScheduler = {
   async processTasks() {
     try {
       console.log("🔄 Processing autopilot tasks...");
+      const db: any = supabase;
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -68,7 +69,7 @@ export const automationScheduler = {
 
       // Get all pending tasks that are due
       const now = new Date().toISOString();
-      const { data: tasks, error } = await (supabase as any)
+      const { data: tasks, error } = await db
         .from("autopilot_tasks")
         .select("*")
         .eq("status", "pending")
@@ -103,9 +104,10 @@ export const automationScheduler = {
   async executeTask(task: any) {
     try {
       console.log(`⚡ Executing task: ${task.task_type} for campaign ${task.campaign_id}`);
+      const db: any = supabase;
 
       // Mark as running
-      await (supabase as any)
+      await db
         .from("autopilot_tasks")
         .update({ status: "running" })
         .eq("id", task.id);
@@ -139,7 +141,7 @@ export const automationScheduler = {
       nextRun.setMinutes(nextRun.getMinutes() + (task.interval_minutes || 60));
 
       // Update task status
-      await (supabase as any)
+      await db
         .from("autopilot_tasks")
         .update({
           status: "pending",
@@ -152,8 +154,9 @@ export const automationScheduler = {
 
     } catch (err) {
       console.error(`❌ Task execution failed:`, err);
+      const db: any = supabase;
 
-      await (supabase as any)
+      await db
         .from("autopilot_tasks")
         .update({ 
           status: "failed",
@@ -168,6 +171,7 @@ export const automationScheduler = {
    */
   async generateContent(campaignId: string, userId: string): Promise<boolean> {
     try {
+      const db: any = supabase;
       const { data: campaign } = await supabase
         .from("campaigns")
         .select("*, affiliate_links(*)")
@@ -186,7 +190,7 @@ export const automationScheduler = {
 
       const template = contentTemplates[Math.floor(Math.random() * contentTemplates.length)];
 
-      await (supabase as any)
+      await db
         .from("content_queue")
         .insert({
           campaign_id: campaignId,
@@ -210,6 +214,7 @@ export const automationScheduler = {
    */
   async acquireTraffic(campaignId: string, userId: string): Promise<boolean> {
     try {
+      const db: any = supabase;
       // Get campaign links
       const { data: links } = await supabase
         .from("affiliate_links")
@@ -236,7 +241,7 @@ export const automationScheduler = {
         .eq("id", randomLink.id);
 
       // Log the traffic
-      await (supabase as any)
+      await db
         .from("automation_metrics")
         .insert({
           campaign_id: campaignId,
@@ -293,6 +298,7 @@ export const automationScheduler = {
    */
   async trackConversions(campaignId: string, userId: string): Promise<boolean> {
     try {
+      const db: any = supabase;
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
@@ -306,7 +312,7 @@ export const automationScheduler = {
       const estimatedConversions = Math.floor(totalClicks * conversionRate);
 
       // We only insert new metrics. A real system might upsert based on composite keys.
-      await (supabase as any)
+      await db
         .from("automation_metrics")
         .insert({
           campaign_id: campaignId,
@@ -328,6 +334,7 @@ export const automationScheduler = {
    */
   async createDefaultTasks(campaignId: string) {
     try {
+      const db: any = supabase;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
@@ -370,7 +377,7 @@ export const automationScheduler = {
         }
       ];
 
-      const { error } = await (supabase as any)
+      const { error } = await db
         .from("autopilot_tasks")
         .insert(tasks);
 
