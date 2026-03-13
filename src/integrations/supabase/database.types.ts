@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -283,6 +283,156 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_content_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_metrics: {
+        Row: {
+          ai_decisions_made: number | null
+          campaign_id: string | null
+          clicks_generated: number | null
+          content_generated: number | null
+          content_posted: number | null
+          conversions_generated: number | null
+          created_at: string | null
+          id: string
+          metric_date: string
+          optimization_actions: number | null
+          revenue_generated: number | null
+          tasks_executed: number | null
+          tasks_failed: number | null
+          tasks_successful: number | null
+          traffic_generated: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_decisions_made?: number | null
+          campaign_id?: string | null
+          clicks_generated?: number | null
+          content_generated?: number | null
+          content_posted?: number | null
+          conversions_generated?: number | null
+          created_at?: string | null
+          id?: string
+          metric_date?: string
+          optimization_actions?: number | null
+          revenue_generated?: number | null
+          tasks_executed?: number | null
+          tasks_failed?: number | null
+          tasks_successful?: number | null
+          traffic_generated?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ai_decisions_made?: number | null
+          campaign_id?: string | null
+          clicks_generated?: number | null
+          content_generated?: number | null
+          content_posted?: number | null
+          conversions_generated?: number | null
+          created_at?: string | null
+          id?: string
+          metric_date?: string
+          optimization_actions?: number | null
+          revenue_generated?: number | null
+          tasks_executed?: number | null
+          tasks_failed?: number | null
+          tasks_successful?: number | null
+          traffic_generated?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_metrics_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_metrics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autopilot_tasks: {
+        Row: {
+          campaign_id: string | null
+          config: Json | null
+          created_at: string | null
+          error_message: string | null
+          failure_count: number | null
+          id: string
+          last_run_at: string | null
+          next_run_at: string
+          priority: number
+          result: Json | null
+          run_count: number | null
+          schedule_type: string
+          status: string
+          success_count: number | null
+          task_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          config?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          failure_count?: number | null
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string
+          priority?: number
+          result?: Json | null
+          run_count?: number | null
+          schedule_type?: string
+          status?: string
+          success_count?: number | null
+          task_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          config?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          failure_count?: number | null
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string
+          priority?: number
+          result?: Json | null
+          run_count?: number | null
+          schedule_type?: string
+          status?: string
+          success_count?: number | null
+          task_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_tasks_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_tasks_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -663,6 +813,87 @@ export type Database = {
           },
           {
             foreignKeyName: "commissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_queue: {
+        Row: {
+          campaign_id: string | null
+          clicks: number | null
+          content: string
+          content_type: string
+          created_at: string | null
+          engagement_score: number | null
+          error_message: string | null
+          hashtags: string[] | null
+          id: string
+          media_urls: string[] | null
+          platform: string
+          post_id: string | null
+          posted_at: string | null
+          scheduled_for: string | null
+          status: string
+          target_url: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          clicks?: number | null
+          content: string
+          content_type: string
+          created_at?: string | null
+          engagement_score?: number | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          media_urls?: string[] | null
+          platform: string
+          post_id?: string | null
+          posted_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          target_url?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          clicks?: number | null
+          content?: string
+          content_type?: string
+          created_at?: string | null
+          engagement_score?: number | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          media_urls?: string[] | null
+          platform?: string
+          post_id?: string | null
+          posted_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          target_url?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_queue_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
