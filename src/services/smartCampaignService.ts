@@ -352,9 +352,14 @@ export const smartCampaignService = {
 
       // CRITICAL: Activate FREE traffic sources with REAL automation
       console.log("🚦 Activating FREE traffic automation...");
+      
+      // Wait a moment for campaign to be fully persisted
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const trafficResult = await freeTrafficEngine.activateFreeTraffic(
         campaign.id,
-        template.defaultChannels.map(c => c.name)
+        template.defaultChannels.map(c => c.name),
+        campaign // Pass campaign data to avoid refetch issues
       );
 
       if (!trafficResult.success) {

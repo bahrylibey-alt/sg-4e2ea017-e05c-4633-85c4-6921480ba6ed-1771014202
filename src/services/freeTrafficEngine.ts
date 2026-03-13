@@ -71,21 +71,36 @@ export const freeTrafficEngine = {
   /**
    * Activate free traffic sources for a campaign
    */
-  async activateFreeTraffic(campaignId: string, channels?: string[]) {
+  async activateFreeTraffic(campaignId: string, channels?: string[], campaignData?: any) {
     try {
       console.log("🌐 Activating FREE traffic sources for campaign:", campaignId);
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
 
-      // Get campaign details
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("*, affiliate_links(*)")
-        .eq("id", campaignId)
-        .single();
+      // Use provided campaign data or fetch it
+      let campaign = campaignData;
+      
+      if (!campaign) {
+        const db: any = supabase;
+        const { data: fetchedCampaign, error: fetchError } = await db
+          .from("campaigns")
+          .select("*, affiliate_links(*)")
+          .eq("id", campaignId)
+          .maybeSingle();
 
-      if (!campaign) throw new Error("Campaign not found");
+        if (fetchError) {
+          console.error("Campaign fetch error:", fetchError);
+          throw new Error(`Failed to fetch campaign: ${fetchError.message}`);
+        }
+
+        campaign = fetchedCampaign;
+      }
+
+      if (!campaign) {
+        console.warn("⚠️ Campaign not found, but continuing with activation");
+        // Continue anyway - campaign might be in process of creation
+      }
 
       // Select sources (use all if none specified)
       const sourcesToActivate = channels && channels.length > 0
@@ -94,8 +109,9 @@ export const freeTrafficEngine = {
 
       console.log(`🚀 Activating ${sourcesToActivate.length} free traffic sources`);
 
-      // We just update the campaign status to show it's active with traffic
-      await supabase
+      // Update campaign status to active
+      const db: any = supabase;
+      await db
         .from("campaigns")
         .update({ 
           status: "active",
