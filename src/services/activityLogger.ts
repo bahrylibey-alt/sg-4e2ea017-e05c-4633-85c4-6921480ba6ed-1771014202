@@ -37,16 +37,20 @@ export const activityLogger = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from("activity_logs").insert({
+        const { error } = await supabase.from("activity_logs").insert({
           user_id: user.id,
           action,
           status,
           details,
           metadata: metadata || null
         });
+        
+        if (error) {
+          console.warn("Failed to save activity log to DB:", error);
+        }
       }
     } catch (err) {
-      console.warn("Failed to save activity log:", err);
+      console.warn("Exception saving activity log:", err);
     }
 
     return logEntry;
@@ -65,7 +69,10 @@ export const activityLogger = {
   async getRecentLogs(limit: number = 50): Promise<ActivityLog[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
+      if (!user) {
+        console.log("No user found for activity logs");
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("activity_logs")
@@ -75,22 +82,29 @@ export const activityLogger = {
         .limit(limit);
 
       if (error) {
-        console.error("Failed to fetch logs:", error);
+        console.error("Failed to fetch activity logs:", error);
         return [];
       }
 
+      if (!data || data.length === 0) {
+        console.log("No activity logs found in database");
+        return [];
+      }
+
+      console.log(`✅ Loaded ${data.length} activity logs from database`);
+
       // Map database records to ActivityLog interface
-      return (data || []).map(log => ({
+      return data.map(log => ({
         id: log.id,
-        user_id: log.user_id,
-        timestamp: log.created_at, // Map created_at to timestamp
+        user_id: log.user_id || undefined,
+        timestamp: log.created_at,
         action: log.action,
         status: log.status as "started" | "success" | "error" | "info",
         details: log.details,
-        metadata: log.metadata as Record<string, any> | undefined
+        metadata: (log.metadata as Record<string, any>) || undefined
       }));
     } catch (err) {
-      console.error("Exception fetching logs:", err);
+      console.error("Exception fetching activity logs:", err);
       return [];
     }
   },
@@ -100,5 +114,27 @@ export const activityLogger = {
    */
   clearLogs() {
     this.logs = [];
+  },
+
+  /**
+   * Log system activity (campaigns, links, etc.)
+   */
+  async logSystemActivity(
+    action: string,
+    details: string,
+    metadata?: Record<string, any>
+  ) {
+    return this.log(action, "info", details, metadata);
+  },
+
+  /**
+   * Log user action
+   */
+  async logUserAction(
+    action: string,
+    details: string,
+    metadata?: Record<string, any>
+  ) {
+    return this.log(action, "success", details, metadata);
   }
 };

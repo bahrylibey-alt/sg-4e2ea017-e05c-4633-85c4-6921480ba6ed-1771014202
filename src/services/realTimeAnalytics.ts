@@ -43,7 +43,7 @@ export interface PerformanceSnapshot {
 
 export interface ActivityEvent {
   id: string;
-  type: "click" | "conversion" | "commission" | "link_created";
+  type: "click" | "conversion" | "commission" | "link_created" | "campaign_created";
   timestamp: string;
   description: string;
   amount?: number;
@@ -64,34 +64,61 @@ export const realTimeAnalytics = {
     try {
       const user = await authService.getCurrentUser();
       if (!user) {
+        console.log("No user found for performance snapshot");
         return this.getEmptySnapshot();
       }
 
+      console.log("📊 Fetching performance data for user:", user.id);
+
       // Get all active campaigns
-      const { data: campaigns } = await supabase
+      const { data: campaigns, error: campaignsError } = await supabase
         .from("campaigns")
         .select("*")
         .eq("user_id", user.id);
 
+      if (campaignsError) {
+        console.error("Error fetching campaigns:", campaignsError);
+      }
+
+      console.log(`📋 Campaigns: ${campaigns?.length || 0}`);
+
       // Get all affiliate links
-      const { data: links } = await supabase
+      const { data: links, error: linksError } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("user_id", user.id);
 
+      if (linksError) {
+        console.error("Error fetching links:", linksError);
+      }
+
+      console.log(`🔗 Affiliate Links: ${links?.length || 0}`);
+
       // Get all commissions
-      const { data: commissions } = await supabase
+      const { data: commissions, error: commissionsError } = await supabase
         .from("commissions")
         .select("*")
         .eq("user_id", user.id);
 
+      if (commissionsError) {
+        console.error("Error fetching commissions:", commissionsError);
+      }
+
+      console.log(`💰 Commissions: ${commissions?.length || 0}`);
+
       // Get recent click events (last 100)
-      const { data: recentClicks } = await supabase
+      const { data: recentClicks, error: clicksError } = await supabase
         .from("click_events")
         .select("*")
         .eq("user_id", user.id)
         .order("clicked_at", { ascending: false })
         .limit(100);
+
+      if (clicksError) {
+        console.error("Error fetching clicks:", clicksError);
+      }
+
+      console.log(`👆 Recent Clicks: ${recentClicks?.length || 0}`);
 
       // Calculate totals
       const totalClicks = links?.reduce((sum, link) => sum + (link.clicks || 0), 0) || 0;
@@ -101,8 +128,18 @@ export const realTimeAnalytics = {
       const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
       const averageCommissionPerSale = totalConversions > 0 ? totalCommissions / totalConversions : 0;
 
+      console.log("📈 Calculated totals:", {
+        totalClicks,
+        totalConversions,
+        totalRevenue,
+        totalCommissions,
+        conversionRate: conversionRate.toFixed(2) + "%"
+      });
+
       // Build recent activity
-      const recentActivity = this.buildActivityFeed(links, commissions, recentClicks);
+      const recentActivity = this.buildActivityFeed(links, commissions, recentClicks, campaigns);
+
+      console.log(`📝 Recent Activity Events: ${recentActivity.length}`);
 
       // Get top products
       const topProducts = await this.getProductPerformance();
@@ -181,6 +218,8 @@ export const realTimeAnalytics = {
     userId: string,
     onUpdate: (snapshot: PerformanceSnapshot) => void
   ): () => void {
+    console.log("🔄 Setting up real-time subscriptions for user:", userId);
+
     // Set up real-time subscription for click events
     const clicksChannel = supabase
       .channel("click_events_realtime")
@@ -192,7 +231,8 @@ export const realTimeAnalytics = {
           table: "click_events",
           filter: `user_id=eq.${userId}`
         },
-        async () => {
+        async (payload) => {
+          console.log("🔔 New click event:", payload);
           const snapshot = await this.getPerformanceSnapshot();
           onUpdate(snapshot);
         }
@@ -210,7 +250,8 @@ export const realTimeAnalytics = {
           table: "commissions",
           filter: `user_id=eq.${userId}`
         },
-        async () => {
+        async (payload) => {
+          console.log("🔔 New commission:", payload);
           const snapshot = await this.getPerformanceSnapshot();
           onUpdate(snapshot);
         }
@@ -228,15 +269,19 @@ export const realTimeAnalytics = {
           table: "affiliate_links",
           filter: `user_id=eq.${userId}`
         },
-        async () => {
+        async (payload) => {
+          console.log("🔔 Link updated:", payload);
           const snapshot = await this.getPerformanceSnapshot();
           onUpdate(snapshot);
         }
       )
       .subscribe();
 
+    console.log("✅ Real-time subscriptions active");
+
     // Return cleanup function
     return () => {
+      console.log("🔌 Unsubscribing from real-time updates");
       clicksChannel.unsubscribe();
       commissionsChannel.unsubscribe();
       linksChannel.unsubscribe();
@@ -288,16 +333,37 @@ export const realTimeAnalytics = {
     }
   },
 
-  // Build activity feed from various sources
+  // Build activity feed from various sources - FIXED timestamp field
   buildActivityFeed(
     links?: AffiliateLink[] | null,
     commissions?: Commission[] | null,
-    clicks?: ClickEvent[] | null
+    clicks?: ClickEvent[] | null,
+    campaigns?: Campaign[] | null
   ): ActivityEvent[] {
     const activities: ActivityEvent[] = [];
 
+    console.log("🏗️ Building activity feed from:", {
+      links: links?.length || 0,
+      commissions: commissions?.length || 0,
+      clicks: clicks?.length || 0,
+      campaigns: campaigns?.length || 0
+    });
+
+    // Add campaign creations
+    if (campaigns && campaigns.length > 0) {
+      campaigns.slice(0, 5).forEach(campaign => {
+        activities.push({
+          id: `campaign-${campaign.id}`,
+          type: "campaign_created",
+          timestamp: campaign.created_at,
+          description: `Created campaign: ${campaign.name}`,
+          linkName: campaign.name
+        });
+      });
+    }
+
     // Add recent link creations
-    if (links) {
+    if (links && links.length > 0) {
       links.slice(0, 5).forEach(link => {
         activities.push({
           id: `link-${link.id}`,
@@ -310,7 +376,7 @@ export const realTimeAnalytics = {
     }
 
     // Add recent clicks
-    if (clicks) {
+    if (clicks && clicks.length > 0) {
       clicks.slice(0, 20).forEach(click => {
         activities.push({
           id: `click-${click.id}`,
@@ -322,7 +388,7 @@ export const realTimeAnalytics = {
     }
 
     // Add recent conversions (from clicks that converted)
-    if (clicks) {
+    if (clicks && clicks.length > 0) {
       clicks.filter(c => c.converted).slice(0, 10).forEach(click => {
         activities.push({
           id: `conversion-${click.id}`,
@@ -334,23 +400,27 @@ export const realTimeAnalytics = {
       });
     }
 
-    // Add recent commissions - FIXED: use created_at instead of transaction_date
-    if (commissions) {
+    // Add recent commissions - FIXED: use created_at instead of non-existent transaction_date
+    if (commissions && commissions.length > 0) {
       commissions.slice(0, 10).forEach(comm => {
         activities.push({
           id: `commission-${comm.id}`,
           type: "commission",
           timestamp: comm.created_at,
-          description: `Commission earned`,
+          description: `Commission earned: $${Number(comm.amount || 0).toFixed(2)}`,
           amount: Number(comm.amount || 0)
         });
       });
     }
 
     // Sort by timestamp (newest first)
-    return activities.sort((a, b) => 
+    const sorted = activities.sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
+
+    console.log(`✅ Built ${sorted.length} activity events`);
+
+    return sorted;
   },
 
   // Get empty snapshot

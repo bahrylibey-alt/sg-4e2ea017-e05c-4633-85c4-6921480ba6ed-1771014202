@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
+import { activityLogger } from "@/services/activityLogger";
 import type { Database } from "@/integrations/supabase/types";
 
 type ClickEvent = Database["public"]["Tables"]["click_events"]["Row"];
@@ -30,6 +31,8 @@ export const realtimeTrackingService = {
     userId: string,
     onEvent: (event: LiveActivity) => void
   ) {
+    console.log("🔄 Subscribing to click events for user:", userId);
+
     const channel = supabase
       .channel(`clicks:${userId}`)
       .on(
@@ -40,26 +43,42 @@ export const realtimeTrackingService = {
           table: "click_events"
         },
         async (payload) => {
+          console.log("🔔 New click event received:", payload);
           const clickEvent = payload.new as ClickEvent;
           
-          // Get link details
-          const { data: link } = await supabase
+          // Get link details with error handling
+          const { data: link, error } = await supabase
             .from("affiliate_links")
             .select("product_name")
             .eq("id", clickEvent.link_id)
-            .single();
+            .maybeSingle();
 
-          onEvent({
+          if (error) {
+            console.error("Error fetching link details:", error);
+          }
+
+          const event: LiveActivity = {
             id: clickEvent.id,
             type: "click",
             timestamp: clickEvent.clicked_at,
             product: link?.product_name || "Unknown Product",
             source: clickEvent.referrer || "Direct",
             country: clickEvent.country || undefined
-          });
+          };
+
+          // Log to activity logger
+          await activityLogger.logSystemActivity(
+            "click_received",
+            `Click on ${event.product} from ${event.source}`,
+            { clickId: clickEvent.id, product: event.product }
+          );
+
+          onEvent(event);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Click events subscription status:", status);
+      });
 
     return channel;
   },
@@ -69,6 +88,8 @@ export const realtimeTrackingService = {
     userId: string,
     onEvent: (event: LiveActivity) => void
   ) {
+    console.log("🔄 Subscribing to commission events for user:", userId);
+
     const channel = supabase
       .channel(`commissions:${userId}`)
       .on(
@@ -80,25 +101,41 @@ export const realtimeTrackingService = {
           filter: `user_id=eq.${userId}`
         },
         async (payload) => {
+          console.log("🔔 New commission received:", payload);
           const commission = payload.new as Commission;
           
-          // Get link details
-          const { data: link } = await supabase
+          // Get link details with error handling
+          const { data: link, error } = await supabase
             .from("affiliate_links")
             .select("product_name")
             .eq("id", commission.link_id || "")
-            .single();
+            .maybeSingle();
 
-          onEvent({
+          if (error) {
+            console.error("Error fetching link for commission:", error);
+          }
+
+          const event: LiveActivity = {
             id: commission.id,
             type: commission.status === "paid" ? "commission" : "conversion",
             timestamp: commission.created_at,
             product: link?.product_name || "Unknown Product",
             amount: Number(commission.amount) || 0
-          });
+          };
+
+          // Log to activity logger
+          await activityLogger.logSystemActivity(
+            "commission_earned",
+            `Commission of $${event.amount} earned on ${event.product}`,
+            { commissionId: commission.id, amount: event.amount }
+          );
+
+          onEvent(event);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 Commission events subscription status:", status);
+      });
 
     return channel;
   },
@@ -108,6 +145,7 @@ export const realtimeTrackingService = {
     try {
       const user = await authService.getCurrentUser();
       if (!user) {
+        console.log("No user for realtime stats");
         return {
           activeLinks: 0,
           todayClicks: 0,
@@ -118,49 +156,76 @@ export const realtimeTrackingService = {
         };
       }
 
+      console.log("📊 Fetching realtime stats for user:", user.id);
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString();
 
       // Get active links count
-      const { data: links } = await supabase
+      const { data: links, error: linksError } = await supabase
         .from("affiliate_links")
         .select("id, product_name, clicks, commission_earned")
         .eq("user_id", user.id)
         .eq("status", "active");
 
+      if (linksError) {
+        console.error("Error fetching active links:", linksError);
+      }
+
       const activeLinks = links?.length || 0;
+      console.log(`🔗 Active links: ${activeLinks}`);
 
       // Get today's clicks
-      const { data: todayClicks } = await supabase
+      const { data: todayClicks, error: clicksError } = await supabase
         .from("click_events")
-        .select("id, link_id")
+        .select("id, link_id, converted")
+        .eq("user_id", user.id)
         .gte("clicked_at", todayStr);
 
+      if (clicksError) {
+        console.error("Error fetching today's clicks:", clicksError);
+      }
+
       const todayClicksCount = todayClicks?.length || 0;
+      console.log(`👆 Today's clicks: ${todayClicksCount}`);
 
       // Get today's conversions
-      const convertedClicks = todayClicks?.filter(c => c.link_id) || [];
-      const { data: todayCommissions } = await supabase
+      const convertedClicks = todayClicks?.filter(c => c.converted === true) || [];
+      const todayConversions = convertedClicks.length;
+      console.log(`✅ Today's conversions: ${todayConversions}`);
+
+      // Get today's commissions
+      const { data: todayCommissions, error: commissionsError } = await supabase
         .from("commissions")
         .select("amount, link_id")
         .eq("user_id", user.id)
         .gte("created_at", todayStr);
 
-      const todayConversions = todayCommissions?.length || 0;
+      if (commissionsError) {
+        console.error("Error fetching today's commissions:", commissionsError);
+      }
+
       const todayRevenue = todayCommissions?.reduce(
         (sum, c) => sum + Number(c.amount || 0),
         0
       ) || 0;
+      console.log(`💰 Today's revenue: $${todayRevenue}`);
 
       // Get live visitors (clicks in last 5 minutes)
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data: recentClicks } = await supabase
+      const { data: recentClicks, error: recentError } = await supabase
         .from("click_events")
         .select("id")
+        .eq("user_id", user.id)
         .gte("clicked_at", fiveMinAgo);
 
+      if (recentError) {
+        console.error("Error fetching recent clicks:", recentError);
+      }
+
       const liveVisitors = recentClicks?.length || 0;
+      console.log(`👥 Live visitors: ${liveVisitors}`);
 
       // Get top performers
       const topPerformers = (links || [])
@@ -172,6 +237,8 @@ export const realtimeTrackingService = {
           revenue: link.commission_earned || 0
         }));
 
+      console.log(`🏆 Top performers: ${topPerformers.length}`);
+
       return {
         activeLinks,
         todayClicks: todayClicksCount,
@@ -181,7 +248,7 @@ export const realtimeTrackingService = {
         topPerformers
       };
     } catch (error) {
-      console.error("Error fetching realtime stats:", error);
+      console.error("❌ Error fetching realtime stats:", error);
       return {
         activeLinks: 0,
         todayClicks: 0,
@@ -197,23 +264,36 @@ export const realtimeTrackingService = {
   async getRecentActivity(limit: number = 20): Promise<LiveActivity[]> {
     try {
       const user = await authService.getCurrentUser();
-      if (!user) return [];
+      if (!user) {
+        console.log("No user for recent activity");
+        return [];
+      }
 
-      // Get recent clicks
-      const { data: clicks } = await supabase
+      console.log("📝 Fetching recent activity for user:", user.id);
+
+      // Get recent clicks with link info
+      const { data: clicks, error: clicksError } = await supabase
         .from("click_events")
-        .select("*, affiliate_links!inner(product_name, user_id)")
-        .eq("affiliate_links.user_id", user.id)
+        .select("*, affiliate_links(product_name)")
+        .eq("user_id", user.id)
         .order("clicked_at", { ascending: false })
         .limit(limit);
 
-      // Get recent commissions
-      const { data: commissions } = await supabase
+      if (clicksError) {
+        console.error("Error fetching recent clicks:", clicksError);
+      }
+
+      // Get recent commissions with link info
+      const { data: commissions, error: commissionsError } = await supabase
         .from("commissions")
         .select("*, affiliate_links(product_name)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(limit);
+
+      if (commissionsError) {
+        console.error("Error fetching recent commissions:", commissionsError);
+      }
 
       const activities: LiveActivity[] = [];
 
@@ -223,7 +303,7 @@ export const realtimeTrackingService = {
           id: click.id,
           type: "click",
           timestamp: click.clicked_at,
-          product: click.affiliate_links?.product_name || "Unknown",
+          product: (click.affiliate_links as any)?.product_name || "Unknown",
           source: click.referrer || "Direct",
           country: click.country || undefined
         });
@@ -235,60 +315,22 @@ export const realtimeTrackingService = {
           id: comm.id,
           type: comm.status === "paid" ? "commission" : "conversion",
           timestamp: comm.created_at,
-          product: comm.affiliate_links?.product_name || "Unknown",
+          product: (comm.affiliate_links as any)?.product_name || "Unknown",
           amount: Number(comm.amount) || 0
         });
       });
 
       // Sort by timestamp and limit
-      return activities
+      const sorted = activities
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, limit);
+
+      console.log(`✅ Retrieved ${sorted.length} recent activities`);
+
+      return sorted;
     } catch (error) {
-      console.error("Error fetching activity:", error);
+      console.error("❌ Error fetching activity:", error);
       return [];
-    }
-  },
-
-  // Simulate live activity for testing (remove in production)
-  async generateTestActivity(userId: string): Promise<void> {
-    try {
-      // Get user's active links
-      const { data: links } = await supabase
-        .from("affiliate_links")
-        .select("id, product_name")
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .limit(5);
-
-      if (!links || links.length === 0) return;
-
-      // Generate random click
-      const randomLink = links[Math.floor(Math.random() * links.length)];
-      
-      await supabase.from("click_events").insert({
-        link_id: randomLink.id,
-        ip_address: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-        user_agent: "Mozilla/5.0 (Test)",
-        country: ["US", "UK", "CA", "AU", "DE"][Math.floor(Math.random() * 5)],
-        device_type: ["desktop", "mobile", "tablet"][Math.floor(Math.random() * 3)],
-        referrer: "https://test.com"
-      });
-
-      // Randomly generate conversion
-      if (Math.random() > 0.7) {
-        const commissionAmount = Math.floor(Math.random() * 50) + 10;
-        
-        await supabase.from("commissions").insert({
-          user_id: userId,
-          link_id: randomLink.id,
-          amount: commissionAmount,
-          currency: "USD",
-          status: "pending"
-        });
-      }
-    } catch (error) {
-      console.error("Error generating test activity:", error);
     }
   },
 
@@ -305,40 +347,58 @@ export const realtimeTrackingService = {
     }
   ): Promise<{ success: boolean; clickId: string | null }> {
     try {
+      console.log("📍 Tracking enhanced click for link:", linkId);
+
+      // Get the link to ensure it exists and get user_id
+      const { data: link, error: linkError } = await supabase
+        .from("affiliate_links")
+        .select("user_id, clicks")
+        .eq("id", linkId)
+        .maybeSingle();
+
+      if (linkError || !link) {
+        console.error("Link not found:", linkError);
+        return { success: false, clickId: null };
+      }
+
+      // Insert click event with user_id from link
       const { data: click, error } = await supabase
         .from("click_events")
         .insert({
           link_id: linkId,
+          user_id: link.user_id,
           ip_address: metadata.ip_address || null,
           user_agent: metadata.user_agent || null,
           referrer: metadata.referrer || null,
-          country: null, // Would be determined by IP geolocation service
+          country: null,
           device_type: this.detectDeviceType(metadata.user_agent)
         })
         .select()
         .single();
 
       if (error || !click) {
+        console.error("Error inserting click event:", error);
         return { success: false, clickId: null };
       }
 
-      // Update link click count manually to avoid RPC type issues
-      const { data: link } = await supabase
+      console.log("✅ Click tracked:", click.id);
+
+      // Update link click count
+      await supabase
         .from("affiliate_links")
-        .select("clicks")
-        .eq("id", linkId)
-        .single();
-      
-      if (link) {
-        await supabase
-          .from("affiliate_links")
-          .update({ clicks: (link.clicks || 0) + 1 })
-          .eq("id", linkId);
-      }
+        .update({ clicks: (link.clicks || 0) + 1 })
+        .eq("id", linkId);
+
+      // Log activity
+      await activityLogger.logSystemActivity(
+        "click_tracked",
+        `Click tracked for link ${linkId}`,
+        { clickId: click.id, linkId, metadata }
+      );
 
       return { success: true, clickId: click.id };
     } catch (error) {
-      console.error("Error tracking click:", error);
+      console.error("❌ Error tracking click:", error);
       return { success: false, clickId: null };
     }
   },
