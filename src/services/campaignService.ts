@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { authService } from "@/services/authService";
+import { authService } from "./authService";
+import { activityLogger } from "./activityLogger";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -27,12 +28,10 @@ export interface CampaignPerformance {
 }
 
 export const campaignService = {
-  // Ensure user profile exists before campaign creation
   async ensureUserProfile(userId: string): Promise<{ success: boolean; error: string | null }> {
     try {
       console.log("🔍 Checking if profile exists for user:", userId);
       
-      // Check if profile exists
       const { data: existingProfile, error: checkError } = await supabase
         .from("profiles")
         .select("id")
@@ -49,7 +48,6 @@ export const campaignService = {
         return { success: true, error: null };
       }
 
-      // Create profile if it doesn't exist
       console.log("📝 Creating profile for user:", userId);
       const { error: createError } = await supabase
         .from("profiles")
@@ -72,7 +70,6 @@ export const campaignService = {
     }
   },
 
-  // Create a new campaign with enhanced validation and error handling
   async createCampaign(data: {
     name: string;
     goal: "sales" | "leads" | "traffic" | "awareness";
@@ -86,7 +83,6 @@ export const campaignService = {
     try {
       console.log("🚀 Starting campaign creation:", data.name);
 
-      // Step 1: Verify authentication
       const user = await authService.getCurrentUser();
       if (!user) {
         console.error("❌ Authentication failed: No user found");
@@ -94,14 +90,12 @@ export const campaignService = {
       }
       console.log("✅ User authenticated:", user.id);
 
-      // Step 2: Ensure profile exists (CRITICAL)
       const profileCheck = await this.ensureUserProfile(user.id);
       if (!profileCheck.success) {
         console.error("❌ Profile check failed:", profileCheck.error);
         return { campaign: null, error: profileCheck.error || "Failed to verify user profile" };
       }
 
-      // Step 3: Validate input
       if (!data.name || data.name.trim().length === 0) {
         return { campaign: null, error: "Campaign name is required" };
       }
@@ -113,7 +107,6 @@ export const campaignService = {
       }
       console.log("✅ Input validation passed");
 
-      // Step 4: Calculate dates
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + data.duration_days);
@@ -135,7 +128,6 @@ export const campaignService = {
 
       console.log("📝 Inserting campaign:", insertData);
 
-      // Step 5: Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from("campaigns")
         .insert(insertData)
@@ -144,12 +136,20 @@ export const campaignService = {
 
       if (campaignError) {
         console.error("❌ Campaign creation error:", campaignError);
+        await activityLogger.log("campaign_create", "error", `Failed to create campaign: ${campaignError.message}`, { campaignName: data.name });
         return { campaign: null, error: `Campaign creation failed: ${campaignError.message}` };
       }
 
       console.log("✅ Campaign created:", campaign.id);
+      
+      // Log successful campaign creation
+      await activityLogger.log(
+        "campaign_created",
+        "success",
+        `Created campaign: ${campaign.name}`,
+        { campaignId: campaign.id, goal: campaign.goal, budget: campaign.budget }
+      );
 
-      // Step 6: Insert products
       if (data.products.length > 0) {
         console.log("📦 Adding products:", data.products.length);
         const productInserts = data.products.map(product => ({
@@ -165,10 +165,10 @@ export const campaignService = {
           console.error("⚠️ Product insertion error:", productError);
         } else {
           console.log("✅ Products added");
+          await activityLogger.log("products_added", "success", `Added ${data.products.length} products to campaign`, { campaignId: campaign.id });
         }
       }
 
-      // Step 7: Insert channels
       if (data.channels.length > 0) {
         console.log("📡 Adding channels:", data.channels.length);
         const channelInserts = data.channels.map(channel => ({
@@ -185,6 +185,7 @@ export const campaignService = {
           console.error("⚠️ Channel insertion error:", channelError);
         } else {
           console.log("✅ Channels added");
+          await activityLogger.log("channels_added", "success", `Added ${data.channels.length} channels to campaign`, { campaignId: campaign.id });
         }
       }
 
@@ -193,11 +194,11 @@ export const campaignService = {
     } catch (err) {
       console.error("💥 Unexpected error in createCampaign:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to create campaign";
+      await activityLogger.log("campaign_create", "error", `Exception: ${errorMessage}`, { error: err });
       return { campaign: null, error: errorMessage };
     }
   },
 
-  // Get all campaigns for current user with filtering
   async getUserCampaigns(filters?: {
     status?: "active" | "paused" | "completed" | "draft";
     goal?: "sales" | "leads" | "traffic" | "awareness";
@@ -244,7 +245,6 @@ export const campaignService = {
     }
   },
 
-  // Get campaign details with products and channels
   async getCampaignDetails(campaignId: string): Promise<{
     campaign: Campaign | null;
     products: string[];
@@ -262,7 +262,6 @@ export const campaignService = {
         return { campaign: null, products: [], channels: [], error: campaignError.message };
       }
 
-      // Get products
       const { data: productData } = await supabase
         .from("campaign_products")
         .select("product_name")
@@ -270,7 +269,6 @@ export const campaignService = {
 
       const products = productData?.map(p => p.product_name) || [];
 
-      // Get channels
       const { data: channelData } = await supabase
         .from("campaign_channels")
         .select("channel_id, channel_name")
@@ -284,14 +282,12 @@ export const campaignService = {
     }
   },
 
-  // Get comprehensive campaign performance - FIXED to match actual schema
   async getCampaignPerformance(campaignId: string): Promise<CampaignPerformance | null> {
     try {
       const { campaign, products, channels } = await this.getCampaignDetails(campaignId);
       
       if (!campaign) return null;
 
-      // 1. Get real daily performance history
       const { data: dailyData } = await supabase
         .from("campaign_performance")
         .select("*")
@@ -308,7 +304,6 @@ export const campaignService = {
         impressions: d.impressions || 0
       })) || [];
 
-      // 2. Get real top products from affiliate links
       const user = await authService.getCurrentUser();
       const { data: allLinks } = await supabase
         .from("affiliate_links")
@@ -317,7 +312,6 @@ export const campaignService = {
         .order("commission_earned", { ascending: false })
         .limit(10);
 
-      // Filter by campaign products manually
       const campaignProductNames = new Set(products);
       const productStats = allLinks?.filter(link => 
         campaignProductNames.has(link.product_name || "")
@@ -329,7 +323,6 @@ export const campaignService = {
         conversions: p.conversion_count || 0
       }));
 
-      // 3. Get real top channels from traffic sources
       const { data: channelStats } = await supabase
         .from("traffic_sources")
         .select("source_name, total_clicks, total_conversions")
@@ -343,7 +336,6 @@ export const campaignService = {
         conversions: c.total_conversions || 0
       })) || [];
 
-      // 4. Calculate aggregate metrics
       const totalRevenue = dailyPerformance.reduce((sum, d) => sum + d.revenue, 0);
       const totalSpent = dailyPerformance.reduce((sum, d) => sum + d.spent, 0);
       const totalConversions = dailyPerformance.reduce((sum, d) => sum + d.conversions, 0);
@@ -376,7 +368,6 @@ export const campaignService = {
     }
   },
 
-  // Update campaign status
   async updateCampaignStatus(campaignId: string, status: "active" | "paused" | "completed" | "draft"): Promise<{
     success: boolean;
     error: string | null;
@@ -391,13 +382,13 @@ export const campaignService = {
         return { success: false, error: error.message };
       }
 
+      await activityLogger.log("campaign_status_updated", "success", `Campaign status changed to: ${status}`, { campaignId, status });
       return { success: true, error: null };
     } catch (err) {
       return { success: false, error: "Failed to update campaign" };
     }
   },
 
-  // Bulk update campaign status
   async bulkUpdateStatus(campaignIds: string[], status: "active" | "paused" | "completed" | "draft"): Promise<{
     success: boolean;
     updated: number;
@@ -413,13 +404,13 @@ export const campaignService = {
         return { success: false, updated: 0, error: error.message };
       }
 
+      await activityLogger.log("campaigns_bulk_updated", "success", `Updated ${count} campaigns to ${status}`, { campaignIds, status, count });
       return { success: true, updated: count || 0, error: null };
     } catch (err) {
       return { success: false, updated: 0, error: "Bulk update failed" };
     }
   },
 
-  // Update campaign metrics (called when conversions happen)
   async updateCampaignMetrics(campaignId: string, metrics: {
     revenue?: number;
     spent?: number;
@@ -455,7 +446,6 @@ export const campaignService = {
     }
   },
 
-  // Duplicate campaign
   async duplicateCampaign(campaignId: string, newName?: string): Promise<{
     campaign: Campaign | null;
     error: string | null;
@@ -478,23 +468,24 @@ export const campaignService = {
         channels
       });
 
+      if (duplicatedCampaign.campaign) {
+        await activityLogger.log("campaign_duplicated", "success", `Duplicated campaign: ${campaign.name}`, { originalId: campaignId, newId: duplicatedCampaign.campaign.id });
+      }
+
       return duplicatedCampaign;
     } catch (err) {
       return { campaign: null, error: "Failed to duplicate campaign" };
     }
   },
 
-  // Delete campaign
   async deleteCampaign(campaignId: string): Promise<{
     success: boolean;
     error: string | null;
   }> {
     try {
-      // Delete related data first
       await supabase.from("campaign_products").delete().eq("campaign_id", campaignId);
       await supabase.from("campaign_channels").delete().eq("campaign_id", campaignId);
 
-      // Delete campaign
       const { error } = await supabase
         .from("campaigns")
         .delete()
@@ -504,13 +495,13 @@ export const campaignService = {
         return { success: false, error: error.message };
       }
 
+      await activityLogger.log("campaign_deleted", "success", `Deleted campaign`, { campaignId });
       return { success: true, error: null };
     } catch (err) {
       return { success: false, error: "Failed to delete campaign" };
     }
   },
 
-  // Get campaign statistics summary
   async getCampaignStats(): Promise<{
     totalCampaigns: number;
     activeCampaigns: number;
@@ -572,7 +563,6 @@ export const campaignService = {
     }
   },
 
-  // Helper method for UI components that expect a direct array
   async listCampaigns(): Promise<Campaign[]> {
     const { campaigns } = await this.getUserCampaigns();
     return campaigns;

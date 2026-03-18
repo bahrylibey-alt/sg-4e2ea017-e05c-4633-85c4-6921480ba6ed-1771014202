@@ -4,6 +4,7 @@ import { authService } from "./authService";
 import { affiliateLinkService } from "./affiliateLinkService";
 import { freeTrafficEngine } from "./freeTrafficEngine";
 import { automationScheduler } from "./automationScheduler";
+import { activityLogger } from "./activityLogger";
 import type { Database } from "@/integrations/supabase/types";
 
 type Campaign = Database["public"]["Tables"]["campaigns"]["Row"];
@@ -99,7 +100,6 @@ export const smartCampaignService = {
   },
 
   suggestTemplate(productUrls: string[]): CampaignTemplate {
-    // Always suggest free traffic domination for maximum ROI
     return this.templates[2];
   },
 
@@ -205,10 +205,13 @@ export const smartCampaignService = {
       console.log("🚀 ONE-CLICK CAMPAIGN START (WITH REAL AUTOMATION)");
       console.log("📦 Input:", JSON.stringify(input, null, 2));
 
+      await activityLogger.log("campaign_start", "started", "Starting one-click campaign creation", { input });
+
       const user = await authService.getCurrentUser();
       
       if (!user) {
         console.error("❌ Auth failed: No user found");
+        await activityLogger.log("campaign_start", "error", "Authentication failed - no user found");
         return { 
           success: false, 
           campaign: null, 
@@ -227,6 +230,7 @@ export const smartCampaignService = {
       
       if (!profileCheck.success) {
         console.error("❌ Profile check failed:", profileCheck.error);
+        await activityLogger.log("profile_check", "error", `Profile verification failed: ${profileCheck.error}`);
         return {
           success: false,
           campaign: null,
@@ -242,6 +246,7 @@ export const smartCampaignService = {
       console.log("✅ Profile verified");
 
       if (!input.productUrls || input.productUrls.length === 0) {
+        await activityLogger.log("campaign_validation", "error", "No product URLs provided");
         return {
           success: false,
           campaign: null,
@@ -261,6 +266,7 @@ export const smartCampaignService = {
         : this.suggestTemplate(input.productUrls);
 
       if (!template) {
+        await activityLogger.log("template_selection", "error", "Invalid template selected");
         return { 
           success: false, 
           campaign: null, 
@@ -274,6 +280,7 @@ export const smartCampaignService = {
       }
 
       console.log("✅ Template:", template.name);
+      await activityLogger.log("template_selected", "info", `Using template: ${template.name}`, { templateId: template.id });
 
       const productNames = input.productNames || input.productUrls.map(url => this.extractProductName(url));
       const campaignName = this.generateCampaignName(productNames, input.customGoal || template.goal);
@@ -294,6 +301,7 @@ export const smartCampaignService = {
 
       if (campaignError || !campaign) {
         console.error("❌ Campaign creation failed:", campaignError);
+        await activityLogger.log("campaign_creation", "error", `Campaign creation failed: ${campaignError}`);
         return { 
           success: false, 
           campaign: null, 
@@ -338,6 +346,7 @@ export const smartCampaignService = {
 
       if (affiliateLinks.length === 0) {
         console.error("❌ No links created");
+        await activityLogger.log("links_creation", "error", "Failed to create any affiliate links");
         return { 
           success: false, 
           campaign: null, 
@@ -350,45 +359,52 @@ export const smartCampaignService = {
         };
       }
 
-      // CRITICAL: Activate FREE traffic sources with REAL automation
       console.log("🚦 Activating FREE traffic automation...");
       
-      // Wait a moment for campaign to be fully persisted
       await new Promise(resolve => setTimeout(resolve, 500));
       
       const trafficResult = await freeTrafficEngine.activateFreeTraffic(
         campaign.id,
         template.defaultChannels.map(c => c.name),
-        campaign // Pass campaign data to avoid refetch issues
+        campaign
       );
 
       if (!trafficResult.success) {
         console.warn("⚠️ Traffic activation warning:", trafficResult.error);
+        await activityLogger.log("traffic_activation", "error", `Traffic activation warning: ${trafficResult.error}`);
       } else {
         console.log(`✅ Traffic sources: ${trafficResult.activated}`);
         console.log(`📊 Estimated reach: ${trafficResult.estimatedReach.toLocaleString()}`);
+        await activityLogger.log("traffic_activated", "success", `Activated ${trafficResult.activated} traffic sources with estimated reach: ${trafficResult.estimatedReach.toLocaleString()}`, { campaignId: campaign.id });
       }
 
-      // CRITICAL: Create automation tasks for continuous operation
       console.log("⚙️ Setting up automation tasks...");
       const tasksCreated = await automationScheduler.createDefaultTasks(campaign.id);
       
       if (!tasksCreated) {
         console.warn("⚠️ Failed to create automation tasks");
+        await activityLogger.log("automation_setup", "error", "Failed to create automation tasks");
       } else {
         console.log("✅ Automation tasks scheduled");
+        await activityLogger.log("automation_setup", "success", "Automation tasks successfully scheduled", { campaignId: campaign.id });
       }
 
-      // CRITICAL: Start the automation scheduler if not already running
       if (!automationScheduler.isRunning) {
         console.log("🚀 Starting automation scheduler...");
         await automationScheduler.start();
         console.log("✅ Scheduler is now RUNNING");
+        await activityLogger.log("scheduler_started", "success", "Automation scheduler started");
       } else {
         console.log("✅ Scheduler already running");
       }
 
       console.log("🎉 CAMPAIGN CREATION COMPLETE WITH REAL AUTOMATION!");
+      await activityLogger.log("campaign_complete", "success", `One-click campaign created: ${campaignName}`, { 
+        campaignId: campaign.id, 
+        linksCreated: affiliateLinks.length,
+        trafficSources: trafficResult.activated,
+        estimatedReach: trafficResult.estimatedReach 
+      });
 
       return {
         success: true,
@@ -402,6 +418,7 @@ export const smartCampaignService = {
       };
     } catch (err) {
       console.error("💥 Unexpected error:", err);
+      await activityLogger.log("campaign_error", "error", `Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`, { error: err });
       return { 
         success: false, 
         campaign: null, 
