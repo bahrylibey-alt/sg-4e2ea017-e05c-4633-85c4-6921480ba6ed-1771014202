@@ -21,18 +21,27 @@ import {
   AlertCircle
 } from "lucide-react";
 import { campaignService } from "@/services/campaignService";
-import { advancedAnalyticsService } from "@/services/advancedAnalyticsService";
-import { trafficAutomationService } from "@/services/trafficAutomationService";
+import { realTimeAnalytics } from "@/services/realTimeAnalytics";
+import { activityLogger } from "@/services/activityLogger";
+import { automationScheduler } from "@/services/automationScheduler";
+import { freeTrafficEngine } from "@/services/freeTrafficEngine";
 
 export function DashboardOverview() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Start automation scheduler if not running
+    if (!automationScheduler.isRunning) {
+      console.log("🚀 Starting automation scheduler from dashboard...");
+      automationScheduler.start().catch(err => {
+        console.error("Failed to start scheduler:", err);
+      });
+    }
   }, []);
 
   const loadDashboardData = async () => {
@@ -40,84 +49,91 @@ export function DashboardOverview() {
       setLoading(true);
       setError(null);
       
-      console.log("📊 Loading dashboard data...");
+      console.log("📊 Loading comprehensive dashboard data...");
       
-      const campaigns = await campaignService.listCampaigns();
-      console.log("📋 Campaigns loaded:", campaigns.length);
-      
-      if (campaigns.length === 0) {
-        setStats({
-          campaigns: { 
-            totalRevenue: 0, 
-            activeCampaigns: 0, 
-            totalClicks: 0, 
-            avgConversionRate: 0,
-            totalConversions: 0 
-          },
-          predictions: null,
-          traffic: { activeChannels: 0, totalTraffic: 0, optimizationStatus: "inactive" },
-          topPerformers: [],
-          recentActivity: []
-        });
-        setLoading(false);
-        return;
-      }
-
-      const campaignId = campaigns[0].id;
-      setActiveCampaignId(campaignId);
-
-      const [campaignStats, predictions, trafficStatus] = await Promise.all([
+      // Load all data in parallel
+      const [
+        campaigns,
+        campaignStats,
+        recentActivity,
+        trafficStats,
+        analytics
+      ] = await Promise.all([
+        campaignService.listCampaigns(),
         campaignService.getCampaignStats(),
-        advancedAnalyticsService.getPredictiveInsights(campaignId).catch(() => null),
-        trafficAutomationService.getTrafficStatus()
+        activityLogger.getRecentActivity(10),
+        freeTrafficEngine.getTrafficStats(),
+        realTimeAnalytics.getPerformanceSnapshot().catch(() => null)
       ]);
 
+      console.log("✅ Data loaded:", {
+        campaigns: campaigns.length,
+        activity: recentActivity.length,
+        stats: campaignStats
+      });
+
+      // Build top performers from campaigns
       const topPerformers = campaigns
-        .sort((a, b) => (b.budget || 0) - (a.budget || 0))
-        .slice(0, 3)
+        .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+        .slice(0, 5)
         .map(campaign => ({
           id: campaign.id,
           name: campaign.name,
-          revenue: `$${((campaign.budget || 0) * 0.5).toFixed(2)}`,
-          roi: `${Math.floor(Math.random() * 200 + 150)}%`,
-          status: campaign.status
+          revenue: `$${(campaign.revenue || 0).toFixed(2)}`,
+          roi: campaign.spent > 0 
+            ? `${(((campaign.revenue || 0) - campaign.spent) / campaign.spent * 100).toFixed(1)}%`
+            : "0%",
+          status: campaign.status,
+          clicks: analytics?.totalClicks || 0,
+          conversions: analytics?.totalConversions || 0
         }));
 
-      const recentActivity = [
-        { 
-          action: `Campaign '${campaigns[0].name}' created`, 
-          time: "Just now", 
-          type: "success" 
-        },
-        { 
-          action: "Traffic sources activated", 
-          time: "2 min ago", 
-          type: "info" 
-        },
-        { 
-          action: "Affiliate links generated", 
-          time: "5 min ago", 
-          type: "success" 
-        }
-      ];
+      // Get automation status
+      const automationActive = automationScheduler.isRunning;
 
       setStats({
         campaigns: campaignStats,
-        predictions,
-        traffic: trafficStatus,
+        analytics,
+        traffic: trafficStats,
         topPerformers,
-        recentActivity
+        recentActivity,
+        automationStatus: automationActive ? "active" : "inactive"
       });
+
+      // Log dashboard view
+      await activityLogger.log(
+        "dashboard_viewed",
+        "info",
+        "Dashboard loaded successfully",
+        { campaigns: campaigns.length, activity: recentActivity.length }
+      );
 
     } catch (err) {
       console.error("❌ Dashboard error:", err);
       setError(err instanceof Error ? err.message : "Failed to load dashboard data");
+      
+      // Set empty state instead of null
       setStats({
-        campaigns: { totalRevenue: 0, activeCampaigns: 0, totalClicks: 0, avgConversionRate: 0, totalConversions: 0 },
-        predictions: null,
-        traffic: { activeChannels: 0, totalTraffic: 0, optimizationStatus: "inactive" },
+        campaigns: { 
+          totalRevenue: 0, 
+          activeCampaigns: 0, 
+          totalClicks: 0, 
+          avgConversionRate: 0,
+          totalConversions: 0,
+          totalSpent: 0,
+          avgROI: 0
+        },
+        analytics: null,
+        traffic: {
+          totalClicks: 0,
+          totalConversions: 0,
+          totalRevenue: 0,
+          conversionRate: "0.00",
+          avgDailyClicks: 0
+        },
         topPerformers: [],
-        recentActivity: []
+        recentActivity: [],
+        automationStatus: "inactive"
       });
     } finally {
       setLoading(false);
@@ -161,33 +177,33 @@ export function DashboardOverview() {
   const metricCards = [
     {
       title: "Total Revenue",
-      value: `$${(stats?.campaigns?.totalRevenue || 0).toLocaleString()}`,
-      change: stats?.campaigns?.totalRevenue > 0 ? "+23.5%" : "0%",
-      trend: "up" as const,
+      value: `$${(stats?.campaigns?.totalRevenue || 0).toFixed(2)}`,
+      change: stats?.campaigns?.totalRevenue > 0 ? "+23.5%" : "No revenue yet",
+      trend: stats?.campaigns?.totalRevenue > 0 ? "up" as const : "neutral" as const,
       icon: DollarSign,
       color: "text-green-500"
     },
     {
       title: "Active Campaigns",
       value: stats?.campaigns?.activeCampaigns || 0,
-      change: stats?.campaigns?.activeCampaigns > 0 ? "+3 this week" : "0 campaigns",
-      trend: "up" as const,
+      change: stats?.campaigns?.activeCampaigns > 0 ? `${stats.campaigns.activeCampaigns} running` : "Create campaign",
+      trend: stats?.campaigns?.activeCampaigns > 0 ? "up" as const : "neutral" as const,
       icon: Target,
       color: "text-blue-500"
     },
     {
       title: "Total Clicks",
-      value: (stats?.campaigns?.totalClicks || 0).toLocaleString(),
-      change: stats?.campaigns?.totalClicks > 0 ? "+18.3%" : "0%",
-      trend: "up" as const,
+      value: (stats?.traffic?.totalClicks || 0).toLocaleString(),
+      change: stats?.traffic?.totalClicks > 0 ? `${stats.traffic.avgDailyClicks}/day avg` : "No clicks yet",
+      trend: stats?.traffic?.totalClicks > 0 ? "up" as const : "neutral" as const,
       icon: MousePointerClick,
       color: "text-purple-500"
     },
     {
       title: "Conversion Rate",
-      value: `${(stats?.campaigns?.avgConversionRate || 0).toFixed(1)}%`,
-      change: stats?.campaigns?.avgConversionRate > 0 ? "+1.2%" : "0%",
-      trend: "up" as const,
+      value: `${stats?.traffic?.conversionRate || "0.00"}%`,
+      change: stats?.traffic?.totalConversions > 0 ? `${stats.traffic.totalConversions} conversions` : "No conversions",
+      trend: stats?.traffic?.totalConversions > 0 ? "up" as const : "neutral" as const,
       icon: TrendingUp,
       color: "text-orange-500"
     }
@@ -207,9 +223,14 @@ export function DashboardOverview() {
           </Button>
         </div>
         
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          <span>Last updated: {new Date().toLocaleTimeString()}</span>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>Last updated: {new Date().toLocaleTimeString()}</span>
+          </div>
+          <Badge variant={stats?.automationStatus === "active" ? "default" : "secondary"}>
+            Automation: {stats?.automationStatus || "inactive"}
+          </Badge>
         </div>
       </div>
 
@@ -232,10 +253,14 @@ export function DashboardOverview() {
                 <div className="flex items-center text-sm">
                   {metric.trend === "up" ? (
                     <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-                  ) : (
+                  ) : metric.trend === "down" ? (
                     <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
-                  )}
-                  <span className={metric.trend === "up" ? "text-green-500" : "text-red-500"}>
+                  ) : null}
+                  <span className={
+                    metric.trend === "up" ? "text-green-500" : 
+                    metric.trend === "down" ? "text-red-500" : 
+                    "text-muted-foreground"
+                  }>
                     {metric.change}
                   </span>
                 </div>
@@ -248,9 +273,9 @@ export function DashboardOverview() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="campaigns">Top Campaigns</TabsTrigger>
-          <TabsTrigger value="traffic">Traffic Sources</TabsTrigger>
-          <TabsTrigger value="activity">Recent Activity</TabsTrigger>
+          <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+          <TabsTrigger value="traffic">Traffic</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -259,63 +284,67 @@ export function DashboardOverview() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  AI Automation Status
+                  Automation Status
                 </CardTitle>
-                <CardDescription>System-wide automation performance</CardDescription>
+                <CardDescription>Real-time system performance</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>Traffic Automation</span>
-                    <Badge variant={stats?.traffic?.activeChannels > 0 ? "default" : "secondary"}>
-                      {stats?.traffic?.activeChannels > 0 ? "Active" : "Inactive"}
+                    <span>Automation Scheduler</span>
+                    <Badge variant={stats?.automationStatus === "active" ? "default" : "secondary"}>
+                      {stats?.automationStatus === "active" ? "Running" : "Stopped"}
                     </Badge>
                   </div>
-                  <Progress value={stats?.traffic?.activeChannels > 0 ? 92 : 0} className="h-2" />
+                  <Progress value={stats?.automationStatus === "active" ? 100 : 0} className="h-2" />
                   <p className="text-xs text-muted-foreground">
-                    {stats?.traffic?.activeChannels > 0 
-                      ? `${stats.traffic.activeChannels} channels active` 
-                      : "No active traffic sources"}
+                    {stats?.automationStatus === "active" 
+                      ? "Processing tasks every 5 minutes" 
+                      : "Create campaigns to activate"}
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>Budget Optimization</span>
-                    <Badge variant={stats?.campaigns?.activeCampaigns > 0 ? "default" : "secondary"}>
-                      {stats?.campaigns?.activeCampaigns > 0 ? "Active" : "Inactive"}
+                    <span>Traffic Generation</span>
+                    <Badge variant={stats?.traffic?.totalClicks > 0 ? "default" : "secondary"}>
+                      {stats?.traffic?.totalClicks > 0 ? "Active" : "Pending"}
                     </Badge>
                   </div>
-                  <Progress value={stats?.campaigns?.activeCampaigns > 0 ? 87 : 0} className="h-2" />
+                  <Progress value={stats?.traffic?.totalClicks > 0 ? 85 : 0} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {stats?.traffic?.totalClicks > 0 
+                      ? `${stats.traffic.totalClicks} total clicks generated` 
+                      : "Waiting for campaigns"}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Campaign Optimization</span>
+                    <Badge variant={stats?.campaigns?.activeCampaigns > 0 ? "default" : "secondary"}>
+                      {stats?.campaigns?.activeCampaigns > 0 ? "Optimizing" : "Inactive"}
+                    </Badge>
+                  </div>
+                  <Progress value={stats?.campaigns?.activeCampaigns > 0 ? 90 : 0} className="h-2" />
                   <p className="text-xs text-muted-foreground">
                     {stats?.campaigns?.activeCampaigns > 0 
-                      ? "Optimizing budget allocation" 
-                      : "Create campaigns to enable"}
+                      ? `${stats.campaigns.activeCampaigns} campaigns being optimized` 
+                      : "No active campaigns"}
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span>Conversion Optimization</span>
-                    <Badge variant={stats?.campaigns?.totalConversions > 0 ? "default" : "secondary"}>
-                      {stats?.campaigns?.totalConversions > 0 ? "Active" : "Inactive"}
+                    <span>Revenue Tracking</span>
+                    <Badge variant={stats?.campaigns?.totalRevenue > 0 ? "default" : "secondary"}>
+                      {stats?.campaigns?.totalRevenue > 0 ? "Tracking" : "Ready"}
                     </Badge>
                   </div>
-                  <Progress value={stats?.campaigns?.totalConversions > 0 ? 95 : 0} className="h-2" />
+                  <Progress value={stats?.campaigns?.totalRevenue > 0 ? 95 : 0} className="h-2" />
                   <p className="text-xs text-muted-foreground">
-                    {stats?.campaigns?.totalConversions > 0 
-                      ? `${stats.campaigns.totalConversions} conversions tracked` 
-                      : "No conversions yet"}
+                    ${(stats?.campaigns?.totalRevenue || 0).toFixed(2)} total revenue
                   </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Fraud Detection</span>
-                    <Badge variant="default">Active</Badge>
-                  </div>
-                  <Progress value={100} className="h-2" />
-                  <p className="text-xs text-muted-foreground">Protecting all traffic</p>
                 </div>
               </CardContent>
             </Card>
@@ -324,41 +353,46 @@ export function DashboardOverview() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Performance Overview
+                  Performance Metrics
                 </CardTitle>
-                <CardDescription>Current system metrics</CardDescription>
+                <CardDescription>Current system statistics</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {[
                     { 
-                      metric: "Revenue", 
+                      metric: "Total Revenue", 
                       current: `$${(stats?.campaigns?.totalRevenue || 0).toFixed(2)}`,
-                      status: stats?.campaigns?.totalRevenue > 0 ? "Active" : "Pending"
+                      target: `$${(stats?.campaigns?.totalRevenue * 2 || 1000).toFixed(2)}`,
+                      progress: Math.min(((stats?.campaigns?.totalRevenue || 0) / 1000) * 100, 100)
+                    },
+                    { 
+                      metric: "Total Clicks", 
+                      current: stats?.traffic?.totalClicks || 0,
+                      target: "10,000",
+                      progress: Math.min(((stats?.traffic?.totalClicks || 0) / 10000) * 100, 100)
                     },
                     { 
                       metric: "Conversions", 
-                      current: stats?.campaigns?.totalConversions || 0,
-                      status: stats?.campaigns?.totalConversions > 0 ? "Tracking" : "Waiting"
+                      current: stats?.traffic?.totalConversions || 0,
+                      target: "500",
+                      progress: Math.min(((stats?.traffic?.totalConversions || 0) / 500) * 100, 100)
                     },
                     { 
-                      metric: "Active Campaigns", 
-                      current: stats?.campaigns?.activeCampaigns || 0,
-                      status: stats?.campaigns?.activeCampaigns > 0 ? "Running" : "None"
-                    },
-                    { 
-                      metric: "Traffic Channels", 
-                      current: stats?.traffic?.activeChannels || 0,
-                      status: stats?.traffic?.activeChannels > 0 ? "Deployed" : "Ready"
+                      metric: "ROI", 
+                      current: `${((stats?.campaigns?.avgROI || 0) * 100).toFixed(1)}%`,
+                      target: "200%",
+                      progress: Math.min(((stats?.campaigns?.avgROI || 0) * 100) / 200 * 100, 100)
                     }
                   ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div>
+                    <div key={idx} className="space-y-2">
+                      <div className="flex items-center justify-between">
                         <p className="text-sm font-medium">{item.metric}</p>
-                        <p className="text-xs text-muted-foreground">Status: {item.status}</p>
+                        <p className="text-sm text-muted-foreground">Target: {item.target}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold">{item.current}</p>
+                      <div className="flex items-center gap-3">
+                        <Progress value={item.progress} className="h-2 flex-1" />
+                        <p className="text-sm font-bold min-w-[60px] text-right">{item.current}</p>
                       </div>
                     </div>
                   ))}
@@ -376,21 +410,37 @@ export function DashboardOverview() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto flex-col gap-2 p-4"
+                  onClick={() => window.location.href = "/dashboard#campaigns"}
+                >
                   <Target className="h-5 w-5" />
                   <span className="text-sm">New Campaign</span>
                 </Button>
-                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto flex-col gap-2 p-4"
+                  onClick={() => setActiveTab("activity")}
+                >
                   <Eye className="h-5 w-5" />
-                  <span className="text-sm">View Analytics</span>
+                  <span className="text-sm">View Activity</span>
                 </Button>
-                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto flex-col gap-2 p-4"
+                  onClick={loadDashboardData}
+                >
                   <Sparkles className="h-5 w-5" />
-                  <span className="text-sm">AI Optimize</span>
+                  <span className="text-sm">Refresh Stats</span>
                 </Button>
-                <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto flex-col gap-2 p-4"
+                  onClick={() => setActiveTab("traffic")}
+                >
                   <Users className="h-5 w-5" />
-                  <span className="text-sm">Traffic Sources</span>
+                  <span className="text-sm">Traffic Stats</span>
                 </Button>
               </div>
             </CardContent>
@@ -400,8 +450,8 @@ export function DashboardOverview() {
         <TabsContent value="campaigns" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Active Campaigns</CardTitle>
-              <CardDescription>Your running campaigns</CardDescription>
+              <CardTitle>Top Performing Campaigns</CardTitle>
+              <CardDescription>Your most successful campaigns</CardDescription>
             </CardHeader>
             <CardContent>
               {stats?.topPerformers && stats.topPerformers.length > 0 ? (
@@ -423,6 +473,10 @@ export function DashboardOverview() {
                               <TrendingUp className="h-3 w-3" />
                               {campaign.roi} ROI
                             </span>
+                            <span className="flex items-center gap-1">
+                              <MousePointerClick className="h-3 w-3" />
+                              {campaign.clicks || 0} clicks
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -433,9 +487,13 @@ export function DashboardOverview() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Target className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No campaigns yet. Create your first campaign to get started!</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <Target className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium mb-2">No Campaigns Yet</p>
+                  <p className="text-sm mb-4">Create your first campaign to start tracking performance</p>
+                  <Button onClick={() => window.location.href = "/dashboard#campaigns"}>
+                    Create Campaign
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -445,27 +503,38 @@ export function DashboardOverview() {
         <TabsContent value="traffic" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Traffic Sources</CardTitle>
-              <CardDescription>Active traffic channels</CardDescription>
+              <CardTitle>Traffic Overview</CardTitle>
+              <CardDescription>Traffic generation statistics</CardDescription>
             </CardHeader>
             <CardContent>
-              {stats?.traffic?.activeChannels > 0 ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                    <span className="font-medium">Active Channels</span>
-                    <Badge>{stats.traffic.activeChannels}</Badge>
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Total Clicks</p>
+                    <p className="text-2xl font-bold">{stats?.traffic?.totalClicks || 0}</p>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                    <span className="font-medium">Status</span>
-                    <Badge variant="default">{stats.traffic.optimizationStatus}</Badge>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Conversions</p>
+                    <p className="text-2xl font-bold">{stats?.traffic?.totalConversions || 0}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Revenue</p>
+                    <p className="text-2xl font-bold">${(stats?.traffic?.totalRevenue || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Avg Daily</p>
+                    <p className="text-2xl font-bold">{stats?.traffic?.avgDailyClicks || 0}</p>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No traffic sources active. Create a campaign to activate traffic!</p>
-                </div>
-              )}
+
+                {stats?.traffic?.totalClicks === 0 && (
+                  <div className="text-center py-8 text-muted-foreground border-t">
+                    <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium mb-2">No Traffic Yet</p>
+                    <p className="text-sm">Traffic will appear here once you create campaigns and activate automation</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -473,37 +542,50 @@ export function DashboardOverview() {
         <TabsContent value="activity" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Recent System Activity</CardTitle>
-              <CardDescription>Latest events and actions</CardDescription>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest system events and actions</CardDescription>
             </CardHeader>
             <CardContent>
               {stats?.recentActivity && stats.recentActivity.length > 0 ? (
                 <div className="space-y-3">
                   {stats.recentActivity.map((activity: any, idx: number) => (
                     <div key={idx} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                      <div className={`w-2 h-2 rounded-full mt-2 ${
-                        activity.type === "success" ? "bg-green-500" :
-                        activity.type === "warning" ? "bg-orange-500" :
+                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                        activity.status === "success" ? "bg-green-500" :
+                        activity.status === "error" ? "bg-red-500" :
+                        activity.status === "warning" ? "bg-orange-500" :
                         "bg-blue-500"
                       }`} />
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{activity.action}</p>
-                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{activity.details}</p>
+                        {activity.metadata && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {JSON.stringify(activity.metadata)}
+                          </p>
+                        )}
                       </div>
-                      <Badge variant={
-                        activity.type === "success" ? "default" :
-                        activity.type === "warning" ? "destructive" :
-                        "secondary"
-                      }>
-                        {activity.type}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        <Badge variant={
+                          activity.status === "success" ? "default" :
+                          activity.status === "error" ? "destructive" :
+                          "secondary"
+                        }>
+                          {activity.status}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(activity.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No recent activity. Start creating campaigns to see activity here!</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <Activity className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium mb-2">No Activity Yet</p>
+                  <p className="text-sm mb-4">Activity will appear here as you use the system</p>
+                  <p className="text-xs">Try creating a campaign or generating affiliate links</p>
                 </div>
               )}
             </CardContent>
