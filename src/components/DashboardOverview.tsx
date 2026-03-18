@@ -174,12 +174,14 @@ export function DashboardOverview() {
     );
   }
 
+  type TrendType = "up" | "down" | "neutral";
+
   const metricCards = [
     {
       title: "Total Revenue",
       value: `$${(stats?.campaigns?.totalRevenue || 0).toFixed(2)}`,
       change: stats?.campaigns?.totalRevenue > 0 ? "+23.5%" : "No revenue yet",
-      trend: stats?.campaigns?.totalRevenue > 0 ? "up" as const : "neutral" as const,
+      trend: (stats?.campaigns?.totalRevenue > 0 ? "up" : "neutral") as TrendType,
       icon: DollarSign,
       color: "text-green-500"
     },
@@ -187,7 +189,7 @@ export function DashboardOverview() {
       title: "Active Campaigns",
       value: stats?.campaigns?.activeCampaigns || 0,
       change: stats?.campaigns?.activeCampaigns > 0 ? `${stats.campaigns.activeCampaigns} running` : "Create campaign",
-      trend: stats?.campaigns?.activeCampaigns > 0 ? "up" as const : "neutral" as const,
+      trend: (stats?.campaigns?.activeCampaigns > 0 ? "up" : "neutral") as TrendType,
       icon: Target,
       color: "text-blue-500"
     },
@@ -195,7 +197,7 @@ export function DashboardOverview() {
       title: "Total Clicks",
       value: (stats?.traffic?.totalClicks || 0).toLocaleString(),
       change: stats?.traffic?.totalClicks > 0 ? `${stats.traffic.avgDailyClicks}/day avg` : "No clicks yet",
-      trend: stats?.traffic?.totalClicks > 0 ? "up" as const : "neutral" as const,
+      trend: (stats?.traffic?.totalClicks > 0 ? "up" : "neutral") as TrendType,
       icon: MousePointerClick,
       color: "text-purple-500"
     },
@@ -203,7 +205,7 @@ export function DashboardOverview() {
       title: "Conversion Rate",
       value: `${stats?.traffic?.conversionRate || "0.00"}%`,
       change: stats?.traffic?.totalConversions > 0 ? `${stats.traffic.totalConversions} conversions` : "No conversions",
-      trend: stats?.traffic?.totalConversions > 0 ? "up" as const : "neutral" as const,
+      trend: (stats?.traffic?.totalConversions > 0 ? "up" : "neutral") as TrendType,
       icon: TrendingUp,
       color: "text-orange-500"
     }

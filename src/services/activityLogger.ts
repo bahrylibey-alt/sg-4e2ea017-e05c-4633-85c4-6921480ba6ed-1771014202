@@ -110,6 +110,13 @@ export const activityLogger = {
   },
 
   /**
+   * Alias for getRecentLogs to support dashboard components
+   */
+  async getRecentActivity(limit: number = 50): Promise<ActivityLog[]> {
+    return this.getRecentLogs(limit);
+  },
+
+  /**
    * Clear session logs
    */
   clearLogs() {
