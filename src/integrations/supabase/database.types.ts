@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -159,6 +159,7 @@ export type Database = {
       }
       affiliate_links: {
         Row: {
+          campaign_id: string | null
           check_failures: number | null
           click_count: number | null
           clicks: number | null
@@ -183,6 +184,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          campaign_id?: string | null
           check_failures?: number | null
           click_count?: number | null
           clicks?: number | null
@@ -207,6 +209,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          campaign_id?: string | null
           check_failures?: number | null
           click_count?: number | null
           clicks?: number | null
@@ -231,6 +234,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "affiliate_links_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "affiliate_links_user_id_fkey"
             columns: ["user_id"]
