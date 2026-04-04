@@ -92,7 +92,7 @@ export default function SystemDiagnostics() {
 
   const testDatabaseConnection = async () => {
     try {
-      const { data, error } = await supabase.from("campaigns").select("count").limit(1);
+      const { data, error } = await (supabase as any).from("campaigns").select("count").limit(1);
       
       if (error) throw error;
       
@@ -316,7 +316,7 @@ export default function SystemDiagnostics() {
       const results = await Promise.all(
         tables.map(async (table) => {
           try {
-            const { error } = await supabase.from(table).select("*").limit(1);
+            const { error } = await (supabase as any).from(table).select("*").limit(1);
             return { table, exists: !error, error };
           } catch {
             return { table, exists: false };

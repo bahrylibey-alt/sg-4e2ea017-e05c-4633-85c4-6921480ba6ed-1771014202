@@ -122,8 +122,7 @@ export const smartCampaignService = {
         revenue: 0
       };
 
-      const { data: campaign, error: campaignError } = await supabase
-        .from("campaigns" as any)
+      const { data: campaign, error: campaignError } = await (supabase as any).from("campaigns")
         .insert(insert)
         .select()
         .single();
@@ -165,8 +164,7 @@ export const smartCampaignService = {
       console.log(`Traffic sources created: ${trafficResult.sources.length}`);
 
       // Initialize metrics
-      await supabase
-        .from("automation_metrics" as any)
+      await (supabase as any).from("automation_metrics")
         .insert({
           campaign_id: campaign.id,
           user_id: user.id,
@@ -208,8 +206,7 @@ export const smartCampaignService = {
     error: string | null;
   }> {
     try {
-      const { data: campaign, error: campaignError } = await supabase
-        .from("campaigns" as any)
+      const { data: campaign, error: campaignError } = await (supabase as any).from("campaigns")
         .select("*")
         .eq("id", campaignId)
         .single();
@@ -231,10 +228,10 @@ export const smartCampaignService = {
 
       // Get stats
       const [linksResult, tasksResult, contentResult, trafficResult] = await Promise.all([
-        supabase.from("affiliate_links" as any).select("clicks, conversions, revenue").eq("campaign_id", campaignId),
-        supabase.from("autopilot_tasks" as any).select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
-        supabase.from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "ready"),
-        supabase.from("traffic_sources").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "active")
+        (supabase as any).from("affiliate_links").select("clicks, conversions, revenue").eq("campaign_id", campaignId),
+        (supabase as any).from("autopilot_tasks").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
+        (supabase as any).from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "ready"),
+        (supabase as any).from("traffic_sources").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "active")
       ]);
 
       const links = linksResult.data || [];
@@ -277,8 +274,7 @@ export const smartCampaignService = {
         return { campaigns: [], error: "Not authenticated" };
       }
 
-      const { data, error } = await supabase
-        .from("campaigns" as any)
+      const { data, error } = await (supabase as any).from("campaigns")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -301,8 +297,7 @@ export const smartCampaignService = {
     error: string | null;
   }> {
     try {
-      const { error } = await supabase
-        .from("campaigns" as any)
+      const { error } = await (supabase as any).from("campaigns")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", campaignId);
 
@@ -324,8 +319,7 @@ export const smartCampaignService = {
     error: string | null;
   }> {
     try {
-      const { error } = await supabase
-        .from("campaigns" as any)
+      const { error } = await (supabase as any).from("campaigns")
         .delete()
         .eq("id", campaignId);
 
@@ -347,8 +341,7 @@ export const smartCampaignService = {
     error: string | null;
   }> {
     try {
-      const { error } = await supabase
-        .from("campaigns" as any)
+      const { error } = await (supabase as any).from("campaigns")
         .update({
           is_autopilot: enable,
           updated_at: new Date().toISOString()

@@ -44,8 +44,7 @@ export const commissionService = {
     try {
       const calc = this.calculateCommission(saleAmount, commissionRate);
 
-      const { data, error } = await supabase
-        .from("commissions" as any)
+      const { data, error } = await (supabase as any).from("commissions")
         .insert({
           user_id: userId,
           link_id: affiliateLinkId,
@@ -89,8 +88,7 @@ export const commissionService = {
     error: string | null;
   }> {
     try {
-      let query = supabase
-        .from("commissions" as any)
+      let query = (supabase as any).from("commissions")
         .select("*")
         .eq("user_id", userId)
         .order("commission_date", { ascending: false });
@@ -154,8 +152,7 @@ export const commissionService = {
         updates.paid_date = paidDate;
       }
 
-      const { error } = await supabase
-        .from("commissions" as any)
+      const { error } = await (supabase as any).from("commissions")
         .update(updates)
         .eq("id", commissionId);
 
@@ -182,8 +179,7 @@ export const commissionService = {
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       // Get affiliate link to find user
-      const { data: link } = await supabase
-        .from("affiliate_links")
+      const { data: link } = await (supabase as any).from("affiliate_links")
         .select("user_id")
         .eq("id", affiliateLinkId)
         .single();
@@ -204,15 +200,13 @@ export const commissionService = {
       }
 
       // Update affiliate link conversion count
-      const { data: currentLink } = await supabase
-        .from("affiliate_links")
+      const { data: currentLink } = await (supabase as any).from("affiliate_links")
         .select("conversions, revenue")
         .eq("id", affiliateLinkId)
         .single();
 
       if (currentLink) {
-        await supabase
-          .from("affiliate_links")
+        await (supabase as any).from("affiliate_links")
           .update({
             conversions: (currentLink.conversions || 0) + 1,
             revenue: (Number(currentLink.revenue) || 0) + saleAmount
@@ -264,8 +258,7 @@ export const commissionService = {
         : 0;
 
       // Get click count for conversion rate
-      const { data: links } = await supabase
-        .from("affiliate_links")
+      const { data: links } = await (supabase as any).from("affiliate_links")
         .select("clicks, conversions")
         .eq("user_id", userId);
 

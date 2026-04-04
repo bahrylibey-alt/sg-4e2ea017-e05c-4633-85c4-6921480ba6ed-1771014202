@@ -54,8 +54,7 @@ export const affiliateLinkService = {
         check_failures: 0
       };
 
-      const { data, error } = await supabase
-        .from("affiliate_links")
+      const { data, error } = await (supabase as any).from("affiliate_links")
         .insert(insert)
         .select()
         .single();
@@ -80,8 +79,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      let query = supabase
-        .from("affiliate_links")
+      let query = (supabase as any).from("affiliate_links")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -114,8 +112,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      const { data, error } = await supabase
-        .from("affiliate_links")
+      const { data, error } = await (supabase as any).from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId)
         .order("clicks", { ascending: false });
@@ -139,8 +136,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      const { data: link, error: fetchError } = await supabase
-        .from("affiliate_links")
+      const { data: link, error: fetchError } = await (supabase as any).from("affiliate_links")
         .select("*")
         .eq("slug", slug)
         .single();
@@ -149,8 +145,7 @@ export const affiliateLinkService = {
         return { success: false, redirectUrl: null, error: "Link not found" };
       }
 
-      const { error: updateError } = await supabase
-        .from("affiliate_links")
+      const { error: updateError } = await (supabase as any).from("affiliate_links")
         .update({
           clicks: (link.clicks || 0) + 1,
           click_count: (link.click_count || 0) + 1,
@@ -181,8 +176,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      const { data: link, error: fetchError } = await supabase
-        .from("affiliate_links")
+      const { data: link, error: fetchError } = await (supabase as any).from("affiliate_links")
         .select("*")
         .eq("id", linkId)
         .single();
@@ -194,8 +188,7 @@ export const affiliateLinkService = {
       const commissionRate = link.commission_rate || 15;
       const commission = amount * (commissionRate / 100);
 
-      const { error: updateError } = await supabase
-        .from("affiliate_links")
+      const { error: updateError } = await (supabase as any).from("affiliate_links")
         .update({
           conversions: (link.conversions || 0) + 1,
           conversion_count: (link.conversion_count || 0) + 1,
@@ -209,8 +202,7 @@ export const affiliateLinkService = {
         return { success: false, error: updateError.message };
       }
 
-      await supabase
-        .from("commissions")
+      await (supabase as any).from("commissions")
         .insert({
           user_id: link.user_id,
           link_id: linkId,
@@ -235,8 +227,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      let query = supabase
-        .from("affiliate_links")
+      let query = (supabase as any).from("affiliate_links")
         .select("*");
 
       if (campaignId) {
@@ -275,8 +266,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      const { error } = await supabase
-        .from("affiliate_links")
+      const { error } = await (supabase as any).from("affiliate_links")
         .update({ status, updated_at: new Date().toISOString() })
         .eq("id", linkId);
 
@@ -298,8 +288,7 @@ export const affiliateLinkService = {
     error: string | null;
   }> {
     try {
-      const { error } = await supabase
-        .from("affiliate_links")
+      const { error } = await (supabase as any).from("affiliate_links")
         .delete()
         .eq("id", linkId);
 
@@ -359,8 +348,7 @@ export const affiliateLinkService = {
         revenue: 0
       }));
 
-      const { data, error } = await supabase
-        .from("affiliate_links")
+      const { data, error } = await (supabase as any).from("affiliate_links")
         .insert(inserts)
         .select();
 

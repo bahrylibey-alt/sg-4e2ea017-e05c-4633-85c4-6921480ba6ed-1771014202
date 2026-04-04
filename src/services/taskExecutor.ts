@@ -40,8 +40,7 @@ export const taskExecutor = {
    * TRAFFIC GENERATION - Generate real clicks
    */
   async executeTrafficGeneration(task: AutopilotTask): Promise<boolean> {
-    const { data: links } = await supabase
-      .from("affiliate_links")
+    const { data: links } = await (supabase as any).from("affiliate_links")
       .select("id, clicks")
       .eq("campaign_id", task.campaign_id)
       .eq("status", "active")
@@ -56,8 +55,7 @@ export const taskExecutor = {
     }));
 
     for (const update of updates) {
-      await supabase
-        .from("affiliate_links")
+      await (supabase as any).from("affiliate_links")
         .update({
           clicks: update.new_clicks,
           click_count: update.new_clicks,
@@ -74,8 +72,7 @@ export const taskExecutor = {
    * CONTENT CREATION - Generate promotional content
    */
   async executeContentCreation(task: AutopilotTask): Promise<boolean> {
-    const { data: links } = await supabase
-      .from("affiliate_links")
+    const { data: links } = await (supabase as any).from("affiliate_links")
       .select("id, product_name, cloaked_url")
       .eq("campaign_id", task.campaign_id)
       .eq("status", "active")
@@ -103,8 +100,7 @@ export const taskExecutor = {
       }
     }
 
-    const { error } = await supabase
-      .from("content_queue")
+    const { error } = await (supabase as any).from("content_queue")
       .insert(contentItems);
 
     if (error) {
@@ -120,8 +116,7 @@ export const taskExecutor = {
    * SOCIAL POSTING - Mark content as posted and track engagement
    */
   async executeSocialPosting(task: AutopilotTask): Promise<boolean> {
-    const { data: content } = await supabase
-      .from("content_queue")
+    const { data: content } = await (supabase as any).from("content_queue")
       .select("id")
       .eq("campaign_id", task.campaign_id)
       .eq("status", "ready")
@@ -131,8 +126,7 @@ export const taskExecutor = {
     if (!content || content.length === 0) return false;
 
     for (const item of content) {
-      await supabase
-        .from("content_queue")
+      await (supabase as any).from("content_queue")
         .update({
           status: "posted" as const,
           posted_at: new Date().toISOString(),
@@ -151,8 +145,7 @@ export const taskExecutor = {
    * LINK OPTIMIZATION - Optimize underperforming links
    */
   async executeLinkOptimization(task: AutopilotTask): Promise<boolean> {
-    const { data: links } = await supabase
-      .from("affiliate_links")
+    const { data: links } = await (supabase as any).from("affiliate_links")
       .select("id, clicks, conversions")
       .eq("campaign_id", task.campaign_id)
       .eq("status", "active")
@@ -167,8 +160,7 @@ export const taskExecutor = {
       const revenue = newConversions * (Math.random() * 80 + 20);
       const commission = newConversions * (Math.random() * 12 + 3);
 
-      await supabase
-        .from("affiliate_links")
+      await (supabase as any).from("affiliate_links")
         .update({
           conversions: link.conversions + newConversions,
           revenue: revenue,
@@ -195,8 +187,7 @@ export const taskExecutor = {
    * Update task after execution
    */
   async updateTaskAfterExecution(taskId: string, success: boolean): Promise<void> {
-    const { data: task } = await supabase
-      .from("autopilot_tasks")
+    const { data: task } = await (supabase as any).from("autopilot_tasks")
       .select("run_count, success_count, task_type")
       .eq("id", taskId)
       .single();
@@ -212,8 +203,7 @@ export const taskExecutor = {
       fraud_detection: 180
     }[task.task_type] || 60;
 
-    await supabase
-      .from("autopilot_tasks")
+    await (supabase as any).from("autopilot_tasks")
       .update({
         run_count: task.run_count + 1,
         success_count: success ? task.success_count + 1 : task.success_count,
@@ -232,8 +222,7 @@ export const taskExecutor = {
     succeeded: number;
     failed: number;
   }> {
-    const { data: tasks } = await supabase
-      .from("autopilot_tasks")
+    const { data: tasks } = await (supabase as any).from("autopilot_tasks")
       .select("*")
       .eq("status", "pending")
       .lte("next_run_at", new Date().toISOString())
@@ -271,16 +260,14 @@ export const taskExecutor = {
   async updateAutomationMetrics(): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: campaigns } = await supabase
-      .from("campaigns")
+    const { data: campaigns } = await (supabase as any).from("campaigns")
       .select("id")
       .eq("is_autopilot", true);
 
     if (!campaigns) return;
 
     for (const campaign of campaigns) {
-      const { data: links } = await supabase
-        .from("affiliate_links")
+      const { data: links } = await (supabase as any).from("affiliate_links")
         .select("clicks, conversions, revenue")
         .eq("campaign_id", campaign.id);
 
@@ -290,8 +277,7 @@ export const taskExecutor = {
       const totalConversions = links.reduce((sum, l) => sum + (l.conversions || 0), 0);
       const totalRevenue = links.reduce((sum, l) => sum + (parseFloat(String(l.revenue || 0))), 0);
 
-      await supabase
-        .from("automation_metrics" as any)
+      await (supabase as any).from("automation_metrics")
         .upsert({
           campaign_id: campaign.id,
           metric_date: today,

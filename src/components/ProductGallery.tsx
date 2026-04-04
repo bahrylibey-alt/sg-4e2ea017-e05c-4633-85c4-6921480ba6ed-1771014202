@@ -99,6 +99,7 @@ export function ProductGallery() {
     setCreatingLinkId(product.id);
     try {
       const result = await affiliateLinkService.createLink({
+        originalUrl: (product as any).url || "https://example.com",
         productName: product.name,
         network: product.network,
         commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
@@ -113,7 +114,7 @@ export function ProductGallery() {
         // Update local state with the new link
         setAffiliateLinks(prev => {
           const newMap = new Map(prev);
-          newMap.set(product.id, result.cloaked_url || "");
+          newMap.set(product.id, (result as any).cloaked_url || (result as any).link?.short_url || "");
           return newMap;
         });
       } else {

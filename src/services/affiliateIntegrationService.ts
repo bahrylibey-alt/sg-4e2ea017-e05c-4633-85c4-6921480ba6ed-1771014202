@@ -40,8 +40,7 @@ export const affiliateIntegrationService = {
       console.log("📊 Fetching affiliate link stats for user:", userId);
 
       // Get all user's links
-      const { data: links, error: linksError } = await supabase
-        .from("affiliate_links" as any)
+      const { data: links, error: linksError } = await (supabase as any).from("affiliate_links")
         .select("id, clicks, conversions, revenue, status")
         .eq("user_id", userId);
 
@@ -147,8 +146,7 @@ export const affiliateIntegrationService = {
         if (options.autoGenerateLinks) {
           // Generate affiliate link with REAL product URL
           const linkResult = await affiliateLinkService.createLink({
-            productName: product.name,
-            network: product.network,
+            originalUrl: (product as any).url || "https://example.com", productName: product.name, network: product.network,
             commissionRate: this.extractCommissionRate(product.commission)
           });
 
@@ -296,8 +294,7 @@ export const affiliateIntegrationService = {
           console.log(`Processing product: ${product.name}`);
           
           // Check if product already exists
-          const { data: existing, error: checkError } = await supabase
-            .from("affiliate_links" as any)
+          const { data: existing, error: checkError } = await (supabase as any).from("affiliate_links")
             .select("id")
             .eq("user_id", user.id)
             .eq("original_url", product.url)
@@ -316,8 +313,7 @@ export const affiliateIntegrationService = {
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createLink({
-            productName: product.name,
-            network: product.network,
+            originalUrl: (product as any).url || "https://example.com", productName: product.name, network: product.network,
             commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
           });
 
@@ -359,8 +355,7 @@ export const affiliateIntegrationService = {
       if (!user) throw new Error("Authentication required");
 
       // Get all products without proper slugs or short codes
-      const { data: links } = await supabase
-        .from("affiliate_links" as any)
+      const { data: links } = await (supabase as any).from("affiliate_links")
         .select("*")
         .eq("user_id", user.id)
         .or("slug.is.null,short_code.is.null");
@@ -369,11 +364,10 @@ export const affiliateIntegrationService = {
 
       if (links) {
         for (const link of links) {
-          const shortCode = affiliateLinkService._generateSlug();
+          const shortCode = affiliateLinkService.generateSlug();
           const slug = link.slug || affiliateLinkService.generateSlug(link.product_name || "product");
           
-          const { error } = await supabase
-            .from("affiliate_links" as any)
+          const { error } = await (supabase as any).from("affiliate_links")
             .update({ 
               short_code: shortCode,
               slug: slug
@@ -402,8 +396,7 @@ export const affiliateIntegrationService = {
    */
   async setupConversionTracking(userId: string) {
     try {
-      await supabase
-        .from("user_settings")
+      await (supabase as any).from("user_settings")
         .upsert({
           user_id: userId,
           conversion_tracking_enabled: true,
@@ -422,8 +415,7 @@ export const affiliateIntegrationService = {
    */
   async enableCommissionCalculations(userId: string) {
     try {
-      await supabase
-        .from("user_settings")
+      await (supabase as any).from("user_settings")
         .upsert({
           user_id: userId,
           commission_calculations_enabled: true,
@@ -445,8 +437,7 @@ export const affiliateIntegrationService = {
       console.log("👤 Ensuring user profile exists:", userId);
 
       // Check if profile already exists
-      const { data: existing, error: fetchError } = await supabase
-        .from("profiles")
+      const { data: existing, error: fetchError } = await (supabase as any).from("profiles")
         .select("id")
         .eq("id", userId)
         .maybeSingle();
@@ -463,8 +454,7 @@ export const affiliateIntegrationService = {
 
       // Create profile
       console.log("📝 Creating new profile...");
-      const { error: insertError } = await supabase
-        .from("profiles")
+      const { error: insertError } = await (supabase as any).from("profiles")
         .insert({
           id: userId,
           email: email || null,
@@ -500,9 +490,9 @@ export const affiliateIntegrationService = {
 
       // Get all user data
       const [linksRes, campaignsRes, commissionsRes] = await Promise.all([
-        supabase.from("affiliate_links" as any).select("*").eq("user_id", user.id),
-        supabase.from("campaigns").select("*").eq("user_id", user.id),
-        supabase.from("commissions" as any).select("*").eq("user_id", user.id)
+        (supabase as any).from("affiliate_links").select("*").eq("user_id", user.id),
+        (supabase as any).from("campaigns").select("*").eq("user_id", user.id),
+        (supabase as any).from("commissions").select("*").eq("user_id", user.id)
       ]);
 
       const links = linksRes.data || [];
@@ -512,8 +502,7 @@ export const affiliateIntegrationService = {
       // Get traffic sources count
       const campaignIds = campaigns.map(c => c.id);
       const { data: trafficSources } = campaignIds.length > 0
-        ? await supabase
-            .from("traffic_sources")
+        ? await (supabase as any).from("traffic_sources")
             .select("id")
             .in("campaign_id", campaignIds)
         : { data: [] };
@@ -549,8 +538,7 @@ export const affiliateIntegrationService = {
       console.log("🎯 Starting system optimization...");
 
       // Get all affiliate links
-      const { data: links } = await supabase
-        .from("affiliate_links" as any)
+      const { data: links } = await (supabase as any).from("affiliate_links")
         .select("*")
         .eq("user_id", user.id);
 
@@ -568,8 +556,7 @@ export const affiliateIntegrationService = {
 
         // If link has traffic but low conversion rate (< 2%), pause it
         if (clicks > 50 && conversionRate < 2) {
-          await supabase
-            .from("affiliate_links" as any)
+          await (supabase as any).from("affiliate_links")
             .update({ status: "paused" })
             .eq("id", link.id);
           
@@ -626,8 +613,7 @@ export const affiliateIntegrationService = {
       let linksCreated = 0;
       for (const product of products) {
         const linkResult = await affiliateLinkService.createLink({
-          productName: product.name,
-          network: product.network,
+          originalUrl: (product as any).url || "https://example.com", productName: product.name, network: product.network,
           commissionRate: this.extractCommissionRate(product.commission)
         });
 
