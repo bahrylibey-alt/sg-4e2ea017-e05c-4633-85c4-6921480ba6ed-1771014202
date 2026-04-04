@@ -153,7 +153,7 @@ export const affiliateIntegrationService = {
           if (linkResult.success && linkResult.link) {
             addedProducts.push({
               ...product,
-              affiliateLink: linkResult.cloaked_url,
+              affiliateLink: (linkResult as any).link?.cloaked_url || (linkResult as any).cloaked_url,
               linkId: linkResult.link.id
             });
           }
@@ -619,7 +619,7 @@ export const affiliateIntegrationService = {
 
         if (linkResult.success) {
           linksCreated++;
-          console.log(`✅ Created link for ${product.name}: ${linkResult.cloaked_url}`);
+          console.log(`✅ Created link for ${product.name}: ${(linkResult as any).link?.cloaked_url || (linkResult as any).cloaked_url}`);
         }
       }
 
