@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM
@@ -338,5 +339,13 @@ export const linkHealthMonitor = {
       console.error("Error rotating products:", error);
       return { success: false, removed: 0, added: 0 };
     }
+  },
+
+  /**
+   * Discover trending products
+   */
+  async discoverTrendingProducts(count: number = 10) {
+    const trending = await smartProductDiscovery.discoverTrending();
+    return trending.slice(0, count);
   },
 };
