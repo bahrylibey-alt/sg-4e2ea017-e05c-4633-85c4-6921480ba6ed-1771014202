@@ -64,14 +64,14 @@ export const smartCampaignService = {
   /**
    * Get available campaign templates
    */
-  async getTemplates(): Promise<CampaignTemplate[]> {
+  getTemplates(): CampaignTemplate[] {
     return MOCK_TEMPLATES;
   },
 
   /**
    * Get specific campaign template
    */
-  async getTemplate(id: string): Promise<CampaignTemplate | null> {
+  getTemplate(id: string): CampaignTemplate | null {
     return MOCK_TEMPLATES.find(t => t.id === id) || null;
   },
 
@@ -120,7 +120,7 @@ export const smartCampaignService = {
       };
 
       const { data: campaign, error: campaignError } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .insert(insert)
         .select()
         .single();
@@ -206,7 +206,7 @@ export const smartCampaignService = {
   }> {
     try {
       const { data: campaign, error: campaignError } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .select("*")
         .eq("id", campaignId)
         .single();
@@ -275,7 +275,7 @@ export const smartCampaignService = {
       }
 
       const { data, error } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -299,7 +299,7 @@ export const smartCampaignService = {
   }> {
     try {
       const { error } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", campaignId);
 
@@ -322,7 +322,7 @@ export const smartCampaignService = {
   }> {
     try {
       const { error } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .delete()
         .eq("id", campaignId);
 
@@ -345,7 +345,7 @@ export const smartCampaignService = {
   }> {
     try {
       const { error } = await supabase
-        .from("campaigns")
+        .from("campaigns" as any)
         .update({
           is_autopilot: enable,
           updated_at: new Date().toISOString()

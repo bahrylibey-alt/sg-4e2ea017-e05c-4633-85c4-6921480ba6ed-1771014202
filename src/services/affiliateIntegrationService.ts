@@ -147,7 +147,7 @@ export const affiliateIntegrationService = {
         if (options.autoGenerateLinks) {
           // Generate affiliate link with REAL product URL
           const linkResult = await affiliateLinkService.createLink({
-            productId: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
+            productName: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
             productName: product.name,
             destinationUrl: product.url, // REAL product URL from catalog
             network: product.network,
@@ -157,7 +157,7 @@ export const affiliateIntegrationService = {
           if (linkResult.success && linkResult.link) {
             addedProducts.push({
               ...product,
-              affiliateLink: linkResult.shortUrl,
+              affiliateLink: linkResult.cloaked_url,
               linkId: linkResult.link.id
             });
           }
@@ -318,7 +318,7 @@ export const affiliateIntegrationService = {
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createLink({
-            productId: undefined, // FORCE UNDEFINED for catalog products
+            productName: undefined, // FORCE UNDEFINED for catalog products
             productName: product.name,
             destinationUrl: product.url,
             network: product.network,
@@ -630,7 +630,7 @@ export const affiliateIntegrationService = {
       let linksCreated = 0;
       for (const product of products) {
         const linkResult = await affiliateLinkService.createLink({
-          productId: undefined, // FORCE UNDEFINED
+          productName: undefined, // FORCE UNDEFINED
           productName: product.name,
           destinationUrl: product.url, // CRITICAL: Use REAL product URL
           network: product.network,
@@ -639,7 +639,7 @@ export const affiliateIntegrationService = {
 
         if (linkResult.success) {
           linksCreated++;
-          console.log(`✅ Created link for ${product.name}: ${linkResult.shortUrl}`);
+          console.log(`✅ Created link for ${product.name}: ${linkResult.cloaked_url}`);
         }
       }
 

@@ -99,7 +99,7 @@ export function ProductGallery() {
     setCreatingLinkId(product.id);
     try {
       const result = await affiliateLinkService.createLink({
-        productId: undefined, // CRITICAL: Don't use catalog ID (string) for database UUID
+        productName: undefined, // CRITICAL: Don't use catalog ID (string) for database UUID
         productName: product.name,
         destinationUrl: product.url,
         network: product.network,
@@ -115,7 +115,7 @@ export function ProductGallery() {
         // Update local state with the new link
         setAffiliateLinks(prev => {
           const newMap = new Map(prev);
-          newMap.set(product.id, result.shortUrl || "");
+          newMap.set(product.id, result.cloaked_url || "");
           return newMap;
         });
       } else {

@@ -89,18 +89,18 @@ export default function SystemTest() {
       const testProduct = products[0];
       const result = await affiliateLinkService.createLink({
         productName: `TEST - ${testProduct.name}`,
-        destinationUrl: testProduct.url,
+        originalUrl: testProduct.url,
         network: testProduct.network,
         commissionRate: parseFloat(testProduct.commission.replace(/[^0-9.]/g, ""))
       });
 
       if (result.success && result.link) {
-        const cloakedUrl = affiliateLinkService.getCloakedUrl(result.link.slug);
+        const cloakedUrl = linkResult.link.cloaked_url;
         setTestLink(cloakedUrl);
         updateTest("Create Link", "success", "Test link created successfully", {
           slug: result.link.slug,
           cloakedUrl,
-          destinationUrl: result.link.original_url,
+          originalUrl: result.link.original_url,
           linkId: result.link.id
         });
 

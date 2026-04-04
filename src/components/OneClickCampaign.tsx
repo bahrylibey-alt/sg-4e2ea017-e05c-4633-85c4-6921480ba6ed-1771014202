@@ -80,7 +80,7 @@ export function OneClickCampaign() {
 
       const result = await smartCampaignService.createQuickCampaign({
         productUrls: [normalizedUrl],
-        customGoal: campaignGoal
+        goal: campaignGoal
       });
 
       console.log("✅ Campaign result:", result);

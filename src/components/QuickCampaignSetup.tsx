@@ -92,7 +92,7 @@ export function QuickCampaignSetup() {
 
       const result = await smartCampaignService.createQuickCampaign({
         productUrls: [normalizedUrl],
-        customBudget: parseFloat(formData.budget),
+        budget: parseFloat(formData.budget),
         customGoal: formData.goal
       });
 

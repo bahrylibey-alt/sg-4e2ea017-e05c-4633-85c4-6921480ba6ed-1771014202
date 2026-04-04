@@ -45,7 +45,7 @@ export const commissionService = {
       const calc = this.calculateCommission(saleAmount, commissionRate);
 
       const { data, error } = await supabase
-        .from("commissions")
+        .from("commissions" as any)
         .insert({
           user_id: userId,
           link_id: affiliateLinkId,
@@ -90,7 +90,7 @@ export const commissionService = {
   }> {
     try {
       let query = supabase
-        .from("commissions")
+        .from("commissions" as any)
         .select("*")
         .eq("user_id", userId)
         .order("commission_date", { ascending: false });
@@ -155,7 +155,7 @@ export const commissionService = {
       }
 
       const { error } = await supabase
-        .from("commissions")
+        .from("commissions" as any)
         .update(updates)
         .eq("id", commissionId);
 
