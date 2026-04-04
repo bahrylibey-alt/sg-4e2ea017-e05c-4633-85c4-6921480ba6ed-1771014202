@@ -197,6 +197,7 @@ export const linkHealthMonitor = {
         return {
           totalLinks: 0,
           invalidLinks: 0,
+          brokenLinks: 0,
           healthScore: 100
         };
       }
@@ -215,6 +216,7 @@ export const linkHealthMonitor = {
       return {
         totalLinks: links.length,
         invalidLinks: invalidCount,
+        brokenLinks: invalidCount, // Added for backward compatibility with test pages
         healthScore
       };
     } catch (error) {
@@ -222,6 +224,7 @@ export const linkHealthMonitor = {
       return {
         totalLinks: 0,
         invalidLinks: 0,
+        brokenLinks: 0,
         healthScore: 0
       };
     }
