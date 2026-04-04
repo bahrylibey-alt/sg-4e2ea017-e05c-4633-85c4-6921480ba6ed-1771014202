@@ -4,15 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 export default function RedirectPage() {
   return (
     <div style={{ 
-      display: "flex", 
-      alignItems: "center", 
-      justifyContent: "center", 
-      height: "100vh",
-      fontFamily: "system-ui, -apple-system, sans-serif"
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      height: '100vh',
+      fontFamily: 'system-ui, sans-serif'
     }}>
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{ fontSize: "24px", marginBottom: "16px" }}>Redirecting...</h1>
-        <p style={{ color: "#666" }}>Taking you to the product page on Amazon.</p>
+      <div style={{ textAlign: 'center' }}>
+        <h1>Redirecting...</h1>
+        <p>Taking you to the product page...</p>
       </div>
     </div>
   );
@@ -21,26 +21,33 @@ export default function RedirectPage() {
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const { slug } = context.query;
 
+  console.log("🔍 Redirect request for slug:", slug);
+
   if (!slug || typeof slug !== "string") {
+    console.error("❌ Invalid slug");
     return { notFound: true };
   }
 
   try {
-    // 1. Get the affiliate link from the database
+    // Get link from database
     const { data: link, error } = await supabase
       .from("affiliate_links")
-      .select("id, original_url, product_name, network, clicks, status, user_id")
+      .select("id, original_url, product_name, clicks")
       .eq("slug", slug)
       .eq("status", "active")
       .maybeSingle();
 
-    if (error || !link || !link.original_url) {
-      console.error("Link fetch error or not found:", error || "No URL");
+    console.log("📊 Database query result:", { link, error });
+
+    if (error || !link) {
+      console.error("❌ Link not found in database:", slug, error);
       return { notFound: true };
     }
 
-    // 2. Track the click metric (await to guarantee execution)
-    await supabase
+    console.log("✅ Found link:", link.product_name, "→", link.original_url);
+
+    // Update click count
+    const { error: updateError } = await supabase
       .from("affiliate_links")
       .update({ 
         clicks: (link.clicks || 0) + 1,
@@ -48,31 +55,38 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       })
       .eq("id", link.id);
 
-    // 3. Log activity metric
+    if (updateError) {
+      console.error("⚠️ Failed to update clicks:", updateError);
+    } else {
+      console.log("✅ Click count updated");
+    }
+
+    // Log activity
     await supabase
       .from("activity_logs")
       .insert({
-        user_id: link.user_id || "00000000-0000-0000-0000-000000000000",
+        user_id: "00000000-0000-0000-0000-000000000000",
         action: "link_click",
         status: "success",
-        details: `Clicked: ${link.product_name}`,
+        details: `Redirecting to: ${link.product_name}`,
         metadata: { 
           slug, 
-          product_name: link.product_name, 
-          network: link.network,
-          destination: link.original_url
+          product: link.product_name, 
+          url: link.original_url 
         }
       });
 
-    // 4. Redirect seamlessly to actual Amazon product URL
+    console.log("🚀 Redirecting to:", link.original_url);
+
+    // Redirect to the original Amazon URL
     return {
       redirect: {
         destination: link.original_url,
-        permanent: false, // 302 redirect
+        permanent: false,
       },
     };
   } catch (err) {
-    console.error("Unexpected error in redirect server-side:", err);
+    console.error("❌ Unexpected error in redirect:", err);
     return { notFound: true };
   }
 };
