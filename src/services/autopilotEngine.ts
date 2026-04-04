@@ -80,7 +80,7 @@ export const autopilotEngine = {
       // Step 6: START THE AUTOMATION SCHEDULER
       if (config.autoStart !== false) {
         const schedulerResult = await automationScheduler.start();
-        console.log("✅ Automation scheduler started:", schedulerResult.message);
+        console.log("✅ Automation scheduler started:", (schedulerResult as any)?.message);
       }
 
       // Step 7: Enable autopilot in settings
@@ -107,7 +107,7 @@ export const autopilotEngine = {
       console.error("❌ One-click launch failed:", error);
       return {
         success: false,
-        message: error.message || "Failed to launch autopilot",
+        message: (error as any)?.message || "Failed to launch autopilot",
         automationStatus: "FAILED"
       };
     }
@@ -179,7 +179,7 @@ export const autopilotEngine = {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || "Failed to stop autopilot"
+        message: (error as any)?.message || "Failed to stop autopilot"
       };
     }
   },
@@ -221,7 +221,7 @@ export const autopilotEngine = {
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || "Failed to resume autopilot"
+        message: (error as any)?.message || "Failed to resume autopilot"
       };
     }
   },
@@ -268,7 +268,7 @@ export const autopilotEngine = {
       const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
       const totalRevenue = links?.reduce((sum, l) => sum + (Number(l.revenue) || 0), 0) || 0;
 
-      const schedulerStatus = automationScheduler.getStatus();
+      const schedulerStatus = ({ isRunning: automationScheduler.isRunning });
 
       return {
         isActive: activeCampaigns > 0 && schedulerStatus.isRunning,

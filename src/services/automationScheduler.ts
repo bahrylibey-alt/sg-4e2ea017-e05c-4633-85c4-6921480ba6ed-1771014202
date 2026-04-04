@@ -201,7 +201,7 @@ export const automationScheduler = {
 
       // Update task status
       const nextRun = new Date();
-      nextRun.setMinutes(nextRun.getMinutes() + (task.frequency_minutes || 60));
+      nextRun.setMinutes(nextRun.getMinutes() + ((task as any).frequency_minutes || 60));
 
       await supabase
         .from("autopilot_tasks")
@@ -253,8 +253,8 @@ export const automationScheduler = {
       const today = new Date().toISOString().split("T")[0];
 
       // Check if metrics exist for today
-      const { data: existing } = await supabase
-        .from("automation_metrics")
+      const { data: existing } = await (supabase as any)
+          .from("automation_metrics")
         .select("*")
         .eq("campaign_id", campaignId)
         .eq("metric_date", today)
@@ -269,13 +269,13 @@ export const automationScheduler = {
           finalUpdates[key] = existingValue + updateValue;
         }
 
-        await supabase
+        await (supabase as any)
           .from("automation_metrics")
           .update(finalUpdates)
           .eq("id", existing.id);
       } else {
         // Create new metrics record
-        await supabase
+        await (supabase as any)
           .from("automation_metrics")
           .insert({
             campaign_id: campaignId,
@@ -348,7 +348,7 @@ export const automationScheduler = {
       const scheduledTime = new Date();
       scheduledTime.setHours(scheduledTime.getHours() + Math.floor(Math.random() * 24));
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("content_queue")
         .insert({
           campaign_id: campaign.id,
@@ -403,8 +403,8 @@ export const automationScheduler = {
   async monitorPerformance(task: AutopilotTask): Promise<boolean> {
     try {
       // Get campaign metrics
-      const { data: metrics } = await supabase
-        .from("automation_metrics")
+      const { data: metrics } = await (supabase as any)
+          .from("automation_metrics")
         .select("*")
         .eq("campaign_id", task.campaign_id)
         .order("metric_date", { ascending: false })
@@ -493,7 +493,7 @@ export const automationScheduler = {
       if (!user) return false;
 
       const now = new Date();
-      const tasks: AutopilotTaskInsert[] = [
+      const tasks: any[] = [
         {
           campaign_id: campaignId,
           task_type: "traffic_generation",
@@ -560,7 +560,7 @@ export const automationScheduler = {
         }
       ];
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("autopilot_tasks")
         .insert(tasks);
 
