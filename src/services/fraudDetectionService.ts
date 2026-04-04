@@ -15,75 +15,34 @@ export const fraudDetectionService = {
     reasons: string[];
   }> {
     try {
-      // Get activity logs for this link
-      const { data: activities } = await supabase
-        .from("activity_logs")
-        .select("*")
-        .eq("link_id", linkId)
-        .order("timestamp", { ascending: false })
-        .limit(100);
+      const { data: link } = await supabase
+        .from("affiliate_links")
+        .select("clicks, conversions, created_at")
+        .eq("id", linkId)
+        .single();
 
-      if (!activities || activities.length === 0) {
+      if (!link) {
         return { isSuspicious: false, riskScore: 0, reasons: [] };
       }
 
       const reasons: string[] = [];
       let riskScore = 0;
 
-      // Check for click flooding (too many clicks in short time)
-      const last5MinClicks = activities.filter((a) => {
-        const timestamp = new Date(a.timestamp);
-        const now = new Date();
-        return now.getTime() - timestamp.getTime() < 5 * 60 * 1000;
-      }).length;
-
-      if (last5MinClicks > 50) {
-        reasons.push("Unusual click volume in last 5 minutes");
+      // Check for zero conversions with high clicks (click fraud)
+      if (link.clicks > 150 && link.conversions === 0) {
+        reasons.push("High clicks with zero conversions");
         riskScore += 40;
       }
 
-      // Check for same IP patterns
-      const ipCounts: Record<string, number> = {};
-      activities.forEach((a) => {
-        const ip = a.metadata?.ip || "unknown";
-        ipCounts[ip] = (ipCounts[ip] || 0) + 1;
-      });
+      // Velocity check - if it got too many clicks too fast since creation
+      const createdDate = new Date(link.created_at);
+      const now = new Date();
+      const hoursSinceCreation = Math.max(1, (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60));
+      const clicksPerHour = link.clicks / hoursSinceCreation;
 
-      const maxSameIP = Math.max(...Object.values(ipCounts));
-      if (maxSameIP > 20) {
-        reasons.push("High number of clicks from same IP");
-        riskScore += 30;
-      }
-
-      // Check for bot-like patterns (exact timing intervals)
-      const intervals: number[] = [];
-      for (let i = 1; i < Math.min(activities.length, 20); i++) {
-        const t1 = new Date(activities[i - 1].timestamp).getTime();
-        const t2 = new Date(activities[i].timestamp).getTime();
-        intervals.push(Math.abs(t1 - t2));
-      }
-
-      if (intervals.length > 0) {
-        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-        const variance = intervals.reduce((sum, val) => sum + Math.pow(val - avgInterval, 2), 0) / intervals.length;
-        
-        // Low variance = bot-like behavior
-        if (variance < 1000 && avgInterval < 60000) {
-          reasons.push("Bot-like click pattern detected");
-          riskScore += 25;
-        }
-      }
-
-      // Check for zero conversions with high clicks (click fraud)
-      const { data: link } = await supabase
-        .from("affiliate_links")
-        .select("clicks, conversions")
-        .eq("id", linkId)
-        .single();
-
-      if (link && link.clicks > 100 && link.conversions === 0) {
-        reasons.push("High clicks with zero conversions");
-        riskScore += 20;
+      if (clicksPerHour > 500 && link.conversions < 2) {
+        reasons.push("Unnatural click velocity detected");
+        riskScore += 35;
       }
 
       return {
@@ -95,6 +54,17 @@ export const fraudDetectionService = {
       console.error("Error analyzing click patterns:", error);
       return { isSuspicious: false, riskScore: 0, reasons: [] };
     }
+  },
+
+  /**
+   * Alias for backwards compatibility with CampaignMonitor
+   */
+  async detectFraud(linkId: string): Promise<{
+    isSuspicious: boolean;
+    riskScore: number;
+    reasons: string[];
+  }> {
+    return this.analyzeClickPatterns(linkId);
   },
 
   /**
@@ -119,13 +89,18 @@ export const fraudDetectionService = {
         })
         .eq("id", linkId);
 
-      // Log the fraud detection
-      await supabase.from("activity_logs").insert({
-        link_id: linkId,
-        action: "fraud_detected",
-        status: "warning",
-        details: `Fraud detected: ${analysis.reasons.join(", ")}`,
-      });
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // Log the fraud detection using correct activity_logs schema
+        await supabase.from("activity_logs").insert({
+          user_id: user.id,
+          action: "fraud_detected",
+          status: "warning",
+          details: `Fraud detected on link ${linkId}: ${analysis.reasons.join(", ")}`,
+        });
+      }
 
       return { success: true, blocked: 1 };
     } catch (error) {
@@ -183,5 +158,5 @@ export const fraudDetectionService = {
       console.error("Error monitoring links:", error);
       return { totalChecked: 0, suspicious: 0, blocked: 0 };
     }
-  },
+  }
 };

@@ -190,4 +190,11 @@ export const aiOptimizationEngine = {
       return { success: false, allocations: {} };
     }
   },
+
+  /**
+   * Alias for backwards compatibility with AutopilotDashboard
+   */
+  async runFullOptimization(campaignId: string): Promise<{ success: boolean; optimizations: number; revenueIncrease: number; recommendations: string[] }> {
+    return this.optimizeCampaign(campaignId);
+  }
 };
