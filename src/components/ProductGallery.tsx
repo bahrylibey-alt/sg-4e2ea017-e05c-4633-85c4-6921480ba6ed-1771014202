@@ -106,8 +106,10 @@ export function ProductGallery() {
             clicks: 0,
             conversions: 0,
             revenue: 0,
-            commission_earned: 0
-          })
+            commission_earned: 0,
+            cloaked_url: `/go/${slug}`,
+            user_id: "00000000-0000-0000-0000-000000000000"
+          } as any)
           .select("slug")
           .single();
 
