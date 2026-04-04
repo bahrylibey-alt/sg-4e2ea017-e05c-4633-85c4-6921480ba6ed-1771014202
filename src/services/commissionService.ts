@@ -48,12 +48,12 @@ export const commissionService = {
         .from("commissions")
         .insert({
           user_id: userId,
-          affiliate_link_id: affiliateLinkId,
+          link_id: affiliateLinkId,
           sale_amount: saleAmount,
           commission_rate: commissionRate,
           commission_amount: calc.commissionAmount,
           processing_fee: calc.processingFee,
-          net_commission: calc.netCommission,
+          commission_amount: calc.netCommission,
           status: "pending",
           commission_date: new Date().toISOString()
         })
@@ -112,13 +112,13 @@ export const commissionService = {
       }
 
       const commissions = data || [];
-      const totalEarned = commissions.reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+      const totalEarned = commissions.reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
       const totalPending = commissions
         .filter(c => c.status === "pending")
-        .reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
       const totalPaid = commissions
         .filter(c => c.status === "paid")
-        .reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
 
       return {
         commissions,
@@ -206,7 +206,7 @@ export const commissionService = {
       // Update affiliate link conversion count
       const { data: currentLink } = await supabase
         .from("affiliate_links")
-        .select("conversions, total_revenue")
+        .select("conversions, revenue")
         .eq("id", affiliateLinkId)
         .single();
 
@@ -215,7 +215,7 @@ export const commissionService = {
           .from("affiliate_links")
           .update({
             conversions: (currentLink.conversions || 0) + 1,
-            total_revenue: (Number(currentLink.total_revenue) || 0) + saleAmount
+            revenue: (Number(currentLink.revenue) || 0) + saleAmount
           })
           .eq("id", affiliateLinkId);
       }
@@ -256,7 +256,7 @@ export const commissionService = {
         };
       }
 
-      const totalEarnings = commissions.reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+      const totalEarnings = commissions.reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
       const pendingCommissions = commissions.filter(c => c.status === "pending").length;
       const paidCommissions = commissions.filter(c => c.status === "paid").length;
       const avgCommissionAmount = commissions.length > 0

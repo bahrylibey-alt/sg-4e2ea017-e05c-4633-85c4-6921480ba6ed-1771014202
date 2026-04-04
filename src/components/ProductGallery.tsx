@@ -98,7 +98,7 @@ export function ProductGallery() {
   const handleCreateLink = async (product: AffiliateProduct) => {
     setCreatingLinkId(product.id);
     try {
-      const result = await affiliateLinkService.createAffiliateLink({
+      const result = await affiliateLinkService.createLink({
         productId: undefined, // CRITICAL: Don't use catalog ID (string) for database UUID
         productName: product.name,
         destinationUrl: product.url,

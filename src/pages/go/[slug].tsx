@@ -56,16 +56,16 @@ export default function RedirectPage() {
           throw new Error("Link not found or inactive");
         }
 
-        if (!result.redirect_url) {
-          addDebug("❌ No redirect_url in result");
+        if (!result.redirectUrl) {
+          addDebug("❌ No redirectUrl in result");
           throw new Error("No destination URL found");
         }
 
         // Step 4: Validate destination URL
-        addDebug(`🎯 Destination URL: ${result.redirect_url}`);
+        addDebug(`🎯 Destination URL: ${result.redirectUrl}`);
         
         try {
-          const urlTest = new URL(result.redirect_url);
+          const urlTest = new URL(result.redirectUrl);
           addDebug(`✅ URL is valid: ${urlTest.hostname}`);
           
           // Check for common invalid patterns
@@ -78,11 +78,11 @@ export default function RedirectPage() {
           ];
           
           const isInvalid = invalidPatterns.some(pattern => 
-            result.redirect_url!.toLowerCase().includes(pattern)
+            result.redirectUrl!.toLowerCase().includes(pattern)
           );
           
           if (isInvalid) {
-            addDebug(`❌ Invalid URL pattern detected: ${result.redirect_url}`);
+            addDebug(`❌ Invalid URL pattern detected: ${result.redirectUrl}`);
             throw new Error("This affiliate link has an invalid destination URL");
           }
         } catch (urlError) {
@@ -91,16 +91,16 @@ export default function RedirectPage() {
         }
 
         // Step 5: Set redirect URL and prepare to redirect
-        setRedirectUrl(result.redirect_url);
+        setRedirectUrl(result.redirectUrl);
         setStatus("Click tracked! Redirecting...");
         addDebug("✅ Click tracked successfully");
-        addDebug(`🚀 Redirecting to: ${result.redirect_url}`);
+        addDebug(`🚀 Redirecting to: ${result.redirectUrl}`);
 
         // Step 6: Wait a moment to show the loading screen, then redirect
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         addDebug("🎯 Executing redirect NOW...");
-        window.location.href = result.redirect_url;
+        window.location.href = result.redirectUrl;
 
       } catch (err: any) {
         console.error("💥 Redirect error:", err);

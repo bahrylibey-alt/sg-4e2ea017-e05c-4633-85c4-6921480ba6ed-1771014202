@@ -146,7 +146,7 @@ export const affiliateIntegrationService = {
       for (const product of selectedProducts) {
         if (options.autoGenerateLinks) {
           // Generate affiliate link with REAL product URL
-          const linkResult = await affiliateLinkService.createAffiliateLink({
+          const linkResult = await affiliateLinkService.createLink({
             productId: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
             productName: product.name,
             destinationUrl: product.url, // REAL product URL from catalog
@@ -317,7 +317,7 @@ export const affiliateIntegrationService = {
 
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
-          const linkResult = await affiliateLinkService.createAffiliateLink({
+          const linkResult = await affiliateLinkService.createLink({
             productId: undefined, // FORCE UNDEFINED for catalog products
             productName: product.name,
             destinationUrl: product.url,
@@ -373,8 +373,8 @@ export const affiliateIntegrationService = {
 
       if (links) {
         for (const link of links) {
-          const shortCode = affiliateLinkService.generateShortCode();
-          const slug = link.slug || affiliateLinkService.generateUniqueSlug(link.product_name || "product");
+          const shortCode = affiliateLinkService.generateSlug();
+          const slug = link.slug || affiliateLinkService.generateSlug(link.product_name || "product");
           
           const { error } = await supabase
             .from("affiliate_links")
@@ -629,7 +629,7 @@ export const affiliateIntegrationService = {
       // 2. Generate affiliate links for each product with REAL URLs
       let linksCreated = 0;
       for (const product of products) {
-        const linkResult = await affiliateLinkService.createAffiliateLink({
+        const linkResult = await affiliateLinkService.createLink({
           productId: undefined, // FORCE UNDEFINED
           productName: product.name,
           destinationUrl: product.url, // CRITICAL: Use REAL product URL
@@ -680,7 +680,7 @@ export const affiliateIntegrationService = {
   /**
    * Generate unique short code for affiliate links
    */
-  generateShortCode(): string {
+  generateSlug(): string {
     return Math.random().toString(36).substring(2, 10);
   },
 

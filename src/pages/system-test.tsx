@@ -87,7 +87,7 @@ export default function SystemTest() {
       // TEST 5: Create Test Link
       updateTest("Create Link", "running", "Creating test affiliate link...");
       const testProduct = products[0];
-      const result = await affiliateLinkService.createAffiliateLink({
+      const result = await affiliateLinkService.createLink({
         productName: `TEST - ${testProduct.name}`,
         destinationUrl: testProduct.url,
         network: testProduct.network,

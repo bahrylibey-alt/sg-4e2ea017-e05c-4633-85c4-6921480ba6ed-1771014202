@@ -89,7 +89,7 @@ export const aiOptimizationEngine = {
       }
 
       // 4. Scale top-performing traffic sources (Real Scaling)
-      const trafficResult = await trafficAutomationService.scaleTopPerformers(campaignId);
+      const trafficResult = // await trafficAutomationService.scaleTopPerformers(campaignId);
       if (trafficResult.scaled.length > 0) {
         optimizationsApplied++;
         logs.push({
