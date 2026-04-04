@@ -3,38 +3,45 @@ import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM
- * Real URL validation with actual HTTP checks
+ * Format-based validation (CORS-safe for browser)
  */
 export const linkHealthMonitor = {
   /**
-   * Test if a URL actually works by making a real HTTP request
+   * Validate Amazon URL format (CORS-safe, no HTTP requests)
    */
-  async testUrl(url: string): Promise<boolean> {
+  validateAmazonUrl(url: string): boolean {
+    if (!url) return false;
+    
     try {
-      console.log(`🔍 Testing URL: ${url}`);
+      const urlObj = new URL(url);
       
-      // Make actual HTTP request to check if product exists
-      const response = await fetch(url, {
-        method: 'HEAD',
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LinkChecker/1.0)'
-        }
-      });
+      // Check if it's an Amazon domain
+      if (!urlObj.hostname.includes('amazon.com')) return false;
       
-      const isWorking = response.ok && response.status !== 404;
-      console.log(`${isWorking ? '✅' : '❌'} URL status: ${response.status}`);
+      // Check for valid Amazon product URL patterns
+      const validPatterns = [
+        /\/dp\/[A-Z0-9]{10}/,  // Standard: /dp/B0CC5XQWLP
+        /\/gp\/product\/[A-Z0-9]{10}/, // Alternative: /gp/product/B0CC5XQWLP
+        /\/[^/]+\/dp\/[A-Z0-9]{10}/, // With category: /Electronics/dp/B0CC5XQWLP
+      ];
       
-      return isWorking;
-    } catch (error) {
-      console.error(`❌ Failed to test URL ${url}:`, error);
+      return validPatterns.some(pattern => pattern.test(url));
+    } catch {
       return false;
     }
   },
 
   /**
+   * Extract ASIN from Amazon URL
+   */
+  extractAsin(url: string): string | null {
+    const match = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})/);
+    return match ? (match[1] || match[2]) : null;
+  },
+
+  /**
    * ONE-CLICK AUTO-REPAIR
-   * Actually tests URLs with HTTP requests and fixes broken links
+   * Validates Amazon URL formats and removes invalid links
    */
   async oneClickAutoRepair(
     campaignId?: string,
@@ -47,7 +54,7 @@ export const linkHealthMonitor = {
     repaired: number;
   }> {
     try {
-      console.log("🔧 Starting One-Click Auto-Repair with REAL URL testing...");
+      console.log("🔧 Starting One-Click Auto-Repair with format validation...");
       console.log("Input parameters:", { campaignId, userId });
 
       // Get user ID if not provided
@@ -98,53 +105,48 @@ export const linkHealthMonitor = {
         return { success: true, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
       }
 
-      console.log(`📊 Testing ${allLinks.length} links with REAL HTTP requests...`);
+      console.log(`📊 Validating ${allLinks.length} links (format check)...`);
 
-      // Test each link with actual HTTP requests
-      const brokenLinks = [];
+      // Validate each link format
+      const invalidLinks = [];
       
       for (const link of allLinks) {
         const url = link.original_url || "";
         
-        // First check if it's a valid Amazon URL format
-        const isValidFormat = url.includes("amazon.com/dp/") || url.includes("amazon.com/gp/");
+        // Validate Amazon URL format
+        const isValid = this.validateAmazonUrl(url);
+        const asin = this.extractAsin(url);
         
-        if (!isValidFormat) {
-          console.log("🔴 Invalid format:", { name: link.product_name, url });
-          brokenLinks.push(link);
-          continue;
-        }
-        
-        // Now actually TEST the URL with HTTP request
-        console.log(`Testing ${link.product_name}...`);
-        const isWorking = await this.testUrl(url);
-        
-        if (!isWorking) {
-          console.log("🔴 Broken link (404/error):", { name: link.product_name, url });
-          brokenLinks.push(link);
+        if (!isValid || !asin) {
+          console.log("🔴 Invalid format:", { 
+            name: link.product_name, 
+            url,
+            hasAsin: !!asin 
+          });
+          invalidLinks.push(link);
         } else {
-          console.log("✅ Working:", link.product_name);
+          console.log("✅ Valid:", link.product_name);
         }
       }
 
-      console.log(`🔴 Found ${brokenLinks.length} broken/404 links`);
+      console.log(`🔴 Found ${invalidLinks.length} invalid links`);
 
-      // Remove broken links
+      // Remove invalid links
       let removed = 0;
-      if (brokenLinks.length > 0) {
-        const brokenIds = brokenLinks.map(link => link.id);
-        console.log("Deleting broken links:", brokenIds);
+      if (invalidLinks.length > 0) {
+        const invalidIds = invalidLinks.map(link => link.id);
+        console.log("Deleting invalid links:", invalidIds);
         
         const { error: deleteError } = await supabase
           .from("affiliate_links")
           .delete()
-          .in("id", brokenIds);
+          .in("id", invalidIds);
 
         console.log("Delete result:", { error: deleteError });
 
         if (!deleteError) {
-          removed = brokenLinks.length;
-          console.log(`✅ Removed ${removed} broken links`);
+          removed = invalidLinks.length;
+          console.log(`✅ Removed ${removed} invalid links`);
         } else {
           console.error("❌ Failed to remove links:", deleteError);
         }
@@ -194,32 +196,32 @@ export const linkHealthMonitor = {
       if (!links) {
         return {
           totalLinks: 0,
-          brokenLinks: 0,
+          invalidLinks: 0,
           healthScore: 100
         };
       }
 
-      // Test each link with real HTTP requests
-      let brokenCount = 0;
+      // Validate each link format
+      let invalidCount = 0;
       for (const link of links) {
-        const isWorking = await this.testUrl(link.original_url || "");
-        if (!isWorking) brokenCount++;
+        const isValid = this.validateAmazonUrl(link.original_url || "");
+        if (!isValid) invalidCount++;
       }
 
       const healthScore = links.length > 0 
-        ? Math.round(((links.length - brokenCount) / links.length) * 100)
+        ? Math.round(((links.length - invalidCount) / links.length) * 100)
         : 100;
 
       return {
         totalLinks: links.length,
-        brokenLinks: brokenCount,
+        invalidLinks: invalidCount,
         healthScore
       };
     } catch (error) {
       console.error("Error getting health dashboard:", error);
       return {
         totalLinks: 0,
-        brokenLinks: 0,
+        invalidLinks: 0,
         healthScore: 0
       };
     }
