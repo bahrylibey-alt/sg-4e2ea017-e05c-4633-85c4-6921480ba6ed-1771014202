@@ -492,7 +492,7 @@ export const ultimateAutopilot = {
         .eq("status", "active");
 
       // Get link health
-      const linkHealth = await linkHealthMonitor.getHealthDashboard();
+      const linkHealth = await linkHealthMonitor.getHealthDashboard(campaignId);
 
       // Get automation metrics
       const { data: metrics } = await supabase

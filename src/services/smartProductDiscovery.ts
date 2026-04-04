@@ -279,6 +279,7 @@ export const smartProductDiscovery = {
             user_id: userId,
             name: "Smart Discovery Campaign",
             status: "active",
+            goal: "sales"
           })
           .select()
           .single();
