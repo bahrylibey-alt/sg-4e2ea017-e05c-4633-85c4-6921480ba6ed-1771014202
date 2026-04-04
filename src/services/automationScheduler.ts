@@ -435,12 +435,14 @@ export const automationScheduler = {
       if (existing) {
         const finalUpdates: Record<string, number> = {};
         for (const k of Object.keys(updates)) {
-          finalUpdates[k] = Number((existing as any)[k] || 0) + Number(updates[k]);
+          const existingVal = Number((existing as any)[k]) || 0;
+          const updateVal = Number(updates[k]);
+          finalUpdates[k] = existingVal + updateVal;
         }
 
         await supabase
           .from("automation_metrics")
-          .update(finalUpdates as any)
+          .update(finalUpdates)
           .eq("id", existing.id);
       }
     } catch (error) {
