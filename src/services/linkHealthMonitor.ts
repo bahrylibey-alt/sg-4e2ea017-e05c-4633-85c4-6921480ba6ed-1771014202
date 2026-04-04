@@ -23,20 +23,25 @@ export const linkHealthMonitor = {
   }> {
     try {
       console.log("🔧 Starting One-Click Auto-Repair...");
+      console.log("Input parameters:", { campaignId, userId });
 
       // Get user ID if not provided
       if (!userId) {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log("Auth check:", { user: user?.id, error: userError });
+        
         if (!user) {
-          console.error("No user found");
+          console.error("❌ No user found - cannot proceed");
           return { success: false, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
         }
         userId = user.id;
       }
 
+      console.log("✅ Using user ID:", userId);
+
       // Get campaign ID if not provided
       if (!campaignId) {
-        const { data: campaign } = await supabase
+        const { data: campaign, error: campaignError } = await supabase
           .from("campaigns")
           .select("id")
           .eq("user_id", userId)
@@ -45,20 +50,26 @@ export const linkHealthMonitor = {
           .limit(1)
           .single();
 
+        console.log("Campaign lookup:", { campaign: campaign?.id, error: campaignError });
+
         if (campaign) {
           campaignId = campaign.id;
         }
       }
 
+      console.log("✅ Using campaign ID:", campaignId);
+
       // Get all active links
-      const { data: allLinks } = await supabase
+      const { data: allLinks, error: linksError } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("status", "active")
         .eq("user_id", userId);
 
+      console.log("Links query:", { count: allLinks?.length, error: linksError });
+
       if (!allLinks || allLinks.length === 0) {
-        console.log("No links to check");
+        console.log("⚠️ No links to check");
         return { success: true, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
       }
 
@@ -72,7 +83,12 @@ export const linkHealthMonitor = {
         const isValidAmazon = url.includes("amazon.com/dp/") || url.includes("amazon.com/gp/");
         const hasASIN = /\/dp\/([A-Z0-9]{10})/.test(url) || /\/gp\/product\/([A-Z0-9]{10})/.test(url);
         
-        return !isValidAmazon || !hasASIN;
+        const isBroken = !isValidAmazon || !hasASIN;
+        if (isBroken) {
+          console.log("🔴 Broken link detected:", { name: link.product_name, url });
+        }
+        
+        return isBroken;
       });
 
       console.log(`🔴 Found ${brokenLinks.length} broken links`);
@@ -81,14 +97,20 @@ export const linkHealthMonitor = {
       let removed = 0;
       if (brokenLinks.length > 0) {
         const brokenIds = brokenLinks.map(link => link.id);
-        const { error } = await supabase
+        console.log("Attempting to delete links:", brokenIds);
+        
+        const { error: deleteError } = await supabase
           .from("affiliate_links")
           .delete()
           .in("id", brokenIds);
 
-        if (!error) {
+        console.log("Delete result:", { error: deleteError });
+
+        if (!deleteError) {
           removed = brokenLinks.length;
           console.log(`✅ Removed ${removed} broken links`);
+        } else {
+          console.error("❌ Failed to remove links:", deleteError);
         }
       }
 
@@ -101,19 +123,25 @@ export const linkHealthMonitor = {
           userId,
           removed
         );
+        console.log("Add products result:", addResult);
         replaced = addResult.added;
         console.log(`✅ Added ${replaced} fresh products`);
+      } else {
+        console.log("⚠️ Skipping product replacement:", { removed, campaignId });
       }
 
-      return {
+      const result = {
         success: true,
         totalChecked: allLinks.length,
         removed,
         replaced,
         repaired: replaced
       };
+      
+      console.log("🎯 Final result:", result);
+      return result;
     } catch (error) {
-      console.error("Error in oneClickAutoRepair:", error);
+      console.error("❌ Error in oneClickAutoRepair:", error);
       return { success: false, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
     }
   },
