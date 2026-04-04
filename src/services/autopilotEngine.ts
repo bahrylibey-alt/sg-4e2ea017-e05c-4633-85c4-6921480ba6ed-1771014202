@@ -50,36 +50,33 @@ export const autopilotEngine = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Wait a moment for database to fully commit
+      // Wait for database commit
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Step 3: Activate FREE traffic sources (REAL automation)
-      console.log("🌐 Activating FREE traffic sources...");
-      
-      const freeTrafficResult = await freeTrafficEngine.activateFreeTraffic(
-        campaign.id,
-        config.trafficChannels,
-        campaign // Pass campaign data directly
-      );
-
-      if (!freeTrafficResult.success) {
-        console.warn("⚠️ Free traffic activation warning:", freeTrafficResult.error);
-        // Don't throw - continue with partial activation
-      } else {
-        console.log(`✅ Activated ${freeTrafficResult.activated} free traffic sources`);
-        console.log(`📊 Estimated reach: ${freeTrafficResult.estimatedReach.toLocaleString()}`);
-      }
-
-      // Step 4: Create automation tasks (REAL scheduling)
+      // Step 3: Create automation tasks
       console.log("⚙️ Setting up automation tasks...");
       
       const tasksCreated = await automationScheduler.createDefaultTasks(campaign.id);
       
       if (!tasksCreated) {
         console.warn("⚠️ Failed to create automation tasks");
-        // Don't throw - continue anyway
       } else {
         console.log("✅ Automation tasks scheduled");
+      }
+
+      // Step 4: Activate FREE traffic sources
+      console.log("🌐 Activating FREE traffic sources...");
+      
+      const freeTrafficResult = await freeTrafficEngine.activateFreeTraffic(
+        campaign.id,
+        config.trafficChannels,
+        campaign
+      );
+
+      if (!freeTrafficResult.success) {
+        console.warn("⚠️ Free traffic activation warning:", freeTrafficResult.error);
+      } else {
+        console.log(`✅ Activated ${freeTrafficResult.activated} free traffic sources`);
       }
 
       // Step 5: Enable autopilot in user settings
@@ -100,16 +97,15 @@ export const autopilotEngine = {
 
       if (settingsError) {
         console.error("❌ Settings update failed:", settingsError);
-        // Don't throw - settings are not critical
       } else {
         console.log("✅ Autopilot enabled in settings");
       }
 
-      // Step 6: START THE AUTOMATION SCHEDULER (CRITICAL!)
+      // Step 6: START THE AUTOMATION SCHEDULER
       console.log("🚀 Starting automation scheduler...");
       await automationScheduler.start();
 
-      console.log("✅ Scheduler running - autopilot is LIVE");
+      console.log("✅ Autopilot system LIVE and running");
 
       return {
         success: true,
@@ -132,7 +128,7 @@ export const autopilotEngine = {
   },
 
   /**
-   * Stop/pause autopilot system
+   * Stop autopilot system
    */
   async stopAutopilot() {
     console.log("⏸️ Stopping autopilot...");
@@ -260,7 +256,7 @@ export const autopilotEngine = {
   },
 
   /**
-   * Get REAL autopilot status with actual metrics
+   * Get REAL autopilot status
    */
   async getAutopilotStatus() {
     console.log("📊 Checking autopilot status...");
@@ -287,8 +283,6 @@ export const autopilotEngine = {
         .eq("user_id", user.id)
         .single();
 
-      console.log("⚙️ User settings:", settings);
-
       // Check active autopilot campaigns
       const { data: campaigns } = await supabase
         .from("campaigns")
@@ -296,8 +290,6 @@ export const autopilotEngine = {
         .eq("user_id", user.id)
         .eq("is_autopilot", true)
         .eq("status", "active");
-
-      console.log("🎯 Active autopilot campaigns:", campaigns?.length || 0);
 
       // Get REAL metrics from automation_metrics table
       const { data: metrics } = await supabase
@@ -309,20 +301,14 @@ export const autopilotEngine = {
 
       const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
       const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
-      const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
+      const totalRevenue = metrics?.reduce((sum, m) => sum + (Number(m.revenue_generated) || 0), 0) || 0;
 
-      // Check if scheduler is actually running
+      // Check if scheduler is running
       const schedulerRunning = automationScheduler.isRunning;
 
       const isActive = (settings?.autopilot_enabled === true) && 
                        ((campaigns?.length || 0) > 0) && 
                        schedulerRunning;
-
-      console.log("✅ Autopilot status calculated:");
-      console.log("   Settings enabled:", settings?.autopilot_enabled);
-      console.log("   Active campaigns:", campaigns?.length || 0);
-      console.log("   Scheduler running:", schedulerRunning);
-      console.log("   Final status:", isActive ? "ACTIVE" : "OFF");
 
       return {
         isActive,
@@ -377,10 +363,14 @@ export const autopilotEngine = {
 
       const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
       const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
-      const totalRevenue = metrics?.reduce((sum, m) => sum + (m.revenue_generated || 0), 0) || 0;
+      const totalRevenue = metrics?.reduce((sum, m) => sum + (Number(m.revenue_generated) || 0), 0) || 0;
 
-      // Get active campaigns count as proxy for traffic sources
-      const activeTrafficSources = campaigns?.filter(c => c.status === 'active').length || 0;
+      // Get active traffic sources count
+      const { data: trafficSources } = await supabase
+        .from("traffic_sources")
+        .select("id")
+        .in("campaign_id", campaignIds)
+        .eq("status", "active");
 
       return {
         totalClicks,
@@ -389,7 +379,7 @@ export const autopilotEngine = {
         totalCommissions: totalRevenue * 0.4,
         activeCampaigns,
         activeLinks: campaigns?.length || 0,
-        trafficSources: activeTrafficSources,
+        trafficSources: trafficSources?.length || 0,
         schedulerStatus: automationScheduler.isRunning ? "running" : "stopped"
       };
     } catch (error) {

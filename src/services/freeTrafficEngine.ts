@@ -2,7 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * FREE TRAFFIC GENERATION ENGINE
- * Next-generation traffic acquisition from 100% free sources
  */
 
 export interface TrafficSource {
@@ -17,9 +16,6 @@ export interface TrafficSource {
 
 export const freeTrafficEngine = {
   
-  /**
-   * All free traffic sources available
-   */
   FREE_SOURCES: [
     {
       name: "Reddit Communities",
@@ -82,10 +78,9 @@ export const freeTrafficEngine = {
       let campaign = campaignData;
       
       if (!campaign) {
-        const db: any = supabase;
-        const { data: fetchedCampaign, error: fetchError } = await db
+        const { data: fetchedCampaign, error: fetchError } = await supabase
           .from("campaigns")
-          .select("*, affiliate_links(*)")
+          .select("*")
           .eq("id", campaignId)
           .maybeSingle();
 
@@ -98,20 +93,18 @@ export const freeTrafficEngine = {
       }
 
       if (!campaign) {
-        console.warn("⚠️ Campaign not found, but continuing with activation");
-        // Continue anyway - campaign might be in process of creation
+        console.warn("⚠️ Campaign not found");
       }
 
-      // Select sources (use all if none specified)
+      // Select sources
       const sourcesToActivate = channels && channels.length > 0
         ? this.FREE_SOURCES.filter(s => channels.includes(s.name) || channels.some(c => s.platforms.includes(c)))
         : this.FREE_SOURCES;
 
       console.log(`🚀 Activating ${sourcesToActivate.length} free traffic sources`);
 
-      // Update campaign status to active
-      const db: any = supabase;
-      await db
+      // Update campaign status
+      await supabase
         .from("campaigns")
         .update({ 
           status: "active",
@@ -119,25 +112,19 @@ export const freeTrafficEngine = {
         })
         .eq("id", campaignId);
 
-      // Generate initial content for each source
+      // Generate initial content
       await this.generateInitialContent(campaignId, user.id, sourcesToActivate);
 
       const totalReach = sourcesToActivate.reduce((sum, s) => sum + s.potentialReach, 0);
 
-      // Return active sources for display 
-      const activatedSources = sourcesToActivate.map((source, idx) => ({
-        id: `${campaignId}-${source.platforms[0]}-${idx}`,
-        campaign_id: campaignId,
-        platform: source.platforms[0],
-        status: "active",
-        daily_reach: source.potentialReach,
-        estimated_clicks: Math.floor(source.potentialReach * source.conversionRate)
-      }));
-
       return {
         success: true,
         activated: sourcesToActivate.length,
-        sources: activatedSources,
+        sources: sourcesToActivate.map(s => ({
+          name: s.name,
+          platform: s.platforms[0],
+          reach: s.potentialReach
+        })),
         estimatedReach: totalReach
       };
 
@@ -158,33 +145,42 @@ export const freeTrafficEngine = {
    */
   async generateInitialContent(campaignId: string, userId: string, sources: typeof this.FREE_SOURCES) {
     try {
-      const db: any = supabase;
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("name, goal, content_strategy, affiliate_links(*)")
+        .select("name, goal")
         .eq("id", campaignId)
         .single();
 
       if (!campaign) return;
 
+      // Get affiliate links for this campaign
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("short_url, product_name")
+        .eq("campaign_id", campaignId)
+        .eq("status", "active")
+        .limit(1);
+
+      const linkUrl = links?.[0]?.short_url || "your-link";
+      const productName = links?.[0]?.product_name || campaign.name;
+
       const contentPieces = [];
 
       for (const source of sources) {
-        // Generate platform-specific content
-        const content = this.generateContentForPlatform(source.name, campaign);
+        const content = this.generateContentForPlatform(source.name, campaign, linkUrl, productName);
         
         contentPieces.push({
           campaign_id: campaignId,
           user_id: userId,
           content_type: this.getContentType(source.type),
-          content: content.text,
-          platform: source.platforms[0] || source.name,
+          content_text: content.text,
+          platform: source.platforms[0],
           status: "ready",
-          scheduled_for: new Date(Date.now() + Math.random() * 3600000).toISOString() // Random within 1 hour
+          scheduled_for: new Date(Date.now() + Math.random() * 3600000).toISOString()
         });
       }
 
-      await db
+      await supabase
         .from("content_queue")
         .insert(contentPieces);
 
@@ -198,34 +194,30 @@ export const freeTrafficEngine = {
   /**
    * Generate platform-specific content
    */
-  generateContentForPlatform(platform: string, campaign: any) {
-    const link = campaign.affiliate_links?.[0]?.short_url || "link";
+  generateContentForPlatform(platform: string, campaign: any, linkUrl: string, productName: string) {
     const goal = campaign.goal || "success";
     
     const templates: Record<string, string[]> = {
       "Reddit Communities": [
-        `I've been using this ${goal} solution and it's incredible. Thought I'd share: ${link}`,
-        `Just discovered this amazing resource for ${goal}. Game changer: ${link}`
+        `I've been using ${productName} for ${goal} and it's incredible. Thought I'd share: ${linkUrl}`,
+        `Just discovered this amazing resource for ${goal}. Game changer: ${linkUrl}`
       ],
       "Facebook Groups": [
-        `🔥 Found something amazing for ${goal}!\n\nJust wanted to share this with the group because it's been so helpful.\n\nCheck it out: ${link}`
+        `🔥 Found something amazing for ${goal}!\n\nJust wanted to share ${productName} with the group because it's been so helpful.\n\nCheck it out: ${linkUrl}`
       ],
       "Twitter/X Threads": [
-        `🚀 Transform your ${goal} strategy with this powerful tool\n\nI've been using it for weeks and the results speak for themselves\n\nThread 🧵\n\n${link}`
+        `🚀 Transform your ${goal} strategy with ${productName}\n\nI've been using it for weeks and the results speak for themselves\n\nThread 🧵\n\n${linkUrl}`
       ]
     };
 
     const platformTemplates = templates[platform] || [
-      `Check out this great tool for ${goal}: ${link}`,
-      `Highly recommended for ${goal} ${link}`
+      `Check out ${productName} for ${goal}: ${linkUrl}`,
+      `Highly recommended for ${goal}: ${linkUrl}`
     ];
     
     const text = platformTemplates[Math.floor(Math.random() * platformTemplates.length)];
 
-    return {
-      text,
-      mediaUrl: null
-    };
+    return { text };
   },
 
   /**
@@ -241,35 +233,11 @@ export const freeTrafficEngine = {
   },
 
   /**
-   * Get active traffic sources for campaign
-   */
-  async getActiveTrafficSources(campaignId: string) {
-    // For now we mock this based on the campaign being active
-    const { data: campaign } = await supabase
-      .from("campaigns")
-      .select("status")
-      .eq("id", campaignId)
-      .single();
-
-    if (campaign?.status === 'active') {
-      return this.FREE_SOURCES.slice(0, 3).map(s => ({
-        id: `${campaignId}-${s.name}`,
-        source_name: s.name,
-        platform_url: s.platforms[0],
-        status: 'active'
-      }));
-    }
-
-    return [];
-  },
-
-  /**
    * Get traffic statistics
    */
   async getTrafficStats(campaignId?: string) {
     try {
-      const db: any = supabase;
-      let query = db
+      let query = supabase
         .from("automation_metrics")
         .select("*");
 
@@ -279,9 +247,9 @@ export const freeTrafficEngine = {
 
       const { data: metrics } = await query;
 
-      const totalClicks = metrics?.reduce((sum: number, m: any) => sum + (m.clicks_generated || 0), 0) || 0;
-      const totalConversions = metrics?.reduce((sum: number, m: any) => sum + (m.conversions_generated || 0), 0) || 0;
-      const totalRevenue = metrics?.reduce((sum: number, m: any) => sum + (m.revenue_generated || 0), 0) || 0;
+      const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
+      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
+      const totalRevenue = metrics?.reduce((sum, m) => sum + (Number(m.revenue_generated) || 0), 0) || 0;
 
       return {
         totalClicks,

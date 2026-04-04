@@ -4,204 +4,159 @@ import type { Database } from "@/integrations/supabase/types";
 type Commission = Database["public"]["Tables"]["commissions"]["Row"];
 type CommissionInsert = Database["public"]["Tables"]["commissions"]["Insert"];
 
+export interface CommissionCalculation {
+  affiliateLinkId: string;
+  saleAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  processingFee?: number;
+  netCommission: number;
+}
+
 export const commissionService = {
-  // Record a new commission
-  async recordCommission(data: {
-    link_id: string;
-    amount: number;
-    product_name: string;
-    network: string;
-    transaction_id?: string;
-    customer_id?: string;
-  }): Promise<{ commission: Commission | null; error: string | null }> {
+  /**
+   * Calculate commission for a sale
+   */
+  calculateCommission(saleAmount: number, commissionRate: number = 0.40): CommissionCalculation {
+    const commissionAmount = saleAmount * commissionRate;
+    const processingFee = commissionAmount * 0.029 + 0.30; // Stripe fees
+    const netCommission = commissionAmount - processingFee;
+
+    return {
+      affiliateLinkId: "",
+      saleAmount,
+      commissionRate,
+      commissionAmount,
+      processingFee,
+      netCommission
+    };
+  },
+
+  /**
+   * Record a commission (REAL database operation)
+   */
+  async recordCommission(
+    userId: string,
+    affiliateLinkId: string,
+    saleAmount: number,
+    commissionRate: number = 0.40
+  ): Promise<{ success: boolean; commission: Commission | null; error: string | null }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { commission: null, error: "User not authenticated" };
-      }
+      const calc = this.calculateCommission(saleAmount, commissionRate);
 
-      const insertData: CommissionInsert = {
-        user_id: user.id,
-        link_id: data.link_id,
-        amount: data.amount,
-        product_name: data.product_name,
-        network: data.network,
-        transaction_id: data.transaction_id || null,
-        customer_id: data.customer_id || null,
-        status: "pending"
-      };
-
-      const { data: commission, error } = await supabase
+      const { data, error } = await supabase
         .from("commissions")
-        .insert(insertData)
+        .insert({
+          user_id: userId,
+          affiliate_link_id: affiliateLinkId,
+          sale_amount: saleAmount,
+          commission_rate: commissionRate,
+          commission_amount: calc.commissionAmount,
+          processing_fee: calc.processingFee,
+          net_commission: calc.netCommission,
+          status: "pending",
+          commission_date: new Date().toISOString()
+        })
         .select()
         .single();
 
       if (error) {
-        console.error("Error recording commission:", error);
-        return { commission: null, error: error.message };
+        console.error("Commission record error:", error);
+        return { success: false, commission: null, error: error.message };
       }
 
-      // Update link conversion count and revenue
-      const { data: link } = await supabase
-        .from("affiliate_links")
-        .select("conversions, revenue")
-        .eq("id", data.link_id)
-        .single();
+      console.log(`✅ Commission recorded: $${calc.netCommission.toFixed(2)}`);
+      return { success: true, commission: data, error: null };
 
-      if (link) {
-        await supabase
-          .from("affiliate_links")
-          .update({
-            conversions: (link.conversions || 0) + 1,
-            revenue: (link.revenue || 0) + data.amount
-          })
-          .eq("id", data.link_id);
-      }
-
-      return { commission, error: null };
     } catch (err) {
-      console.error("Unexpected error:", err);
-      return { commission: null, error: "Failed to record commission" };
+      console.error("Record commission error:", err);
+      return {
+        success: false,
+        commission: null,
+        error: err instanceof Error ? err.message : "Failed to record commission"
+      };
     }
   },
 
-  // Get all commissions for current user
-  async getUserCommissions(filters?: {
-    status?: "pending" | "approved" | "paid" | "rejected";
-    dateFrom?: string;
-    dateTo?: string;
-  }): Promise<{ commissions: Commission[]; error: string | null }> {
+  /**
+   * Get user's commissions
+   */
+  async getUserCommissions(userId: string, status?: string): Promise<{
+    commissions: Commission[];
+    totalEarned: number;
+    totalPending: number;
+    totalPaid: number;
+    error: string | null;
+  }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { commissions: [], error: "User not authenticated" };
-      }
-
       let query = supabase
         .from("commissions")
         .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .eq("user_id", userId)
+        .order("commission_date", { ascending: false });
 
-      if (filters?.status) {
-        query = query.eq("status", filters.status);
-      }
-
-      if (filters?.dateFrom) {
-        query = query.gte("created_at", filters.dateFrom);
-      }
-
-      if (filters?.dateTo) {
-        query = query.lte("created_at", filters.dateTo);
+      if (status) {
+        query = query.eq("status", status);
       }
 
       const { data, error } = await query;
 
       if (error) {
-        console.error("Error fetching commissions:", error);
-        return { commissions: [], error: error.message };
-      }
-
-      return { commissions: data || [], error: null };
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      return { commissions: [], error: "Failed to fetch commissions" };
-    }
-  },
-
-  // Get commission summary/stats
-  async getCommissionStats(): Promise<{
-    total_pending: number;
-    total_approved: number;
-    total_paid: number;
-    total_earnings: number;
-    this_month: number;
-    error: string | null;
-  }> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
         return {
-          total_pending: 0,
-          total_approved: 0,
-          total_paid: 0,
-          total_earnings: 0,
-          this_month: 0,
-          error: "User not authenticated"
+          commissions: [],
+          totalEarned: 0,
+          totalPending: 0,
+          totalPaid: 0,
+          error: error.message
         };
       }
 
-      const { data: commissions } = await supabase
-        .from("commissions")
-        .select("amount, status, created_at")
-        .eq("user_id", user.id);
+      const commissions = data || [];
+      const totalEarned = commissions.reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+      const totalPending = commissions
+        .filter(c => c.status === "pending")
+        .reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+      const totalPaid = commissions
+        .filter(c => c.status === "paid")
+        .reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
 
-      if (!commissions) {
-        return {
-          total_pending: 0,
-          total_approved: 0,
-          total_paid: 0,
-          total_earnings: 0,
-          this_month: 0,
-          error: null
-        };
-      }
-
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      const stats = commissions.reduce((acc, comm) => {
-        const amount = Number(comm.amount) || 0;
-        
-        if (comm.status === "pending") acc.total_pending += amount;
-        if (comm.status === "approved") acc.total_approved += amount;
-        if (comm.status === "paid") acc.total_paid += amount;
-        
-        acc.total_earnings += amount;
-
-        if (new Date(comm.created_at || "") >= firstDayOfMonth) {
-          acc.this_month += amount;
-        }
-
-        return acc;
-      }, {
-        total_pending: 0,
-        total_approved: 0,
-        total_paid: 0,
-        total_earnings: 0,
-        this_month: 0
-      });
-
-      return { ...stats, error: null };
-    } catch (err) {
-      console.error("Unexpected error:", err);
       return {
-        total_pending: 0,
-        total_approved: 0,
-        total_paid: 0,
-        total_earnings: 0,
-        this_month: 0,
-        error: "Failed to fetch stats"
+        commissions,
+        totalEarned,
+        totalPending,
+        totalPaid,
+        error: null
+      };
+
+    } catch (err) {
+      console.error("Get commissions error:", err);
+      return {
+        commissions: [],
+        totalEarned: 0,
+        totalPending: 0,
+        totalPaid: 0,
+        error: "Failed to fetch commissions"
       };
     }
   },
 
-  // Update commission status (admin function in real app)
-  async updateCommissionStatus(commissionId: string, status: "approved" | "paid" | "rejected"): Promise<{
-    success: boolean;
-    error: string | null;
-  }> {
+  /**
+   * Update commission status
+   */
+  async updateCommissionStatus(
+    commissionId: string,
+    status: "pending" | "approved" | "paid" | "rejected",
+    paidDate?: string
+  ): Promise<{ success: boolean; error: string | null }> {
     try {
-      const updateData: { status: string; paid_date?: string } = { status };
-      
-      if (status === "paid") {
-        updateData.paid_date = new Date().toISOString();
+      const updates: any = { status };
+      if (status === "paid" && paidDate) {
+        updates.paid_date = paidDate;
       }
 
       const { error } = await supabase
         .from("commissions")
-        .update(updateData)
+        .update(updates)
         .eq("id", commissionId);
 
       if (error) {
@@ -209,8 +164,134 @@ export const commissionService = {
       }
 
       return { success: true, error: null };
+
     } catch (err) {
-      return { success: false, error: "Failed to update commission" };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to update status"
+      };
+    }
+  },
+
+  /**
+   * Generate commission for a conversion (automated)
+   */
+  async generateCommissionFromConversion(
+    affiliateLinkId: string,
+    saleAmount: number
+  ): Promise<{ success: boolean; error: string | null }> {
+    try {
+      // Get affiliate link to find user
+      const { data: link } = await supabase
+        .from("affiliate_links")
+        .select("user_id")
+        .eq("id", affiliateLinkId)
+        .single();
+
+      if (!link) {
+        return { success: false, error: "Affiliate link not found" };
+      }
+
+      // Record commission
+      const result = await this.recordCommission(
+        link.user_id,
+        affiliateLinkId,
+        saleAmount
+      );
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Update affiliate link conversion count
+      const { data: currentLink } = await supabase
+        .from("affiliate_links")
+        .select("conversions, total_revenue")
+        .eq("id", affiliateLinkId)
+        .single();
+
+      if (currentLink) {
+        await supabase
+          .from("affiliate_links")
+          .update({
+            conversions: (currentLink.conversions || 0) + 1,
+            total_revenue: (Number(currentLink.total_revenue) || 0) + saleAmount
+          })
+          .eq("id", affiliateLinkId);
+      }
+
+      return { success: true, error: null };
+
+    } catch (err) {
+      console.error("Generate commission error:", err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to generate commission"
+      };
+    }
+  },
+
+  /**
+   * Get commission summary statistics
+   */
+  async getCommissionStats(userId: string): Promise<{
+    totalEarnings: number;
+    pendingCommissions: number;
+    paidCommissions: number;
+    conversionRate: number;
+    avgCommissionAmount: number;
+    error: string | null;
+  }> {
+    try {
+      const { commissions, error } = await this.getUserCommissions(userId);
+
+      if (error) {
+        return {
+          totalEarnings: 0,
+          pendingCommissions: 0,
+          paidCommissions: 0,
+          conversionRate: 0,
+          avgCommissionAmount: 0,
+          error
+        };
+      }
+
+      const totalEarnings = commissions.reduce((sum, c) => sum + (Number(c.net_commission) || 0), 0);
+      const pendingCommissions = commissions.filter(c => c.status === "pending").length;
+      const paidCommissions = commissions.filter(c => c.status === "paid").length;
+      const avgCommissionAmount = commissions.length > 0
+        ? totalEarnings / commissions.length
+        : 0;
+
+      // Get click count for conversion rate
+      const { data: links } = await supabase
+        .from("affiliate_links")
+        .select("clicks, conversions")
+        .eq("user_id", userId);
+
+      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+      const totalConversions = links?.reduce((sum, l) => sum + (l.conversions || 0), 0) || 0;
+      const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+
+      return {
+        totalEarnings,
+        pendingCommissions,
+        paidCommissions,
+        conversionRate,
+        avgCommissionAmount,
+        error: null
+      };
+
+    } catch (err) {
+      console.error("Get commission stats error:", err);
+      return {
+        totalEarnings: 0,
+        pendingCommissions: 0,
+        paidCommissions: 0,
+        conversionRate: 0,
+        avgCommissionAmount: 0,
+        error: "Failed to fetch stats"
+      };
     }
   }
 };
