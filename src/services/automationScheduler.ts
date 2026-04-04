@@ -433,17 +433,25 @@ export const automationScheduler = {
         .single();
 
       if (existing) {
-        const finalUpdates: Record<string, number> = {};
+        const finalUpdates: any = {};
         for (const k of Object.keys(updates)) {
-          const existingVal = Number((existing as any)[k]) || 0;
-          const updateVal = Number(updates[k]);
-          finalUpdates[k] = existingVal + updateVal;
+          const existingValue = Number((existing as any)[k] || 0);
+          const updateValue = Number((updates as any)[k] || 0);
+          finalUpdates[k] = existingValue + updateValue;
         }
 
         await supabase
           .from("automation_metrics")
           .update(finalUpdates)
           .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("automation_metrics")
+          .insert({
+            campaign_id: campaignId,
+            metric_date: today,
+            ...updates
+          });
       }
     } catch (error) {
       console.error("Failed to update metrics:", error);
