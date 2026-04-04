@@ -288,17 +288,17 @@ export const taskExecutor = {
 
       const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
       const totalConversions = links.reduce((sum, l) => sum + (l.conversions || 0), 0);
-      const totalRevenue = links.reduce((sum, l) => sum + (parseFloat(l.revenue || "0")), 0);
+      const totalRevenue = links.reduce((sum, l) => sum + (parseFloat(String(l.revenue || 0))), 0);
 
       await supabase
-        .from("automation_metrics")
+        .from("automation_metrics" as any)
         .upsert({
           campaign_id: campaign.id,
           metric_date: today,
           traffic_generated: totalClicks,
           conversions_generated: totalConversions,
           revenue_generated: totalRevenue,
-          content_created: 0,
+          content_generated: 0,
           tasks_executed: 0,
           ai_decisions_made: 0,
           updated_at: new Date().toISOString()

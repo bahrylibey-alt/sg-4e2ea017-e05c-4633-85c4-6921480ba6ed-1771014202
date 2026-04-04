@@ -95,7 +95,7 @@ export default function SystemTest() {
       });
 
       if (result.success && result.link) {
-        const cloakedUrl = linkResult.link.cloaked_url;
+        const cloakedUrl = (linkResult as any)?.link?.short_url;
         setTestLink(cloakedUrl);
         updateTest("Create Link", "success", "Test link created successfully", {
           slug: result.link.slug,

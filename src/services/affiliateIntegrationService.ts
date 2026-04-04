@@ -41,7 +41,7 @@ export const affiliateIntegrationService = {
 
       // Get all user's links
       const { data: links, error: linksError } = await supabase
-        .from("affiliate_links")
+        .from("affiliate_links" as any)
         .select("id, clicks, conversions, revenue, status")
         .eq("user_id", userId);
 
@@ -149,7 +149,7 @@ export const affiliateIntegrationService = {
           const linkResult = await affiliateLinkService.createLink({
             productName: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
             productName: product.name,
-            destinationUrl: product.url, // REAL product URL from catalog
+            , // REAL product URL from catalog
             network: product.network,
             commissionRate: this.extractCommissionRate(product.commission)
           });
@@ -299,7 +299,7 @@ export const affiliateIntegrationService = {
           
           // Check if product already exists
           const { data: existing, error: checkError } = await supabase
-            .from("affiliate_links")
+            .from("affiliate_links" as any)
             .select("id")
             .eq("user_id", user.id)
             .eq("original_url", product.url)
@@ -320,7 +320,7 @@ export const affiliateIntegrationService = {
           const linkResult = await affiliateLinkService.createLink({
             productName: undefined, // FORCE UNDEFINED for catalog products
             productName: product.name,
-            destinationUrl: product.url,
+            ,
             network: product.network,
             commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
           });
@@ -364,7 +364,7 @@ export const affiliateIntegrationService = {
 
       // Get all products without proper slugs or short codes
       const { data: links } = await supabase
-        .from("affiliate_links")
+        .from("affiliate_links" as any)
         .select("*")
         .eq("user_id", user.id)
         .or("slug.is.null,short_code.is.null");
@@ -373,11 +373,11 @@ export const affiliateIntegrationService = {
 
       if (links) {
         for (const link of links) {
-          const shortCode = affiliateLinkService.generateSlug();
+          const shortCode = affiliateLinkService._generateSlug();
           const slug = link.slug || affiliateLinkService.generateSlug(link.product_name || "product");
           
           const { error } = await supabase
-            .from("affiliate_links")
+            .from("affiliate_links" as any)
             .update({ 
               short_code: shortCode,
               slug: slug
@@ -504,9 +504,9 @@ export const affiliateIntegrationService = {
 
       // Get all user data
       const [linksRes, campaignsRes, commissionsRes] = await Promise.all([
-        supabase.from("affiliate_links").select("*").eq("user_id", user.id),
+        supabase.from("affiliate_links" as any).select("*").eq("user_id", user.id),
         supabase.from("campaigns").select("*").eq("user_id", user.id),
-        supabase.from("commissions").select("*").eq("user_id", user.id)
+        supabase.from("commissions" as any).select("*").eq("user_id", user.id)
       ]);
 
       const links = linksRes.data || [];
@@ -554,7 +554,7 @@ export const affiliateIntegrationService = {
 
       // Get all affiliate links
       const { data: links } = await supabase
-        .from("affiliate_links")
+        .from("affiliate_links" as any)
         .select("*")
         .eq("user_id", user.id);
 
@@ -573,7 +573,7 @@ export const affiliateIntegrationService = {
         // If link has traffic but low conversion rate (< 2%), pause it
         if (clicks > 50 && conversionRate < 2) {
           await supabase
-            .from("affiliate_links")
+            .from("affiliate_links" as any)
             .update({ status: "paused" })
             .eq("id", link.id);
           
@@ -632,7 +632,7 @@ export const affiliateIntegrationService = {
         const linkResult = await affiliateLinkService.createLink({
           productName: undefined, // FORCE UNDEFINED
           productName: product.name,
-          destinationUrl: product.url, // CRITICAL: Use REAL product URL
+          , // CRITICAL: Use REAL product URL
           network: product.network,
           commissionRate: this.extractCommissionRate(product.commission)
         });
@@ -680,7 +680,7 @@ export const affiliateIntegrationService = {
   /**
    * Generate unique short code for affiliate links
    */
-  generateSlug(): string {
+  _generateSlug(): string {
     return Math.random().toString(36).substring(2, 10);
   },
 

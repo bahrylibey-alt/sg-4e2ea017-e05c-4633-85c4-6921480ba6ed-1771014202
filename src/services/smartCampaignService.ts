@@ -22,6 +22,9 @@ export interface CampaignTemplate {
   tags: string[];
   setup_time: string;
   estimated_roi: string;
+  goal?: string;
+  suggestedBudget?: number;
+  suggestedDuration?: string;
 }
 
 const MOCK_TEMPLATES: CampaignTemplate[] = [
@@ -114,7 +117,7 @@ export const smartCampaignService = {
         budget: config.budget,
         is_autopilot: true,
         status: "active",
-        clicks: 0,
+        
         conversions: 0,
         revenue: 0
       };
@@ -163,7 +166,7 @@ export const smartCampaignService = {
 
       // Initialize metrics
       await supabase
-        .from("automation_metrics")
+        .from("automation_metrics" as any)
         .insert({
           campaign_id: campaign.id,
           user_id: user.id,
@@ -228,8 +231,8 @@ export const smartCampaignService = {
 
       // Get stats
       const [linksResult, tasksResult, contentResult, trafficResult] = await Promise.all([
-        supabase.from("affiliate_links").select("clicks, conversions, revenue").eq("campaign_id", campaignId),
-        supabase.from("autopilot_tasks").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
+        supabase.from("affiliate_links" as any).select("clicks, conversions, revenue").eq("campaign_id", campaignId),
+        supabase.from("autopilot_tasks" as any).select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
         supabase.from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "ready"),
         supabase.from("traffic_sources").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "active")
       ]);

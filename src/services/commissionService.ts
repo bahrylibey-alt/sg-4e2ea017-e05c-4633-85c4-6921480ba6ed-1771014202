@@ -112,13 +112,13 @@ export const commissionService = {
       }
 
       const commissions = data || [];
-      const totalEarned = commissions.reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
+      const totalEarned = commissions.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
       const totalPending = commissions
         .filter(c => c.status === "pending")
-        .reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
       const totalPaid = commissions
         .filter(c => c.status === "paid")
-        .reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
+        .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
 
       return {
         commissions,
@@ -256,7 +256,7 @@ export const commissionService = {
         };
       }
 
-      const totalEarnings = commissions.reduce((sum, c) => sum + (Number(c.commission_amount) || 0), 0);
+      const totalEarnings = commissions.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
       const pendingCommissions = commissions.filter(c => c.status === "pending").length;
       const paidCommissions = commissions.filter(c => c.status === "paid").length;
       const avgCommissionAmount = commissions.length > 0
