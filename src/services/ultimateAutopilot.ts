@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { linkHealthMonitor } from "./linkHealthMonitor";
 import { automationScheduler } from "./automationScheduler";
+import { aiOptimizationEngine } from "./aiOptimizationEngine";
+import { smartContentGenerator } from "./smartContentGenerator";
+import { fraudDetectionService } from "./fraudDetectionService";
+import { intelligentABTesting } from "./intelligentABTesting";
 
 /**
  * ULTIMATE AUTOPILOT SYSTEM
