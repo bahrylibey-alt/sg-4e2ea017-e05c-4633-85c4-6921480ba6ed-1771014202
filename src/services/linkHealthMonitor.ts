@@ -3,15 +3,17 @@ import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM
- * Real URL validation with HTTP checks
+ * Real URL validation with actual HTTP checks
  */
 export const linkHealthMonitor = {
   /**
-   * Check if a URL actually works by testing HTTP response
+   * Test if a URL actually works by making a real HTTP request
    */
   async testUrl(url: string): Promise<boolean> {
     try {
-      // Use a HEAD request to check without downloading full page
+      console.log(`🔍 Testing URL: ${url}`);
+      
+      // Make actual HTTP request to check if product exists
       const response = await fetch(url, {
         method: 'HEAD',
         redirect: 'follow',
@@ -20,17 +22,19 @@ export const linkHealthMonitor = {
         }
       });
       
-      // Consider 200-399 as working
-      return response.ok || (response.status >= 300 && response.status < 400);
+      const isWorking = response.ok && response.status !== 404;
+      console.log(`${isWorking ? '✅' : '❌'} URL status: ${response.status}`);
+      
+      return isWorking;
     } catch (error) {
-      console.error(`Failed to test URL ${url}:`, error);
+      console.error(`❌ Failed to test URL ${url}:`, error);
       return false;
     }
   },
 
   /**
    * ONE-CLICK AUTO-REPAIR
-   * Actually tests each URL and removes broken ones
+   * Actually tests URLs with HTTP requests and fixes broken links
    */
   async oneClickAutoRepair(
     campaignId?: string,
@@ -111,7 +115,7 @@ export const linkHealthMonitor = {
           continue;
         }
         
-        // Now actually TEST the URL
+        // Now actually TEST the URL with HTTP request
         console.log(`Testing ${link.product_name}...`);
         const isWorking = await this.testUrl(url);
         
@@ -195,7 +199,7 @@ export const linkHealthMonitor = {
         };
       }
 
-      // Test each link
+      // Test each link with real HTTP requests
       let brokenCount = 0;
       for (const link of links) {
         const isWorking = await this.testUrl(link.original_url || "");
