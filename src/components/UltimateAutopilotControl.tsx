@@ -7,6 +7,7 @@ import { Rocket, Activity, TrendingUp, Zap, AlertCircle, CheckCircle2 } from "lu
 import { ultimateAutopilot } from "@/services/ultimateAutopilot";
 import { linkHealthMonitor } from "@/services/linkHealthMonitor";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export function UltimateAutopilotControl() {
   const [isDeploying, setIsDeploying] = useState(false);
@@ -22,12 +23,21 @@ export function UltimateAutopilotControl() {
 
   const loadDashboard = async () => {
     setIsLoading(true);
-    const data = await ultimateAutopilot.getDashboardData();
-    if (data) {
-      setDashboardData(data);
-      if (data.campaign) {
-        const health = await linkHealthMonitor.getHealthDashboard(data.campaign.id);
-        setLinkHealth(health);
+    // Find the active campaign first
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("id, user_id")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (campaign) {
+      const data = await ultimateAutopilot.getUltimateDashboard(campaign.id);
+      if (data) {
+        setDashboardData(data);
+        const health = await linkHealthMonitor.getHealthDashboard(campaign.id);
+        setLinkHealth(health as any);
       }
     }
     setIsLoading(false);
