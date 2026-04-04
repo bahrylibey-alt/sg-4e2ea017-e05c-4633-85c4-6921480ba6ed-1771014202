@@ -26,112 +26,54 @@ import {
 } from "@/components/ui/select";
 
 export function ProductGallery() {
-  const { toast } = useToast();
-  const [products, setProducts] = useState<AffiliateProduct[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<AffiliateProduct[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [networkFilter, setNetworkFilter] = useState<string>("all");
-  const [loading, setLoading] = useState(true);
-  
-  // Track which product is currently being linked
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [creatingLinkId, setCreatingLinkId] = useState<string | null>(null);
-  
-  // Map of product ID to generated affiliate link
-  const [affiliateLinks, setAffiliateLinks] = useState<Map<string, string>>(new Map());
-  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [createdLinks, setCreatedLinks] = useState<Record<string, string>>({});
+  const { toast } = useToast();
 
-  useEffect(() => {
-    // Load products
-    const loadProducts = () => {
-      setLoading(true);
-      try {
-        let result = [];
-        // Use categoryFilter instead of selectedCategory
-        if (categoryFilter === "all") {
-          result = productCatalogService.getAllProducts();
-        } else {
-          result = productCatalogService.getProductsByCategory(categoryFilter);
-        }
-        setProducts(result);
-      } catch (err) {
-        console.error("Error loading products:", err);
-        toast({
-          title: "Error",
-          description: "Failed to load product catalog",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProducts();
-  }, [categoryFilter]); // Dependency updated to categoryFilter
-
-  useEffect(() => {
-    filterProducts();
-  }, [searchQuery, categoryFilter, networkFilter, products]);
-
-  const filterProducts = () => {
-    let filtered = [...products];
-
-    if (searchQuery) {
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter(p => p.category === categoryFilter);
-    }
-
-    if (networkFilter !== "all") {
-      filtered = filtered.filter(p => p.network === networkFilter);
-    }
-
-    setFilteredProducts(filtered);
-  };
+  const products = productCatalogService.getProductsByCategory(selectedCategory);
+  const categories = productCatalogService.getCategories();
 
   const handleCreateLink = async (product: AffiliateProduct) => {
     setCreatingLinkId(product.id);
     try {
-      // Find existing link or create new one
-      const { data: existingLinks } = await supabase
+      // Check if link already exists for this product
+      const { data: existingLink } = await supabase
         .from("affiliate_links")
-        .select("*")
+        .select("slug")
         .eq("product_name", product.name)
         .eq("status", "active")
         .maybeSingle();
 
       let linkSlug = "";
-      
-      if (existingLinks) {
-        linkSlug = existingLinks.slug;
+
+      if (existingLink) {
+        // Use existing link
+        linkSlug = existingLink.slug;
       } else {
-        // Create new link
+        // Create new affiliate link
         const slug = product.name
           .toLowerCase()
           .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-");
+          .replace(/\s+/g, "-")
+          .substring(0, 50);
 
         const { data: newLink, error } = await supabase
           .from("affiliate_links")
           .insert({
             product_name: product.name,
             original_url: product.url,
-            slug,
+            slug: slug,
             network: product.network,
             commission_rate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0,
             status: "active",
+            cloaked_url: `/go/${slug}`,
             clicks: 0,
             conversions: 0,
             revenue: 0,
             commission_earned: 0
           })
-          .select()
+          .select("slug")
           .single();
 
         if (error) {
@@ -142,24 +84,27 @@ export function ProductGallery() {
         linkSlug = newLink.slug;
       }
 
-      // Generate the actual clickable link using window.location.origin
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-      const fullLink = `${baseUrl}/go/${linkSlug}`;
+      // Generate the shareable link using the current domain
+      const fullLink = `${window.location.origin}/go/${linkSlug}`;
 
       // Copy to clipboard
       await navigator.clipboard.writeText(fullLink);
-      
+
+      // Store the link to show in UI
+      setCreatedLinks((prev) => ({
+        ...prev,
+        [product.id]: fullLink,
+      }));
+
       toast({
-        title: "Link Created!",
+        title: "✅ Link Created!",
         description: `Copied to clipboard: ${fullLink}`,
       });
-
-      
     } catch (error) {
       console.error("Error generating link:", error);
       toast({
-        title: "Error",
-        description: "Failed to generate affiliate link. Please try again.",
+        title: "❌ Error",
+        description: "Failed to generate link. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -177,7 +122,6 @@ export function ProductGallery() {
     setTimeout(() => setCopiedLink(null), 2000);
   };
 
-  const categories = ["all", ...productCatalogService.getCategories()];
   const networks = ["all", ...productCatalogService.getNetworks()];
 
   if (loading) {
