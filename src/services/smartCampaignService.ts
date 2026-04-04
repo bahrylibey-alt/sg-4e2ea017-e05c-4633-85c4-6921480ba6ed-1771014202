@@ -15,6 +15,42 @@ export interface CampaignConfig {
   autoStart?: boolean;
 }
 
+export interface CampaignTemplate {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  setup_time: string;
+  estimated_roi: string;
+}
+
+const MOCK_TEMPLATES: CampaignTemplate[] = [
+  {
+    id: "ecom-1",
+    name: "E-commerce Sales Engine",
+    description: "Optimized for physical product sales with multi-channel retargeting.",
+    tags: ["e-commerce", "physical products", "high-volume"],
+    setup_time: "5 min",
+    estimated_roi: "150-300%"
+  },
+  {
+    id: "saas-1",
+    name: "SaaS Trial Driver",
+    description: "Designed to maximize software signups and free trial conversions.",
+    tags: ["software", "B2B", "subscriptions"],
+    setup_time: "10 min",
+    estimated_roi: "200-400%"
+  },
+  {
+    id: "info-1",
+    name: "Course & Info Product",
+    description: "Content-heavy funnel for digital products and education.",
+    tags: ["digital", "education", "courses"],
+    setup_time: "8 min",
+    estimated_roi: "300-500%"
+  }
+];
+
 export interface CampaignStats {
   totalClicks: number;
   totalConversions: number;
@@ -25,6 +61,35 @@ export interface CampaignStats {
 }
 
 export const smartCampaignService = {
+  /**
+   * Get available campaign templates
+   */
+  async getTemplates(): Promise<CampaignTemplate[]> {
+    return MOCK_TEMPLATES;
+  },
+
+  /**
+   * Get specific campaign template
+   */
+  async getTemplate(id: string): Promise<CampaignTemplate | null> {
+    return MOCK_TEMPLATES.find(t => t.id === id) || null;
+  },
+
+  /**
+   * Create quick campaign (alias for smart campaign with default routing)
+   */
+  async createQuickCampaign(config: CampaignConfig): Promise<{
+    success: boolean;
+    campaign: Campaign | null;
+    error: string | null;
+  }> {
+    // A quick campaign sets autoStart to true by default for maximum velocity
+    return this.createSmartCampaign({
+      ...config,
+      autoStart: config.autoStart !== undefined ? config.autoStart : true
+    });
+  },
+
   /**
    * Create smart campaign with autopilot
    */
