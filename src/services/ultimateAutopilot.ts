@@ -246,11 +246,15 @@ export const ultimateAutopilot = {
     const createdProducts = [];
 
     for (const product of verifiedProducts) {
-      const slug = product.name
+      // Create unique slug with timestamp to prevent duplicates
+      const baseSlug = product.name
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
         .replace(/\s+/g, "-")
-        .substring(0, 50);
+        .substring(0, 40);
+      
+      const uniqueSuffix = Date.now().toString().slice(-6);
+      const slug = `${baseSlug}-${uniqueSuffix}`;
 
       const { data, error } = await supabase
         .from("affiliate_links")
@@ -272,7 +276,17 @@ export const ultimateAutopilot = {
         .select()
         .single();
 
-      if (!error && data) {
+      if (error) {
+        // Skip if duplicate exists
+        if (error.code === "23505") {
+          console.log(`⚠️ Product ${product.name} already exists, skipping...`);
+          continue;
+        }
+        console.error(`Failed to add ${product.name}:`, error);
+        continue;
+      }
+
+      if (data) {
         createdProducts.push(data);
       }
     }
@@ -292,19 +306,19 @@ export const ultimateAutopilot = {
         description: "Generate intelligent traffic to high-converting products",
       },
       {
-        type: "link_health_check",
+        type: "link_optimization",
         priority: 9,
         interval: 120,
         description: "Monitor and auto-repair broken links",
       },
       {
-        type: "product_rotation",
+        type: "campaign_optimization",
         priority: 8,
         interval: 360,
         description: "Auto-rotate underperforming products",
       },
       {
-        type: "conversion_optimization",
+        type: "campaign_optimization",
         priority: 10,
         interval: 180,
         description: "Optimize for maximum conversions",
@@ -316,13 +330,13 @@ export const ultimateAutopilot = {
         description: "Detect and block fraudulent activity",
       },
       {
-        type: "smart_routing",
+        type: "traffic_generation",
         priority: 10,
         interval: 60,
         description: "Route traffic to best performers",
       },
       {
-        type: "revenue_maximizer",
+        type: "campaign_optimization",
         priority: 10,
         interval: 120,
         description: "Maximize revenue per visitor",

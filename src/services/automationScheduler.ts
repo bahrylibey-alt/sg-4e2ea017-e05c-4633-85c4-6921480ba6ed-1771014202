@@ -174,7 +174,7 @@ export const automationScheduler = {
           success = await this.optimizeLinks(task);
           break;
 
-        case "performance_monitoring":
+        case "campaign_optimization":
           success = await this.monitorPerformance(task);
           break;
 
@@ -190,7 +190,7 @@ export const automationScheduler = {
           success = await this.sendEmails(task);
           break;
 
-        case "analytics_reporting":
+        case "social_posting":
           success = await this.generateReport(task);
           break;
 
@@ -520,7 +520,7 @@ export const automationScheduler = {
         },
         {
           campaign_id: campaignId,
-          task_type: "performance_monitoring",
+          task_type: "campaign_optimization",
           priority: 6,
           frequency_minutes: 60,
           status: "pending",
@@ -552,7 +552,7 @@ export const automationScheduler = {
         },
         {
           campaign_id: campaignId,
-          task_type: "analytics_reporting",
+          task_type: "social_posting",
           priority: 3,
           frequency_minutes: 1440,
           status: "pending",

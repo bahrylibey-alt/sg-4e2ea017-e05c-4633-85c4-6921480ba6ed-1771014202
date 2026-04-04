@@ -205,10 +205,14 @@ export const smartProductDiscovery = {
       const addedProducts = [];
 
       for (const product of selectedProducts) {
-        const slug = product.name
+        // Create unique slug with timestamp to avoid duplicates
+        const baseSlug = product.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "");
+        
+        const uniqueSuffix = Date.now().toString().slice(-6);
+        const slug = `${baseSlug}-${uniqueSuffix}`;
 
         const productData = {
           user_id: userId,
@@ -226,7 +230,7 @@ export const smartProductDiscovery = {
           commission_earned: 0,
         };
 
-        // Insert into database
+        // Insert into database - skip if duplicate exists
         const { data, error } = await supabase
           .from("affiliate_links")
           .insert(productData)
@@ -234,6 +238,11 @@ export const smartProductDiscovery = {
           .single();
 
         if (error) {
+          // If duplicate, skip and continue
+          if (error.code === "23505") {
+            console.log(`⚠️ Product ${product.name} already exists, skipping...`);
+            continue;
+          }
           console.error(`Failed to add ${product.name}:`, error);
           continue;
         }
