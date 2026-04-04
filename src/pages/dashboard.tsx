@@ -29,6 +29,7 @@ import { realTimeAnalytics } from "@/services/realTimeAnalytics";
 import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import { CampaignBuilder } from "@/components/CampaignBuilder";
 import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
+import { AdvancedAutomationHub } from "@/components/AdvancedAutomationHub";
 import { OneClickAutopilot } from "@/components/OneClickAutopilot";
 import { ProductGallery } from "@/components/ProductGallery";
 import { IntegrationsDashboard } from "@/components/IntegrationsDashboard";
@@ -499,6 +500,11 @@ export default function Dashboard() {
           {/* Advanced Analytics Dashboard */}
           <div className="mt-8">
             <AdvancedAnalyticsDashboard />
+          </div>
+
+          {/* Advanced Automation Hub */}
+          <div className="mt-8">
+            <AdvancedAutomationHub />
           </div>
 
           {/* Integrations Dashboard */}
