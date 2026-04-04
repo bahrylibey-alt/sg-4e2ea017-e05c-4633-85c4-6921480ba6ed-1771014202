@@ -13,7 +13,7 @@ export interface TrafficAllocation {
 
 export interface TrafficConfig {
   source_name: string;
-  source_type: "paid_search" | "paid_social" | "email" | "organic" | "video";
+  source_type: "paid" | "social" | "email" | "organic" | "referral" | "direct";
   base_cpc: number;
   min_daily_budget: number;
 }
@@ -23,49 +23,49 @@ export const trafficAutomationService = {
   TRAFFIC_SOURCES: [
     {
       source_name: "Google Search",
-      source_type: "paid_search" as const,
+      source_type: "paid" as const,
       base_cpc: 0.85,
       min_daily_budget: 10
     },
     {
       source_name: "Facebook Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 0.65,
       min_daily_budget: 5
     },
     {
       source_name: "Instagram Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 0.55,
       min_daily_budget: 5
     },
     {
       source_name: "TikTok Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 0.45,
       min_daily_budget: 20
     },
     {
       source_name: "LinkedIn Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 1.25,
       min_daily_budget: 10
     },
     {
       source_name: "Twitter/X Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 0.75,
       min_daily_budget: 5
     },
     {
       source_name: "Pinterest Ads",
-      source_type: "paid_social" as const,
+      source_type: "social" as const,
       base_cpc: 0.50,
       min_daily_budget: 5
     },
     {
       source_name: "YouTube Ads",
-      source_type: "video" as const,
+      source_type: "social" as const,
       base_cpc: 0.30,
       min_daily_budget: 10
     },

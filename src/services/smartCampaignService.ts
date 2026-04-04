@@ -103,11 +103,16 @@ export const smartCampaignService = {
           campaign_id: campaign.id,
           user_id: user.id,
           metric_date: new Date().toISOString().split("T")[0],
+          tasks_executed: 0,
+          tasks_successful: 0,
+          tasks_failed: 0,
+          content_generated: 0,
+          content_posted: 0,
           traffic_generated: 0,
+          clicks_generated: 0,
           conversions_generated: 0,
           revenue_generated: 0,
-          content_created: 0,
-          tasks_executed: 0,
+          optimization_actions: 0,
           ai_decisions_made: 0
         });
 
