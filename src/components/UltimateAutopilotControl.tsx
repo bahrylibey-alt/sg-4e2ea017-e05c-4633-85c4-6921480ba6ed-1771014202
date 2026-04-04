@@ -7,7 +7,7 @@ import { Rocket, Activity, TrendingUp, Zap, AlertCircle, CheckCircle2 } from "lu
 import { ultimateAutopilot } from "@/services/ultimateAutopilot";
 import { linkHealthMonitor } from "@/services/linkHealthMonitor";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 export function UltimateAutopilotControl() {
   const [isDeploying, setIsDeploying] = useState(false);
