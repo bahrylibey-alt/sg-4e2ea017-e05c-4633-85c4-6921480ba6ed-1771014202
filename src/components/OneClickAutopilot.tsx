@@ -179,7 +179,7 @@ export function OneClickAutopilot() {
         setLaunchStep("Activating autopilot engine...");
         console.log("🎯 Launching autopilot engine...");
         
-        result = await autopilotEngine.launchAutopilot();
+        result = await autopilotEngine.oneClickLaunch();
         console.log("Launch result:", result);
       }
 

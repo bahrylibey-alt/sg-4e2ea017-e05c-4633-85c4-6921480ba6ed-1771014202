@@ -42,7 +42,7 @@ export function AutopilotControl() {
 
   const loadStats = async () => {
     try {
-      const data = await autopilotEngine.getAutopilotStats();
+      const data = await autopilotEngine.getStatus();
       setStats(data);
       setIsAutopilotActive(data?.activeCampaigns > 0);
     } catch (error) {
@@ -91,7 +91,7 @@ export function AutopilotControl() {
       const productUrls = products.slice(0, 5).map(p => p.url);
 
       // Launch autopilot campaign
-      const result = await autopilotEngine.launchAutopilot({
+      const result = await autopilotEngine.oneClickLaunch({
         budget: 100,
         trafficChannels: ["seo", "social", "email", "content"]
       });

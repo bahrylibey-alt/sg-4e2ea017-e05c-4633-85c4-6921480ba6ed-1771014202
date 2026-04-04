@@ -143,7 +143,7 @@ export default function SystemTest() {
 
       // TEST 8: Autopilot Status
       updateTest("Autopilot Status", "running", "Checking autopilot system...");
-      const status = await autopilotEngine.getAutopilotStatus();
+      const status = await autopilotEngine.getStatus();
       updateTest("Autopilot Status", "success", `Autopilot is ${status.isActive ? 'ACTIVE' : 'OFF'}`, status);
 
       // TEST 9: User Stats

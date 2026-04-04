@@ -434,9 +434,9 @@ export const automationScheduler = {
 
       if (existing) {
         const finalUpdates: any = {};
-        Object.keys(updates).forEach(key => {
-          finalUpdates[key] = (existing[key as keyof typeof existing] as number || 0) + updates[key];
-        });
+        for (const k of Object.keys(updates)) {
+          finalUpdates[k] = Number((existing as any)[k] || 0) + Number(updates[k]);
+        }
 
         await supabase
           .from("automation_metrics")
