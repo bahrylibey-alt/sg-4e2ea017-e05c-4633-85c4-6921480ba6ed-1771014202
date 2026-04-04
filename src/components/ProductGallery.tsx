@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { supabase } from "@/lib/supabase";
 
 export function ProductGallery() {
   const { toast } = useToast();
@@ -98,33 +99,72 @@ export function ProductGallery() {
   const handleCreateLink = async (product: AffiliateProduct) => {
     setCreatingLinkId(product.id);
     try {
-      const result = await affiliateLinkService.createLink({
-        originalUrl: (product as any).url || "https://example.com",
-        productName: product.name,
-        network: product.network,
-        commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
+      // Find existing link or create new one
+      const { data: existingLinks } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("product_name", product.name)
+        .eq("status", "active")
+        .maybeSingle();
+
+      let linkSlug = "";
+      
+      if (existingLinks) {
+        linkSlug = existingLinks.slug;
+      } else {
+        // Create new link
+        const slug = product.name
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-");
+
+        const { data: newLink, error } = await supabase
+          .from("affiliate_links")
+          .insert({
+            product_name: product.name,
+            original_url: product.url,
+            slug,
+            network: product.network,
+            commission_rate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0,
+            status: "active",
+            clicks: 0,
+            conversions: 0,
+            revenue: 0,
+            commission_earned: 0
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Error creating link:", error);
+          throw new Error("Failed to create affiliate link");
+        }
+
+        linkSlug = newLink.slug;
+      }
+
+      // Generate the actual clickable link using window.location.origin
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const fullLink = `${baseUrl}/go/${linkSlug}`;
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(fullLink);
+      
+      toast({
+        title: "Link Created!",
+        description: `Copied to clipboard: ${fullLink}`,
       });
 
-      if (result.success && result.link) {
-        toast({
-          title: "Link Created",
-          description: `Affiliate link for ${product.name} created successfully!`,
-        });
-        
-        // Update local state with the new link
-        setAffiliateLinks(prev => {
-          const newMap = new Map(prev);
-          newMap.set(product.id, (result as any).cloaked_url || (result as any).link?.short_url || "");
-          return newMap;
-        });
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (err: any) {
+      setCreatedLinks((prev) => ({
+        ...prev,
+        [product.id]: fullLink,
+      }));
+    } catch (error) {
+      console.error("Error generating link:", error);
       toast({
-        title: "Creation Failed",
-        description: err.message || "Failed to create link",
-        variant: "destructive"
+        title: "Error",
+        description: "Failed to generate affiliate link. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setCreatingLinkId(null);
