@@ -37,7 +37,7 @@ export function SmartTools() {
       icon: RefreshCw,
       color: "text-blue-500",
       action: async () => {
-        const result = await linkHealthMonitor.autoRepairLinks();
+        const result = await linkHealthMonitor.oneClickAutoRepair();
         return {
           success: result.repaired > 0,
           message: `✅ Repaired ${result.repaired} broken links, Removed ${result.removed} dead links`,
@@ -82,7 +82,7 @@ export function SmartTools() {
       icon: Shield,
       color: "text-red-500",
       action: async () => {
-        const result = await fraudDetectionService.scanAllLinks();
+        const result = await fraudDetectionService.monitorAllLinks();
         return {
           success: true,
           message: `✅ Scanned ${result.totalChecked} links, Blocked ${result.blocked} suspicious activities`,

@@ -20,43 +20,38 @@ import { AIChatbot } from "@/components/AIChatbot";
 import { OneClickCampaign } from "@/components/OneClickCampaign";
 import { AuthModal } from "@/components/AuthModal";
 
-export default function Home() {
-  const [showContentGenerator, setShowContentGenerator] = useState(false);
-  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
+export default function LandingPage() {
+  const [isContentGeneratorOpen, setIsContentGeneratorOpen] = useState(false);
+  const [isCampaignBuilderOpen, setIsCampaignBuilderOpen] = useState(false);
 
   return (
-    <>
-      <SEO />
-      <div className="min-h-screen bg-background font-sans antialiased">
-        <Header />
-        <main>
-          <div className="relative isolate">
-            <Hero />
-            <ProductShowcase />
-            <SmartTools 
-              onOpenContentGenerator={() => setShowContentGenerator(true)}
-              onOpenCampaignBuilder={() => setShowCampaignBuilder(true)}
-            />
-            <FeaturedContent />
-            <Analytics />
-            <Integrations />
-            <Pricing />
-            <Newsletter />
-          </div>
-        </main>
-        <Footer />
-        <AIChatbot />
-        
-        <AIContentGenerator 
-          open={showContentGenerator} 
-          onOpenChange={setShowContentGenerator}
-        />
-        
-        <CampaignBuilder 
-          open={showCampaignBuilder} 
-          onOpenChange={setShowCampaignBuilder}
-        />
-      </div>
-    </>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <Hero 
+        onStartCampaign={() => setIsCampaignBuilderOpen(true)} 
+      />
+      <ProductShowcase />
+      <SmartTools 
+        onOpenContentGenerator={() => setIsContentGeneratorOpen(true)}
+        onOpenCampaignBuilder={() => setIsCampaignBuilderOpen(true)}
+      />
+      <FeaturedContent />
+      <Analytics />
+      <Integrations />
+      <Pricing />
+      <Newsletter />
+      <Footer />
+      <AIChatbot />
+      
+      <AIContentGenerator 
+        open={isContentGeneratorOpen} 
+        onOpenChange={setIsContentGeneratorOpen}
+      />
+      
+      <CampaignBuilder 
+        open={isCampaignBuilderOpen} 
+        onOpenChange={setIsCampaignBuilderOpen}
+      />
+    </div>
   );
 }
