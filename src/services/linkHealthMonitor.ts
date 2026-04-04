@@ -3,7 +3,7 @@ import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM
- * Format-based validation (CORS-safe for browser)
+ * Validates Amazon product links and auto-repairs broken ones
  */
 export const linkHealthMonitor = {
   /**
@@ -40,8 +40,28 @@ export const linkHealthMonitor = {
   },
 
   /**
+   * Check if product is old/outdated (2024 or earlier ASINs)
+   */
+  isOldProduct(url: string): boolean {
+    // Common old product ASINs from 2024 and earlier
+    const oldAsins = [
+      'B0D1XD1ZV3', // Old AirPods
+      'B0CFPJYX9B', // Old Kindle
+      'B01NBKTPTS', // Old Instant Pot
+      'B09XS7JWHH', // Old Sony headphones
+      'B08V3GH3JY', // Old Dyson
+      'B0CDDHGDJP', // Old GoPro
+      'B0B4PSKHHN', // Old Bose earbuds
+      'B0CHX3PBRG', // Old Apple Watch
+    ];
+    
+    const asin = this.extractAsin(url);
+    return asin ? oldAsins.includes(asin) : false;
+  },
+
+  /**
    * ONE-CLICK AUTO-REPAIR
-   * Validates Amazon URL formats and removes invalid links
+   * Removes invalid and old links, adds fresh 2026 products
    */
   async oneClickAutoRepair(
     campaignId?: string,
@@ -54,7 +74,7 @@ export const linkHealthMonitor = {
     repaired: number;
   }> {
     try {
-      console.log("🔧 Starting One-Click Auto-Repair with format validation...");
+      console.log("🔧 Starting ENHANCED Auto-Repair (removes old products)...");
       console.log("Input parameters:", { campaignId, userId });
 
       // Get user ID if not provided
@@ -105,37 +125,44 @@ export const linkHealthMonitor = {
         return { success: true, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
       }
 
-      console.log(`📊 Validating ${allLinks.length} links (format check)...`);
+      console.log(`📊 Checking ${allLinks.length} links for validity and freshness...`);
 
-      // Validate each link format
+      // Find invalid and old links
       const invalidLinks = [];
       
       for (const link of allLinks) {
         const url = link.original_url || "";
         
-        // Validate Amazon URL format
-        const isValid = this.validateAmazonUrl(url);
+        // Check 1: Validate Amazon URL format
+        const isValidFormat = this.validateAmazonUrl(url);
         const asin = this.extractAsin(url);
         
-        if (!isValid || !asin) {
-          console.log("🔴 Invalid format:", { 
+        // Check 2: Check if product is old (2024 or earlier)
+        const isOld = this.isOldProduct(url);
+        
+        if (!isValidFormat || !asin || isOld) {
+          const reason = !isValidFormat ? "Invalid format" : 
+                        !asin ? "No ASIN" : 
+                        "Old product (2024)";
+          
+          console.log(`🔴 ${reason}:`, { 
             name: link.product_name, 
             url,
-            hasAsin: !!asin 
+            asin 
           });
           invalidLinks.push(link);
         } else {
-          console.log("✅ Valid:", link.product_name);
+          console.log("✅ Valid & Current:", link.product_name);
         }
       }
 
-      console.log(`🔴 Found ${invalidLinks.length} invalid links`);
+      console.log(`🔴 Found ${invalidLinks.length} links to remove (invalid or old)`);
 
-      // Remove invalid links
+      // Remove invalid/old links
       let removed = 0;
       if (invalidLinks.length > 0) {
         const invalidIds = invalidLinks.map(link => link.id);
-        console.log("Deleting invalid links:", invalidIds);
+        console.log("Deleting links:", invalidIds);
         
         const { error: deleteError } = await supabase
           .from("affiliate_links")
@@ -146,16 +173,16 @@ export const linkHealthMonitor = {
 
         if (!deleteError) {
           removed = invalidLinks.length;
-          console.log(`✅ Removed ${removed} invalid links`);
+          console.log(`✅ Removed ${removed} links (invalid or old products)`);
         } else {
           console.error("❌ Failed to remove links:", deleteError);
         }
       }
 
-      // Add replacement products
+      // Add fresh 2026 replacement products
       let replaced = 0;
       if (removed > 0 && campaignId) {
-        console.log(`🔄 Adding ${removed} replacement products...`);
+        console.log(`🔄 Adding ${removed} FRESH 2026 products...`);
         const addResult = await smartProductDiscovery.addToCampaign(
           campaignId,
           userId,
@@ -163,7 +190,7 @@ export const linkHealthMonitor = {
         );
         console.log("Add products result:", addResult);
         replaced = addResult.added;
-        console.log(`✅ Added ${replaced} fresh products`);
+        console.log(`✅ Added ${replaced} fresh 2026 products`);
       }
 
       const result = {
@@ -202,11 +229,14 @@ export const linkHealthMonitor = {
         };
       }
 
-      // Validate each link format
+      // Validate each link (format + freshness)
       let invalidCount = 0;
       for (const link of links) {
-        const isValid = this.validateAmazonUrl(link.original_url || "");
-        if (!isValid) invalidCount++;
+        const url = link.original_url || "";
+        const isValid = this.validateAmazonUrl(url);
+        const isOld = this.isOldProduct(url);
+        
+        if (!isValid || isOld) invalidCount++;
       }
 
       const healthScore = links.length > 0 
@@ -216,7 +246,7 @@ export const linkHealthMonitor = {
       return {
         totalLinks: links.length,
         invalidLinks: invalidCount,
-        brokenLinks: invalidCount, // Added for backward compatibility with test pages
+        brokenLinks: invalidCount,
         healthScore
       };
     } catch (error) {

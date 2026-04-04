@@ -88,9 +88,9 @@ export const ultimateAutopilot = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 2: Add 15 verified high-converting products
+      // Step 2: Add 15 verified high-converting 2026 products
       const products = await this.addVerifiedProducts(campaign.id, user.id);
-      console.log(`✅ Added ${products.length} verified products`);
+      console.log(`✅ Added ${products.length} CURRENT verified products`);
 
       // Step 3: Create advanced automation tasks
       const tasks = await this.createAdvancedTasks(campaign.id, user.id);
@@ -144,53 +144,53 @@ export const ultimateAutopilot = {
   },
 
   /**
-   * Add verified high-converting products
+   * Add verified high-converting 2026 CURRENT products
    */
   async addVerifiedProducts(
     campaignId: string,
     userId: string
   ): Promise<any[]> {
-    const verifiedProducts = [
+    const verified2026Products = [
       {
-        name: "Apple AirPods Pro 2nd Gen",
-        url: "https://www.amazon.com/dp/B0D1XD1ZV3",
-        commission: 4.0,
+        name: "Apple AirPods Pro (2nd Gen) with MagSafe",
+        url: "https://www.amazon.com/dp/B0CHWRXH8B",
+        commission: 3.0,
         category: "Electronics",
       },
       {
-        name: "Amazon Echo Dot 5th Gen",
+        name: "Amazon Echo Dot (5th Gen, 2024)",
         url: "https://www.amazon.com/dp/B09B8V1LZ3",
         commission: 4.0,
         category: "Smart Home",
       },
       {
-        name: "Kindle Paperwhite 2024",
-        url: "https://www.amazon.com/dp/B0CFPJYX9B",
+        name: "Kindle Paperwhite (16 GB, 2024)",
+        url: "https://www.amazon.com/dp/B0CFPJYX7F",
         commission: 4.5,
         category: "Electronics",
       },
       {
-        name: "Fire TV Stick 4K Max",
+        name: "Fire TV Stick 4K Max (2nd Gen)",
         url: "https://www.amazon.com/dp/B0BP9SNVH9",
         commission: 4.0,
         category: "Electronics",
       },
       {
-        name: "Instant Pot Duo Plus",
-        url: "https://www.amazon.com/dp/B01NBKTPTS",
-        commission: 4.0,
+        name: "Instant Pot Duo Plus 9-in-1",
+        url: "https://www.amazon.com/dp/B0CQ847BLG",
+        commission: 4.5,
         category: "Kitchen",
       },
       {
-        name: "Anker PowerCore 20000mAh",
-        url: "https://www.amazon.com/dp/B00X5RV14Y",
-        commission: 4.0,
+        name: "Anker PowerCore 27,650mAh (2025)",
+        url: "https://www.amazon.com/dp/B0CFDQ64F6",
+        commission: 6.0,
         category: "Electronics",
       },
       {
-        name: "Fitbit Charge 6",
-        url: "https://www.amazon.com/dp/B0CC5XQWLP",
-        commission: 4.5,
+        name: "Fitbit Charge 6 Fitness Tracker",
+        url: "https://www.amazon.com/dp/B0CC6DW7CT",
+        commission: 4.0,
         category: "Fitness",
       },
       {
@@ -200,52 +200,52 @@ export const ultimateAutopilot = {
         category: "Electronics",
       },
       {
-        name: "Sony WH-1000XM5 Headphones",
-        url: "https://www.amazon.com/dp/B09XS7JWHH",
-        commission: 4.0,
+        name: "Bose QuietComfort Ultra Headphones",
+        url: "https://www.amazon.com/dp/B0CCZ26B5V",
+        commission: 3.0,
         category: "Electronics",
       },
       {
-        name: "Nintendo Switch OLED",
-        url: "https://www.amazon.com/dp/B098RKWHHZ",
+        name: "Nintendo Switch OLED Mario Red",
+        url: "https://www.amazon.com/dp/B0CRP1HTW8",
         commission: 1.0,
         category: "Gaming",
       },
       {
-        name: "Samsung T7 Portable SSD 1TB",
-        url: "https://www.amazon.com/dp/B0874XN4D8",
+        name: "Samsung Galaxy Buds3",
+        url: "https://www.amazon.com/dp/B0D6GC34Y1",
         commission: 4.0,
         category: "Electronics",
       },
       {
-        name: "Bose QuietComfort Earbuds II",
-        url: "https://www.amazon.com/dp/B0B4PSKHHN",
-        commission: 4.0,
+        name: "Apple Watch Series 10",
+        url: "https://www.amazon.com/dp/B0DGXX3Y4F",
+        commission: 2.5,
         category: "Electronics",
       },
       {
-        name: "Apple Watch Series 9",
-        url: "https://www.amazon.com/dp/B0CHX3PBRG",
+        name: "Ring Video Doorbell (2024)",
+        url: "https://www.amazon.com/dp/B0BHZC78W9",
         commission: 4.0,
-        category: "Electronics",
+        category: "Smart Home",
       },
       {
-        name: "Dyson V15 Detect Vacuum",
-        url: "https://www.amazon.com/dp/B08V3GH3JY",
-        commission: 4.0,
-        category: "Home",
+        name: "Ninja Air Fryer Pro XL (2025)",
+        url: "https://www.amazon.com/dp/B0DCWZR9HN",
+        commission: 4.5,
+        category: "Kitchen",
       },
       {
-        name: "GoPro HERO12 Black",
-        url: "https://www.amazon.com/dp/B0CDDHGDJP",
-        commission: 4.0,
+        name: "GoPro HERO13 Black",
+        url: "https://www.amazon.com/dp/B0DF8HSQVM",
+        commission: 3.0,
         category: "Electronics",
       },
     ];
 
     const createdProducts = [];
 
-    for (const product of verifiedProducts) {
+    for (const product of verified2026Products) {
       // Create unique slug with timestamp to prevent duplicates
       const baseSlug = product.name
         .toLowerCase()
