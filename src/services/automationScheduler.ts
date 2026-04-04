@@ -281,6 +281,7 @@ export const automationScheduler = {
         .from("content_queue")
         .insert({
           campaign_id: campaign.id,
+          user_id: task.user_id,
           platform: randomPlatform,
           content_type: "product_promotion",
           content: `Check out ${links.product_name}! ${links.cloaked_url}`,

@@ -26,6 +26,7 @@ interface DeploymentResult {
   tasksCreated: number;
   trafficSourcesActivated: number;
   features: string[];
+  estimatedRevenue?: number;
   error?: string;
 }
 
@@ -122,6 +123,7 @@ export const ultimateAutopilot = {
         tasksCreated: 8,
         trafficSourcesActivated: trafficResult.activated,
         features,
+        estimatedRevenue: 0,
       };
     } catch (error) {
       console.error("❌ Ultimate deployment failed:", error);
