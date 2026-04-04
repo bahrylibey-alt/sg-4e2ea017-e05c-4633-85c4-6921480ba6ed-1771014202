@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * FREE TRAFFIC GENERATION ENGINE
+ * FREE TRAFFIC GENERATION ENGINE v2.0
+ * REAL traffic tracking - no more mocking
  */
 
 export interface TrafficSource {
@@ -65,11 +66,11 @@ export const freeTrafficEngine = {
   ],
 
   /**
-   * Activate free traffic sources for a campaign
+   * Activate free traffic sources for a campaign (REAL system)
    */
   async activateFreeTraffic(campaignId: string, channels?: string[], campaignData?: any) {
     try {
-      console.log("🌐 Activating FREE traffic sources for campaign:", campaignId);
+      console.log("🌐 Activating FREE traffic sources (REAL SYSTEM)...");
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
@@ -94,6 +95,12 @@ export const freeTrafficEngine = {
 
       if (!campaign) {
         console.warn("⚠️ Campaign not found");
+        return {
+          success: false,
+          activated: 0,
+          sources: [],
+          estimatedReach: 0
+        };
       }
 
       // Select sources
@@ -112,10 +119,12 @@ export const freeTrafficEngine = {
         })
         .eq("id", campaignId);
 
-      // Generate initial content
+      // Generate initial content queue
       await this.generateInitialContent(campaignId, user.id, sourcesToActivate);
 
       const totalReach = sourcesToActivate.reduce((sum, s) => sum + s.potentialReach, 0);
+
+      console.log("✅ Free traffic sources activated - Content queued for posting");
 
       return {
         success: true,
@@ -141,7 +150,7 @@ export const freeTrafficEngine = {
   },
 
   /**
-   * Generate content for free traffic sources
+   * Generate content for free traffic sources (REAL content queue)
    */
   async generateInitialContent(campaignId: string, userId: string, sources: typeof this.FREE_SOURCES) {
     try {
@@ -159,10 +168,11 @@ export const freeTrafficEngine = {
         .select("cloaked_url, product_name")
         .eq("campaign_id", campaignId)
         .eq("status", "active")
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
-      const linkUrl = links?.[0]?.cloaked_url || "your-link";
-      const productName = links?.[0]?.product_name || campaign.name;
+      const linkUrl = links?.cloaked_url || "your-link";
+      const productName = links?.product_name || campaign.name;
 
       const contentPieces = [];
 
@@ -180,11 +190,15 @@ export const freeTrafficEngine = {
         });
       }
 
-      await supabase
+      const { error } = await supabase
         .from("content_queue")
         .insert(contentPieces);
 
-      console.log(`✅ Generated ${contentPieces.length} content pieces`);
+      if (!error) {
+        console.log(`✅ Generated ${contentPieces.length} content pieces for posting`);
+      } else {
+        console.error("Error queuing content:", error);
+      }
 
     } catch (err) {
       console.error("Content generation error:", err);
@@ -233,30 +247,30 @@ export const freeTrafficEngine = {
   },
 
   /**
-   * Get traffic statistics
+   * Get REAL traffic statistics from database
    */
   async getTrafficStats(campaignId?: string) {
     try {
       let query = supabase
-        .from("automation_metrics")
-        .select("*");
+        .from("affiliate_links")
+        .select("clicks, conversions, revenue");
 
       if (campaignId) {
         query = query.eq("campaign_id", campaignId);
       }
 
-      const { data: metrics } = await query;
+      const { data: links } = await query;
 
-      const totalClicks = metrics?.reduce((sum, m) => sum + (m.clicks_generated || 0), 0) || 0;
-      const totalConversions = metrics?.reduce((sum, m) => sum + (m.conversions_generated || 0), 0) || 0;
-      const totalRevenue = metrics?.reduce((sum, m) => sum + (Number(m.revenue_generated) || 0), 0) || 0;
+      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+      const totalConversions = links?.reduce((sum, l) => sum + (l.conversions || 0), 0) || 0;
+      const totalRevenue = links?.reduce((sum, l) => sum + (Number(l.revenue) || 0), 0) || 0;
 
       return {
         totalClicks,
         totalConversions,
         totalRevenue,
         conversionRate: totalClicks > 0 ? ((totalConversions / totalClicks) * 100).toFixed(2) : "0.00",
-        avgDailyClicks: metrics && metrics.length > 0 ? Math.round(totalClicks / metrics.length) : 0
+        avgDailyClicks: totalClicks
       };
     } catch (err) {
       console.error("Stats error:", err);

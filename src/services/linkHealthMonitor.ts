@@ -2,9 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
- * ULTIMATE LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM v2.0
- * 3-TIER VALIDATION: Format → Age → Availability
- * SMART DEDUPLICATION: Prevents duplicates automatically
+ * ULTIMATE LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM v3.0
+ * REAL 404 DETECTION - NO MORE MOCKING
+ * Uses Edge Function for actual Amazon product availability testing
  */
 
 // Known OLD/INVALID ASINs from 2024 and earlier (BLACKLIST)
@@ -12,8 +12,7 @@ const BLACKLISTED_ASINS = [
   // 2024 Products (OLD)
   'B0D1XD1ZV3', 'B0CFPJYX9B', 'B01NBKTPTS', 'B09XS7JWHH',
   'B08V3GH3JY', 'B0CDDHGDJP', 'B0B4PSKHHN', 'B0CHX3PBRG',
-  'B0CC5XQWLP', 'B0CHWRXH8B', 'B09B8V1LZ3', 'B0BP9SNVH9',
-  // Add more old ASINs as discovered
+  'B0CC5XQWLP', // Old 2024 ASINs
 ];
 
 export const linkHealthMonitor = {
@@ -59,23 +58,55 @@ export const linkHealthMonitor = {
   },
 
   /**
-   * TIER 3: Advanced product validation
+   * TIER 3: REAL 404 Detection using Edge Function
    */
-  async validateProduct(url: string): Promise<{ valid: boolean; reason?: string }> {
-    // Check 1: Format validation
+  async checkProductAvailability(url: string): Promise<{ available: boolean; status?: number; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('check-amazon-link', {
+        body: { url }
+      });
+
+      if (error) {
+        console.error("Edge function error:", error);
+        return { available: false, error: error.message };
+      }
+
+      return {
+        available: data.available,
+        status: data.statusCode
+      };
+    } catch (error) {
+      console.error("Error checking availability:", error);
+      return { available: false, error: String(error) };
+    }
+  },
+
+  /**
+   * COMPREHENSIVE Product Validation (All 3 Tiers)
+   */
+  async validateProduct(url: string, checkAvailability = false): Promise<{ valid: boolean; reason?: string }> {
+    // Tier 1: Format validation
     if (!this.validateAmazonUrl(url)) {
       return { valid: false, reason: "Invalid Amazon URL format" };
     }
 
-    // Check 2: Extract ASIN
+    // Tier 2: Extract ASIN
     const asin = this.extractAsin(url);
     if (!asin) {
       return { valid: false, reason: "Missing ASIN" };
     }
 
-    // Check 3: Blacklist check
+    // Tier 3: Blacklist check
     if (BLACKLISTED_ASINS.includes(asin)) {
       return { valid: false, reason: "Blacklisted product (2024 or older)" };
+    }
+
+    // Tier 4: Real availability check (optional, uses Edge Function)
+    if (checkAvailability) {
+      const availabilityCheck = await this.checkProductAvailability(url);
+      if (!availabilityCheck.available) {
+        return { valid: false, reason: `Product not available (HTTP ${availabilityCheck.status || 'error'})` };
+      }
     }
 
     return { valid: true };
@@ -146,33 +177,40 @@ export const linkHealthMonitor = {
   },
 
   /**
-   * ULTIMATE ONE-CLICK AUTO-REPAIR v2.0
-   * 1. Remove duplicates
-   * 2. Remove blacklisted/old products
-   * 3. Remove invalid formats
-   * 4. Replace with fresh 2026 products
+   * ULTIMATE ONE-CLICK AUTO-REPAIR v3.0 with REAL 404 DETECTION
    */
   async oneClickAutoRepair(
     campaignId?: string,
-    userId?: string
+    userId?: string,
+    testAvailability = true
   ): Promise<{ 
     success: boolean; 
     totalChecked: number; 
     duplicatesRemoved: number;
     invalidRemoved: number;
+    unavailableRemoved: number;
     replaced: number;
     repaired: number;
     removed: number;
   }> {
     try {
-      console.log("🚀 Starting ULTIMATE Auto-Repair v2.0...");
+      console.log("🚀 Starting ULTIMATE Auto-Repair v3.0 (REAL 404 DETECTION)...");
 
       // Get user ID if not provided
       if (!userId) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           console.error("❌ No user found");
-          return { success: false, totalChecked: 0, duplicatesRemoved: 0, invalidRemoved: 0, replaced: 0, repaired: 0, removed: 0 };
+          return { 
+            success: false, 
+            totalChecked: 0, 
+            duplicatesRemoved: 0, 
+            invalidRemoved: 0, 
+            unavailableRemoved: 0,
+            replaced: 0, 
+            repaired: 0, 
+            removed: 0 
+          };
         }
         userId = user.id;
       }
@@ -186,7 +224,7 @@ export const linkHealthMonitor = {
           .eq("status", "active")
           .order("created_at", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (campaign) {
           campaignId = campaign.id;
@@ -212,6 +250,7 @@ export const linkHealthMonitor = {
           totalChecked: 0, 
           duplicatesRemoved,
           invalidRemoved: 0,
+          unavailableRemoved: 0,
           replaced: 0,
           repaired: duplicatesRemoved,
           removed: duplicatesRemoved
@@ -220,19 +259,35 @@ export const linkHealthMonitor = {
 
       console.log(`📊 STEP 2: Validating ${allLinks.length} unique links...`);
 
-      // STEP 3: Validate each product (format + blacklist)
+      // STEP 3: Validate each product (format + blacklist + availability)
       const invalidLinks = [];
+      const unavailableLinks = [];
       
       for (const link of allLinks) {
         const url = link.original_url || "";
-        const validation = await this.validateProduct(url);
+        
+        // Check format and blacklist
+        const validation = await this.validateProduct(url, false);
         
         if (!validation.valid) {
           console.log(`🔴 ${validation.reason}:`, link.product_name);
           invalidLinks.push(link);
-        } else {
-          console.log("✅ Valid & Current:", link.product_name);
+          continue;
         }
+
+        // Check real availability (404 detection) if requested
+        if (testAvailability) {
+          console.log(`🔍 Testing availability:`, link.product_name);
+          const availabilityCheck = await this.checkProductAvailability(url);
+          
+          if (!availabilityCheck.available) {
+            console.log(`🔴 Product unavailable (404):`, link.product_name);
+            unavailableLinks.push(link);
+            continue;
+          }
+        }
+
+        console.log("✅ Valid & Available:", link.product_name);
       }
 
       // STEP 4: Remove invalid/blacklisted products
@@ -252,24 +307,44 @@ export const linkHealthMonitor = {
         }
       }
 
-      // STEP 5: Add fresh 2026 replacement products
+      // STEP 5: Remove unavailable products (404s)
+      let unavailableRemoved = 0;
+      if (unavailableLinks.length > 0) {
+        console.log(`🔥 STEP 4: Removing ${unavailableLinks.length} unavailable products (404s)...`);
+        
+        const unavailableIds = unavailableLinks.map(link => link.id);
+        const { error } = await supabase
+          .from("affiliate_links")
+          .delete()
+          .in("id", unavailableIds);
+
+        if (!error) {
+          unavailableRemoved = unavailableLinks.length;
+          console.log(`✅ Removed ${unavailableRemoved} unavailable products`);
+        }
+      }
+
+      // STEP 6: Add fresh 2026 replacement products
+      const totalToReplace = invalidRemoved + unavailableRemoved;
       let replaced = 0;
-      if (invalidRemoved > 0 && campaignId) {
-        console.log(`🔄 STEP 4: Adding ${invalidRemoved} FRESH 2026 products...`);
+      
+      if (totalToReplace > 0 && campaignId) {
+        console.log(`🔄 STEP 5: Adding ${totalToReplace} FRESH 2026 products...`);
         const addResult = await smartProductDiscovery.addToCampaign(
           campaignId,
           userId,
-          invalidRemoved
+          totalToReplace
         );
         replaced = addResult.added;
         console.log(`✅ Added ${replaced} fresh 2026 products`);
       }
 
-      const totalRepaired = duplicatesRemoved + invalidRemoved;
+      const totalRepaired = duplicatesRemoved + invalidRemoved + unavailableRemoved;
       
       console.log("🎯 ULTIMATE Auto-Repair Complete:");
       console.log(`   - Duplicates removed: ${duplicatesRemoved}`);
       console.log(`   - Invalid/old removed: ${invalidRemoved}`);
+      console.log(`   - Unavailable (404) removed: ${unavailableRemoved}`);
       console.log(`   - Fresh products added: ${replaced}`);
       console.log(`   - Total repaired: ${totalRepaired}`);
 
@@ -278,6 +353,7 @@ export const linkHealthMonitor = {
         totalChecked: allLinks.length + duplicatesRemoved,
         duplicatesRemoved,
         invalidRemoved,
+        unavailableRemoved,
         replaced,
         repaired: totalRepaired,
         removed: totalRepaired
@@ -289,6 +365,7 @@ export const linkHealthMonitor = {
         totalChecked: 0, 
         duplicatesRemoved: 0,
         invalidRemoved: 0,
+        unavailableRemoved: 0,
         replaced: 0,
         repaired: 0,
         removed: 0
@@ -316,11 +393,11 @@ export const linkHealthMonitor = {
         };
       }
 
-      // Validate each link
+      // Validate each link format
       let invalidCount = 0;
       for (const link of links) {
-        const validation = await this.validateProduct(link.original_url || "");
-        if (!validation.valid) invalidCount++;
+        const isValid = this.validateAmazonUrl(link.original_url || "");
+        if (!isValid) invalidCount++;
       }
 
       const healthScore = links.length > 0 
