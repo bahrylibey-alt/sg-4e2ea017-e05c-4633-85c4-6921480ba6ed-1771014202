@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/lib/supabase";
 
 export function ProductGallery() {
   const { toast } = useToast();
@@ -155,10 +154,7 @@ export function ProductGallery() {
         description: `Copied to clipboard: ${fullLink}`,
       });
 
-      setCreatedLinks((prev) => ({
-        ...prev,
-        [product.id]: fullLink,
-      }));
+      
     } catch (error) {
       console.error("Error generating link:", error);
       toast({

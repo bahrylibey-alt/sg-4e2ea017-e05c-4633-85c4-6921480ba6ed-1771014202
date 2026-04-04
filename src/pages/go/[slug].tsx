@@ -12,7 +12,7 @@ export default function RedirectPage() {
     }}>
       <div style={{ textAlign: "center" }}>
         <h1 style={{ fontSize: "24px", marginBottom: "16px" }}>Redirecting...</h1>
-        <p style={{ color: "#666" }}>Please wait while we redirect you to the product.</p>
+        <p style={{ color: "#666" }}>Taking you to the product page on Amazon.</p>
       </div>
     </div>
   );
@@ -22,51 +22,34 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const { slug } = context.query;
 
   if (!slug || typeof slug !== "string") {
-    console.error("No slug provided");
     return { notFound: true };
   }
 
   try {
-    // Get link from database
+    // 1. Get the affiliate link from the database
     const { data: link, error } = await supabase
       .from("affiliate_links")
-      .select("id, original_url, product_name, network, clicks, status")
+      .select("id, original_url, product_name, network, clicks, status, user_id")
       .eq("slug", slug)
       .eq("status", "active")
       .maybeSingle();
 
-    if (error) {
-      console.error("Database error:", error);
+    if (error || !link || !link.original_url) {
+      console.error("Link fetch error or not found:", error || "No URL");
       return { notFound: true };
     }
 
-    if (!link) {
-      console.error("Link not found for slug:", slug);
-      return { notFound: true };
-    }
-
-    if (!link.original_url) {
-      console.error("No original_url for link:", link.id);
-      return { notFound: true };
-    }
-
-    // Update click count (fire and forget - don't wait)
-    supabase
+    // 2. Track the click metric (await to guarantee execution)
+    await supabase
       .from("affiliate_links")
       .update({ 
         clicks: (link.clicks || 0) + 1,
         updated_at: new Date().toISOString()
       })
-      .eq("id", link.id)
-      .then(() => {
-        console.log("Click tracked for:", link.product_name);
-      })
-      .catch((err) => {
-        console.error("Failed to track click:", err);
-      });
+      .eq("id", link.id);
 
-    // Log activity (fire and forget)
-    supabase
+    // 3. Log activity metric
+    await supabase
       .from("activity_logs")
       .insert({
         user_id: link.user_id || "00000000-0000-0000-0000-000000000000",
@@ -79,25 +62,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
           network: link.network,
           destination: link.original_url
         }
-      })
-      .then(() => {
-        console.log("Activity logged for:", link.product_name);
-      })
-      .catch((err) => {
-        console.error("Failed to log activity:", err);
       });
 
-    console.log("Redirecting to:", link.original_url);
-
-    // Redirect to the actual product URL
+    // 4. Redirect seamlessly to actual Amazon product URL
     return {
       redirect: {
         destination: link.original_url,
-        permanent: false,
+        permanent: false, // 302 redirect
       },
     };
   } catch (err) {
-    console.error("Unexpected error in redirect:", err);
+    console.error("Unexpected error in redirect server-side:", err);
     return { notFound: true };
   }
 };
