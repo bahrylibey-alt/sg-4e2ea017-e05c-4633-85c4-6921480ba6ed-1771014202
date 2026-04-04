@@ -75,13 +75,13 @@ export function AutopilotDashboard() {
         active: true,
         revenue: (estimatedReach * 0.05 * 50) || 0,
         conversions: (estimatedReach * 0.05) || 0,
-        roi: optimizationResult.result?.improvements?.find(i => i.metric === "ROI")?.after || 0,
+        roi: optimizationResult.revenueIncrease || 0,
         traffic: estimatedReach || 0,
-        optimization: optimizationResult.result?.optimizationsApplied || 0
+        optimization: optimizationResult.optimizations || 0
       });
 
-      if (optimizationResult.result?.recommendations) {
-        setRecommendations(optimizationResult.result.recommendations.slice(0, 5));
+      if (optimizationResult.recommendations) {
+        setRecommendations(optimizationResult.recommendations.slice(0, 5));
       }
     } catch (err) {
       console.error("Failed to load autopilot status:", err);
