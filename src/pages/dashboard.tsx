@@ -32,6 +32,7 @@ import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashbo
 import { OneClickAutopilot } from "@/components/OneClickAutopilot";
 import { ProductGallery } from "@/components/ProductGallery";
 import { IntegrationsDashboard } from "@/components/IntegrationsDashboard";
+import { UltimateAutopilotControl } from "@/components/UltimateAutopilotControl";
 
 interface Campaign {
   id: string;
@@ -474,6 +475,11 @@ export default function Dashboard() {
                 </Button>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Ultimate Autopilot Section - TOP PRIORITY */}
+          <div className="mb-8">
+            <UltimateAutopilotControl />
           </div>
 
           {/* One-Click Autopilot */}
