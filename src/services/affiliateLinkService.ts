@@ -1,718 +1,381 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { authService } from "./authService";
-import { activityLogger } from "./activityLogger";
 
 type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 type AffiliateLinkInsert = Database["public"]["Tables"]["affiliate_links"]["Insert"];
 
-export interface LinkAnalytics {
+export interface LinkPerformance {
   linkId: string;
+  productName: string;
   clicks: number;
   conversions: number;
   revenue: number;
   conversionRate: number;
-  avgOrderValue: number;
-  topCountries: Array<{ country: string; clicks: number }>;
-  topDevices: Array<{ device: string; clicks: number }>;
-  hourlyData: Array<{ hour: string; clicks: number }>;
+  status: string;
 }
 
 export const affiliateLinkService = {
-  generateShortCode(): string {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let code = "";
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-  },
-
-  generateUniqueSlug(productName: string): string {
-    const shortCode = this.generateShortCode();
-    return `${productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)}-${shortCode}`;
-  },
-
-  async createAffiliateLink(params: {
-    productId?: string;
-    productName: string;
-    destinationUrl: string;
+  /**
+   * Create new affiliate link
+   */
+  async createLink(linkData: {
+    originalUrl: string;
+    productName?: string;
     network?: string;
+    campaignId?: string;
     commissionRate?: number;
-    customSlug?: string;
-  }): Promise<{
-    success: boolean;
-    link?: AffiliateLink;
-    shortUrl?: string;
-    error?: string;
-  }> {
-    console.log("🔗 Creating affiliate link:", params.productName);
-    console.log("🎯 Destination URL:", params.destinationUrl);
-
+  }): Promise<{ success: boolean; link: AffiliateLink | null; error: string | null }> {
     try {
-      if (!params.destinationUrl || params.destinationUrl.trim() === "") {
-        console.error("❌ Empty destination URL");
-        return {
-          success: false,
-          error: "Destination URL is required"
-        };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { success: false, link: null, error: "Not authenticated" };
       }
 
-      try {
-        const urlTest = new URL(params.destinationUrl);
-        console.log("✅ Valid URL format:", urlTest.hostname);
-        
-        const invalidPatterns = [
-          "example.com",
-          "placeholder",
-          "test.com",
-          "localhost",
-          "0.0.0.0",
-          "salemakseb.com",
-          "/member/404",
-          "/404",
-          "127.0.0.1"
-        ];
-        
-        const isInvalid = invalidPatterns.some(pattern => 
-          params.destinationUrl.toLowerCase().includes(pattern)
-        );
-        
-        if (isInvalid) {
-          console.error("❌ Invalid placeholder URL detected:", params.destinationUrl);
-          return {
-            success: false,
-            error: "Please provide a real product URL, not a placeholder or 404 page"
-          };
-        }
+      const slug = this.generateSlug();
+      const cloakedUrl = `${window.location.origin}/go/${slug}`;
 
-        const hostname = urlTest.hostname.toLowerCase();
-        if (!hostname.includes(".") || hostname.split(".").length < 2) {
-          console.error("❌ Invalid domain format:", hostname);
-          return {
-            success: false,
-            error: "Invalid domain format - must be a valid website URL"
-          };
-        }
-
-        if (hostname.startsWith("192.168.") || hostname.startsWith("10.") || hostname.startsWith("172.")) {
-          console.error("❌ Private IP address detected:", hostname);
-          return {
-            success: false,
-            error: "Cannot use private/local IP addresses"
-          };
-        }
-
-      } catch (urlError) {
-        console.error("❌ Invalid URL format:", params.destinationUrl);
-        return {
-          success: false,
-          error: "Invalid URL format - must be a complete URL including https://"
-        };
-      }
-
-      const session = await authService.getCurrentSession();
-      if (!session?.user?.id) {
-        console.error("❌ No authenticated user");
-        return { 
-          success: false, 
-          error: "Authentication required to create affiliate links" 
-        };
-      }
-
-      console.log("✅ User authenticated:", session.user.id);
-
-      const shortCode = this.generateShortCode();
-      const baseSlug = params.productName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .substring(0, 30);
-      const slug = params.customSlug || `${baseSlug}-${shortCode}`;
-      
-      console.log("✅ Generated slug:", slug);
-      console.log("✅ Generated short code:", shortCode);
-
-      let validatedProductId: string | null = null;
-      if (params.productId) {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(params.productId)) {
-          validatedProductId = params.productId;
-          console.log("✅ Valid UUID product_id:", validatedProductId);
-        } else {
-          console.warn("⚠️ Invalid product_id format (not UUID), setting to null:", params.productId);
-          validatedProductId = null;
-        }
-      } else {
-        console.log("✅ No product_id provided, using null (catalog product)");
-        validatedProductId = null;
-      }
-
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://salemakseb.com';
-      const cloakedUrl = `${baseUrl}/go/${slug}`;
-
-      console.log("✅ Cloaked URL:", cloakedUrl);
-      console.log("🎯 Will redirect to:", params.destinationUrl);
-      console.log("📊 Product:", params.productName);
-      console.log("💰 Commission Rate:", params.commissionRate);
-
-      const insertData: AffiliateLinkInsert = {
-        user_id: session.user.id,
-        product_id: validatedProductId,
-        product_name: params.productName,
-        original_url: params.destinationUrl,
+      const insert: AffiliateLinkInsert = {
+        user_id: user.id,
+        original_url: linkData.originalUrl,
         cloaked_url: cloakedUrl,
         slug: slug,
-        short_code: shortCode,
-        network: params.network || "Direct",
-        commission_rate: params.commissionRate || 0,
+        product_name: linkData.productName,
+        network: linkData.network,
+        campaign_id: linkData.campaignId,
+        commission_rate: linkData.commissionRate || 15,
+        status: "active",
         clicks: 0,
-        click_count: 0,
         conversions: 0,
-        conversion_count: 0,
         revenue: 0,
+        click_count: 0,
+        conversion_count: 0,
         commission_earned: 0,
-        status: "active"
+        is_working: true,
+        check_failures: 0
       };
-
-      console.log("📝 Inserting link to database...");
 
       const { data, error } = await supabase
         .from("affiliate_links")
-        .insert(insertData)
+        .insert(insert)
         .select()
         .single();
 
       if (error) {
-        console.error("❌ Failed to create affiliate link:", error);
-        await activityLogger.log("link_create", "error", `Failed to create link: ${error.message}`, { productName: params.productName });
-        return { 
-          success: false, 
-          error: error.message 
-        };
+        console.error("❌ Create link error:", error);
+        return { success: false, link: null, error: error.message };
       }
 
-      console.log("✅ Affiliate link created successfully!");
-      console.log("   ID:", data.id);
-      console.log("   Slug:", data.slug);
-      console.log("   Short URL:", cloakedUrl);
-      console.log("   Original URL (saved):", data.original_url);
-      console.log("   Status:", data.status);
-
-      await activityLogger.log(
-        "link_created",
-        "success",
-        `Created affiliate link for ${params.productName}`,
-        { linkId: data.id, slug: data.slug, productName: params.productName, shortUrl: cloakedUrl }
-      );
-
-      return { 
-        success: true, 
-        link: data,
-        shortUrl: cloakedUrl
-      };
-    } catch (error: any) {
-      console.error("💥 Exception creating affiliate link:", error);
-      await activityLogger.log("link_create", "error", `Exception: ${error.message}`, { error });
-      return { 
-        success: false, 
-        error: error.message || "Failed to create affiliate link" 
-      };
-    }
-  },
-
-  async createLink(data: {
-    original_url: string;
-    product_name?: string;
-    product_id?: string;
-    network?: string;
-    commission_rate?: number;
-  }): Promise<{ link: AffiliateLink | null; error: string | null }> {
-    const result = await this.createAffiliateLink({
-      productId: data.product_id,
-      productName: data.product_name || this.extractProductName(data.original_url),
-      destinationUrl: data.original_url,
-      network: data.network,
-      commissionRate: data.commission_rate
-    });
-
-    if (result.success && result.link) {
-      return { link: result.link, error: null };
-    } else {
-      return { link: null, error: result.error || "Failed to create link" };
-    }
-  },
-
-  async createBatchLinks(urls: Array<{
-    original_url: string;
-    product_name?: string;
-    product_id?: string;
-    network?: string;
-    commission_rate?: number;
-  }>): Promise<{ 
-    links: AffiliateLink[]; 
-    errors: string[]; 
-    successCount: number;
-  }> {
-    console.log(`📦 Creating ${urls.length} affiliate links in batch...`);
-    
-    const links: AffiliateLink[] = [];
-    const errors: string[] = [];
-    let successCount = 0;
-
-    for (const urlData of urls) {
-      const result = await this.createAffiliateLink({
-        productId: urlData.product_id,
-        productName: urlData.product_name || this.extractProductName(urlData.original_url),
-        destinationUrl: urlData.original_url,
-        network: urlData.network,
-        commissionRate: urlData.commission_rate
-      });
-
-      if (result.success && result.link) {
-        links.push(result.link);
-        successCount++;
-      } else {
-        errors.push(result.error || "Unknown error");
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    console.log(`✅ Batch complete: ${successCount} successful, ${errors.length} failed`);
-    await activityLogger.log("batch_links_created", "success", `Created ${successCount} links in batch`, { total: urls.length, successCount, failedCount: errors.length });
-    
-    return { links, errors, successCount };
-  },
-
-  async getUserLinks() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.warn("No authenticated user - returning empty links");
-        return { links: [], error: null };
-      }
-
-      console.log("📊 Fetching affiliate links for user:", user.id);
-
-      const { data, error } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("❌ Error fetching user links:", error);
-        return { links: [], error: error.message };
-      }
-
-      console.log(`✅ Found ${data?.length || 0} affiliate links`);
-      return { links: data || [], error: null };
-    } catch (err: any) {
-      console.error("💥 Exception in getUserLinks:", err);
-      return { links: [], error: err.message || "Failed to fetch user links" };
-    }
-  },
-
-  async trackClick(slug: string, metadata?: {
-    ip_address?: string;
-    user_agent?: string;
-    referrer?: string;
-    country?: string;
-    device_type?: string;
-  }): Promise<{ success: boolean; redirect_url: string | null; linkId: string | null }> {
-    console.log("🖱️ Tracking click for slug:", slug);
-    
-    try {
-      console.log("🔍 Looking up link in database...");
-      const { data: link, error: linkError } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("slug", slug)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (linkError) {
-        console.error("❌ Database error looking up link:", linkError);
-        return { success: false, redirect_url: null, linkId: null };
-      }
-
-      if (!link) {
-        console.error("❌ Link not found for slug:", slug);
-        console.log("🔍 Trying to find ANY link with similar slug...");
-        
-        const { data: anyLinks } = await supabase
-          .from("affiliate_links")
-          .select("slug, status")
-          .eq("status", "active")
-          .limit(5);
-        
-        console.log("📋 Active links in database:", anyLinks?.map(l => l.slug));
-        return { success: false, redirect_url: null, linkId: null };
-      }
-
-      console.log("✅ Link found!");
-      console.log("   ID:", link.id);
-      console.log("   Product:", link.product_name);
-      console.log("   Destination:", link.original_url);
-      console.log("   Current clicks:", link.clicks);
-
-      if (!link.original_url || link.original_url.trim() === "") {
-        console.error("❌ Link has no destination URL");
-        return { success: false, redirect_url: null, linkId: link.id };
-      }
-
-      try {
-        const urlTest = new URL(link.original_url);
-        console.log("✅ Valid URL format:", urlTest.hostname);
-        
-        const invalidPatterns = [
-          "example.com",
-          "placeholder",
-          "test.com",
-          "localhost",
-          "salemakseb.com"
-        ];
-        
-        const isInvalid = invalidPatterns.some(pattern => 
-          link.original_url.toLowerCase().includes(pattern)
-        );
-        
-        if (isInvalid) {
-          console.error("❌ Invalid URL pattern detected:", link.original_url);
-          return { success: false, redirect_url: null, linkId: link.id };
-        }
-      } catch (urlError) {
-        console.error("❌ Invalid URL format:", link.original_url);
-        return { success: false, redirect_url: null, linkId: link.id };
-      }
-
-      console.log("📝 Recording click event...");
-      const { error: clickError } = await supabase
-        .from("click_events")
-        .insert({
-          link_id: link.id,
-          user_id: link.user_id,
-          ip_address: metadata?.ip_address || null,
-          user_agent: metadata?.user_agent || null,
-          referrer: metadata?.referrer || null,
-          country: metadata?.country || null,
-          device_type: metadata?.device_type || this.detectDeviceType(metadata?.user_agent)
-        });
-
-      if (clickError) {
-        console.warn("⚠️ Failed to record click event:", clickError);
-      } else {
-        console.log("✅ Click event recorded");
-        await activityLogger.log(
-          "click_tracked",
-          "success",
-          `Click on ${link.product_name} from ${metadata?.referrer || 'direct'}`,
-          { linkId: link.id, slug, referrer: metadata?.referrer }
-        );
-      }
-
-      console.log("📊 Updating click counter...");
-      const newClickCount = (link.clicks || 0) + 1;
-      const { error: updateError } = await supabase
-        .from("affiliate_links")
-        .update({ 
-          clicks: newClickCount,
-          click_count: newClickCount
-        })
-        .eq("id", link.id);
-
-      if (updateError) {
-        console.warn("⚠️ Failed to update click counter:", updateError);
-      } else {
-        console.log(`✅ Click counter updated: ${link.clicks} → ${newClickCount}`);
-      }
-
-      console.log("🎯 Redirecting to:", link.original_url);
-      return { 
-        success: true, 
-        redirect_url: link.original_url, 
-        linkId: link.id 
-      };
-    } catch (err: any) {
-      console.error("💥 Unexpected error tracking click:", err);
-      console.error("💥 Stack trace:", err.stack);
-      return { success: false, redirect_url: null, linkId: null };
-    }
-  },
-
-  async trackConversion(linkId: string, revenue: number): Promise<{ success: boolean; error: string | null }> {
-    try {
-      const { data: link } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("id", linkId)
-        .single();
-
-      if (!link) {
-        return { success: false, error: "Link not found" };
-      }
-
-      await supabase
-        .from("affiliate_links")
-        .update({
-          conversion_count: (link.conversion_count || 0) + 1,
-          conversions: (link.conversions || 0) + 1,
-          commission_earned: (link.commission_earned || 0) + revenue,
-          revenue: (link.revenue || 0) + revenue
-        })
-        .eq("id", linkId);
-
-      const { data: recentClick } = await supabase
-        .from("click_events")
-        .select("*")
-        .eq("link_id", linkId)
-        .order("clicked_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (recentClick) {
-        await supabase
-          .from("click_events")
-          .update({ converted: true })
-          .eq("id", recentClick.id);
-      }
-
-      await activityLogger.log(
-        "conversion_tracked",
-        "success",
-        `Conversion: $${revenue.toFixed(2)} on ${link.product_name}`,
-        { linkId, revenue, productName: link.product_name }
-      );
-
-      return { success: true, error: null };
-    } catch (err: any) {
-      return { success: false, error: err.message || "Failed to track conversion" };
-    }
-  },
-
-  async getLinkAnalytics(linkId: string): Promise<LinkAnalytics | null> {
-    try {
-      const { data: link } = await supabase
-        .from("affiliate_links")
-        .select("*")
-        .eq("id", linkId)
-        .single();
-
-      if (!link) return null;
-
-      const { data: clicks } = await supabase
-        .from("click_events")
-        .select("*")
-        .eq("link_id", linkId)
-        .order("clicked_at", { ascending: false });
-
-      const clicksArray = clicks || [];
-      const conversionRate = link.clicks > 0 
-        ? ((link.conversion_count || 0) / link.clicks) * 100 
-        : 0;
-      const avgOrderValue = (link.conversion_count || 0) > 0 
-        ? (link.commission_earned || 0) / (link.conversion_count || 0) 
-        : 0;
-
-      const countryMap = new Map<string, number>();
-      clicksArray.forEach(click => {
-        if (click.country) {
-          countryMap.set(click.country, (countryMap.get(click.country) || 0) + 1);
-        }
-      });
-      const topCountries = Array.from(countryMap.entries())
-        .map(([country, clicks]) => ({ country, clicks }))
-        .sort((a, b) => b.clicks - a.clicks)
-        .slice(0, 5);
-
-      const deviceMap = new Map<string, number>();
-      clicksArray.forEach(click => {
-        if (click.device_type) {
-          deviceMap.set(click.device_type, (deviceMap.get(click.device_type) || 0) + 1);
-        }
-      });
-      const topDevices = Array.from(deviceMap.entries())
-        .map(([device, clicks]) => ({ device, clicks }))
-        .sort((a, b) => b.clicks - a.clicks);
-
-      const hourlyMap = new Map<string, number>();
-      const now = new Date();
-      for (let i = 23; i >= 0; i--) {
-        const hour = new Date(now.getTime() - i * 60 * 60 * 1000);
-        hourlyMap.set(hour.toISOString().slice(0, 13), 0);
-      }
-      clicksArray.forEach(click => {
-        const hour = new Date(click.clicked_at).toISOString().slice(0, 13);
-        if (hourlyMap.has(hour)) {
-          hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
-        }
-      });
-      const hourlyData = Array.from(hourlyMap.entries())
-        .map(([hour, clicks]) => ({
-          hour: new Date(hour).toLocaleTimeString("en-US", { hour: "2-digit" }),
-          clicks
-        }));
-
-      return {
-        linkId: link.id,
-        clicks: link.clicks || 0,
-        conversions: link.conversion_count || 0,
-        revenue: link.commission_earned || 0,
-        conversionRate,
-        avgOrderValue,
-        topCountries,
-        topDevices,
-        hourlyData
-      };
+      return { success: true, link: data, error: null };
     } catch (err) {
-      console.error("Analytics error:", err);
-      return null;
+      console.error("💥 Create link failed:", err);
+      return { success: false, link: null, error: "Failed to create link" };
     }
   },
 
-  async toggleLinkStatus(linkId: string, status: "active" | "paused" | "archived"): Promise<{ success: boolean; error: string | null }> {
-    try {
-      const { error } = await supabase
-        .from("affiliate_links")
-        .update({ status })
-        .eq("id", linkId);
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      await activityLogger.log("link_status_updated", "success", `Link status changed to: ${status}`, { linkId, status });
-      return { success: true, error: null };
-    } catch (err: any) {
-      return { success: false, error: err.message || "Failed to update link" };
-    }
-  },
-
-  async bulkUpdateStatus(linkIds: string[], status: "active" | "paused" | "archived"): Promise<{
-    success: boolean;
-    updated: number;
-    error: string | null;
-  }> {
-    try {
-      const { error, count } = await supabase
-        .from("affiliate_links")
-        .update({ status })
-        .in("id", linkIds);
-
-      if (error) {
-        return { success: false, updated: 0, error: error.message };
-      }
-
-      await activityLogger.log("links_bulk_updated", "success", `Updated ${count} links to ${status}`, { linkIds, status, count });
-      return { success: true, updated: count || 0, error: null };
-    } catch (err: any) {
-      return { success: false, updated: 0, error: err.message || "Bulk update failed" };
-    }
-  },
-
-  async deleteLink(linkId: string): Promise<{ success: boolean; error: string | null }> {
-    try {
-      const { error } = await supabase
-        .from("affiliate_links")
-        .delete()
-        .eq("id", linkId);
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      await activityLogger.log("link_deleted", "success", `Deleted affiliate link`, { linkId });
-      return { success: true, error: null };
-    } catch (err: any) {
-      return { success: false, error: err.message || "Failed to delete link" };
-    }
-  },
-
-  async bulkDeleteLinks(linkIds: string[]): Promise<{
-    success: boolean;
-    deleted: number;
-    error: string | null;
-  }> {
-    try {
-      const { error, count } = await supabase
-        .from("affiliate_links")
-        .delete()
-        .in("id", linkIds);
-
-      if (error) {
-        return { success: false, deleted: 0, error: error.message };
-      }
-
-      await activityLogger.log("links_bulk_deleted", "success", `Deleted ${count} links`, { linkIds, count });
-      return { success: true, deleted: count || 0, error: null };
-    } catch (err: any) {
-      return { success: false, deleted: 0, error: err.message || "Bulk delete failed" };
-    }
-  },
-
-  extractProductName(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split("/").filter(Boolean);
-      const lastPart = pathParts[pathParts.length - 1] || "Product";
-      return lastPart
-        .replace(/-/g, " ")
-        .replace(/_/g, " ")
-        .split(" ")
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ")
-        .slice(0, 50);
-    } catch {
-      return "Product";
-    }
-  },
-
-  detectDeviceType(userAgent?: string): string {
-    if (!userAgent) return "unknown";
-    
-    const ua = userAgent.toLowerCase();
-    if (ua.includes("mobile") || ua.includes("android") || ua.includes("iphone")) {
-      return "mobile";
-    } else if (ua.includes("tablet") || ua.includes("ipad")) {
-      return "tablet";
-    } else {
-      return "desktop";
-    }
-  },
-
-  getCloakedUrl(slug: string): string {
-    if (typeof window !== "undefined") {
-      return `${window.location.origin}/go/${slug}`;
-    }
-    return `https://salemakseb.com/go/${slug}`;
-  },
-
-  async getTopPerformingLinks(limit: number = 10): Promise<{
+  /**
+   * Get all links for user
+   */
+  async getUserLinks(userId?: string): Promise<{
     links: AffiliateLink[];
     error: string | null;
   }> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { links: [], error: "User not authenticated" };
-      }
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("affiliate_links")
         .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .order("commission_earned", { ascending: false })
-        .limit(limit);
+        .order("created_at", { ascending: false });
+
+      if (userId) {
+        query = query.eq("user_id", userId);
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          query = query.eq("user_id", user.id);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         return { links: [], error: error.message };
       }
 
       return { links: data || [], error: null };
-    } catch (err: any) {
-      return { links: [], error: err.message || "Failed to fetch top links" };
+    } catch (err) {
+      return { links: [], error: "Failed to fetch links" };
+    }
+  },
+
+  /**
+   * Get links for campaign
+   */
+  async getCampaignLinks(campaignId: string): Promise<{
+    links: AffiliateLink[];
+    error: string | null;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("clicks", { ascending: false });
+
+      if (error) {
+        return { links: [], error: error.message };
+      }
+
+      return { links: data || [], error: null };
+    } catch (err) {
+      return { links: [], error: "Failed to fetch campaign links" };
+    }
+  },
+
+  /**
+   * Track link click
+   */
+  async trackClick(slug: string): Promise<{
+    success: boolean;
+    redirectUrl: string | null;
+    error: string | null;
+  }> {
+    try {
+      const { data: link, error: fetchError } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("slug", slug)
+        .single();
+
+      if (fetchError || !link) {
+        return { success: false, redirectUrl: null, error: "Link not found" };
+      }
+
+      const { error: updateError } = await supabase
+        .from("affiliate_links")
+        .update({
+          clicks: (link.clicks || 0) + 1,
+          click_count: (link.click_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", link.id);
+
+      if (updateError) {
+        console.error("❌ Click tracking error:", updateError);
+      }
+
+      return { 
+        success: true, 
+        redirectUrl: link.original_url, 
+        error: null 
+      };
+    } catch (err) {
+      console.error("💥 Track click failed:", err);
+      return { success: false, redirectUrl: null, error: "Tracking failed" };
+    }
+  },
+
+  /**
+   * Track conversion
+   */
+  async trackConversion(linkId: string, amount: number): Promise<{
+    success: boolean;
+    error: string | null;
+  }> {
+    try {
+      const { data: link, error: fetchError } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("id", linkId)
+        .single();
+
+      if (fetchError || !link) {
+        return { success: false, error: "Link not found" };
+      }
+
+      const commissionRate = link.commission_rate || 15;
+      const commission = amount * (commissionRate / 100);
+
+      const { error: updateError } = await supabase
+        .from("affiliate_links")
+        .update({
+          conversions: (link.conversions || 0) + 1,
+          conversion_count: (link.conversion_count || 0) + 1,
+          revenue: (link.revenue || 0) + amount,
+          commission_earned: (link.commission_earned || 0) + commission,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", linkId);
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+
+      await supabase
+        .from("commissions")
+        .insert({
+          user_id: link.user_id,
+          link_id: linkId,
+          amount: amount,
+          commission_rate: commissionRate,
+          commission_amount: commission,
+          status: "pending",
+          order_date: new Date().toISOString()
+        });
+
+      return { success: true, error: null };
+    } catch (err) {
+      return { success: false, error: "Conversion tracking failed" };
+    }
+  },
+
+  /**
+   * Get link performance
+   */
+  async getLinkPerformance(campaignId?: string): Promise<{
+    performance: LinkPerformance[];
+    error: string | null;
+  }> {
+    try {
+      let query = supabase
+        .from("affiliate_links")
+        .select("*");
+
+      if (campaignId) {
+        query = query.eq("campaign_id", campaignId);
+      }
+
+      const { data: links, error } = await query.order("clicks", { ascending: false });
+
+      if (error) {
+        return { performance: [], error: error.message };
+      }
+
+      const performance: LinkPerformance[] = (links || []).map(link => ({
+        linkId: link.id,
+        productName: link.product_name || "Unknown",
+        clicks: link.clicks || 0,
+        conversions: link.conversions || 0,
+        revenue: Number(link.revenue || 0),
+        conversionRate: link.clicks > 0 
+          ? ((link.conversions || 0) / link.clicks) * 100 
+          : 0,
+        status: link.status || "active"
+      }));
+
+      return { performance, error: null };
+    } catch (err) {
+      return { performance: [], error: "Failed to get performance data" };
+    }
+  },
+
+  /**
+   * Update link status
+   */
+  async updateLinkStatus(linkId: string, status: "active" | "paused" | "archived"): Promise<{
+    success: boolean;
+    error: string | null;
+  }> {
+    try {
+      const { error } = await supabase
+        .from("affiliate_links")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", linkId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      return { success: false, error: "Status update failed" };
+    }
+  },
+
+  /**
+   * Delete link
+   */
+  async deleteLink(linkId: string): Promise<{
+    success: boolean;
+    error: string | null;
+  }> {
+    try {
+      const { error } = await supabase
+        .from("affiliate_links")
+        .delete()
+        .eq("id", linkId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      return { success: false, error: "Delete failed" };
+    }
+  },
+
+  /**
+   * Generate random slug
+   */
+  generateSlug(length: number = 6): string {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  },
+
+  /**
+   * Bulk import links
+   */
+  async bulkImportLinks(links: Array<{
+    originalUrl: string;
+    productName?: string;
+    network?: string;
+    campaignId?: string;
+  }>): Promise<{
+    success: boolean;
+    created: number;
+    failed: number;
+    error: string | null;
+  }> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return { success: false, created: 0, failed: 0, error: "Not authenticated" };
+      }
+
+      const inserts: AffiliateLinkInsert[] = links.map(link => ({
+        user_id: user.id,
+        original_url: link.originalUrl,
+        cloaked_url: `${window.location.origin}/go/${this.generateSlug()}`,
+        slug: this.generateSlug(),
+        product_name: link.productName,
+        network: link.network,
+        campaign_id: link.campaignId,
+        status: "active",
+        clicks: 0,
+        conversions: 0,
+        revenue: 0
+      }));
+
+      const { data, error } = await supabase
+        .from("affiliate_links")
+        .insert(inserts)
+        .select();
+
+      if (error) {
+        return { success: false, created: 0, failed: links.length, error: error.message };
+      }
+
+      return { 
+        success: true, 
+        created: data?.length || 0, 
+        failed: links.length - (data?.length || 0),
+        error: null 
+      };
+    } catch (err) {
+      return { success: false, created: 0, failed: links.length, error: "Bulk import failed" };
     }
   }
 };
