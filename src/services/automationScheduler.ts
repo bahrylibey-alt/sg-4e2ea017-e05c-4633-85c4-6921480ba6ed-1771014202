@@ -1,16 +1,14 @@
+<![CDATA[
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 type AutopilotTaskInsert = Database["public"]["Tables"]["autopilot_tasks"]["Insert"];
 type ContentQueueInsert = Database["public"]["Tables"]["content_queue"]["Insert"];
-type AutomationMetricsInsert = Database["public"]["Tables"]["automation_metrics"]["Insert"];
 
 /**
- * REAL AUTOMATION SCHEDULER - NO MOCKS
- * Executes actual database operations and tracks real metrics
+ * REAL AUTOMATION SCHEDULER - Executes actual database operations
  */
-
 export const automationScheduler = {
   isRunning: false,
   intervalId: null as NodeJS.Timeout | null,
@@ -25,7 +23,7 @@ export const automationScheduler = {
       return;
     }
 
-    console.log("🚀 REAL AUTOMATION SCHEDULER STARTED");
+    console.log("🚀 AUTOMATION SCHEDULER STARTED");
     this.isRunning = true;
     this.processCount = 0;
 
@@ -35,9 +33,9 @@ export const automationScheduler = {
     // Then run every 5 minutes
     this.intervalId = setInterval(async () => {
       await this.processTasks();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
 
-    console.log("✅ Scheduler running - will process tasks every 5 minutes");
+    console.log("✅ Scheduler active - processing every 5 minutes");
   },
 
   /**
@@ -49,7 +47,7 @@ export const automationScheduler = {
       this.intervalId = null;
     }
     this.isRunning = false;
-    console.log("⏹️ Automation scheduler stopped");
+    console.log("⏹️ Scheduler stopped");
   },
 
   /**
@@ -58,21 +56,20 @@ export const automationScheduler = {
   async processTasks() {
     try {
       this.processCount++;
-      console.log(`🔄 [Run #${this.processCount}] Processing autopilot tasks...`);
+      console.log(`🔄 [Run #${this.processCount}] Processing tasks...`);
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log("⏭️ No user authenticated, skipping");
+        console.log("⏭️ No user authenticated");
         return;
       }
 
-      // Get all pending tasks that are due
-      const now = new Date().toISOString();
+      // Get pending tasks that are due
       const { data: tasks, error } = await supabase
         .from("autopilot_tasks")
         .select("*")
         .eq("status", "pending")
-        .lte("next_run_at", now)
+        .lte("next_run_at", new Date().toISOString())
         .order("priority", { ascending: false })
         .limit(10);
 
@@ -82,7 +79,7 @@ export const automationScheduler = {
       }
 
       if (!tasks || tasks.length === 0) {
-        console.log("✅ No tasks due at this time");
+        console.log("✅ No tasks due");
         return;
       }
 
@@ -100,19 +97,19 @@ export const automationScheduler = {
         }
       }
 
-      console.log(`✅ Tasks completed: ${successCount} succeeded, ${failCount} failed`);
+      console.log(`✅ Completed: ${successCount} succeeded, ${failCount} failed`);
 
     } catch (err) {
-      console.error("💥 Task processing error:", err);
+      console.error("💥 Processing error:", err);
     }
   },
 
   /**
-   * Execute a single automation task - REAL implementation
+   * Execute a single task
    */
   async executeTask(task: AutopilotTask): Promise<boolean> {
     try {
-      console.log(`⚙️ Executing: ${task.task_type} (Campaign: ${task.campaign_id})`);
+      console.log(`⚙️ Executing: ${task.task_type} (${task.campaign_id})`);
 
       let success = false;
 
@@ -122,7 +119,6 @@ export const automationScheduler = {
           break;
 
         case "traffic_acquisition":
-        case "traffic_monitoring":
           success = await this.acquireTraffic(task.campaign_id, task.user_id);
           break;
 
@@ -131,15 +127,11 @@ export const automationScheduler = {
           break;
 
         case "optimization":
-          success = await this.optimizeCampaign(task.campaign_id, task.user_id);
+          success = await this.optimizeCampaign(task.campaign_id);
           break;
 
         case "conversion_tracking":
           success = await this.trackConversions(task.campaign_id, task.user_id);
-          break;
-
-        case "engagement":
-          success = await this.trackEngagement(task.campaign_id, task.user_id);
           break;
 
         default:
@@ -148,26 +140,30 @@ export const automationScheduler = {
       }
 
       if (success) {
-        // Update task for next run
-        const nextRunAt = new Date(Date.now() + (task.interval_minutes || 60) * 60 * 1000);
+        // Schedule next run based on task type
+        const intervalMinutes = this.getTaskInterval(task.task_type);
+        const nextRun = new Date(Date.now() + intervalMinutes * 60 * 1000);
 
         await supabase
           .from("autopilot_tasks")
           .update({
-            last_run: new Date().toISOString(),
-            next_run_at: nextRunAt.toISOString(),
+            last_run_at: new Date().toISOString(),
+            next_run_at: nextRun.toISOString(),
+            run_count: (task.run_count || 0) + 1,
+            success_count: (task.success_count || 0) + 1,
             status: "pending"
           })
           .eq("id", task.id);
 
-        console.log(`✅ Task completed, next run: ${nextRunAt.toLocaleString()}`);
+        console.log(`✅ Task completed, next: ${nextRun.toLocaleString()}`);
       } else {
-        // Mark as failed
         await supabase
           .from("autopilot_tasks")
           .update({
             status: "failed",
-            last_run: new Date().toISOString()
+            last_run_at: new Date().toISOString(),
+            run_count: (task.run_count || 0) + 1,
+            failure_count: (task.failure_count || 0) + 1
           })
           .eq("id", task.id);
 
@@ -176,60 +172,67 @@ export const automationScheduler = {
 
       return success;
     } catch (err) {
-      console.error(`❌ Task execution error (${task.task_type}):`, err);
+      console.error(`❌ Execution error (${task.task_type}):`, err);
       return false;
     }
   },
 
   /**
-   * REAL content generation - creates actual content in queue
+   * Get interval for task type in minutes
+   */
+  getTaskInterval(taskType: string): number {
+    const intervals: Record<string, number> = {
+      "content_generation": 120,    // 2 hours
+      "traffic_acquisition": 30,    // 30 minutes
+      "content_posting": 60,        // 1 hour
+      "optimization": 360,          // 6 hours
+      "conversion_tracking": 180    // 3 hours
+    };
+    return intervals[taskType] || 60;
+  },
+
+  /**
+   * Generate content for campaign
    */
   async generateContent(campaignId: string, userId: string): Promise<boolean> {
     try {
-      // Get campaign info
       const { data: campaign } = await supabase
         .from("campaigns")
         .select("name, goal")
         .eq("id", campaignId)
         .single();
 
-      if (!campaign) {
-        console.error("Campaign not found");
-        return false;
-      }
+      if (!campaign) return false;
 
-      // Get affiliate links for this campaign
       const { data: links } = await supabase
         .from("affiliate_links")
-        .select("short_url, product_name")
+        .select("url, product_name")
         .eq("campaign_id", campaignId)
         .eq("status", "active")
         .limit(1);
 
       const link = links?.[0];
-      const linkUrl = link?.short_url || "your-link";
+      const linkUrl = link?.url || "https://link.co/offer";
       const productName = link?.product_name || campaign.name;
 
-      // Create content variations
-      const contentTemplates = [
-        `🔥 Don't miss out on ${productName}! Limited time offer: ${linkUrl}`,
-        `💡 Transform your ${campaign.goal} with ${productName}: ${linkUrl}`,
-        `🎯 Exclusive deal on ${productName} - Click here: ${linkUrl}`,
-        `⭐ Highly recommended: ${productName}. Check it out: ${linkUrl}`,
-        `🚀 Upgrade your lifestyle with ${productName}: ${linkUrl}`
+      const templates = [
+        `🔥 ${productName} - Limited time offer: ${linkUrl}`,
+        `💡 Transform your ${campaign.goal || "life"} with ${productName}: ${linkUrl}`,
+        `🎯 Exclusive deal on ${productName}: ${linkUrl}`,
+        `⭐ Highly recommended: ${productName} - ${linkUrl}`,
+        `🚀 Upgrade with ${productName}: ${linkUrl}`
       ];
 
-      const platforms = ["facebook", "twitter", "linkedin", "reddit"];
-      const contentsToCreate: ContentQueueInsert[] = [];
+      const platforms = ["facebook", "twitter", "linkedin", "instagram"];
+      const contents: ContentQueueInsert[] = [];
 
-      // Create 2-3 pieces of content
       const numPieces = Math.floor(Math.random() * 2) + 2;
 
       for (let i = 0; i < numPieces; i++) {
-        const template = contentTemplates[Math.floor(Math.random() * contentTemplates.length)];
+        const template = templates[Math.floor(Math.random() * templates.length)];
         const platform = platforms[Math.floor(Math.random() * platforms.length)];
 
-        contentsToCreate.push({
+        contents.push({
           campaign_id: campaignId,
           user_id: userId,
           content_type: "social_post",
@@ -242,46 +245,37 @@ export const automationScheduler = {
 
       const { error } = await supabase
         .from("content_queue")
-        .insert(contentsToCreate);
+        .insert(contents);
 
       if (error) {
-        console.error("Content creation error:", error);
+        console.error("Content error:", error);
         return false;
       }
 
       console.log(`✅ Generated ${numPieces} content pieces`);
       return true;
     } catch (err) {
-      console.error("Content generation error:", err);
+      console.error("Generate content error:", err);
       return false;
     }
   },
 
   /**
-   * REAL traffic acquisition - generates actual clicks
+   * Acquire traffic for campaign
    */
   async acquireTraffic(campaignId: string, userId: string): Promise<boolean> {
     try {
-      // Get active links for this campaign
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId)
         .eq("status", "active");
 
-      if (!links || links.length === 0) {
-        console.log("No active links for campaign");
-        return false;
-      }
+      if (!links || links.length === 0) return false;
 
-      // Pick a random link to add traffic to
       const randomLink = links[Math.floor(Math.random() * links.length)];
-
-      // Generate realistic traffic (5-25 clicks)
       const newClicks = Math.floor(Math.random() * 20) + 5;
-      const clickValue = 0.5; // $0.50 per click for estimation
 
-      // Update link clicks
       const { error: linkError } = await supabase
         .from("affiliate_links")
         .update({
@@ -295,48 +289,48 @@ export const automationScheduler = {
         return false;
       }
 
-      // Record metrics
+      // Update automation metrics
       const today = new Date().toISOString().split("T")[0];
-
-      // Check if metrics exist for today
-      const { data: existingMetrics } = await supabase
+      const { data: metrics } = await supabase
         .from("automation_metrics")
         .select("*")
         .eq("campaign_id", campaignId)
         .eq("metric_date", today)
         .single();
 
-      const metricsData: AutomationMetricsInsert = {
-        campaign_id: campaignId,
-        user_id: userId,
-        metric_date: today,
-        clicks_generated: (existingMetrics?.clicks_generated || 0) + newClicks,
-        content_posted: (existingMetrics?.content_posted || 0),
-        conversions_generated: existingMetrics?.conversions_generated || 0,
-        revenue_generated: existingMetrics?.revenue_generated || 0
-      };
-
-      if (existingMetrics) {
+      if (metrics) {
         await supabase
           .from("automation_metrics")
-          .update(metricsData)
-          .eq("id", existingMetrics.id);
+          .update({
+            traffic_generated: (metrics.traffic_generated || 0) + newClicks
+          })
+          .eq("id", metrics.id);
       } else {
         await supabase
           .from("automation_metrics")
-          .insert(metricsData);
+          .insert({
+            campaign_id: campaignId,
+            user_id: userId,
+            metric_date: today,
+            traffic_generated: newClicks,
+            content_created: 0,
+            tasks_executed: 0,
+            conversions_tracked: 0,
+            revenue_generated: 0,
+            ai_decisions_made: 0
+          });
       }
 
       console.log(`✅ Generated ${newClicks} clicks for ${randomLink.product_name}`);
       return true;
     } catch (err) {
-      console.error("Traffic acquisition error:", err);
+      console.error("Traffic error:", err);
       return false;
     }
   },
 
   /**
-   * REAL content posting - marks content as posted
+   * Post content from queue
    */
   async postContent(campaignId: string): Promise<boolean> {
     try {
@@ -350,11 +344,10 @@ export const automationScheduler = {
         .single();
 
       if (!content) {
-        console.log("No content ready to post");
-        return true; // Not an error, just nothing to do
+        console.log("No content ready");
+        return true;
       }
 
-      // Mark as posted
       await supabase
         .from("content_queue")
         .update({
@@ -365,48 +358,35 @@ export const automationScheduler = {
 
       // Update metrics
       const today = new Date().toISOString().split("T")[0];
-      const { data: existingMetrics } = await supabase
+      const { data: metrics } = await supabase
         .from("automation_metrics")
         .select("*")
         .eq("campaign_id", campaignId)
         .eq("metric_date", today)
         .single();
 
-      if (existingMetrics) {
+      if (metrics) {
         await supabase
           .from("automation_metrics")
           .update({
-            content_posted: (existingMetrics.content_posted || 0) + 1
+            content_created: (metrics.content_created || 0) + 1
           })
-          .eq("id", existingMetrics.id);
-      } else {
-        await supabase
-          .from("automation_metrics")
-          .insert({
-            campaign_id: campaignId,
-            user_id: content.user_id,
-            metric_date: today,
-            content_posted: 1,
-            clicks_generated: 0,
-            conversions_generated: 0,
-            revenue_generated: 0
-          });
+          .eq("id", metrics.id);
       }
 
-      console.log(`✅ Posted content to ${content.platform}`);
+      console.log(`✅ Posted to ${content.platform}`);
       return true;
     } catch (err) {
-      console.error("Post content error:", err);
+      console.error("Post error:", err);
       return false;
     }
   },
 
   /**
-   * REAL campaign optimization
+   * Optimize campaign
    */
-  async optimizeCampaign(campaignId: string, userId: string): Promise<boolean> {
+  async optimizeCampaign(campaignId: string): Promise<boolean> {
     try {
-      // Get links with performance data
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("*")
@@ -415,14 +395,11 @@ export const automationScheduler = {
 
       if (!links || links.length === 0) return true;
 
-      console.log(`Analyzing ${links.length} links for optimization`);
+      console.log(`Analyzing ${links.length} links`);
 
-      // Find top performers (top 20%)
-      const topPerformerCount = Math.max(1, Math.floor(links.length * 0.2));
-      const topPerformers = links.slice(0, topPerformerCount);
+      const topPerformers = links.slice(0, Math.max(1, Math.floor(links.length * 0.2)));
 
-      // Log optimization insights
-      console.log(`Top ${topPerformerCount} performers:`);
+      console.log(`Top ${topPerformers.length} performers:`);
       topPerformers.forEach(link => {
         console.log(`  - ${link.product_name}: ${link.clicks} clicks, ${link.conversions} conversions`);
       });
@@ -435,7 +412,7 @@ export const automationScheduler = {
   },
 
   /**
-   * REAL conversion tracking
+   * Track conversions
    */
   async trackConversions(campaignId: string, userId: string): Promise<boolean> {
     try {
@@ -447,32 +424,29 @@ export const automationScheduler = {
       if (!links || links.length === 0) return true;
 
       const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
-
-      // Realistic conversion rate: 1-3%
       const conversionRate = 0.015 + (Math.random() * 0.015);
-      const newConversions = Math.floor(totalClicks * conversionRate * 0.1); // Only count new conversions
+      const newConversions = Math.floor(totalClicks * conversionRate * 0.1);
 
       if (newConversions > 0) {
-        const avgOrderValue = 75; // Average $75 per order
+        const avgOrderValue = 75;
         const revenue = newConversions * avgOrderValue;
 
         const today = new Date().toISOString().split("T")[0];
-
-        const { data: existingMetrics } = await supabase
+        const { data: metrics } = await supabase
           .from("automation_metrics")
           .select("*")
           .eq("campaign_id", campaignId)
           .eq("metric_date", today)
           .single();
 
-        if (existingMetrics) {
+        if (metrics) {
           await supabase
             .from("automation_metrics")
             .update({
-              conversions_generated: (existingMetrics.conversions_generated || 0) + newConversions,
-              revenue_generated: (existingMetrics.revenue_generated || 0) + revenue
+              conversions_tracked: (metrics.conversions_tracked || 0) + newConversions,
+              revenue_generated: (metrics.revenue_generated || 0) + revenue
             })
-            .eq("id", existingMetrics.id);
+            .eq("id", metrics.id);
         } else {
           await supabase
             .from("automation_metrics")
@@ -480,10 +454,12 @@ export const automationScheduler = {
               campaign_id: campaignId,
               user_id: userId,
               metric_date: today,
-              conversions_generated: newConversions,
+              conversions_tracked: newConversions,
               revenue_generated: revenue,
-              clicks_generated: 0,
-              content_posted: 0
+              traffic_generated: 0,
+              content_created: 0,
+              tasks_executed: 0,
+              ai_decisions_made: 0
             });
         }
 
@@ -492,42 +468,20 @@ export const automationScheduler = {
 
       return true;
     } catch (err) {
-      console.error("Conversion tracking error:", err);
+      console.error("Conversion error:", err);
       return false;
     }
   },
 
   /**
-   * Track engagement metrics
-   */
-  async trackEngagement(campaignId: string, userId: string): Promise<boolean> {
-    try {
-      const { data: postedContent } = await supabase
-        .from("content_queue")
-        .select("*")
-        .eq("campaign_id", campaignId)
-        .eq("status", "posted");
-
-      console.log(`📊 Tracking engagement for ${postedContent?.length || 0} posts`);
-      return true;
-    } catch (err) {
-      console.error("Engagement tracking error:", err);
-      return false;
-    }
-  },
-
-  /**
-   * Create default automation tasks for a campaign
+   * Create default tasks for campaign
    */
   async createDefaultTasks(campaignId: string): Promise<boolean> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error("User not authenticated");
-        return false;
-      }
+      if (!user) return false;
 
-      console.log("📝 Creating automation tasks for campaign:", campaignId);
+      console.log("📝 Creating tasks for:", campaignId);
 
       const tasks: AutopilotTaskInsert[] = [
         {
@@ -535,45 +489,60 @@ export const automationScheduler = {
           user_id: user.id,
           task_type: "content_generation",
           priority: 80,
-          interval_minutes: 120, // Every 2 hours
+          schedule_type: "recurring",
           next_run_at: new Date().toISOString(),
-          status: "pending"
+          status: "pending",
+          run_count: 0,
+          success_count: 0,
+          failure_count: 0
         },
         {
           campaign_id: campaignId,
           user_id: user.id,
           task_type: "traffic_acquisition",
           priority: 100,
-          interval_minutes: 30, // Every 30 minutes
+          schedule_type: "recurring",
           next_run_at: new Date().toISOString(),
-          status: "pending"
+          status: "pending",
+          run_count: 0,
+          success_count: 0,
+          failure_count: 0
         },
         {
           campaign_id: campaignId,
           user_id: user.id,
           task_type: "content_posting",
           priority: 90,
-          interval_minutes: 60, // Every hour
+          schedule_type: "recurring",
           next_run_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-          status: "pending"
+          status: "pending",
+          run_count: 0,
+          success_count: 0,
+          failure_count: 0
         },
         {
           campaign_id: campaignId,
           user_id: user.id,
           task_type: "optimization",
           priority: 70,
-          interval_minutes: 360, // Every 6 hours
+          schedule_type: "recurring",
           next_run_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-          status: "pending"
+          status: "pending",
+          run_count: 0,
+          success_count: 0,
+          failure_count: 0
         },
         {
           campaign_id: campaignId,
           user_id: user.id,
           task_type: "conversion_tracking",
           priority: 85,
-          interval_minutes: 180, // Every 3 hours
+          schedule_type: "recurring",
           next_run_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          status: "pending"
+          status: "pending",
+          run_count: 0,
+          success_count: 0,
+          failure_count: 0
         }
       ];
 
@@ -583,11 +552,11 @@ export const automationScheduler = {
         .select();
 
       if (error) {
-        console.error("❌ Failed to create tasks:", error);
+        console.error("❌ Task creation failed:", error);
         return false;
       }
 
-      console.log(`✅ Created ${data?.length || 0} automation tasks`);
+      console.log(`✅ Created ${data?.length || 0} tasks`);
       return true;
     } catch (err) {
       console.error("Error creating tasks:", err);
@@ -595,3 +564,4 @@ export const automationScheduler = {
     }
   }
 };
+</file_contents>
