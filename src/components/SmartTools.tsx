@@ -37,10 +37,10 @@ export function SmartTools() {
       icon: RefreshCw,
       color: "text-blue-500",
       action: async () => {
-        const result = await linkHealthMonitor.oneClickAutoRepair();
+        const result = await linkHealthMonitor.oneClickAutoRepair() as any;
         return {
-          success: result.repaired > 0,
-          message: `✅ Repaired ${result.repaired} broken links, Removed ${result.removed} dead links`,
+          success: result && result.repaired > 0,
+          message: `✅ Repaired ${result?.repaired || 0} broken links, Removed ${result?.removed || 0} dead links`,
           details: result
         };
       }

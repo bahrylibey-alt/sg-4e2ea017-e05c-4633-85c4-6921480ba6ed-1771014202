@@ -27,14 +27,9 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <Hero 
-        onStartCampaign={() => setIsCampaignBuilderOpen(true)} 
-      />
+      <Hero />
       <ProductShowcase />
-      <SmartTools 
-        onOpenContentGenerator={() => setIsContentGeneratorOpen(true)}
-        onOpenCampaignBuilder={() => setIsCampaignBuilderOpen(true)}
-      />
+      <SmartTools />
       <FeaturedContent />
       <Analytics />
       <Integrations />
