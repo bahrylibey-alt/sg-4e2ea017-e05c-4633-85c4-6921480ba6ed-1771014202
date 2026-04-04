@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { affiliateLinkService } from "@/services/affiliateLinkService";
 import { productCatalogService } from "@/services/productCatalogService";
 import type { AffiliateProduct } from "@/services/productCatalogService";
 import {
@@ -26,18 +26,56 @@ import {
 } from "@/components/ui/select";
 
 export function ProductGallery() {
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [networkFilter, setNetworkFilter] = useState("all");
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [creatingLinkId, setCreatingLinkId] = useState<string | null>(null);
-  const [createdLinks, setCreatedLinks] = useState<Record<string, string>>({});
+  const [affiliateLinks, setAffiliateLinks] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const products = productCatalogService.getProductsByCategory(selectedCategory);
-  const categories = productCatalogService.getCategories();
+  const allProducts = productCatalogService.getHighConvertingProducts();
+  const categories = ["all", ...new Set(allProducts.map(p => p.category))];
+  const networks = ["all", ...new Set(allProducts.map(p => p.network))];
+
+  useEffect(() => {
+    async function loadExistingLinks() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("affiliate_links")
+          .select("product_name, slug")
+          .eq("status", "active");
+          
+        if (!error && data) {
+          const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+          const linkMap = new Map<string, string>();
+          data.forEach(link => {
+            linkMap.set(link.product_name, `${baseUrl}/go/${link.slug}`);
+          });
+          setAffiliateLinks(linkMap);
+        }
+      } catch (err) {
+        console.error("Failed to load links:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadExistingLinks();
+  }, []);
+
+  const filteredProducts = allProducts.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
+    const matchesNetwork = networkFilter === "all" || p.network === networkFilter;
+    return matchesSearch && matchesCategory && matchesNetwork;
+  });
 
   const handleCreateLink = async (product: AffiliateProduct) => {
     setCreatingLinkId(product.id);
     try {
-      // Check if link already exists for this product
       const { data: existingLink } = await supabase
         .from("affiliate_links")
         .select("slug")
@@ -48,10 +86,8 @@ export function ProductGallery() {
       let linkSlug = "";
 
       if (existingLink) {
-        // Use existing link
         linkSlug = existingLink.slug;
       } else {
-        // Create new affiliate link
         const slug = product.name
           .toLowerCase()
           .replace(/[^a-z0-9\s-]/g, "")
@@ -67,7 +103,6 @@ export function ProductGallery() {
             network: product.network,
             commission_rate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0,
             status: "active",
-            cloaked_url: `/go/${slug}`,
             clicks: 0,
             conversions: 0,
             revenue: 0,
@@ -76,35 +111,33 @@ export function ProductGallery() {
           .select("slug")
           .single();
 
-        if (error) {
-          console.error("Error creating link:", error);
-          throw new Error("Failed to create affiliate link");
-        }
-
+        if (error) throw error;
         linkSlug = newLink.slug;
       }
 
-      // Generate the shareable link using the current domain
-      const fullLink = `${window.location.origin}/go/${linkSlug}`;
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const fullLink = `${baseUrl}/go/${linkSlug}`;
 
-      // Copy to clipboard
       await navigator.clipboard.writeText(fullLink);
+      
+      setAffiliateLinks(prev => {
+        const newMap = new Map(prev);
+        newMap.set(product.name, fullLink);
+        return newMap;
+      });
 
-      // Store the link to show in UI
-      setCreatedLinks((prev) => ({
-        ...prev,
-        [product.id]: fullLink,
-      }));
+      setCopiedLink(product.id);
+      setTimeout(() => setCopiedLink(null), 2000);
 
       toast({
         title: "✅ Link Created!",
-        description: `Copied to clipboard: ${fullLink}`,
+        description: "Copied to clipboard",
       });
     } catch (error) {
       console.error("Error generating link:", error);
       toast({
         title: "❌ Error",
-        description: "Failed to generate link. Please try again.",
+        description: "Failed to generate link.",
         variant: "destructive",
       });
     } finally {
@@ -112,17 +145,15 @@ export function ProductGallery() {
     }
   };
 
-  const copyLink = (link: string, productName: string) => {
+  const copyLink = (link: string, productId: string) => {
     navigator.clipboard.writeText(link);
-    setCopiedLink(link);
+    setCopiedLink(productId);
     toast({
       title: "📋 Copied!",
-      description: `Link for ${productName} copied to clipboard`
+      description: `Link copied to clipboard`
     });
     setTimeout(() => setCopiedLink(null), 2000);
   };
-
-  const networks = ["all", ...productCatalogService.getNetworks()];
 
   if (loading) {
     return (
@@ -145,11 +176,10 @@ export function ProductGallery() {
             Affiliate Product Catalog
           </CardTitle>
           <CardDescription>
-            Browse {products.length} high-converting products from top affiliate networks. Generate trackable links instantly.
+            Browse {allProducts.length} high-converting products. Generate trackable links instantly.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Filters */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -186,12 +216,11 @@ export function ProductGallery() {
             </Select>
           </div>
 
-          {/* Products Grid */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map(product => {
-              const hasLink = affiliateLinks.has(product.id);
+              const affiliateLink = affiliateLinks.get(product.name);
+              const hasLink = !!affiliateLink;
               const isGenerating = creatingLinkId === product.id;
-              const affiliateLink = affiliateLinks.get(product.id);
 
               return (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
@@ -203,7 +232,7 @@ export function ProductGallery() {
                           <Badge variant="outline" className="text-xs">
                             {product.category}
                           </Badge>
-                          {product.conversionRate && product.conversionRate >= 8 && (
+                          {product.conversionRate >= 8 && (
                             <Badge className="text-xs bg-green-500 text-white">
                               <TrendingUp className="w-3 h-3 mr-1" />
                               High Converter
@@ -226,9 +255,7 @@ export function ProductGallery() {
                       <Badge variant="secondary" className="text-xs">
                         {product.network}
                       </Badge>
-                      {product.conversionRate && (
-                        <span>• {product.conversionRate}% conv. rate</span>
-                      )}
+                      <span>• {product.conversionRate}% conv. rate</span>
                     </div>
 
                     <div className="space-y-2">
@@ -246,9 +273,9 @@ export function ProductGallery() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => copyLink(affiliateLink, product.name)}
+                              onClick={() => copyLink(affiliateLink, product.id)}
                             >
-                              {copiedLink === affiliateLink ? (
+                              {copiedLink === product.id ? (
                                 <CheckCircle2 className="w-4 h-4 text-green-500" />
                               ) : (
                                 <Copy className="w-4 h-4" />
