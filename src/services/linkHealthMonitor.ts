@@ -3,171 +3,160 @@ import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * LINK HEALTH MONITOR & AUTO-REPAIR SYSTEM
- * Automatically detects and fixes broken affiliate links
+ * Detects broken links and automatically replaces them
  */
-
-export interface RepairResult {
-  success: boolean;
-  totalChecked: number;
-  brokenFound: number;
-  repaired: number;
-  repairedCount: number;
-  removed: number;
-  replaced: number;
-  newLinks: number;
-}
 
 export const linkHealthMonitor = {
   /**
-   * Check if a specific URL is accessible
+   * ONE-CLICK AUTO-REPAIR
+   * Scans all links, removes broken ones, adds fresh products
    */
-  async verifyUrl(url: string): Promise<boolean> {
+  async oneClickAutoRepair(
+    campaignId?: string,
+    userId?: string
+  ): Promise<{ 
+    success: boolean; 
+    totalChecked: number; 
+    removed: number; 
+    replaced: number;
+    repaired: number;
+  }> {
     try {
-      // In a real environment, we'd do a fetch HEAD request.
-      // We will assume URLs that don't start with http are broken.
-      if (!url.startsWith("http")) return false;
-      return true;
-    } catch {
-      return false;
-    }
-  },
+      console.log("🔧 Starting One-Click Auto-Repair...");
 
-  /**
-   * Scan all active links for issues
-   */
-  async scanAllLinks(): Promise<{ success: boolean; brokenLinks: any[] }> {
-    try {
-      const { data: links, error } = await supabase
+      // Get user ID if not provided
+      if (!userId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.error("No user found");
+          return { success: false, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
+        }
+        userId = user.id;
+      }
+
+      // Get campaign ID if not provided
+      if (!campaignId) {
+        const { data: campaign } = await supabase
+          .from("campaigns")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (campaign) {
+          campaignId = campaign.id;
+        }
+      }
+
+      // Get all active links
+      const { data: allLinks } = await supabase
         .from("affiliate_links")
         .select("*")
-        .eq("status", "active");
+        .eq("status", "active")
+        .eq("user_id", userId);
 
-      if (error || !links) throw error;
-
-      const brokenLinks = [];
-      for (const link of links) {
-        // Basic validation or if we flagged it previously
-        const isWorking = await this.verifyUrl(link.original_url);
-        if (!isWorking) {
-          brokenLinks.push(link);
-        }
+      if (!allLinks || allLinks.length === 0) {
+        console.log("No links to check");
+        return { success: true, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
       }
 
-      return { success: true, brokenLinks };
-    } catch (error) {
-      console.error("Error scanning links:", error);
-      return { success: false, brokenLinks: [] };
-    }
-  },
+      console.log(`📊 Checking ${allLinks.length} links...`);
 
-  /**
-   * Get link health dashboard stats
-   */
-  async getHealthDashboard(campaignId?: string) {
-    try {
-      let query = supabase.from("affiliate_links").select("*").eq("status", "active");
-      if (campaignId) {
-        query = query.eq("campaign_id", campaignId);
-      }
-      
-      const { data: links } = await query;
-      const total = links?.length || 0;
-      
-      return {
-        totalLinks: total,
-        healthyLinks: total,
-        brokenLinks: 0,
-        healthScore: 100,
-        lastCheck: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        totalLinks: 0, healthyLinks: 0, brokenLinks: 0, healthScore: 0, lastCheck: new Date().toISOString()
-      };
-    }
-  },
+      // Identify broken links (invalid Amazon URLs or missing ASINs)
+      const brokenLinks = allLinks.filter(link => {
+        const url = link.original_url || "";
+        
+        // Check if it's a valid Amazon product URL
+        const isValidAmazon = url.includes("amazon.com/dp/") || url.includes("amazon.com/gp/");
+        const hasASIN = /\/dp\/([A-Z0-9]{10})/.test(url) || /\/gp\/product\/([A-Z0-9]{10})/.test(url);
+        
+        return !isValidAmazon || !hasASIN;
+      });
 
-  /**
-   * One-Click Ultimate Auto Repair
-   * Scans, removes broken, and replaces with fresh products
-   */
-  async oneClickAutoRepair(campaignId?: string, userId?: string): Promise<RepairResult> {
-    const fallback: RepairResult = { success: false, totalChecked: 0, brokenFound: 0, repaired: 0, repairedCount: 0, removed: 0, replaced: 0, newLinks: 0 };
-    
-    try {
-      let query = supabase.from("affiliate_links").select("*").eq("status", "active");
-      if (campaignId) query = query.eq("campaign_id", campaignId);
-      if (userId) query = query.eq("user_id", userId);
-      
-      const { data: links } = await query;
+      console.log(`🔴 Found ${brokenLinks.length} broken links`);
 
-      if (!links || links.length === 0) {
-        return fallback;
-      }
-
-      // 2. Identify broken links (simulate detection of old/bad Amazon links)
-      // Since we know the user is experiencing 404s, we will aggressively prune older links
-      const brokenIds = [];
-      for (const link of links) {
-        // We'll consider links with malformed slugs or missing http as broken
-        if (!link.original_url.includes("amazon.com") || link.original_url.length < 15) {
-          brokenIds.push(link.id);
-        } else {
-          // If the user triggered a repair, let's refresh at least 30% of the oldest links to be safe
-          if (Math.random() > 0.7) {
-             brokenIds.push(link.id);
-          }
-        }
-      }
-
-      if (brokenIds.length === 0 && links.length > 0) {
-        // Force refresh at least a few if user requested a fix
-        brokenIds.push(links[0].id);
-      }
-
-      // 3. Mark broken links as paused/removed
-      let removedCount = 0;
-      if (brokenIds.length > 0) {
+      // Remove broken links
+      let removed = 0;
+      if (brokenLinks.length > 0) {
+        const brokenIds = brokenLinks.map(link => link.id);
         const { error } = await supabase
           .from("affiliate_links")
-          .update({ status: "paused" })
+          .delete()
           .in("id", brokenIds);
-          
+
         if (!error) {
-          removedCount = brokenIds.length;
+          removed = brokenLinks.length;
+          console.log(`✅ Removed ${removed} broken links`);
         }
       }
 
-      // 4. Replace with fresh trending products
-      let replacedCount = 0;
-      const targetCampaign = campaignId || links[0].campaign_id;
-      const targetUser = userId || links[0].user_id;
-      
-      if (removedCount > 0 && targetCampaign && targetUser) {
-         const result = await smartProductDiscovery.addToCampaign(
-           targetCampaign,
-           targetUser,
-           removedCount
-         );
-         if (result.success) {
-           replacedCount = result.added;
-         }
+      // Add replacement products
+      let replaced = 0;
+      if (removed > 0 && campaignId) {
+        console.log(`🔄 Adding ${removed} replacement products...`);
+        const addResult = await smartProductDiscovery.addToCampaign(
+          campaignId,
+          userId,
+          removed
+        );
+        replaced = addResult.added;
+        console.log(`✅ Added ${replaced} fresh products`);
       }
 
       return {
         success: true,
-        totalChecked: links.length,
-        brokenFound: removedCount,
-        repaired: replacedCount,
-        repairedCount: replacedCount,
-        removed: removedCount,
-        replaced: replacedCount,
-        newLinks: replacedCount
+        totalChecked: allLinks.length,
+        removed,
+        replaced,
+        repaired: replaced
       };
-
     } catch (error) {
-      console.error("Auto-repair error:", error);
-      return fallback;
+      console.error("Error in oneClickAutoRepair:", error);
+      return { success: false, totalChecked: 0, removed: 0, replaced: 0, repaired: 0 };
+    }
+  },
+
+  /**
+   * Get health dashboard data
+   */
+  async getHealthDashboard(campaignId: string): Promise<{
+    totalLinks: number;
+    brokenLinks: number;
+    healthScore: number;
+  }> {
+    try {
+      const { data: allLinks } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .eq("status", "active");
+
+      if (!allLinks) {
+        return { totalLinks: 0, brokenLinks: 0, healthScore: 100 };
+      }
+
+      // Check for broken links
+      const brokenCount = allLinks.filter(link => {
+        const url = link.original_url || "";
+        const isValidAmazon = url.includes("amazon.com/dp/") || url.includes("amazon.com/gp/");
+        const hasASIN = /\/dp\/([A-Z0-9]{10})/.test(url) || /\/gp\/product\/([A-Z0-9]{10})/.test(url);
+        return !isValidAmazon || !hasASIN;
+      }).length;
+
+      const healthScore = allLinks.length > 0
+        ? Math.round(((allLinks.length - brokenCount) / allLinks.length) * 100)
+        : 100;
+
+      return {
+        totalLinks: allLinks.length,
+        brokenLinks: brokenCount,
+        healthScore,
+      };
+    } catch (error) {
+      console.error("Error getting health dashboard:", error);
+      return { totalLinks: 0, brokenLinks: 0, healthScore: 0 };
     }
   },
 
@@ -180,18 +169,14 @@ export const linkHealthMonitor = {
   },
 
   /**
-   * Auto-rotate products (remove underperforming, add fresh)
+   * Rotate underperforming products
    */
-  async autoRotateProducts(
-    campaignId: string,
-    userId: string
-  ): Promise<{ success: boolean; removed: number; added: number }> {
+  async rotateProducts(userId: string, minClicks: number = 10): Promise<{ success: boolean; removed: number; added: number }> {
     try {
-      const result = await smartProductDiscovery.autoRefreshCatalog(campaignId, userId);
-      return result;
+      return await smartProductDiscovery.refreshCatalog(userId);
     } catch (error) {
       console.error("Error rotating products:", error);
       return { success: false, removed: 0, added: 0 };
     }
-  }
+  },
 };
