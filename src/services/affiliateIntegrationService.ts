@@ -147,9 +147,7 @@ export const affiliateIntegrationService = {
         if (options.autoGenerateLinks) {
           // Generate affiliate link with REAL product URL
           const linkResult = await affiliateLinkService.createLink({
-            productName: undefined, // CRITICAL: Don't pass catalog string ID to UUID field
             productName: product.name,
-            , // REAL product URL from catalog
             network: product.network,
             commissionRate: this.extractCommissionRate(product.commission)
           });
@@ -318,9 +316,7 @@ export const affiliateIntegrationService = {
           // Create affiliate link using the service
           console.log(`Creating link for: ${product.name}`);
           const linkResult = await affiliateLinkService.createLink({
-            productName: undefined, // FORCE UNDEFINED for catalog products
             productName: product.name,
-            ,
             network: product.network,
             commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
           });
@@ -630,9 +626,7 @@ export const affiliateIntegrationService = {
       let linksCreated = 0;
       for (const product of products) {
         const linkResult = await affiliateLinkService.createLink({
-          productName: undefined, // FORCE UNDEFINED
           productName: product.name,
-          , // CRITICAL: Use REAL product URL
           network: product.network,
           commissionRate: this.extractCommissionRate(product.commission)
         });

@@ -99,9 +99,7 @@ export function ProductGallery() {
     setCreatingLinkId(product.id);
     try {
       const result = await affiliateLinkService.createLink({
-        productName: undefined, // CRITICAL: Don't use catalog ID (string) for database UUID
         productName: product.name,
-        ,
         network: product.network,
         commissionRate: parseFloat(product.commission.replace(/[^0-9.]/g, "")) || 0
       });
