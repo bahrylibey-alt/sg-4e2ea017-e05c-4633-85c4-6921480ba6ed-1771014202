@@ -50,7 +50,6 @@ export const commissionService = {
           link_id: affiliateLinkId,
           sale_amount: saleAmount,
           commission_rate: commissionRate,
-          commission_amount: calc.commissionAmount,
           processing_fee: calc.processingFee,
           commission_amount: calc.netCommission,
           status: "pending",

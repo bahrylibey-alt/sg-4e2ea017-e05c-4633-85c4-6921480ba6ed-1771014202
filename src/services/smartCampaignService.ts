@@ -110,16 +110,13 @@ export const smartCampaignService = {
       }
 
       // Create campaign
-      const insert: CampaignInsert = {
+      const insert: any = {
         user_id: user.id,
         name: config.name,
         goal: config.goal || "Generate revenue",
         budget: config.budget,
         is_autopilot: true,
-        status: "active",
-        
-        conversions: 0,
-        revenue: 0
+        status: "active"
       };
 
       const { data: campaign, error: campaignError } = await (supabase as any).from("campaigns")

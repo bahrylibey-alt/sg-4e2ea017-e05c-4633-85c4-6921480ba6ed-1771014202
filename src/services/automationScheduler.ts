@@ -433,14 +433,14 @@ export const automationScheduler = {
         .single();
 
       if (existing) {
-        const finalUpdates: any = {};
+        const finalUpdates: Record<string, number> = {};
         for (const k of Object.keys(updates)) {
           finalUpdates[k] = Number((existing as any)[k] || 0) + Number(updates[k]);
         }
 
         await supabase
           .from("automation_metrics")
-          .update(finalUpdates)
+          .update(finalUpdates as any)
           .eq("id", existing.id);
       }
     } catch (error) {

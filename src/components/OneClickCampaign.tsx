@@ -79,6 +79,8 @@ export function OneClickCampaign() {
       console.log("🚀 Creating campaign with URL:", normalizedUrl);
 
       const result = await smartCampaignService.createQuickCampaign({
+        name: "Auto Campaign",
+        budget: 100,
         productUrls: [normalizedUrl],
         goal: campaignGoal
       });

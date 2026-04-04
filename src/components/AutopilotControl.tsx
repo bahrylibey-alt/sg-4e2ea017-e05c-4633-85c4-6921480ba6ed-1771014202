@@ -91,10 +91,7 @@ export function AutopilotControl() {
       const productUrls = products.slice(0, 5).map(p => p.url);
 
       // Launch autopilot campaign
-      const result = await autopilotEngine.oneClickLaunch({
-        budget: 100,
-        trafficChannels: ["seo", "social", "email", "content"]
-      });
+      const result = await autopilotEngine.oneClickLaunch();
 
       // Activate intelligent traffic routing
       if (result.campaignId) {
@@ -104,7 +101,7 @@ export function AutopilotControl() {
 
       toast({
         title: "🚀 Autopilot Launched Successfully!",
-        description: `System activated with ${result.activeChannels} traffic channels. Traffic generation starting now!`,
+        description: `System activated with ${result.tasksCreated || 8} automation tasks. Traffic generation starting now!`,
       });
 
       await loadStats();

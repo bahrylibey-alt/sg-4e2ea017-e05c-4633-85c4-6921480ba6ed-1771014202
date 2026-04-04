@@ -370,6 +370,7 @@ export default function SystemDiagnostics() {
 
       // Test write permissions
       const testData = {
+        user_id: user.id,
         action: "rls_test",
         status: "info" as const,
         details: "Testing RLS policies"
