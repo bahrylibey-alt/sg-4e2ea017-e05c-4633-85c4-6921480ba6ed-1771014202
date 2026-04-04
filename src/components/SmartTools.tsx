@@ -36,7 +36,7 @@ export function SmartTools() {
           const result = await linkHealthMonitor.oneClickAutoRepair();
           return {
             success: true,
-            message: `✅ Repaired ${result.repaired || 0} links, Removed ${result.removed || 0} broken links`,
+            message: `✅ Scanned ${result.totalChecked} links. Removed ${result.removed} broken links and Added ${result.replaced} fresh verified products.`,
             details: result
           };
         } catch (error) {
