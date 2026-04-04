@@ -1,240 +1,338 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Zap, Link2, Wand2, BarChart3, Target, Rocket } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Zap, 
+  TrendingUp, 
+  Shield, 
+  TestTube, 
+  Sparkles, 
+  Target,
+  Brain,
+  BarChart3,
+  RefreshCw,
+  CheckCircle2
+} from "lucide-react";
+import { linkHealthMonitor } from "@/services/linkHealthMonitor";
+import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
+import { smartContentGenerator } from "@/services/smartContentGenerator";
+import { fraudDetectionService } from "@/services/fraudDetectionService";
+import { intelligentABTesting } from "@/services/intelligentABTesting";
+import { useToast } from "@/hooks/use-toast";
 
-export interface SmartToolsProps {
-  onOpenContentGenerator: () => void;
-  onOpenCampaignBuilder: () => void;
-}
+export function SmartTools() {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTools, setActiveTools] = useState<string[]>([]);
+  const [results, setResults] = useState<any>(null);
+  const { toast } = useToast();
 
-export function SmartTools({ onOpenContentGenerator, onOpenCampaignBuilder }: SmartToolsProps) {
-  const handleLinkCloaking = () => {
-    const url = prompt("Enter the affiliate link to cloak:\n\nExample: https://amazon.com/dp/B08N5WRWNW?tag=youraffid");
-    
-    if (url && url.trim()) {
-      const cloakedLink = `https://track.salemakseb.com/${Math.random().toString(36).substr(2, 9)}`;
-      
-      navigator.clipboard.writeText(cloakedLink);
-      
-      alert(
-        `✅ Link Cloaked Successfully!\n\n` +
-        `Original: ${url}\n\n` +
-        `Cloaked Link: ${cloakedLink}\n\n` +
-        `✓ Copied to clipboard\n` +
-        `✓ Click tracking enabled\n` +
-        `✓ Conversion tracking active\n` +
-        `✓ SEO-friendly URL structure\n` +
-        `✓ Real-time analytics activated\n\n` +
-        `Check the Autopilot Dashboard to see this link in action!`
-      );
-    }
-  };
-
-  const handleProductDiscovery = () => {
-    const query = prompt("What type of products are you looking for?\n\nExamples:\n• Digital marketing tools\n• Fitness programs\n• Software subscriptions\n• Online courses");
-    
-    if (query && query.trim()) {
-      alert(
-        `🔍 AI Product Discovery Active!\n\n` +
-        `Searching for: "${query}"\n\n` +
-        `Found 127 high-converting products!\n\n` +
-        `Top Results (sorted by EPC):\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `1. Digital Marketing Master Course\n` +
-        `   • Commission: 50% ($249 per sale)\n` +
-        `   • EPC: $4.23\n` +
-        `   • Conversion: 8.5%\n` +
-        `   • Gravity: 342\n\n` +
-        `2. SEO Tools Pro Suite\n` +
-        `   • Commission: 40% recurring\n` +
-        `   • EPC: $3.87\n` +
-        `   • Conversion: 7.2%\n` +
-        `   • Gravity: 298\n\n` +
-        `3. Email Marketing Platform\n` +
-        `   • Commission: $45/mo recurring\n` +
-        `   • EPC: $3.45\n` +
-        `   • Conversion: 6.8%\n` +
-        `   • Gravity: 267\n\n` +
-        `4. Social Media Scheduler\n` +
-        `   • Commission: 40%\n` +
-        `   • EPC: $2.98\n` +
-        `   • Conversion: 6.1%\n` +
-        `   • Gravity: 234\n\n` +
-        `✨ AI Tip: Products 1 & 2 have highest ROI for your audience!\n\n` +
-        `Add these to a campaign?`
-      );
-    }
-  };
-
-  const handleAnalyticsDashboard = () => {
-    alert(
-      `📊 Advanced Analytics Dashboard\n\n` +
-      `Real-time Performance Metrics:\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `💰 Total Revenue: $45,231 (+20.1%)\n` +
-      `🎯 Active Campaigns: 24 (3 optimizing)\n` +
-      `📈 Conversion Rate: 7.1% (↑0.4%)\n` +
-      `🔗 Links Tracked: 1,247 (+23 today)\n` +
-      `📝 Content Generated: 89 pieces\n` +
-      `⚡ Automation Status: 98% optimal\n\n` +
-      `Top Performing Campaign:\n` +
-      `"Summer Product Launch"\n` +
-      `• Revenue: $12,847\n` +
-      `• ROI: 296%\n` +
-      `• Conv. Rate: 7.2%\n\n` +
-      `🤖 AI Insights:\n` +
-      `• Best posting time: 9-11 AM weekdays\n` +
-      `• Recommended: Increase email frequency\n` +
-      `• A/B test suggestion: New CTA copy\n\n` +
-      `Scroll down to view the full analytics section!`
-    );
-    
-    setTimeout(() => {
-      const analyticsSection = document.querySelector('[data-section="analytics"]');
-      if (analyticsSection) {
-        analyticsSection.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 500);
-  };
-
-  const handleABTesting = () => {
-    alert(
-      `🧪 A/B Testing Lab - Smart Optimization\n\n` +
-      `Create data-driven split tests:\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📊 Test Elements:\n` +
-      `• Headlines & Copy\n` +
-      `• Call-to-Action Buttons\n` +
-      `• Landing Page Layouts\n` +
-      `• Email Subject Lines\n` +
-      `• Product Images\n` +
-      `• Pricing Display\n` +
-      `• Color Schemes\n\n` +
-      `🎯 Active Tests:\n` +
-      `1. CTA Button Color: +12% conv.\n` +
-      `2. Email Subject: +8% open rate\n` +
-      `3. Headline Test: +15% engagement\n\n` +
-      `📈 Average Results:\n` +
-      `• Conversion lift: +35%\n` +
-      `• Revenue increase: +28%\n` +
-      `• Engagement boost: +42%\n\n` +
-      `💡 AI Recommendations:\n` +
-      `• Test urgency phrases in CTAs\n` +
-      `• Try social proof elements\n` +
-      `• Optimize mobile layouts\n\n` +
-      `Full A/B testing suite coming in next update!`
-    );
-  };
-
-  const tools = [
+  const smartTools = [
     {
-      icon: Link2,
-      title: "Smart Link Cloaking",
-      description: "Automatically shorten, track, and optimize your affiliate links with real-time analytics",
-      badge: "Live",
+      id: "link-repair",
+      name: "Auto Link Repair",
+      description: "Automatically detect and fix broken affiliate links",
+      icon: RefreshCw,
       color: "text-blue-500",
-      action: handleLinkCloaking
+      action: async () => {
+        const result = await linkHealthMonitor.autoRepairLinks();
+        return {
+          success: result.repaired > 0,
+          message: `✅ Repaired ${result.repaired} broken links, Removed ${result.removed} dead links`,
+          details: result
+        };
+      }
     },
     {
-      icon: Wand2,
-      title: "AI Content Generator",
-      description: "Generate high-converting product reviews, comparisons, and landing pages in seconds",
-      badge: "AI-Powered",
-      color: "text-purple-500",
-      action: onOpenContentGenerator
-    },
-    {
-      icon: Target,
-      title: "Product Discovery",
-      description: "AI-powered product finder with EPC, gravity, and conversion data from top networks",
-      badge: "Smart",
+      id: "product-discovery",
+      name: "Smart Product Discovery",
+      description: "Find and add trending high-converting products",
+      icon: TrendingUp,
       color: "text-green-500",
-      action: handleProductDiscovery
+      action: async () => {
+        const result = await linkHealthMonitor.autoRotateProducts();
+        return {
+          success: result.added > 0,
+          message: `✅ Added ${result.added} trending products, Removed ${result.removed} underperformers`,
+          details: result
+        };
+      }
     },
     {
-      icon: BarChart3,
-      title: "Analytics Dashboard",
-      description: "Real-time performance tracking with AI insights, trend analysis, and optimization tips",
-      badge: "Live",
+      id: "ai-optimization",
+      name: "AI Campaign Optimizer",
+      description: "Optimize campaigns using machine learning",
+      icon: Brain,
+      color: "text-purple-500",
+      action: async () => {
+        const result = await aiOptimizationEngine.runFullOptimization("active-campaign");
+        return {
+          success: result.success,
+          message: `✅ Applied ${result.optimizations} optimizations, ${result.revenueIncrease}% revenue increase expected`,
+          details: result
+        };
+      }
+    },
+    {
+      id: "fraud-detection",
+      name: "Fraud Detection AI",
+      description: "Detect and block fraudulent traffic automatically",
+      icon: Shield,
+      color: "text-red-500",
+      action: async () => {
+        const result = await fraudDetectionService.scanAllLinks();
+        return {
+          success: true,
+          message: `✅ Scanned ${result.totalChecked} links, Blocked ${result.blocked} suspicious activities`,
+          details: result
+        };
+      }
+    },
+    {
+      id: "ab-testing",
+      name: "Intelligent A/B Testing",
+      description: "Create and analyze link variations automatically",
+      icon: TestTube,
       color: "text-orange-500",
-      action: handleAnalyticsDashboard
+      action: async () => {
+        // Get first active link and create test variants
+        const { data: links } = await (window as any).supabase
+          ?.from("affiliate_links")
+          .select("id")
+          .eq("status", "active")
+          .limit(1);
+        
+        if (links && links[0]) {
+          const result = await intelligentABTesting.createTestVariants(links[0].id, 2);
+          return {
+            success: result.success,
+            message: `✅ Created ${result.variants.length} test variants for optimization`,
+            details: result
+          };
+        }
+        return { success: false, message: "❌ No active links found to test" };
+      }
     },
     {
-      icon: Rocket,
-      title: "Campaign Builder",
-      description: "Create complete affiliate campaigns with AI-powered targeting and multi-channel automation",
-      badge: "Smart",
+      id: "content-generator",
+      name: "Smart Content Generator",
+      description: "Generate promotional content automatically",
+      icon: Sparkles,
       color: "text-pink-500",
-      action: onOpenCampaignBuilder
-    },
-    {
-      icon: Zap,
-      title: "A/B Testing Lab",
-      description: "Automated split testing with statistical significance tracking and winning variant deployment",
-      badge: "Pro",
-      color: "text-yellow-500",
-      action: handleABTesting
+      action: async () => {
+        const { data: products } = await (window as any).supabase
+          ?.from("affiliate_links")
+          .select("*")
+          .eq("status", "active")
+          .limit(10);
+        
+        if (products && products.length > 0) {
+          const content = smartContentGenerator.generateProductContent({
+            name: products[0].product_name,
+            category: products[0].network || "General",
+            commission: products[0].commission_rate || 4
+          });
+          
+          return {
+            success: true,
+            message: `✅ Generated promotional content for ${products.length} products`,
+            details: { content, count: products.length }
+          };
+        }
+        return { success: false, message: "❌ No products found" };
+      }
     }
   ];
 
-  return (
-    <section className="py-24 px-6 bg-muted/30" data-section="tools">
-      <div className="container">
-        {/* Section header */}
-        <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-          <Badge variant="outline" className="text-primary border-primary/30">
-            Smart Tools
-          </Badge>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground">
-            Powerful Tools for <span className="text-primary">Affiliate Success</span>
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Everything you need to build, manage, and scale your affiliate marketing business
-          </p>
-        </div>
+  const runSmartTool = async (tool: typeof smartTools[0]) => {
+    setIsProcessing(true);
+    setActiveTools([...activeTools, tool.id]);
+    
+    try {
+      const result = await tool.action();
+      
+      setResults(prev => ({
+        ...prev,
+        [tool.id]: result
+      }));
 
-        {/* Tools grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {tools.map((tool, index) => (
-            <Card 
-              key={index}
-              className="group hover:shadow-2xl transition-all duration-300 border-border/50 hover:border-primary/30 cursor-pointer"
-              onClick={tool.action}
+      toast({
+        title: tool.name,
+        description: result.message,
+        variant: result.success ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error(`Error running ${tool.name}:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to run ${tool.name}`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+      setActiveTools(activeTools.filter(id => id !== tool.id));
+    }
+  };
+
+  const runAllTools = async () => {
+    setIsProcessing(true);
+    
+    for (const tool of smartTools) {
+      await runSmartTool(tool);
+      // Small delay between tools
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    setIsProcessing(false);
+    
+    toast({
+      title: "✅ All Smart Tools Completed",
+      description: "Your system has been fully optimized!",
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-6 h-6 text-yellow-500" />
+                Smart Tools Suite
+              </CardTitle>
+              <CardDescription>
+                Advanced AI-powered tools to optimize your affiliate marketing
+              </CardDescription>
+            </div>
+            <Button 
+              onClick={runAllTools} 
+              disabled={isProcessing}
+              size="lg"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
             >
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center ${tool.color}`}>
-                    <tool.icon className="w-6 h-6" />
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {tool.badge}
-                  </Badge>
-                </div>
-                <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                  {tool.title}
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  {tool.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  variant="ghost" 
-                  className="w-full group-hover:bg-primary/10 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    tool.action();
-                  }}
-                >
-                  Try Now →
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
+              <Sparkles className="w-4 h-4 mr-2" />
+              Run All Tools
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {smartTools.map((tool) => {
+              const Icon = tool.icon;
+              const isActive = activeTools.includes(tool.id);
+              const result = results?.[tool.id];
+              
+              return (
+                <Card key={tool.id} className="relative overflow-hidden">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <Icon className={`w-8 h-8 ${tool.color}`} />
+                      {result && (
+                        <Badge variant={result.success ? "default" : "destructive"}>
+                          {result.success ? "✓" : "✗"}
+                        </Badge>
+                      )}
+                    </div>
+                    <CardTitle className="text-lg">{tool.name}</CardTitle>
+                    <CardDescription className="text-sm">
+                      {tool.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      onClick={() => runSmartTool(tool)}
+                      disabled={isProcessing}
+                      className="w-full"
+                      variant={result?.success ? "outline" : "default"}
+                    >
+                      {isActive ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : result?.success ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Run Again
+                        </>
+                      ) : (
+                        <>
+                          <Target className="w-4 h-4 mr-2" />
+                          Run Tool
+                        </>
+                      )}
+                    </Button>
+                    
+                    {result && (
+                      <Alert className="mt-3">
+                        <AlertDescription className="text-xs">
+                          {result.message}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* System Health Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            System Health Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Link Health</span>
+                <span className="text-sm text-muted-foreground">
+                  {results?.["link-repair"] ? "Optimized" : "Pending"}
+                </span>
+              </div>
+              <Progress value={results?.["link-repair"] ? 100 : 50} />
+            </div>
+            
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Product Catalog</span>
+                <span className="text-sm text-muted-foreground">
+                  {results?.["product-discovery"] ? "Fresh" : "Needs Update"}
+                </span>
+              </div>
+              <Progress value={results?.["product-discovery"] ? 100 : 60} />
+            </div>
+            
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Campaign Performance</span>
+                <span className="text-sm text-muted-foreground">
+                  {results?.["ai-optimization"] ? "Optimized" : "Can Improve"}
+                </span>
+              </div>
+              <Progress value={results?.["ai-optimization"] ? 100 : 70} />
+            </div>
+            
+            <div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm font-medium">Security Status</span>
+                <span className="text-sm text-muted-foreground">
+                  {results?.["fraud-detection"] ? "Protected" : "Scanning Needed"}
+                </span>
+              </div>
+              <Progress value={results?.["fraud-detection"] ? 100 : 80} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

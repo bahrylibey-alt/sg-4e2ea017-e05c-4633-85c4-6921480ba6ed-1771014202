@@ -33,6 +33,7 @@ import { OneClickAutopilot } from "@/components/OneClickAutopilot";
 import { ProductGallery } from "@/components/ProductGallery";
 import { IntegrationsDashboard } from "@/components/IntegrationsDashboard";
 import { UltimateAutopilotControl } from "@/components/UltimateAutopilotControl";
+import { SmartTools } from "@/components/SmartTools";
 
 interface Campaign {
   id: string;
@@ -480,6 +481,11 @@ export default function Dashboard() {
           {/* Ultimate Autopilot Section - TOP PRIORITY */}
           <div className="mb-8">
             <UltimateAutopilotControl />
+          </div>
+
+          {/* Smart Tools Suite */}
+          <div className="mb-8">
+            <SmartTools />
           </div>
 
           {/* One-Click Autopilot */}
