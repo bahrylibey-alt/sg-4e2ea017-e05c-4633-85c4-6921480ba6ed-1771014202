@@ -214,24 +214,18 @@ export function UltimateAutopilotControl() {
         </CardHeader>
         <CardContent className="space-y-4">
           {linkHealth && (
-            <div className="grid grid-cols-4 gap-3 mb-4">
-              <div className="text-center p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                <p className="text-2xl font-bold text-green-600">{linkHealth.healthy}</p>
-                <p className="text-xs text-muted-foreground">Healthy</p>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <div className="text-sm text-muted-foreground mb-1">Total Links</div>
+                <div className="text-2xl font-bold">{linkHealth?.totalLinks || 0}</div>
               </div>
-              <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
-                <p className="text-2xl font-bold text-yellow-600">{linkHealth.suspicious}</p>
-                <p className="text-xs text-muted-foreground">Suspicious</p>
+              <div className="bg-muted p-4 rounded-lg">
+                <div className="text-sm text-muted-foreground mb-1">Broken Links</div>
+                <div className="text-2xl font-bold text-red-500">{linkHealth?.brokenLinks || 0}</div>
               </div>
-              <div className="text-center p-3 bg-red-50 dark:bg-red-950 rounded-lg">
-                <p className="text-2xl font-bold text-red-600">{linkHealth.broken}</p>
-                <p className="text-xs text-muted-foreground">Broken</p>
-              </div>
-              <div className="text-center p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <p className="text-2xl font-bold text-blue-600">
-                  {linkHealth.averageConversionRate.toFixed(1)}%
-                </p>
-                <p className="text-xs text-muted-foreground">Avg CVR</p>
+              <div className="bg-muted p-4 rounded-lg">
+                <div className="text-sm text-muted-foreground mb-1">Health Score</div>
+                <div className="text-2xl font-bold text-green-500">{linkHealth?.healthScore || 0}%</div>
               </div>
             </div>
           )}
@@ -239,9 +233,8 @@ export function UltimateAutopilotControl() {
           <div className="flex gap-3">
             <Button
               onClick={handleAutoRepair}
-              disabled={isRepairing || !linkHealth || linkHealth.needsRepair.length === 0}
-              variant="default"
-              className="flex-1"
+              disabled={isRepairing}
+              className="w-full"
             >
               {isRepairing ? (
                 <>
