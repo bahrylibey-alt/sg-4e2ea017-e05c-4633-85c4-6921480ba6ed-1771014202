@@ -107,7 +107,7 @@ export const ultimateAutopilot = {
       await this.initializeMetrics(campaign.id, user.id);
 
       // Step 7: Start 24/7 scheduler
-      await automationScheduler.startScheduler(campaign.id);
+      await automationScheduler.start(campaign.id);
       console.log("✅ 24/7 Scheduler activated");
 
       // Calculate estimated revenue
@@ -353,6 +353,7 @@ export const ultimateAutopilot = {
         .from("autopilot_tasks")
         .insert({
           campaign_id: campaignId,
+          user_id: userId,
           task_type: task.type,
           status: "pending",
           priority: task.priority,
