@@ -162,6 +162,7 @@ export const linkHealthMonitor = {
     invalidRemoved: number;
     replaced: number;
     repaired: number;
+    removed: number;
   }> {
     try {
       console.log("🚀 Starting ULTIMATE Auto-Repair v2.0...");
@@ -171,7 +172,7 @@ export const linkHealthMonitor = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           console.error("❌ No user found");
-          return { success: false, totalChecked: 0, duplicatesRemoved: 0, invalidRemoved: 0, replaced: 0, repaired: 0 };
+          return { success: false, totalChecked: 0, duplicatesRemoved: 0, invalidRemoved: 0, replaced: 0, repaired: 0, removed: 0 };
         }
         userId = user.id;
       }
@@ -212,7 +213,8 @@ export const linkHealthMonitor = {
           duplicatesRemoved,
           invalidRemoved: 0,
           replaced: 0,
-          repaired: duplicatesRemoved
+          repaired: duplicatesRemoved,
+          removed: duplicatesRemoved
         };
       }
 
@@ -277,7 +279,8 @@ export const linkHealthMonitor = {
         duplicatesRemoved,
         invalidRemoved,
         replaced,
-        repaired: totalRepaired
+        repaired: totalRepaired,
+        removed: totalRepaired
       };
     } catch (error) {
       console.error("❌ Error in ULTIMATE Auto-Repair:", error);
@@ -287,7 +290,8 @@ export const linkHealthMonitor = {
         duplicatesRemoved: 0,
         invalidRemoved: 0,
         replaced: 0,
-        repaired: 0
+        repaired: 0,
+        removed: 0
       };
     }
   },
