@@ -128,7 +128,7 @@ export default function SystemTest() {
     {
       name: "Ultimate Autopilot Deployment",
       test: async () => {
-        const result = await ultimateAutopilot.oneClickDeploy();
+        const result = await ultimateAutopilot.oneClickUltimateDeploy();
         return { 
           success: result.success, 
           message: `✅ Deployed: ${result.productsAdded} products, ${result.tasksCreated} tasks`,
@@ -199,7 +199,7 @@ export default function SystemTest() {
           name: test.name,
           status: result.success ? "passed" : "failed",
           message: result.message,
-          details: result.details
+          details: (result as any).details
         };
       } catch (error: any) {
         testResults[i] = {

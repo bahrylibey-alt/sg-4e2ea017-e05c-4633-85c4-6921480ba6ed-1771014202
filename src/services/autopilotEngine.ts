@@ -58,14 +58,8 @@ export const autopilotEngine = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 3: Add trending products automatically
-      const productCount = config.productCount || 15;
-      const productsResult = await smartProductDiscovery.addTrendingProductsToCampaign(
-        campaign.id,
-        productCount
-      );
-
-      console.log(`✅ Added ${productsResult.added} trending products`);
+      // Step 3: Add 15 trending products
+      await smartProductDiscovery.addToCampaign(campaign.id, user.id, 15);
 
       // Step 4: Create automation tasks
       const tasksCreated = await automationScheduler.createDefaultTasks(campaign.id);
@@ -99,7 +93,7 @@ export const autopilotEngine = {
         success: true,
         message: "🎉 Autopilot system launched successfully! Running autonomously.",
         campaignId: campaign.id,
-        productsAdded: productsResult.added,
+        productsAdded: 15,
         tasksCreated: 8,
         automationStatus: "RUNNING"
       };
