@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { GetServerSideProps } from "next";
+import { supabase } from "@/integrations/supabase/client";
 import { useRouter } from "next/router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ExternalLink, AlertCircle, Zap, CheckCircle } from "lucide-react";
@@ -100,7 +102,7 @@ export default function RedirectPage() {
         setStatus("Tracking click...");
         addDebug("📊 Calling trackClick service...");
         
-        const result = await affiliateLinkService.trackClick(slug as string, metadata);
+        const result = await affiliateLinkService.trackClick(slug as string);
 
         addDebug(`✅ trackClick result: ${JSON.stringify(result)}`);
 
