@@ -6,6 +6,60 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { affiliateLinkService } from "@/services/affiliateLinkService";
 
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { slug } = context.query;
+
+  if (!slug || typeof slug !== "string") {
+    return { notFound: true };
+  }
+
+  try {
+    // Get link from database
+    const { data: link, error } = await supabase
+      .from("affiliate_links")
+      .select("id, original_url, product_name, network, clicks, status")
+      .eq("slug", slug)
+      .eq("status", "active")
+      .single();
+
+    if (error || !link) {
+      console.error("Link not found:", slug, error);
+      return { notFound: true };
+    }
+
+    // Update click count
+    await supabase
+      .from("affiliate_links")
+      .update({ 
+        clicks: (link.clicks || 0) + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", link.id);
+
+    // Log activity
+    await supabase
+      .from("activity_logs")
+      .insert({
+        user_id: "00000000-0000-0000-0000-000000000000", // System user
+        action: "link_click",
+        status: "success",
+        details: `Link clicked: ${link.product_name}`,
+        metadata: { slug, product_name: link.product_name, network: link.network }
+      });
+
+    // Redirect to original URL
+    return {
+      redirect: {
+        destination: link.original_url,
+        permanent: false,
+      },
+    };
+  } catch (err) {
+    console.error("Error in redirect:", err);
+    return { notFound: true };
+  }
+};
+
 export default function RedirectPage() {
   const router = useRouter();
   const { slug } = router.query;
