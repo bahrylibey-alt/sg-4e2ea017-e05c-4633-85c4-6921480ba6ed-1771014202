@@ -175,7 +175,8 @@ export const smartProductDiscovery = {
       case "temu_affiliate":
         const temuAffId = config?.affiliate_id || "default";
         const temuTrackId = config?.tracking_id || "track001";
-        return `https://www.temu.com/ul/kuiper/un9.html?_bg_fs=1&goods_id=${productId}&aff_id=${temuAffId}&tracking_id=${temuTrackId}`;
+        // Use Temu's affiliate share link format
+        return `https://temu.to/m/uk5${productId}?adp=dpa&_bg_fs=1&_p_jump_id=644&_x_vst_scene=adg&goods_id=${productId}&sku_id=17592186044416&aff_id=${temuAffId}&tracking_id=${temuTrackId}`;
 
       case "amazon_associates":
         const amazonTag = config?.tracking_id || "youraffid-20";

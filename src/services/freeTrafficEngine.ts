@@ -183,7 +183,7 @@ export const freeTrafficEngine = {
           campaign_id: campaignId,
           user_id: userId,
           content_type: this.getContentType(source.type),
-          content_text: content.text,
+          content: content.text,
           platform: source.platforms[0],
           status: "ready",
           scheduled_for: new Date(Date.now() + Math.random() * 3600000).toISOString()

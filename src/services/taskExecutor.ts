@@ -91,8 +91,7 @@ export const taskExecutor = {
           user_id: task.user_id,
           content_type: "promotional" as const,
           platform,
-          content_text: `🚀 ${link.product_name} - Don't miss out! `,
-          link_url: link.cloaked_url,
+          content: `🚀 ${link.product_name} - Don't miss out! ${link.cloaked_url}`,
           status: "ready" as const,
           scheduled_for: new Date(Date.now() + Math.random() * 3600000).toISOString(),
           created_at: new Date().toISOString()
