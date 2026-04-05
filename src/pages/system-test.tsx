@@ -68,7 +68,7 @@ export default function SystemTest() {
         const health = await linkHealthMonitor.getHealthDashboard(campaign.id);
         return { 
           success: true, 
-          message: `✅ Health: ${health.healthScore}% (${health.totalLinks} links, ${health.brokenLinks} broken)`,
+          message: `✅ Health: ${health.healthScore}% (${health.totalLinks} links, ${health.invalidLinks} invalid)`,
           details: health
         };
       }
