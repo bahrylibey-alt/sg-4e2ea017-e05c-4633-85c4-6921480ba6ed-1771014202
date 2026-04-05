@@ -36,6 +36,19 @@ export interface IntegrationConfig {
   [key: string]: any;
 }
 
+export interface IntegrationTemplate {
+  name: string;
+  provider: string;
+  logo: string;
+  category: string;
+  fields: {
+    name: string;
+    label: string;
+    type: string;
+    required: boolean;
+  }[];
+}
+
 const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   // Affiliate Networks
   amazon_associates: {
