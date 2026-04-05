@@ -99,14 +99,22 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="affiliate" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-4xl">
             <TabsTrigger value="affiliate" className="flex items-center gap-2">
               <Link className="h-4 w-4" />
-              Affiliate Networks
+              Affiliate
             </TabsTrigger>
-            <TabsTrigger value="traffic" className="flex items-center gap-2">
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="payment" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Payment
+            </TabsTrigger>
+            <TabsTrigger value="automation" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              Traffic Sources
+              Automation
             </TabsTrigger>
           </TabsList>
 
@@ -226,6 +234,96 @@ export default function SettingsPage() {
                       );
                     })}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Analytics & Tracking</CardTitle>
+                <CardDescription>
+                  Connect analytics tools to track visitor behavior and conversions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  </div>
+                ) : (
+                  <IntegrationGrid 
+                    category="analytics"
+                    integrations={integrations}
+                    templates={templates}
+                    connectedProviders={connectedProviders}
+                    onEdit={(provider, config) => {
+                      setSelectedProvider(provider);
+                      setFormData(config);
+                    }}
+                    onDisconnect={handleDisconnect}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payment" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Processing</CardTitle>
+                <CardDescription>
+                  Configure payment gateways to accept subscriptions and payments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  </div>
+                ) : (
+                  <IntegrationGrid 
+                    category="payment"
+                    integrations={integrations}
+                    templates={templates}
+                    connectedProviders={connectedProviders}
+                    onEdit={(provider, config) => {
+                      setSelectedProvider(provider);
+                      setFormData(config);
+                    }}
+                    onDisconnect={handleDisconnect}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="automation" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Automation & Webhooks</CardTitle>
+                <CardDescription>
+                  Connect automation tools like Zapier for real-time notifications
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  </div>
+                ) : (
+                  <IntegrationGrid 
+                    category="automation"
+                    integrations={integrations}
+                    templates={templates}
+                    connectedProviders={connectedProviders}
+                    onEdit={(provider, config) => {
+                      setSelectedProvider(provider);
+                      setFormData(config);
+                    }}
+                    onDisconnect={handleDisconnect}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -390,6 +488,105 @@ function IntegrationForm({ template, formData, setFormData, onSave, saving }: an
           "Save Integration"
         )}
       </Button>
+    </div>
+  );
+}
+
+function IntegrationGrid({ category, integrations, templates, connectedProviders, onEdit, onDisconnect }: any) {
+  const categoryIntegrations = Object.entries(templates).filter(([_, t]: any) => t.category === category);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {categoryIntegrations.map(([provider, template]: any) => {
+        const connected = connectedProviders.has(provider);
+        const integration = integrations.find((i: any) => i.provider === provider);
+
+        return (
+          <Card key={provider} className={connected ? "border-green-500" : ""}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{template.logo}</span>
+                  <CardTitle className="text-lg">{template.name}</CardTitle>
+                </div>
+                {connected ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-slate-300" />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {connected ? (
+                <>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Connected
+                  </Badge>
+                  <div className="flex gap-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => onEdit(provider, integration?.config || {})}
+                        >
+                          Edit
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Edit {template.name}</DialogTitle>
+                          <DialogDescription>Update your connection settings</DialogDescription>
+                        </DialogHeader>
+                        <IntegrationForm
+                          template={template}
+                          formData={integration?.config || {}}
+                          setFormData={() => {}}
+                          onSave={() => {}}
+                          saving={false}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => integration && onDisconnect(integration.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="w-full"
+                      onClick={() => onEdit(provider, {})}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Connect
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Connect {template.name}</DialogTitle>
+                      <DialogDescription>Enter your credentials</DialogDescription>
+                    </DialogHeader>
+                    <IntegrationForm
+                      template={template}
+                      formData={{}}
+                      setFormData={() => {}}
+                      onSave={() => {}}
+                      saving={false}
+                    />
+                  </DialogContent>
+                </Dialog>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

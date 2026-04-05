@@ -36,17 +36,68 @@ export interface IntegrationConfig {
   [key: string]: any;
 }
 
-const INTEGRATION_TEMPLATES = {
+const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   // Affiliate Networks
-  temu_affiliate: {
-    name: "Temu Affiliate Program",
+  amazon_associates: {
+    name: "Amazon Associates",
+    provider: "amazon_associates",
     logo: "🛍️",
     category: "affiliate_network",
     fields: [
-      { name: "affiliate_id", label: "Affiliate ID", type: "text", required: true },
-      { name: "tracking_id", label: "Tracking ID", type: "text", required: true },
+      { name: "affiliate_tag", label: "Affiliate Tag", type: "text", required: true },
+      { name: "access_key", label: "Access Key ID", type: "text", required: false },
+      { name: "secret_key", label: "Secret Access Key", type: "password", required: false }
     ]
   },
+
+  temu_affiliate: {
+    name: "Temu Affiliate Program",
+    provider: "temu_affiliate",
+    logo: "🎁",
+    category: "affiliate_network",
+    fields: [
+      { name: "affiliate_id", label: "Affiliate ID", type: "text", required: true },
+      { name: "tracking_id", label: "Tracking ID", type: "text", required: true }
+    ]
+  },
+
+  // Analytics & Tracking
+  google_analytics: {
+    name: "Google Analytics",
+    provider: "google_analytics",
+    logo: "📊",
+    category: "analytics",
+    fields: [
+      { name: "measurement_id", label: "GA4 Measurement ID", type: "text", required: true },
+      { name: "api_secret", label: "API Secret (Optional)", type: "password", required: false }
+    ]
+  },
+
+  // Payment Processing
+  stripe: {
+    name: "Stripe",
+    provider: "stripe",
+    logo: "💳",
+    category: "payment",
+    fields: [
+      { name: "publishable_key", label: "Publishable Key", type: "text", required: true },
+      { name: "test_secret_key", label: "Test Secret Key", type: "password", required: false },
+      { name: "live_secret_key", label: "Live Secret Key", type: "password", required: false }
+    ]
+  },
+
+  // Automation & Webhooks
+  zapier: {
+    name: "Zapier",
+    provider: "zapier",
+    logo: "⚡",
+    category: "automation",
+    fields: [
+      { name: "webhook_url", label: "Webhook URL", type: "text", required: true }
+    ]
+  },
+
+  // Traffic Sources (existing ones)
   aliexpress_affiliate: {
     name: "AliExpress Affiliate",
     logo: "🛒",
@@ -64,16 +115,6 @@ const INTEGRATION_TEMPLATES = {
     fields: [
       { name: "campaign_id", label: "Campaign ID", type: "text", required: true },
       { name: "affiliate_id", label: "Affiliate ID", type: "text", required: true },
-    ]
-  },
-  amazon_associates: {
-    name: "Amazon Associates",
-    logo: "📦",
-    category: "affiliate_network",
-    fields: [
-      { name: "tracking_id", label: "Tracking ID (e.g., yoursite-20)", type: "text", required: true },
-      { name: "access_key", label: "Product Advertising API Access Key", type: "text", required: false },
-      { name: "secret_key", label: "Product Advertising API Secret Key", type: "password", required: false },
     ]
   },
   clickbank: {
