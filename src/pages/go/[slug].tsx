@@ -64,7 +64,7 @@ export default function RedirectPage() {
             if (prev <= 1) {
               clearInterval(interval);
               // Redirect to affiliate URL
-              window.location.href = linkData.affiliate_url;
+              window.location.href = linkData.original_url;
               return 0;
             }
             return prev - 1;
@@ -131,7 +131,7 @@ export default function RedirectPage() {
           </p>
           {link && (
             <Button 
-              onClick={() => window.location.href = link.affiliate_url}
+              onClick={() => window.location.href = link.original_url}
               className="w-full"
             >
               <ExternalLink className="mr-2 h-4 w-4" />

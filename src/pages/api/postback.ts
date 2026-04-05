@@ -137,18 +137,16 @@ export default async function handler(
       // Update campaign totals
       const { data: campaignLinks } = await supabase
         .from("affiliate_links")
-        .select("revenue, conversions")
+        .select("revenue")
         .eq("campaign_id", link.campaign_id);
 
       if (campaignLinks) {
         const totalRevenue = campaignLinks.reduce((sum, l) => sum + (l.revenue || 0), 0);
-        const totalConversions = campaignLinks.reduce((sum, l) => sum + (l.conversions || 0), 0);
 
         await supabase
           .from("campaigns")
           .update({
-            total_revenue: totalRevenue,
-            total_conversions: totalConversions
+            revenue: totalRevenue
           })
           .eq("id", link.campaign_id);
       }

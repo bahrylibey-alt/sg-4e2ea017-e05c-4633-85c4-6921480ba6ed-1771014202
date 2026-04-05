@@ -240,11 +240,11 @@ export default function LiveTest() {
       .eq("id", campaign.id)
       .single();
 
-    if (finalCampaign && finalCampaign.total_revenue > 0) {
+    if (finalCampaign && finalCampaign.revenue > 0) {
       updateResult(
         "Campaign Totals",
         "pass",
-        `✅ Campaign stats updated! Revenue: $${finalCampaign.total_revenue.toFixed(2)} | Conversions: ${finalCampaign.total_conversions}`,
+        `✅ Campaign stats updated! Revenue: $${finalCampaign.revenue.toFixed(2)}`,
         finalCampaign
       );
     } else {

@@ -66,27 +66,14 @@ export default async function handler(
 
     // Store detailed click event
     await supabase
-      .from("click_events")
+      .from("click_events" as any)
       .insert({
-        affiliate_link_id: link.id,
-        campaign_id: link.campaign_id,
+        link_id: link.id,
         user_id: link.user_id,
-        click_data: clickData
-      });
-
-    // Update campaign click count
-    const { data: campaignLinks } = await supabase
-      .from("affiliate_links")
-      .select("clicks")
-      .eq("campaign_id", link.campaign_id);
-
-    if (campaignLinks) {
-      const totalClicks = campaignLinks.reduce((sum, l) => sum + (l.clicks || 0), 0);
-      await supabase
-        .from("campaigns")
-        .update({ total_clicks: totalClicks })
-        .eq("id", link.campaign_id);
-    }
+        referrer: referrer || "direct",
+        user_agent: userAgent || "unknown",
+        ip_address: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress
+      } as any);
 
     console.log("✅ Click tracked:", {
       product: link.product_name,
@@ -96,7 +83,7 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      redirect_url: link.affiliate_url,
+      redirect_url: link.original_url,
       clicks: newClicks
     });
 
