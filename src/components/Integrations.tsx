@@ -6,84 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Check, Loader2, Settings } from "lucide-react";
-import { integrationService, type IntegrationDetails, type IntegrationConfig } from "@/services/integrationService";
+import { integrationService, type Integration, type IntegrationConfig } from "@/services/integrationService";
 import { useToast } from "@/hooks/use-toast";
-
-const AVAILABLE_INTEGRATIONS = [
-  {
-    provider: "amazon_associates",
-    name: "Amazon Associates",
-    description: "Connect your Amazon affiliate account and start promoting millions of products",
-    logo: "🛒",
-    category: "E-commerce",
-    requiredFields: ["trackingCode", "affiliateId"] as const
-  },
-  {
-    provider: "clickbank",
-    name: "ClickBank",
-    description: "Access thousands of digital products with high commission rates",
-    logo: "💳",
-    category: "Digital Products",
-    requiredFields: ["apiKey"] as const
-  },
-  {
-    provider: "shareasale",
-    name: "ShareASale",
-    description: "Join one of the largest affiliate networks with premium brands",
-    logo: "🤝",
-    category: "Affiliate Network",
-    requiredFields: ["affiliateId", "apiKey"] as const
-  },
-  {
-    provider: "cj_affiliate",
-    name: "CJ Affiliate",
-    description: "Partner with top brands and access exclusive offers",
-    logo: "🎯",
-    category: "Affiliate Network",
-    requiredFields: ["apiKey"] as const
-  },
-  {
-    provider: "mailchimp",
-    name: "Mailchimp",
-    description: "Automate email campaigns and build your subscriber list",
-    logo: "📧",
-    category: "Email Marketing",
-    requiredFields: ["apiKey", "listId"] as const
-  },
-  {
-    provider: "google_analytics",
-    name: "Google Analytics",
-    description: "Track detailed visitor behavior and conversion data",
-    logo: "📊",
-    category: "Analytics",
-    requiredFields: ["trackingId"] as const
-  },
-  {
-    provider: "stripe",
-    name: "Stripe",
-    description: "Accept payments and manage subscriptions seamlessly",
-    logo: "💰",
-    category: "Payments",
-    requiredFields: ["stripePublishableKey", "stripeSecretKey"] as const
-  },
-  {
-    provider: "zapier",
-    name: "Zapier",
-    description: "Connect 5,000+ apps and automate workflows",
-    logo: "⚡",
-    category: "Automation",
-    requiredFields: ["webhookUrl"] as const
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
 
 export function Integrations() {
-  const [integrations, setIntegrations] = useState<IntegrationDetails[]>([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<typeof AVAILABLE_INTEGRATIONS[0] | null>(null);
+  const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfig>({});
   const { toast } = useToast();
+
+  const templates = integrationService.getTemplates();
+  const availableIntegrations = Object.entries(templates).map(([key, template]) => ({
+    provider: key,
+    ...template
+  }));
 
   // Load integrations from database
   useEffect(() => {
@@ -92,16 +32,21 @@ export function Integrations() {
 
   const loadIntegrations = async () => {
     setLoading(true);
-    const { integrations: data, error } = await integrationService.getUserIntegrations();
-    
-    if (error) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const data = await integrationService.getUserIntegrations(user.id);
+      setIntegrations(data);
+    } catch (error: any) {
       toast({
         title: "Error loading integrations",
-        description: error,
+        description: error.message,
         variant: "destructive"
       });
-    } else {
-      setIntegrations(data);
     }
     
     setLoading(false);
@@ -112,92 +57,83 @@ export function Integrations() {
     return integration?.status === "connected" ? "connected" : "disconnected";
   };
 
-  const handleConnect = (provider: typeof AVAILABLE_INTEGRATIONS[0]) => {
-    setSelectedProvider(provider);
-    setConfigValues({});
+  const handleConnect = (providerKey: string) => {
+    setSelectedProviderKey(providerKey);
+    const existing = integrations.find(i => i.provider === providerKey);
+    setConfigValues(existing?.config || {});
     setConfigDialogOpen(true);
   };
 
   const handleDisconnect = async (provider: string) => {
+    const template = templates[provider as keyof typeof templates];
     const confirmed = window.confirm(
-      `Disconnect ${AVAILABLE_INTEGRATIONS.find(i => i.provider === provider)?.name}?\n\nThis will remove all stored credentials and stop syncing data.`
+      `Disconnect ${template?.name}?\n\nThis will remove all stored credentials and stop syncing data.`
     );
     
     if (!confirmed) return;
 
     setConnectingProvider(provider);
-    const { success, error } = await integrationService.disconnectIntegration(provider);
+    const integration = integrations.find(i => i.provider === provider);
     
-    if (success) {
-      toast({
-        title: "Integration disconnected",
-        description: `Successfully disconnected ${AVAILABLE_INTEGRATIONS.find(i => i.provider === provider)?.name}`
-      });
-      await loadIntegrations();
-    } else {
-      toast({
-        title: "Error disconnecting",
-        description: error || "Failed to disconnect integration",
-        variant: "destructive"
-      });
+    if (integration) {
+      try {
+        await integrationService.deleteIntegration(integration.id);
+        toast({
+          title: "Integration disconnected",
+          description: `Successfully disconnected ${template?.name}`
+        });
+        await loadIntegrations();
+      } catch (error: any) {
+        toast({
+          title: "Error disconnecting",
+          description: error.message || "Failed to disconnect integration",
+          variant: "destructive"
+        });
+      }
     }
     
     setConnectingProvider(null);
   };
 
   const handleSaveConnection = async () => {
-    if (!selectedProvider) return;
+    if (!selectedProviderKey) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
+    const template = templates[selectedProviderKey as keyof typeof templates];
+    
     // Validate required fields
-    const missingFields = selectedProvider.requiredFields.filter(
-      field => !configValues[field as keyof IntegrationConfig]
+    const missingFields = template.fields.filter(
+      field => field.required && !configValues[field.name]
     );
 
     if (missingFields.length > 0) {
       toast({
         title: "Missing required fields",
-        description: `Please fill in: ${missingFields.join(", ")}`,
+        description: `Please fill in: ${missingFields.map(f => f.label).join(", ")}`,
         variant: "destructive"
       });
       return;
     }
 
-    setConnectingProvider(selectedProvider.provider);
-    const { success, error } = await integrationService.connectIntegration(
-      selectedProvider.provider,
-      configValues
-    );
-
-    if (success) {
+    setConnectingProvider(selectedProviderKey);
+    try {
+      await integrationService.saveIntegration(user.id, selectedProviderKey, configValues);
       toast({
         title: "Integration connected",
-        description: `Successfully connected ${selectedProvider.name}`
+        description: `Successfully connected ${template.name}`
       });
       setConfigDialogOpen(false);
       await loadIntegrations();
-    } else {
+    } catch (error: any) {
       toast({
         title: "Connection failed",
-        description: error || "Failed to connect integration",
+        description: error.message || "Failed to connect integration",
         variant: "destructive"
       });
     }
 
     setConnectingProvider(null);
-  };
-
-  const getFieldLabel = (field: string): string => {
-    const labels: Record<string, string> = {
-      trackingCode: "Tracking Code",
-      affiliateId: "Affiliate ID",
-      apiKey: "API Key",
-      listId: "List ID",
-      stripePublishableKey: "Publishable Key",
-      stripeSecretKey: "Secret Key",
-      trackingId: "Tracking ID",
-      webhookUrl: "Webhook URL"
-    };
-    return labels[field] || field;
   };
 
   const handleRequestIntegration = () => {
@@ -210,6 +146,8 @@ export function Integrations() {
       });
     }
   };
+
+  const selectedTemplate = selectedProviderKey ? templates[selectedProviderKey as keyof typeof templates] : null;
 
   if (loading) {
     return (
@@ -239,7 +177,7 @@ export function Integrations() {
 
         {/* Integrations grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {AVAILABLE_INTEGRATIONS.map((integration) => {
+          {availableIntegrations.map((integration) => {
             const status = getIntegrationStatus(integration.provider);
             const isConnected = status === "connected";
             const isLoading = connectingProvider === integration.provider;
@@ -265,20 +203,20 @@ export function Integrations() {
                   </div>
                   <CardTitle className="text-xl">{integration.name}</CardTitle>
                   <CardDescription className="text-sm">
-                    {integration.description}
+                    {integration.category.replace("_", " ")} integration
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className="text-xs">
-                      {integration.category}
+                      {integration.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                     </Badge>
                     <div className="flex gap-2">
                       {isConnected && (
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => handleConnect(integration)}
+                          onClick={() => handleConnect(integration.provider)}
                           disabled={isLoading}
                         >
                           <Settings className="w-3 h-3" />
@@ -287,7 +225,7 @@ export function Integrations() {
                       <Button 
                         size="sm" 
                         variant={isConnected ? "outline" : "default"}
-                        onClick={() => isConnected ? handleDisconnect(integration.provider) : handleConnect(integration)}
+                        onClick={() => isConnected ? handleDisconnect(integration.provider) : handleConnect(integration.provider)}
                         disabled={isLoading}
                       >
                         {isLoading ? (
@@ -326,7 +264,7 @@ export function Integrations() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedProvider?.logo} Connect {selectedProvider?.name}
+              {selectedTemplate?.logo} Connect {selectedTemplate?.name}
             </DialogTitle>
             <DialogDescription>
               Enter your credentials to connect this integration
@@ -334,17 +272,20 @@ export function Integrations() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {selectedProvider?.requiredFields.map((field) => (
-              <div key={field} className="space-y-2">
-                <Label htmlFor={field}>{getFieldLabel(field)}</Label>
+            {selectedTemplate?.fields.map((field) => (
+              <div key={field.name} className="space-y-2">
+                <Label htmlFor={field.name}>
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </Label>
                 <Input
-                  id={field}
-                  type={field.includes("secret") || field.includes("Secret") ? "password" : "text"}
-                  placeholder={`Enter your ${getFieldLabel(field).toLowerCase()}`}
-                  value={configValues[field as keyof IntegrationConfig] || ""}
+                  id={field.name}
+                  type={field.type}
+                  placeholder={`Enter your ${field.label.toLowerCase()}`}
+                  value={configValues[field.name] || ""}
                   onChange={(e) => setConfigValues({
                     ...configValues,
-                    [field]: e.target.value
+                    [field.name]: e.target.value
                   })}
                 />
               </div>

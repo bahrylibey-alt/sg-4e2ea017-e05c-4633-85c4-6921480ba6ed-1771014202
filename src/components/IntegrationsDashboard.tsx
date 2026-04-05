@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { integrationService, type IntegrationDetails } from "@/services/integrationService";
+import { integrationService, type Integration } from "@/services/integrationService";
 import { useToast } from "@/hooks/use-toast";
 import { Check, X, RefreshCw, Settings, AlertCircle, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export function IntegrationsDashboard() {
-  const [integrations, setIntegrations] = useState<IntegrationDetails[]>([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
   const { toast } = useToast();
@@ -18,16 +19,21 @@ export function IntegrationsDashboard() {
 
   const loadIntegrations = async () => {
     setLoading(true);
-    const { integrations: data, error } = await integrationService.getUserIntegrations();
-    
-    if (error) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const data = await integrationService.getUserIntegrations(user.id);
+      setIntegrations(data);
+    } catch (error: any) {
       toast({
         title: "Error loading integrations",
-        description: error,
+        description: error.message,
         variant: "destructive"
       });
-    } else {
-      setIntegrations(data);
     }
     
     setLoading(false);
@@ -39,7 +45,7 @@ export function IntegrationsDashboard() {
     // Simulate sync - in production this would call the actual API
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    await integrationService.updateSyncStatus(provider, new Date().toISOString());
+    // Update last sync time logic goes here in a real implementation
     await loadIntegrations();
     
     toast({
@@ -50,25 +56,24 @@ export function IntegrationsDashboard() {
     setSyncing(null);
   };
 
-  const handleDisconnect = async (provider: string, providerName: string) => {
+  const handleDisconnect = async (id: string, providerName: string) => {
     const confirmed = window.confirm(
       `Disconnect ${providerName}?\n\nThis will stop all data syncing and remove stored credentials.`
     );
     
     if (!confirmed) return;
 
-    const { success, error } = await integrationService.disconnectIntegration(provider);
-    
-    if (success) {
+    try {
+      await integrationService.deleteIntegration(id);
       toast({
         title: "Integration disconnected",
         description: `Successfully disconnected ${providerName}`
       });
       await loadIntegrations();
-    } else {
+    } catch (error: any) {
       toast({
         title: "Error disconnecting",
-        description: error || "Failed to disconnect integration",
+        description: error.message || "Failed to disconnect integration",
         variant: "destructive"
       });
     }
@@ -91,7 +96,7 @@ export function IntegrationsDashboard() {
     const icons: Record<string, string> = {
       payment: "💳",
       email: "📧",
-      automation: "⚡",
+      traffic_source: "⚡",
       affiliate_network: "🤝",
       analytics: "📊",
       tracking: "📱"
@@ -169,9 +174,9 @@ export function IntegrationsDashboard() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="text-3xl">{integration.providerLogo}</div>
+                      <div className="text-3xl">{integration.provider_logo}</div>
                       <div>
-                        <CardTitle className="text-base">{integration.providerName}</CardTitle>
+                        <CardTitle className="text-base">{integration.provider_name}</CardTitle>
                         <CardDescription className="text-xs">
                           {getCategoryIcon(integration.category)} {integration.category.replace("_", " ")}
                         </CardDescription>
@@ -186,12 +191,12 @@ export function IntegrationsDashboard() {
                 <CardContent>
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
                     <span>
-                      Connected {integration.connectedAt ? 
-                        new Date(integration.connectedAt).toLocaleDateString() : "—"}
+                      Connected {integration.connected_at ? 
+                        new Date(integration.connected_at).toLocaleDateString() : "—"}
                     </span>
                     <span>
-                      Last sync: {integration.lastSyncAt ? 
-                        new Date(integration.lastSyncAt).toLocaleTimeString() : "Never"}
+                      Last sync: {integration.last_sync_at ? 
+                        new Date(integration.last_sync_at).toLocaleTimeString() : "Never"}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -224,7 +229,7 @@ export function IntegrationsDashboard() {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => handleDisconnect(integration.provider, integration.providerName)}
+                      onClick={() => handleDisconnect(integration.id, integration.provider_name)}
                       disabled={syncing === integration.provider}
                     >
                       <X className="w-3 h-3 mr-1" />
@@ -248,12 +253,12 @@ export function IntegrationsDashboard() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="text-3xl">{integration.providerLogo}</div>
+                      <div className="text-3xl">{integration.provider_logo}</div>
                       <div>
-                        <CardTitle className="text-base">{integration.providerName}</CardTitle>
+                        <CardTitle className="text-base">{integration.provider_name}</CardTitle>
                         <CardDescription className="text-xs text-red-500">
                           <AlertCircle className="w-3 h-3 inline mr-1" />
-                          {integration.errorMessage || "Connection error"}
+                          {integration.error_message || "Connection error"}
                         </CardDescription>
                       </div>
                     </div>
@@ -267,7 +272,7 @@ export function IntegrationsDashboard() {
                     size="sm" 
                     variant="outline"
                     className="w-full"
-                    onClick={() => handleDisconnect(integration.provider, integration.providerName)}
+                    onClick={() => handleDisconnect(integration.id, integration.provider_name)}
                   >
                     <X className="w-3 h-3 mr-1" />
                     Remove Integration
@@ -288,7 +293,7 @@ export function IntegrationsDashboard() {
             <p className="text-muted-foreground mb-4">
               Connect your favorite tools to supercharge your affiliate business
             </p>
-            <Button>
+            <Button onClick={() => window.location.href = '/settings'}>
               Browse Available Integrations
             </Button>
           </CardContent>
