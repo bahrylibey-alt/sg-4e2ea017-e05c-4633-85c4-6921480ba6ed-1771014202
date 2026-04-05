@@ -113,6 +113,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   // Traffic Sources (existing ones)
   aliexpress_affiliate: {
     name: "AliExpress Affiliate",
+    provider: "aliexpress_affiliate",
     logo: "🛒",
     category: "affiliate_network",
     fields: [
@@ -123,6 +124,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   ebay_partner_network: {
     name: "eBay Partner Network",
+    provider: "ebay_partner_network",
     logo: "🏪",
     category: "affiliate_network",
     fields: [
@@ -132,6 +134,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   clickbank: {
     name: "ClickBank",
+    provider: "clickbank",
     logo: "💳",
     category: "affiliate_network",
     fields: [
@@ -141,6 +144,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   shareasale: {
     name: "ShareASale",
+    provider: "shareasale",
     logo: "🤝",
     category: "affiliate_network",
     fields: [
@@ -153,6 +157,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   // Social Media Traffic Sources
   facebook_api: {
     name: "Facebook for Business",
+    provider: "facebook_api",
     logo: "📘",
     category: "traffic_source",
     fields: [
@@ -164,6 +169,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   twitter_api: {
     name: "Twitter / X API",
+    provider: "twitter_api",
     logo: "🐦",
     category: "traffic_source",
     fields: [
@@ -175,6 +181,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   reddit_api: {
     name: "Reddit API",
+    provider: "reddit_api",
     logo: "🤖",
     category: "traffic_source",
     fields: [
@@ -186,6 +193,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   pinterest_api: {
     name: "Pinterest API",
+    provider: "pinterest_api",
     logo: "📌",
     category: "traffic_source",
     fields: [
@@ -195,6 +203,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   tiktok_api: {
     name: "TikTok for Business",
+    provider: "tiktok_api",
     logo: "🎵",
     category: "traffic_source",
     fields: [
@@ -205,6 +214,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   instagram_api: {
     name: "Instagram Graph API",
+    provider: "instagram_api",
     logo: "📸",
     category: "traffic_source",
     fields: [
@@ -214,6 +224,7 @@ const INTEGRATION_TEMPLATES: Record<string, IntegrationTemplate> = {
   },
   youtube_api: {
     name: "YouTube Data API",
+    provider: "youtube_api",
     logo: "▶️",
     category: "traffic_source",
     fields: [
