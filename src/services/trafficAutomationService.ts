@@ -203,14 +203,16 @@ export const trafficAutomationService = {
   /**
    * Launch automated traffic channels (REAL setup, no fake clicks)
    */
-  async launchAutomatedTraffic(campaignId: string): Promise<{ success: boolean; channels: number }> {
+  async launchAutomatedTraffic(params: string | { campaignId: string; budget?: number; sources?: string[]; autoActivate?: boolean }): Promise<{ success: boolean; channels: number; sources?: string[] }> {
     try {
+      const campaignId = typeof params === 'string' ? params : params.campaignId;
+      const requestedSources = typeof params === 'string' || !params.sources ? ["Twitter/X", "Facebook", "LinkedIn", "Pinterest"] : params.sources;
+
       // 1. Enable SEO optimization
       await this.enableSEOOptimization(campaignId);
       
       // 2. Set up real tracking for social channels
-      const sources = ["Twitter/X", "Facebook", "LinkedIn", "Pinterest"];
-      for (const source of sources) {
+      for (const source of requestedSources) {
         await supabase
           .from("traffic_sources")
           .upsert({
@@ -224,10 +226,10 @@ export const trafficAutomationService = {
           }, { onConflict: "campaign_id,source_name" });
       }
 
-      return { success: true, channels: sources.length + 1 };
+      return { success: true, channels: requestedSources.length + 1, sources: [...requestedSources, "Google Search"] };
     } catch (error) {
       console.error("Failed to launch traffic channels:", error);
-      return { success: false, channels: 0 };
+      return { success: false, channels: 0, sources: [] };
     }
   },
 
