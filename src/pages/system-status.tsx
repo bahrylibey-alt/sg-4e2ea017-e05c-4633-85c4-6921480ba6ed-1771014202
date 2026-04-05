@@ -58,7 +58,7 @@ export default function SystemStatus() {
           test: "Temu Integration",
           status: temuIntegration ? "pass" : "warn",
           message: temuIntegration 
-            ? `✅ Connected (ID: ${temuIntegration.config?.affiliate_id})`
+            ? `✅ Connected (ID: ${(temuIntegration.config as any)?.affiliate_id})`
             : "❌ Not connected"
         });
 
@@ -66,7 +66,7 @@ export default function SystemStatus() {
           test: "Amazon Integration",
           status: amazonIntegration ? "pass" : "warn",
           message: amazonIntegration 
-            ? `✅ Connected (ID: ${amazonIntegration.config?.tracking_id})`
+            ? `✅ Connected (ID: ${(amazonIntegration.config as any)?.tracking_id})`
             : "❌ Not connected"
         });
       }
@@ -180,7 +180,8 @@ export default function SystemStatus() {
           .insert({
             user_id: session.user.id,
             name: "Test Campaign",
-            status: "active"
+            status: "active",
+            goal: "system_test"
           })
           .select()
           .single();
@@ -203,7 +204,7 @@ export default function SystemStatus() {
         status: result.success ? "pass" : "fail",
         message: result.success 
           ? `✅ Added ${result.added} products from multiple networks`
-          : `❌ Failed: ${result.error}`
+          : `❌ Failed to add products`
       });
 
       if (result.products) {
