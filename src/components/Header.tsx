@@ -115,6 +115,9 @@ export function Header() {
                   <DropdownMenuItem onClick={() => window.location.href = "/dashboard"}>
                     Dashboard
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.location.href = "/settings"}>
+                    Settings
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="w-4 h-4 mr-2" />
                     Sign Out
@@ -162,6 +165,9 @@ export function Header() {
                 <>
                   <Button variant="outline" className="w-full" onClick={() => window.location.href = "/dashboard"}>
                     Dashboard
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => window.location.href = "/settings"}>
+                    Settings
                   </Button>
                   <Button variant="outline" className="w-full" onClick={handleSignOut}>
                     <LogOut className="w-4 h-4 mr-2" />
