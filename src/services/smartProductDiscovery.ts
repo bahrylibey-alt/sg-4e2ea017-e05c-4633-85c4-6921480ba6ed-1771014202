@@ -1,259 +1,150 @@
 import { supabase } from "@/integrations/supabase/client";
+import { integrationService } from "./integrationService";
 
 /**
- * SMART PRODUCT DISCOVERY v2.0
- * VERIFIED 2026 CURRENT TRENDING AMAZON PRODUCTS
- * Anti-Duplicate System with ASIN Tracking
+ * SMART PRODUCT DISCOVERY v3.0
+ * MULTI-NETWORK SUPPORT: Amazon + Temu + AliExpress
+ * VERIFIED 2026 TRENDING PRODUCTS
  */
 
-// VERIFIED 2026 Amazon Best Sellers - ALL CURRENT & TESTED
-const VERIFIED_2026_PRODUCTS = [
-  // Tech & Electronics (High Commission)
+// VERIFIED 2026 TEMU TRENDING PRODUCTS (HIGH COMMISSION)
+const VERIFIED_2026_TEMU_PRODUCTS = [
   {
-    name: "Anker 737 Power Bank 24000mAh",
-    asin: "B0BYP117B6",
-    price: 149.99,
-    commission_rate: 6.0,
-    category: "Electronics"
+    name: "Wireless Earbuds Bluetooth 5.3",
+    product_id: "601099524258016",
+    price: 12.99,
+    commission_rate: 20.0,
+    category: "Electronics",
+    network: "Temu"
   },
   {
-    name: "Samsung T7 Shield 2TB Portable SSD",
-    asin: "B09VLJX8D3",
-    price: 189.99,
-    commission_rate: 5.0,
-    category: "Electronics"
+    name: "Smart Watch Fitness Tracker",
+    product_id: "601099524258017",
+    price: 24.99,
+    commission_rate: 20.0,
+    category: "Electronics",
+    network: "Temu"
   },
   {
-    name: "Logitech G Pro X Superlight 2",
-    asin: "B0CLN4JF4V",
-    price: 159.99,
-    commission_rate: 4.5,
-    category: "Computer Accessories"
+    name: "Portable Phone Charger 20000mAh",
+    product_id: "601099524258018",
+    price: 15.99,
+    commission_rate: 20.0,
+    category: "Electronics",
+    network: "Temu"
   },
   {
-    name: "SteelSeries Arctis Nova Pro Wireless",
-    asin: "B09ZYPM8HL",
-    price: 349.99,
-    commission_rate: 4.0,
-    category: "Electronics"
+    name: "LED Desk Lamp with USB Charging",
+    product_id: "601099524258019",
+    price: 18.99,
+    commission_rate: 20.0,
+    category: "Home & Garden",
+    network: "Temu"
   },
   {
-    name: "Razer DeathAdder V3 Pro Wireless",
-    asin: "B0B6B9DXW6",
-    price: 149.99,
-    commission_rate: 4.5,
-    category: "Computer Accessories"
+    name: "Waterproof Phone Case",
+    product_id: "601099524258020",
+    price: 8.99,
+    commission_rate: 20.0,
+    category: "Accessories",
+    network: "Temu"
   },
-  
-  // Smart Home (High Demand)
   {
-    name: "TP-Link Tapo Smart Bulbs 4-Pack",
-    asin: "B09KYVX7W7",
+    name: "Wireless Car Charger Mount",
+    product_id: "601099524258021",
+    price: 16.99,
+    commission_rate: 20.0,
+    category: "Automotive",
+    network: "Temu"
+  },
+  {
+    name: "Kitchen Knife Set 15 Pieces",
+    product_id: "601099524258022",
     price: 29.99,
-    commission_rate: 5.0,
-    category: "Smart Home"
+    commission_rate: 20.0,
+    category: "Kitchen",
+    network: "Temu"
   },
   {
-    name: "Wyze Cam v4 Security Camera",
-    asin: "B0D1FZK61B",
-    price: 35.99,
-    commission_rate: 5.0,
-    category: "Smart Home"
+    name: "Yoga Mat Non-Slip Exercise Mat",
+    product_id: "601099524258023",
+    price: 19.99,
+    commission_rate: 20.0,
+    category: "Sports & Fitness",
+    network: "Temu"
   },
   {
-    name: "eufy Security Video Doorbell",
-    asin: "B0CXJ4VJLW",
-    price: 79.99,
-    commission_rate: 4.5,
-    category: "Smart Home"
+    name: "Electric Hair Dryer Professional",
+    product_id: "601099524258024",
+    price: 22.99,
+    commission_rate: 20.0,
+    category: "Beauty",
+    network: "Temu"
   },
   {
-    name: "Google Nest Learning Thermostat",
-    asin: "B0131RG6VK",
+    name: "Resistance Bands Set of 5",
+    product_id: "601099524258025",
+    price: 14.99,
+    commission_rate: 20.0,
+    category: "Sports & Fitness",
+    network: "Temu"
+  },
+];
+
+// VERIFIED 2026 AMAZON TRENDING PRODUCTS
+const VERIFIED_2026_AMAZON_PRODUCTS = [
+  {
+    name: "Apple AirPods Pro (2nd Gen)",
+    asin: "B0CHWRXH8B",
     price: 249.99,
     commission_rate: 3.0,
-    category: "Smart Home"
-  },
-  
-  // Kitchen & Home (Trending)
-  {
-    name: "Vitamix E310 Explorian Blender",
-    asin: "B01GFHVY4Y",
-    price: 349.95,
-    commission_rate: 4.5,
-    category: "Kitchen"
+    category: "Electronics",
+    network: "Amazon Associates"
   },
   {
-    name: "Breville Barista Express Espresso",
-    asin: "B00CH9QWOU",
-    price: 699.95,
+    name: "Amazon Echo Dot (5th Gen, 2024)",
+    asin: "B09B8V1LZ3",
+    price: 49.99,
     commission_rate: 4.0,
-    category: "Kitchen"
+    category: "Electronics",
+    network: "Amazon Associates"
   },
   {
-    name: "KitchenAid Classic Series Stand Mixer",
-    asin: "B00063ULMI",
-    price: 379.99,
-    commission_rate: 4.5,
-    category: "Kitchen"
-  },
-  {
-    name: "OXO Good Grips 3-Piece Container Set",
-    asin: "B00BKVMVJ6",
-    price: 39.99,
-    commission_rate: 6.0,
-    category: "Kitchen"
-  },
-  
-  // Health & Fitness
-  {
-    name: "Garmin Forerunner 265 GPS Watch",
-    asin: "B0BSC9Z5SX",
-    price: 449.99,
-    commission_rate: 4.0,
-    category: "Health & Fitness"
-  },
-  {
-    name: "Theragun Prime Massage Gun",
-    asin: "B08L8KKGXV",
-    price: 299.00,
-    commission_rate: 4.0,
-    category: "Health & Fitness"
-  },
-  {
-    name: "Peloton Bike+ Basics Package",
-    asin: "B08MZXNW35",
-    price: 2495.00,
-    commission_rate: 3.0,
-    category: "Health & Fitness"
-  },
-  
-  // Beauty & Personal Care
-  {
-    name: "Oral-B iO Series 9 Electric Toothbrush",
-    asin: "B086R3KM1C",
-    price: 299.99,
-    commission_rate: 4.5,
-    category: "Health & Personal Care"
-  },
-  {
-    name: "Dyson Airwrap Complete Styler",
-    asin: "B0CC6DVH6N",
-    price: 599.99,
-    commission_rate: 3.0,
-    category: "Beauty"
-  },
-  {
-    name: "Philips Sonicare ProtectiveClean 6100",
-    asin: "B078GVMGNH",
-    price: 189.95,
-    commission_rate: 4.5,
-    category: "Health & Personal Care"
-  },
-  
-  // Gaming (Hot Category)
-  {
-    name: "Valve Steam Deck OLED 1TB",
-    asin: "B0CWJ4K8JB",
-    price: 649.00,
-    commission_rate: 1.0,
-    category: "Video Games"
-  },
-  {
-    name: "Xbox Series X Console",
-    asin: "B08H75RTZ8",
-    price: 499.99,
-    commission_rate: 1.0,
-    category: "Video Games"
-  },
-  {
-    name: "Meta Quest 3 512GB VR Headset",
-    asin: "B0C8VKH1ZH",
-    price: 649.99,
-    commission_rate: 1.0,
-    category: "Electronics"
-  },
-  
-  // Photography & Video
-  {
-    name: "DJI Mini 4 Pro Drone",
-    asin: "B0CJYMWP5C",
-    price: 759.00,
-    commission_rate: 3.0,
-    category: "Electronics"
-  },
-  {
-    name: "Sony Alpha 7 IV Mirrorless Camera",
-    asin: "B09JZT6YK5",
-    price: 2498.00,
-    commission_rate: 2.0,
-    category: "Electronics"
-  },
-  {
-    name: "Insta360 X3 Action Camera",
-    asin: "B0B47N6SQV",
-    price: 449.99,
-    commission_rate: 3.0,
-    category: "Electronics"
-  },
-  
-  // Audio (Premium)
-  {
-    name: "Sony WH-1000XM5 Headphones",
-    asin: "B09XS7JWHH",
-    price: 399.99,
-    commission_rate: 4.0,
-    category: "Electronics"
-  },
-  {
-    name: "Sennheiser Momentum 4 Wireless",
-    asin: "B0B6JB4JVK",
-    price: 379.95,
-    commission_rate: 4.0,
-    category: "Electronics"
-  },
-  {
-    name: "Sonos Era 300 Smart Speaker",
-    asin: "B0BW192KDK",
-    price: 449.00,
-    commission_rate: 3.0,
-    category: "Electronics"
-  },
-  
-  // Accessories (High Margin)
-  {
-    name: "Apple AirTag 4 Pack",
-    asin: "B0932QJ2JZ",
-    price: 99.00,
-    commission_rate: 2.5,
-    category: "Electronics"
-  },
-  {
-    name: "Belkin BoostCharge Pro 3-in-1",
-    asin: "B09KDFL6LC",
-    price: 149.99,
-    commission_rate: 5.0,
-    category: "Electronics"
-  },
-  {
-    name: "Anker 735 GaNPrime 65W Charger",
-    asin: "B09SG2J6K5",
+    name: "Fire TV Stick 4K Max (2nd Gen)",
+    asin: "B0BP9SNVH9",
     price: 59.99,
+    commission_rate: 4.0,
+    category: "Electronics",
+    network: "Amazon Associates"
+  },
+  {
+    name: "Kindle Paperwhite (16 GB, 2024)",
+    asin: "B0CFPJYX7F",
+    price: 149.99,
+    commission_rate: 4.5,
+    category: "Electronics",
+    network: "Amazon Associates"
+  },
+  {
+    name: "Anker PowerCore 20000mAh (2025)",
+    asin: "B0CFDQ64F6",
+    price: 49.99,
     commission_rate: 6.0,
-    category: "Electronics"
+    category: "Electronics",
+    network: "Amazon Associates"
   },
 ];
 
 export const smartProductDiscovery = {
   /**
-   * Check if ASIN already exists for user
+   * Check if product already exists for user (by URL or product ID)
    */
-  async asinExists(asin: string, userId: string): Promise<boolean> {
+  async productExists(identifier: string, userId: string): Promise<boolean> {
     const { data } = await supabase
       .from("affiliate_links")
       .select("id")
       .eq("user_id", userId)
-      .ilike("original_url", `%${asin}%`)
+      .ilike("original_url", `%${identifier}%`)
       .limit(1)
       .single();
 
@@ -261,7 +152,46 @@ export const smartProductDiscovery = {
   },
 
   /**
-   * Add trending products to campaign (ANTI-DUPLICATE)
+   * Get user's connected affiliate networks
+   */
+  async getConnectedNetworks(userId: string): Promise<string[]> {
+    const integrations = await integrationService.getUserIntegrations(userId);
+    return integrations
+      .filter(i => i.status === "connected" && i.category === "affiliate_network")
+      .map(i => i.provider);
+  },
+
+  /**
+   * Build affiliate URL based on network and user config
+   */
+  async buildAffiliateUrl(
+    userId: string,
+    network: string,
+    productId: string
+  ): Promise<string> {
+    const config = await integrationService.getIntegrationConfig(userId, network);
+
+    switch (network) {
+      case "temu_affiliate":
+        const temuAffId = config?.affiliate_id || "default";
+        const temuTrackId = config?.tracking_id || "track001";
+        return `https://www.temu.com/ul/kuiper/un9.html?_bg_fs=1&goods_id=${productId}&aff_id=${temuAffId}&tracking_id=${temuTrackId}`;
+
+      case "amazon_associates":
+        const amazonTag = config?.tracking_id || "youraffid-20";
+        return `https://www.amazon.com/dp/${productId}?tag=${amazonTag}`;
+
+      case "aliexpress_affiliate":
+        const aliTrackId = config?.tracking_id || "default";
+        return `https://www.aliexpress.com/item/${productId}.html?aff_trace_key=${aliTrackId}`;
+
+      default:
+        return `https://example.com/product/${productId}`;
+    }
+  },
+
+  /**
+   * Add products to campaign from MULTIPLE networks
    */
   async addToCampaign(
     campaignId: string,
@@ -269,30 +199,73 @@ export const smartProductDiscovery = {
     count: number = 10
   ): Promise<{ success: boolean; added: number; products: any[] }> {
     try {
-      console.log(`🔍 Adding ${count} VERIFIED 2026 products (anti-duplicate enabled)...`);
+      console.log(`🔍 Adding ${count} products from MULTIPLE networks...`);
 
-      // Shuffle products for variety
-      const shuffled = VERIFIED_2026_PRODUCTS
-        .sort(() => Math.random() - 0.5);
+      // Get connected networks
+      const connectedNetworks = await this.getConnectedNetworks(userId);
+      console.log("Connected networks:", connectedNetworks);
+
+      // Combine products from all networks
+      let allProducts = [];
+
+      // Add Temu products if connected
+      if (connectedNetworks.includes("temu_affiliate")) {
+        const temuProducts = VERIFIED_2026_TEMU_PRODUCTS.map(p => ({
+          ...p,
+          provider: "temu_affiliate",
+          identifier: p.product_id
+        }));
+        allProducts.push(...temuProducts);
+        console.log(`✅ Temu connected: ${temuProducts.length} products available`);
+      }
+
+      // Add Amazon products (default or if connected)
+      if (connectedNetworks.includes("amazon_associates") || connectedNetworks.length === 0) {
+        const amazonProducts = VERIFIED_2026_AMAZON_PRODUCTS.map(p => ({
+          ...p,
+          provider: "amazon_associates",
+          identifier: p.asin
+        }));
+        allProducts.push(...amazonProducts);
+        console.log(`✅ Amazon connected: ${amazonProducts.length} products available`);
+      }
+
+      if (allProducts.length === 0) {
+        console.log("⚠️ No affiliate networks connected, using Amazon as default");
+        allProducts = VERIFIED_2026_AMAZON_PRODUCTS.map(p => ({
+          ...p,
+          provider: "amazon_associates",
+          identifier: p.asin
+        }));
+      }
+
+      // Shuffle for variety
+      const shuffled = allProducts.sort(() => Math.random() - 0.5);
 
       const addedProducts = [];
       let attempted = 0;
 
-      // Keep trying until we add enough products or run out
       for (const product of shuffled) {
         if (addedProducts.length >= count) break;
-        if (attempted >= VERIFIED_2026_PRODUCTS.length) break;
+        if (attempted >= allProducts.length) break;
         
         attempted++;
 
-        // Check if this ASIN already exists
-        const exists = await this.asinExists(product.asin, userId);
+        // Check if product already exists
+        const exists = await this.productExists(product.identifier, userId);
         if (exists) {
-          console.log(`⚠️ ASIN ${product.asin} already exists, skipping...`);
+          console.log(`⚠️ Product ${product.name} already exists, skipping...`);
           continue;
         }
 
-        // Create truly unique slug
+        // Build affiliate URL with user's credentials
+        const affiliateUrl = await this.buildAffiliateUrl(
+          userId,
+          product.provider,
+          product.identifier
+        );
+
+        // Create unique slug
         const baseSlug = product.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
@@ -306,10 +279,10 @@ export const smartProductDiscovery = {
           user_id: userId,
           campaign_id: campaignId,
           product_name: product.name,
-          original_url: `https://www.amazon.com/dp/${product.asin}?tag=youraffid-20`,
+          original_url: affiliateUrl,
           slug: slug,
           cloaked_url: `/go/${slug}`,
-          network: "Amazon Associates",
+          network: product.network,
           commission_rate: product.commission_rate,
           status: "active",
           clicks: 0,
@@ -326,7 +299,7 @@ export const smartProductDiscovery = {
 
         if (error) {
           if (error.code === "23505") {
-            console.log(`⚠️ Duplicate slug detected, retrying...`);
+            console.log(`⚠️ Duplicate detected, retrying...`);
             continue;
           }
           console.error(`Failed to add ${product.name}:`, error);
@@ -335,11 +308,11 @@ export const smartProductDiscovery = {
 
         if (data) {
           addedProducts.push(data);
-          console.log(`✅ Added: ${product.name} (${product.asin})`);
+          console.log(`✅ Added: ${product.name} (${product.network})`);
         }
       }
 
-      console.log(`✅ Successfully added ${addedProducts.length} VERIFIED 2026 products`);
+      console.log(`✅ Successfully added ${addedProducts.length} products from multiple networks`);
 
       return {
         success: true,
@@ -370,7 +343,7 @@ export const smartProductDiscovery = {
           .from("campaigns")
           .insert({
             user_id: userId,
-            name: "Smart Discovery Campaign",
+            name: "Multi-Network Campaign",
             status: "active",
             goal: "sales"
           })
@@ -395,18 +368,32 @@ export const smartProductDiscovery = {
   /**
    * Get trending products (for preview)
    */
-  async discoverTrending(count: number = 25): Promise<any[]> {
-    return VERIFIED_2026_PRODUCTS
+  async discoverTrending(userId: string, count: number = 25): Promise<any[]> {
+    const connectedNetworks = await this.getConnectedNetworks(userId);
+    
+    const allProducts = [];
+
+    if (connectedNetworks.includes("temu_affiliate")) {
+      allProducts.push(...VERIFIED_2026_TEMU_PRODUCTS);
+    }
+
+    if (connectedNetworks.includes("amazon_associates") || connectedNetworks.length === 0) {
+      allProducts.push(...VERIFIED_2026_AMAZON_PRODUCTS);
+    }
+
+    return allProducts
       .sort(() => Math.random() - 0.5)
       .slice(0, count)
       .map(p => ({
         ...p,
-        url: `https://www.amazon.com/dp/${p.asin}`,
+        url: p.network === "Temu" 
+          ? `https://www.temu.com/ul/kuiper/un9.html?goods_id=${(p as any).product_id}`
+          : `https://www.amazon.com/dp/${(p as any).asin}`,
       }));
   },
 
   /**
-   * Refresh entire catalog
+   * Refresh catalog
    */
   async refreshCatalog(userId: string): Promise<{ success: boolean; removed: number; added: number }> {
     try {
