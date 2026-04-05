@@ -109,8 +109,9 @@ export default function TestAutoRepair() {
           try {
             const webhookSent = await webhookService.sendToZapier(zapierSession.session.user.id, {
               event: "integration_test",
-              type: "test",
-              message: "Testing Zapier webhook from integration test page",
+              data: {
+                message: "Testing Zapier webhook from integration test page",
+              },
               timestamp: new Date().toISOString(),
             });
 
