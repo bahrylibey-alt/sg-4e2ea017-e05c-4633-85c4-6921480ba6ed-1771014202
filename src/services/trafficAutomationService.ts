@@ -201,6 +201,37 @@ export const trafficAutomationService = {
   },
 
   /**
+   * Launch automated traffic channels (REAL setup, no fake clicks)
+   */
+  async launchAutomatedTraffic(campaignId: string): Promise<{ success: boolean; channels: number }> {
+    try {
+      // 1. Enable SEO optimization
+      await this.enableSEOOptimization(campaignId);
+      
+      // 2. Set up real tracking for social channels
+      const sources = ["Twitter/X", "Facebook", "LinkedIn", "Pinterest"];
+      for (const source of sources) {
+        await supabase
+          .from("traffic_sources")
+          .upsert({
+            campaign_id: campaignId,
+            source_name: source,
+            source_type: "social",
+            status: "active",
+            total_clicks: 0,
+            daily_budget: 0,
+            automation_enabled: true
+          }, { onConflict: "campaign_id,source_name" });
+      }
+
+      return { success: true, channels: sources.length + 1 };
+    } catch (error) {
+      console.error("Failed to launch traffic channels:", error);
+      return { success: false, channels: 0 };
+    }
+  },
+
+  /**
    * Enable SEO optimization for organic traffic
    */
   async enableSEOOptimization(campaignId: string): Promise<{ success: boolean; message: string }> {
