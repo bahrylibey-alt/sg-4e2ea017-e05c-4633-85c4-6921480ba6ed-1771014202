@@ -114,7 +114,7 @@ export default async function handler(
 
       // Record in conversion_events table for detailed tracking
       await supabase
-        .from("conversion_events")
+        .from("conversion_events" as any)
         .insert({
           affiliate_link_id: link.id,
           campaign_id: link.campaign_id,
@@ -132,7 +132,7 @@ export default async function handler(
             timestamp: new Date().toISOString(),
             postback_data: data
           }
-        });
+        } as any);
 
       // Update campaign totals
       const { data: campaignLinks } = await supabase
