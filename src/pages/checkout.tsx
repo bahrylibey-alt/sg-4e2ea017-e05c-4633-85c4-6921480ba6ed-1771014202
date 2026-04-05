@@ -106,8 +106,8 @@ export default function Checkout() {
       .eq("status", "connected")
       .single();
 
-    if (integration?.config?.publishable_key) {
-      setStripeKey(integration.config.publishable_key);
+    if ((integration?.config as any)?.publishable_key) {
+      setStripeKey((integration.config as any).publishable_key);
     }
   };
 
@@ -151,8 +151,8 @@ export default function Checkout() {
           .eq("status", "connected")
           .single();
 
-        if (zapierIntegration?.config?.webhook_url) {
-          await fetch(zapierIntegration.config.webhook_url, {
+        if ((zapierIntegration?.config as any)?.webhook_url) {
+          await fetch((zapierIntegration.config as any).webhook_url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

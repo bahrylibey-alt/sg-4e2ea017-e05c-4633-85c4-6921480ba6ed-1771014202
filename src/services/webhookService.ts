@@ -26,13 +26,13 @@ export const webhookService = {
         .eq("status", "connected")
         .single();
 
-      if (!integration?.config?.webhook_url) {
+      if (!(integration?.config as any)?.webhook_url) {
         console.log("Zapier not configured for user:", userId);
         return false;
       }
 
       // Send webhook
-      const response = await fetch(integration.config.webhook_url, {
+      const response = await fetch((integration.config as any).webhook_url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

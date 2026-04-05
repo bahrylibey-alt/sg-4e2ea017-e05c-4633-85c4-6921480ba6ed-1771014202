@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { webhookService } from "@/integrations/zapier";
+import { webhookService } from "@/services/webhookService";
 
 /**
  * REAL COMMISSION TRACKING API (S2S Postback)
