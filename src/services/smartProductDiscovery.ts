@@ -146,7 +146,7 @@ export const smartProductDiscovery = {
       .eq("user_id", userId)
       .ilike("original_url", `%${identifier}%`)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     return !!data;
   },
