@@ -107,7 +107,7 @@ export default function TestAutoRepair() {
         if (zapierIntegration && (zapierIntegration.config as any)?.webhook_url) {
           // Try to send a test webhook
           try {
-            const webhookSent = await webhookService.sendWebhook(zapierSession.session.user.id, {
+            const webhookSent = await webhookService.sendToZapier(zapierSession.session.user.id, {
               event: "integration_test",
               type: "test",
               message: "Testing Zapier webhook from integration test page",
@@ -173,13 +173,13 @@ export default function TestAutoRepair() {
       // TEST 6: Webhook Service Availability
       updateResult("Webhook Service", "running", "Checking webhook service...");
       const hasWebhookService = typeof webhookService !== 'undefined' 
-        && typeof webhookService.sendWebhook === 'function'
+        && typeof webhookService.sendToZapier === 'function'
         && typeof webhookService.notifyClick === 'function'
         && typeof webhookService.notifyConversion === 'function';
 
       if (hasWebhookService) {
         updateResult("Webhook Service", "pass", "✅ Webhook Service Ready - All methods available", {
-          methods: ['sendWebhook', 'notifyClick', 'notifyConversion', 'notifyMilestone']
+          methods: ['sendToZapier', 'notifyClick', 'notifyConversion', 'notifyMilestone']
         });
       } else {
         updateResult("Webhook Service", "fail", "❌ Webhook service not loaded");
