@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
+import { webhookService } from "@/services/webhookService";
 
 /**
  * REAL CLICK TRACKING API
@@ -29,40 +30,33 @@ export default async function handler(
   }
 
   try {
-    const { slug, referrer, userAgent } = req.body;
+    const { slug } = req.body;
 
     if (!slug) {
       return res.status(400).json({ error: "Missing slug" });
     }
 
-    // Get link from database
-    const { data: link, error } = await supabase
+    // Get affiliate link details
+    const { data: link, error: linkError } = await supabase
       .from("affiliate_links")
       .select("*")
-      .eq("slug", slug)
-      .maybeSingle();
+      .eq("cloaked_url", `direct /go/${slug}`)
+      .single();
 
-    if (error || !link) {
+    if (linkError || !link) {
       return res.status(404).json({ error: "Link not found" });
     }
 
-    // Record click with metadata
+    // Increment click count
     const newClicks = (link.clicks || 0) + 1;
-    const clickData = {
-      timestamp: new Date().toISOString(),
-      referrer: referrer || "direct",
-      user_agent: userAgent || "unknown",
-      ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress
-    };
-
-    // Update link clicks
     await supabase
       .from("affiliate_links")
-      .update({
-        clicks: newClicks,
-        last_clicked: new Date().toISOString()
-      })
+      .update({ clicks: newClicks })
       .eq("id", link.id);
+
+    // Get click metadata
+    const referrer = req.headers.referer || req.headers.referrer;
+    const userAgent = req.headers["user-agent"];
 
     // Store detailed click event
     await supabase
@@ -75,10 +69,17 @@ export default async function handler(
         ip_address: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress
       } as any);
 
+    // Send webhook notification to Zapier
+    await webhookService.notifyClick(link.user_id, {
+      product_name: link.product_name,
+      network: link.network,
+      cloaked_url: link.cloaked_url
+    });
+
     console.log("✅ Click tracked:", {
       product: link.product_name,
       clicks: newClicks,
-      referrer: clickData.referrer
+      referrer: referrer || "direct"
     });
 
     return res.status(200).json({
@@ -88,7 +89,7 @@ export default async function handler(
     });
 
   } catch (error: any) {
-    console.error("❌ Click tracking error:", error);
+    console.error("Click tracking error:", error);
     return res.status(500).json({ error: error.message });
   }
 }

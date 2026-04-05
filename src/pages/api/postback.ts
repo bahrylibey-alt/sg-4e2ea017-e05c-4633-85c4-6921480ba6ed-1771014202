@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
+import { webhookService } from "@/integrations/zapier";
 
 /**
  * REAL COMMISSION TRACKING API (S2S Postback)
@@ -150,6 +151,28 @@ export default async function handler(
           })
           .eq("id", link.campaign_id);
       }
+
+      console.log("✅ Commission tracked:", {
+        product: link.product_name,
+        commission: commission || amount,
+        conversions: newConversions
+      });
+
+      // Send webhook notification to Zapier
+      await webhookService.notifyConversion(link.user_id, {
+        product_name: link.product_name,
+        network,
+        amount: amount || 0,
+        commission: commission || amount || 0,
+        transaction_id: transaction_id || click_id || "unknown"
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Conversion tracked",
+        commission: commission || amount,
+        conversions: newConversions
+      });
 
     } else if (status === "pending") {
       // Pending conversion (waiting for approval)
