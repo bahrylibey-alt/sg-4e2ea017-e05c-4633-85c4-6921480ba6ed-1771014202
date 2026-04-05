@@ -2,10 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { linkHealthMonitor } from "./linkHealthMonitor";
 import { automationScheduler } from "./automationScheduler";
 import { freeTrafficEngine } from "./freeTrafficEngine";
+import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
- * ULTIMATE AUTOPILOT SYSTEM v2.0
- * REAL traffic, sales, and commission tracking
+ * ULTIMATE AUTOPILOT SYSTEM v3.0
+ * REAL multi-network support (Amazon + Temu + AliExpress)
  * NO MORE MOCKING
  */
 
@@ -32,13 +33,13 @@ interface DeploymentResult {
 
 export const ultimateAutopilot = {
   /**
-   * ONE-CLICK ULTIMATE DEPLOYMENT (REAL SYSTEM)
+   * ONE-CLICK ULTIMATE DEPLOYMENT (REAL SYSTEM WITH MULTI-NETWORK)
    */
   async oneClickUltimateDeploy(
     config: Partial<UltimateAutopilotConfig> = {}
   ): Promise<DeploymentResult> {
     try {
-      console.log("🚀 Starting ULTIMATE Autopilot v2.0 (REAL SYSTEM)...");
+      console.log("🚀 Starting ULTIMATE Autopilot v3.0 (MULTI-NETWORK SYSTEM)...");
 
       const defaultConfig: UltimateAutopilotConfig = {
         dailyBudget: 1000,
@@ -86,17 +87,23 @@ export const ultimateAutopilot = {
 
       console.log("✅ Campaign created:", campaign.id);
 
-      // Step 2: Add verified 2026 products
-      const products = await this.addVerifiedProducts(campaign.id, user.id);
-      console.log(`✅ Added ${products.length} verified 2026 products`);
+      // Step 2: Add products from ALL connected networks (Temu, Amazon, etc.)
+      console.log("🔍 Checking connected affiliate networks...");
+      const productResult = await smartProductDiscovery.addToCampaign(
+        campaign.id,
+        user.id,
+        15  // Add 15 products from connected networks
+      );
+      
+      console.log(`✅ Added ${productResult.added} products from multiple networks`);
+      console.log(`📊 Networks used: ${productResult.products.map(p => p.network).filter((v, i, a) => a.indexOf(v) === i).join(', ')}`);
 
       // Step 3: Auto-repair links (check for 404s if enabled)
       if (defaultConfig.autoRepairLinks) {
         console.log("🔧 Running initial auto-repair with 404 detection...");
         const repairResult = await linkHealthMonitor.oneClickAutoRepair(
           campaign.id,
-          user.id,
-          defaultConfig.test404s
+          user.id
         );
         console.log(`✅ Auto-repair complete: ${repairResult.repaired} issues fixed`);
       }
@@ -119,7 +126,7 @@ export const ultimateAutopilot = {
       return {
         success: true,
         campaignId: campaign.id,
-        productsAdded: products.length,
+        productsAdded: productResult.added,
         tasksCreated: 8,
         trafficSourcesActivated: trafficResult.activated,
         features,
@@ -136,159 +143,6 @@ export const ultimateAutopilot = {
         error: String(error),
       };
     }
-  },
-
-  /**
-   * Add verified 2026 products (CURRENT trending products only)
-   */
-  async addVerifiedProducts(
-    campaignId: string,
-    userId: string
-  ): Promise<any[]> {
-    const verified2026Products = [
-      {
-        name: "Apple AirPods Pro (2nd Gen) with MagSafe",
-        url: "https://www.amazon.com/dp/B0CHWRXH8B",
-        commission: 3.0,
-        category: "Electronics",
-      },
-      {
-        name: "Amazon Echo Dot (5th Gen, 2024)",
-        url: "https://www.amazon.com/dp/B09B8V1LZ3",
-        commission: 4.0,
-        category: "Smart Home",
-      },
-      {
-        name: "Kindle Paperwhite (16 GB, 2024)",
-        url: "https://www.amazon.com/dp/B0CFPJYX7F",
-        commission: 4.5,
-        category: "Electronics",
-      },
-      {
-        name: "Fire TV Stick 4K Max (2nd Gen)",
-        url: "https://www.amazon.com/dp/B0BP9SNVH9",
-        commission: 4.0,
-        category: "Electronics",
-      },
-      {
-        name: "Instant Pot Duo Plus 9-in-1",
-        url: "https://www.amazon.com/dp/B0CQ847BLG",
-        commission: 4.5,
-        category: "Kitchen",
-      },
-      {
-        name: "Anker PowerCore 27,650mAh (2025)",
-        url: "https://www.amazon.com/dp/B0CFDQ64F6",
-        commission: 6.0,
-        category: "Electronics",
-      },
-      {
-        name: "Fitbit Charge 6 Fitness Tracker",
-        url: "https://www.amazon.com/dp/B0CC6DW7CT",
-        commission: 4.0,
-        category: "Fitness",
-      },
-      {
-        name: "Logitech MX Master 3S Mouse",
-        url: "https://www.amazon.com/dp/B09HM94VDS",
-        commission: 4.5,
-        category: "Electronics",
-      },
-      {
-        name: "Bose QuietComfort Ultra Headphones",
-        url: "https://www.amazon.com/dp/B0CCZ26B5V",
-        commission: 3.0,
-        category: "Electronics",
-      },
-      {
-        name: "Samsung Galaxy Buds3",
-        url: "https://www.amazon.com/dp/B0D6GC34Y1",
-        commission: 4.0,
-        category: "Electronics",
-      },
-      {
-        name: "Apple Watch Series 10",
-        url: "https://www.amazon.com/dp/B0DGXX3Y4F",
-        commission: 2.5,
-        category: "Electronics",
-      },
-      {
-        name: "Ring Video Doorbell (2024)",
-        url: "https://www.amazon.com/dp/B0BHZC78W9",
-        commission: 4.0,
-        category: "Smart Home",
-      },
-      {
-        name: "Ninja Air Fryer Pro XL (2025)",
-        url: "https://www.amazon.com/dp/B0DCWZR9HN",
-        commission: 4.5,
-        category: "Kitchen",
-      },
-      {
-        name: "GoPro HERO13 Black",
-        url: "https://www.amazon.com/dp/B0DF8HSQVM",
-        commission: 3.0,
-        category: "Electronics",
-      },
-      {
-        name: "JBL Flip 6 Portable Speaker",
-        url: "https://www.amazon.com/dp/B09HQFXLM5",
-        commission: 4.0,
-        category: "Electronics",
-      },
-    ];
-
-    const createdProducts = [];
-
-    for (const product of verified2026Products) {
-      // Create unique slug with timestamp
-      const baseSlug = product.name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .substring(0, 40);
-      
-      const uniqueSuffix = Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 5);
-      const slug = `${baseSlug}-${uniqueSuffix}`;
-
-      const { data, error } = await supabase
-        .from("affiliate_links")
-        .insert({
-          user_id: userId,
-          campaign_id: campaignId,
-          product_name: product.name,
-          original_url: product.url,
-          slug,
-          network: "Amazon Associates",
-          commission_rate: product.commission,
-          status: "active",
-          cloaked_url: `/go/${slug}`,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
-          commission_earned: 0,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === "23505") {
-          console.log(`⚠️ Product ${product.name} already exists, skipping...`);
-          continue;
-        }
-        console.error(`Failed to add ${product.name}:`, error);
-        continue;
-      }
-
-      if (data) {
-        createdProducts.push(data);
-      }
-
-      // Small delay to ensure unique timestamps
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-
-    return createdProducts;
   },
 
   /**
@@ -317,6 +171,8 @@ export const ultimateAutopilot = {
       features.push("Conversion Maximizer");
     }
 
+    features.push("Multi-Network Support");
+    features.push("Temu Integration");
     features.push("Free Traffic Generation");
     features.push("24/7 Autopilot");
     features.push("Real Click Tracking");
