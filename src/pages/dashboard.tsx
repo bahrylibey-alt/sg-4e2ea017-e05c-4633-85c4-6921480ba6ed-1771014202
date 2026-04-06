@@ -20,7 +20,9 @@ import {
   ShoppingCart,
   TrendingDown,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
+  Copy
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
