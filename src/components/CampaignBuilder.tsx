@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Rocket, Zap, Target, TrendingUp, AlertCircle, CheckCircle, Loader2, Info, ExternalLink } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export function CampaignBuilder({ 
   open, 
