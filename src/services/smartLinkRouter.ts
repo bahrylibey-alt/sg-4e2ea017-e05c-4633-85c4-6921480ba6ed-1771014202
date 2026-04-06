@@ -1,73 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { linkHealthMonitor } from "./linkHealthMonitor";
 
 type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Row"];
 
 /**
- * Smart Link Router - Intelligently routes affiliate links and validates URLs
+ * SMART LINK ROUTER v2.0 - PRODUCTION READY
+ * ✅ Format validation (no HTTP to avoid CAPTCHA)
+ * ✅ Real-time failure tracking
+ * ✅ Intelligent repair using catalog
+ * ✅ Smart fallbacks
  */
 export const smartLinkRouter = {
   /**
-   * Validate if a URL is reachable and not a 404
-   */
-  async validateUrl(url: string): Promise<{
-    valid: boolean;
-    status?: number;
-    redirectUrl?: string;
-    error?: string;
-  }> {
-    try {
-      // Basic URL format validation
-      const urlObj = new URL(url);
-      
-      // Check for invalid patterns
-      const invalidPatterns = [
-        "example.com",
-        "placeholder",
-        "test.com",
-        "localhost",
-        "127.0.0.1",
-        "0.0.0.0",
-        "salemakseb.com", // Don't redirect to ourselves
-        "/member/404", // CJ 404 page
-        "/404",
-        "error",
-        "invalid"
-      ];
-      
-      const isInvalid = invalidPatterns.some(pattern => 
-        url.toLowerCase().includes(pattern)
-      );
-      
-      if (isInvalid) {
-        return {
-          valid: false,
-          error: "URL contains invalid pattern"
-        };
-      }
-
-      // Check if domain exists (basic validation)
-      if (!urlObj.hostname || urlObj.hostname.length < 4) {
-        return {
-          valid: false,
-          error: "Invalid hostname"
-        };
-      }
-
-      return {
-        valid: true,
-        status: 200
-      };
-    } catch (error) {
-      return {
-        valid: false,
-        error: "Invalid URL format"
-      };
-    }
-  },
-
-  /**
-   * Get a valid redirect URL for a slug, with fallback logic
+   * Get redirect URL with smart routing
    */
   async getRedirectUrl(slug: string, metadata?: {
     user_agent?: string;
@@ -79,10 +25,10 @@ export const smartLinkRouter = {
     linkId: string | null;
     error?: string;
   }> {
-    console.log("🔍 [Smart Router] Getting redirect URL for slug:", slug);
+    console.log("🔍 [Smart Router] Processing slug:", slug);
 
     try {
-      // Step 1: Lookup link in database
+      // Step 1: Lookup link
       const { data: link, error: linkError } = await supabase
         .from("affiliate_links")
         .select("*")
@@ -91,7 +37,7 @@ export const smartLinkRouter = {
         .maybeSingle();
 
       if (linkError) {
-        console.error("❌ [Smart Router] Database error:", linkError);
+        console.error("❌ Database error:", linkError);
         return { 
           success: false, 
           redirect_url: null, 
@@ -101,49 +47,54 @@ export const smartLinkRouter = {
       }
 
       if (!link) {
-        console.error("❌ [Smart Router] Link not found for slug:", slug);
+        console.error("❌ Link not found:", slug);
         return { 
           success: false, 
           redirect_url: null, 
           linkId: null,
-          error: "Link not found or inactive"
+          error: "Link not found"
         };
       }
 
-      console.log("✅ [Smart Router] Link found:", link.product_name);
-      console.log("📍 [Smart Router] Original URL:", link.original_url);
+      console.log("✅ Link found:", link.product_name);
 
-      // Step 2: Validate the destination URL
-      const validation = await this.validateUrl(link.original_url);
+      // Step 2: Validate format (no HTTP)
+      const validation = await linkHealthMonitor.validateProduct(link.original_url);
       
       if (!validation.valid) {
-        console.error("❌ [Smart Router] Invalid destination URL:", validation.error);
+        console.error("❌ Invalid URL format:", validation.reason);
         
-        // Try to auto-repair the link
-        const repairedUrl = await this.attemptUrlRepair(link);
+        // Track failure
+        await linkHealthMonitor.trackClickFailure(link.id);
         
-        if (repairedUrl) {
-          console.log("✅ [Smart Router] Auto-repaired URL:", repairedUrl);
+        // Try to repair
+        const repairResult = await linkHealthMonitor.repairLink(link.id);
+        
+        if (repairResult.repaired && repairResult.newUrl) {
+          console.log("✅ Auto-repaired:", repairResult.newUrl);
+          await this.trackClick(link.id, link.user_id, metadata);
           return {
             success: true,
-            redirect_url: repairedUrl,
+            redirect_url: repairResult.newUrl,
             linkId: link.id
           };
         }
         
+        // Fallback to search
+        const fallbackUrl = this.generateFallbackUrl(link);
+        console.log("⚠️ Using fallback:", fallbackUrl);
         return {
-          success: false,
-          redirect_url: null,
-          linkId: link.id,
-          error: "Invalid destination URL - unable to repair"
+          success: true,
+          redirect_url: fallbackUrl,
+          linkId: link.id
         };
       }
 
-      // Step 3: Track the click
+      // Step 3: Track click
       await this.trackClick(link.id, link.user_id, metadata);
 
-      // Step 4: Return valid URL
-      console.log("✅ [Smart Router] Redirecting to:", link.original_url);
+      // Step 4: Return URL
+      console.log("✅ Redirecting to:", link.original_url);
       return {
         success: true,
         redirect_url: link.original_url,
@@ -151,7 +102,7 @@ export const smartLinkRouter = {
       };
 
     } catch (error: any) {
-      console.error("💥 [Smart Router] Unexpected error:", error);
+      console.error("💥 Unexpected error:", error);
       return {
         success: false,
         redirect_url: null,
@@ -162,61 +113,22 @@ export const smartLinkRouter = {
   },
 
   /**
-   * Attempt to repair a broken affiliate URL
+   * Generate fallback URL (search instead of broken link)
    */
-  async attemptUrlRepair(link: AffiliateLink): Promise<string | null> {
-    console.log("🔧 [Smart Router] Attempting to repair URL for:", link.product_name);
-
-    // Strategy 1: Check if there's a valid product URL in product catalog
-    if (link.product_id) {
-      const { data: product } = await supabase
-        .from("product_catalog")
-        .select("affiliate_url")
-        .eq("id", link.product_id)
-        .maybeSingle();
-
-      if (product?.affiliate_url) {
-        const validation = await this.validateUrl(product.affiliate_url);
-        if (validation.valid) {
-          // Update the link with the repaired URL
-          await supabase
-            .from("affiliate_links")
-            .update({ original_url: product.affiliate_url })
-            .eq("id", link.id);
-          
-          console.log("✅ [Smart Router] Repaired from product catalog");
-          return product.affiliate_url;
-        }
-      }
-    }
-
-    // Strategy 2: Try to find product by name in catalog
-    const { data: catalogProduct } = await supabase
-      .from("product_catalog")
-      .select("affiliate_url")
-      .ilike("name", `%${link.product_name}%`)
-      .limit(1)
-      .maybeSingle();
-
-    if (catalogProduct?.affiliate_url) {
-      const validation = await this.validateUrl(catalogProduct.affiliate_url);
-      if (validation.valid) {
-        await supabase
-          .from("affiliate_links")
-          .update({ original_url: catalogProduct.affiliate_url })
-          .eq("id", link.id);
-        
-        console.log("✅ [Smart Router] Repaired from catalog search");
-        return catalogProduct.affiliate_url;
-      }
-    }
-
-    // Strategy 3: Generate a search URL as fallback
-    const searchQuery = encodeURIComponent(link.product_name);
-    const fallbackUrl = `https://www.amazon.com/s?k=${searchQuery}`;
+  generateFallbackUrl(link: AffiliateLink): string {
+    const network = linkHealthMonitor.detectNetwork(link.original_url || "");
+    const searchQuery = encodeURIComponent(link.product_name || "");
     
-    console.log("⚠️ [Smart Router] Using Amazon search as fallback");
-    return fallbackUrl;
+    switch (network) {
+      case "amazon":
+        return `https://www.amazon.com/s?k=${searchQuery}`;
+      case "temu":
+        return `https://www.temu.com/search_result.html?search_key=${searchQuery}`;
+      case "aliexpress":
+        return `https://www.aliexpress.com/wholesale?SearchText=${searchQuery}`;
+      default:
+        return `https://www.google.com/search?q=${searchQuery}`;
+    }
   },
 
   /**
@@ -239,10 +151,10 @@ export const smartLinkRouter = {
           device_type: metadata?.device_type || "unknown"
         });
 
-      // Update click counter
+      // Update counters
       const { data: link } = await supabase
         .from("affiliate_links")
-        .select("clicks")
+        .select("clicks, click_count")
         .eq("id", linkId)
         .single();
 
@@ -251,22 +163,70 @@ export const smartLinkRouter = {
           .from("affiliate_links")
           .update({ 
             clicks: (link.clicks || 0) + 1,
-            click_count: (link.clicks || 0) + 1
+            click_count: (link.click_count || 0) + 1,
+            updated_at: new Date().toISOString()
           })
           .eq("id", linkId);
       }
 
-      console.log("✅ [Smart Router] Click tracked successfully");
+      console.log("✅ Click tracked");
     } catch (error) {
-      console.error("⚠️ [Smart Router] Failed to track click:", error);
-      // Don't block redirect on tracking failure
+      console.error("⚠️ Failed to track click:", error);
     }
   },
 
   /**
-   * Health check all affiliate links for a user
+   * Batch validate links
    */
-  async healthCheckUserLinks(userId: string): Promise<{
+  async batchValidateLinks(linkIds: string[]): Promise<{
+    total: number;
+    valid: number;
+    invalid: number;
+    results: Array<{
+      linkId: string;
+      valid: boolean;
+      reason?: string;
+      confidence: string;
+    }>;
+  }> {
+    const results = [];
+    let validCount = 0;
+    let invalidCount = 0;
+
+    for (const linkId of linkIds) {
+      const { data: link } = await supabase
+        .from("affiliate_links")
+        .select("original_url")
+        .eq("id", linkId)
+        .single();
+
+      if (link) {
+        const validation = await linkHealthMonitor.validateProduct(link.original_url || "");
+        
+        results.push({
+          linkId,
+          valid: validation.valid,
+          reason: validation.reason,
+          confidence: validation.confidence
+        });
+
+        if (validation.valid) validCount++;
+        else invalidCount++;
+      }
+    }
+
+    return {
+      total: linkIds.length,
+      valid: validCount,
+      invalid: invalidCount,
+      results
+    };
+  },
+
+  /**
+   * Health check campaign links
+   */
+  async healthCheckCampaign(campaignId: string): Promise<{
     total: number;
     valid: number;
     invalid: number;
@@ -276,40 +236,29 @@ export const smartLinkRouter = {
       slug: string;
       productName: string;
       status: "valid" | "invalid" | "repaired";
-      url: string;
+      network: string;
     }>;
   }> {
-    console.log("🏥 [Smart Router] Starting health check for user:", userId);
+    console.log("🏥 Health checking campaign:", campaignId);
 
     const { data: links } = await supabase
       .from("affiliate_links")
       .select("*")
-      .eq("user_id", userId)
+      .eq("campaign_id", campaignId)
       .eq("status", "active");
 
     if (!links || links.length === 0) {
-      return {
-        total: 0,
-        valid: 0,
-        invalid: 0,
-        repaired: 0,
-        details: []
-      };
+      return { total: 0, valid: 0, invalid: 0, repaired: 0, details: [] };
     }
 
     let validCount = 0;
     let invalidCount = 0;
     let repairedCount = 0;
-    const details: Array<{
-      linkId: string;
-      slug: string;
-      productName: string;
-      status: "valid" | "invalid" | "repaired";
-      url: string;
-    }> = [];
+    const details = [];
 
     for (const link of links) {
-      const validation = await this.validateUrl(link.original_url);
+      const validation = await linkHealthMonitor.validateProduct(link.original_url || "");
+      const network = linkHealthMonitor.detectNetwork(link.original_url || "");
       
       if (validation.valid) {
         validCount++;
@@ -317,21 +266,20 @@ export const smartLinkRouter = {
           linkId: link.id,
           slug: link.slug,
           productName: link.product_name,
-          status: "valid",
-          url: link.original_url
+          status: "valid" as const,
+          network
         });
       } else {
-        // Try to repair
-        const repairedUrl = await this.attemptUrlRepair(link);
+        const repairResult = await linkHealthMonitor.repairLink(link.id);
         
-        if (repairedUrl) {
+        if (repairResult.repaired) {
           repairedCount++;
           details.push({
             linkId: link.id,
             slug: link.slug,
             productName: link.product_name,
-            status: "repaired",
-            url: repairedUrl
+            status: "repaired" as const,
+            network
           });
         } else {
           invalidCount++;
@@ -339,14 +287,14 @@ export const smartLinkRouter = {
             linkId: link.id,
             slug: link.slug,
             productName: link.product_name,
-            status: "invalid",
-            url: link.original_url
+            status: "invalid" as const,
+            network
           });
         }
       }
     }
 
-    console.log(`✅ [Smart Router] Health check complete: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
+    console.log(`✅ Health check complete: ${validCount} valid, ${invalidCount} invalid, ${repairedCount} repaired`);
 
     return {
       total: links.length,
