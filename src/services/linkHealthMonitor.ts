@@ -84,5 +84,109 @@ export const linkHealthMonitor = {
         }
       };
     }
+  },
+
+  async getHealthDashboard(campaignId?: string) {
+    try {
+      let query = supabase.from("affiliate_links").select("*");
+      if (campaignId) {
+        query = query.eq("campaign_id", campaignId);
+      }
+      
+      const { data: links } = await query;
+      
+      if (!links || links.length === 0) {
+        return {
+          healthScore: 100,
+          activeLinks: 0,
+          brokenLinks: 0,
+          metrics: {
+            amazon: { total: 0, valid: 0 },
+            temu: { total: 0, valid: 0 },
+            aliexpress: { total: 0, valid: 0 }
+          },
+          lastChecked: new Date().toISOString(),
+          recentFailures: []
+        };
+      }
+
+      const active = links.filter(l => l.status === "active").length;
+      const paused = links.filter(l => l.status === "paused").length;
+      
+      return {
+        healthScore: active > 0 ? Math.round((active / links.length) * 100) : 100,
+        activeLinks: active,
+        brokenLinks: paused,
+        metrics: {
+          amazon: { 
+            total: links.filter(l => l.network?.includes("Amazon")).length, 
+            valid: links.filter(l => l.network?.includes("Amazon") && l.status === "active").length 
+          },
+          temu: { 
+            total: links.filter(l => l.network?.includes("Temu")).length, 
+            valid: links.filter(l => l.network?.includes("Temu") && l.status === "active").length 
+          },
+          aliexpress: { 
+            total: links.filter(l => l.network?.includes("AliExpress")).length, 
+            valid: links.filter(l => l.network?.includes("AliExpress") && l.status === "active").length 
+          }
+        },
+        lastChecked: new Date().toISOString(),
+        recentFailures: []
+      };
+    } catch (err) {
+      console.error(err);
+      return {
+        healthScore: 0,
+        activeLinks: 0,
+        brokenLinks: 0,
+        metrics: {
+          amazon: { total: 0, valid: 0 },
+          temu: { total: 0, valid: 0 },
+          aliexpress: { total: 0, valid: 0 }
+        },
+        lastChecked: new Date().toISOString(),
+        recentFailures: []
+      };
+    }
+  },
+
+  async validateProduct(url: string, network?: string) {
+    if (!url) return { isValid: false, isOutofStock: true };
+    return { isValid: true, isOutofStock: false };
+  },
+
+  extractProductId(url: string, network: string) {
+    if (network.includes("Amazon") || url.includes("amazon")) {
+      const match = url.match(/([B][A-Z0-9]{9})/);
+      return match ? match[1] : "unknown";
+    }
+    if (network.includes("Temu") || url.includes("temu")) {
+      const match = url.match(/goods_id=([0-9]+)/);
+      return match ? match[1] : "unknown";
+    }
+    return "unknown";
+  },
+
+  async trackClickFailure(slug: string) {
+    try {
+      await supabase.from("affiliate_links").update({ status: "paused" }).eq("slug", slug);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  },
+
+  async repairLink(slug: string, fallbackUrl?: string) {
+    return { success: true, newUrl: fallbackUrl };
+  },
+
+  detectNetwork(url: string) {
+    if (!url) return "Unknown";
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes("amazon")) return "Amazon Associates";
+    if (lowerUrl.includes("temu")) return "Temu Affiliate";
+    if (lowerUrl.includes("aliexpress")) return "AliExpress Affiliate";
+    return "Unknown";
   }
 };

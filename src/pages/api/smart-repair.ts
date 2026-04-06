@@ -82,12 +82,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 3. Auto-replace dead links with fresh trending products
     if (deadCount > 0 && userId && campaignId) {
       try {
-        const freshProducts = await smartProductDiscovery.discoverTrendingProducts(
-          "technology", // Default niche
-          deadCount
+        const freshProducts = await smartProductDiscovery.discoverTrending(
+          "technology" // Default niche
         );
 
-        for (const product of freshProducts) {
+        // Limit the replacements to the number of dead products
+        const productsToUse = freshProducts.slice(0, deadCount);
+
+        for (const product of productsToUse) {
           const slug = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50);
           
           await supabase.from("affiliate_links").insert({
