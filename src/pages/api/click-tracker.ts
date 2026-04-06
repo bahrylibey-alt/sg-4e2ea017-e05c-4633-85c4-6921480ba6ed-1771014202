@@ -63,22 +63,26 @@ export default async function handler(
     const userAgent = req.headers["user-agent"];
     const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
 
-    // Store detailed click event (if table exists)
+    // Record activity log instead
     try {
       await supabase
-        .from("clicks")
+        .from("activity_logs")
         .insert({
-          link_id: link.id,
           user_id: link.user_id,
-          campaign_id: link.campaign_id,
-          referrer: referrer || "direct",
-          user_agent: userAgent || "unknown",
-          ip_address: ipAddress,
-          timestamp: new Date().toISOString()
+          action: "link_click",
+          entity_type: "affiliate_link",
+          entity_id: link.id,
+          metadata: {
+            slug: link.slug,
+            product_name: link.product_name,
+            referrer: referrer || "direct",
+            user_agent: userAgent || "unknown",
+            ip_address: ipAddress
+          }
         });
     } catch (err) {
-      console.error("Failed to log click event:", err);
-      // Don't fail the request if click logging fails
+      console.error("Failed to log activity:", err);
+      // Don't fail the request if activity logging fails
     }
 
     // Send webhook notification to Zapier
