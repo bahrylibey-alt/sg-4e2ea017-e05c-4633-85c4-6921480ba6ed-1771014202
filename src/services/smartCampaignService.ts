@@ -224,10 +224,9 @@ export const smartCampaignService = {
       }
 
       // Get stats
-      const [linksResult, tasksResult, contentResult, trafficResult] = await Promise.all([
+      const [linksResult, tasksResult, trafficResult] = await Promise.all([
         (supabase as any).from("affiliate_links").select("clicks, conversions, revenue").eq("campaign_id", campaignId),
         (supabase as any).from("autopilot_tasks").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
-        (supabase as any).from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
         (supabase as any).from("traffic_sources").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "active")
       ]);
 
@@ -237,9 +236,18 @@ export const smartCampaignService = {
         totalConversions: links.reduce((sum, l) => sum + (l.conversions || 0), 0),
         totalRevenue: links.reduce((sum, l) => sum + Number(l.revenue || 0), 0),
         activeTasks: tasksResult.count || 0,
-        contentReady: contentResult.count || 0,
+        contentReady: 0,
         trafficSources: trafficResult.count || 0
       };
+
+      // Remove content_queue check, use activity_logs count instead
+      const { count: activityCount } = await supabase
+        .from("activity_logs")
+        .select("id", { count: "exact" })
+        .eq("metadata->>campaign_id", campaignId)
+        .eq("action", "content_generated");
+
+      stats.contentReady = activityCount || 0;
 
       return { campaign, stats, error: null };
     } catch (err) {

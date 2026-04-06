@@ -115,6 +115,25 @@ export function CampaignBuilder({
         setSuccess(true);
         setCreatedCampaign(result);
         if (onCampaignCreated) onCampaignCreated();
+
+        // Log campaign creation instead of queuing content
+        const { error: activityError } = await supabase
+          .from('activity_logs')
+          .insert({
+            user_id: session.user.id,
+            action: 'campaign_created',
+            details: `Created campaign: ${formData.name}`,
+            metadata: {
+              campaign_id: campaign.id,
+              campaign_name: formData.name,
+              budget: formData.budget
+            },
+            status: 'success'
+          });
+
+        if (activityError) {
+          console.error('Activity log error:', activityError);
+        }
       } else {
         setError(result.error || "Failed to create campaign. Please try again.");
       }

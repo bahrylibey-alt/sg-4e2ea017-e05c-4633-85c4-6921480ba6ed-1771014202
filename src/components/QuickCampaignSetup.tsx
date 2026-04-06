@@ -20,9 +20,12 @@ import {
 } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useSession } from "@/lib/auth";
 
 export function QuickCampaignSetup() {
   const { toast } = useToast();
+  const { session } = useSession();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"input" | "processing" | "complete">("input");
   const [progress, setProgress] = useState(0);

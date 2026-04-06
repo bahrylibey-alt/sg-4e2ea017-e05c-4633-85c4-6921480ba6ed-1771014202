@@ -10,6 +10,8 @@ import { Progress } from "@/components/ui/progress";
 import { Zap, Sparkles, TrendingUp, Target, DollarSign, CheckCircle2, Loader2, ExternalLink, Copy, BarChart3, AlertCircle } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import { useSession } from "@/lib/auth";
 
 export function OneClickCampaign() {
   const { toast } = useToast();
@@ -20,6 +22,7 @@ export function OneClickCampaign() {
   const [progressMessage, setProgressMessage] = useState("");
   const [campaignResult, setCampaignResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const { session } = useSession();
 
   const normalizeUrl = (url: string): string => {
     const trimmed = url.trim();
