@@ -79,7 +79,7 @@ export default function SystemTest() {
         const result = await linkHealthMonitor.oneClickAutoRepair();
         return { 
           success: result.success, 
-          message: `✅ Checked ${result.totalChecked} links, Removed ${result.removed}, Added ${result.replaced}`,
+          message: `✅ Checked ${result.totalChecked} links, Removed ${result.invalidRemoved + result.duplicatesRemoved}, Added ${result.replaced}`,
           details: result
         };
       }

@@ -144,7 +144,7 @@ export default function ComprehensiveTest() {
             return {
               name: "Auto-Repair System",
               status: "passed",
-              message: `✅ Auto-Repair: Checked ${result.totalChecked} links, Repaired ${result.repaired}, Removed ${result.removed}`,
+              message: `✅ Auto-Repair: Checked ${result.totalChecked} links, Repaired ${result.repaired}, Removed ${result.invalidRemoved + result.duplicatesRemoved}`,
               details: result
             };
           } catch (err: any) {

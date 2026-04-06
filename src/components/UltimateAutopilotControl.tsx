@@ -93,7 +93,7 @@ export function UltimateAutopilotControl() {
       
       toast({
         title: "Auto-Repair Complete",
-        description: `Scanned ${result.totalChecked} links. Removed ${result.removed} broken links. Added ${result.replaced} fresh products.`,
+        description: `Scanned ${result.totalChecked} links. Removed ${result.invalidRemoved + result.duplicatesRemoved} broken links. Added ${result.replaced} fresh products.`,
       });
       
       await loadDashboard();
