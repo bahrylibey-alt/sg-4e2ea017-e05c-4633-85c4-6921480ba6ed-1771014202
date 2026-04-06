@@ -1,372 +1,344 @@
-import { useState, useEffect } from "react";
-import { Header } from "@/components/Header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Globe,
-  TrendingUp,
-  Users,
-  MousePointerClick,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  Loader2
-} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { trafficAutomationService } from "@/services/trafficAutomationService";
-
-/**
- * REAL TRAFFIC TESTING PAGE
- * 
- * This page tests if your website is receiving REAL traffic
- * Tests all traffic sources and verifies they're working
- */
-
-interface TrafficTest {
-  name: string;
-  status: "pending" | "running" | "pass" | "fail";
-  message: string;
-  data?: any;
-}
+import { AlertCircle, CheckCircle, XCircle, Loader2, ExternalLink, RefreshCw } from "lucide-react";
 
 export default function TrafficTest() {
-  const [tests, setTests] = useState<TrafficTest[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [realTraffic, setRealTraffic] = useState<any[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [results, setResults] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateTest = (name: string, status: TrafficTest["status"], message: string, data?: any) => {
-    setTests(prev => {
-      const existing = prev.find(t => t.name === name);
-      if (existing) {
-        return prev.map(t => t.name === name ? { name, status, message, data } : t);
-      }
-      return [...prev, { name, status, message, data }];
-    });
-  };
+  const testFullSystem = async () => {
+    setTesting(true);
+    setError(null);
+    setResults(null);
 
-  const runTrafficTests = async () => {
-    setIsRunning(true);
-    setTests([]);
-
-    // TEST 1: Check if traffic tracking is installed
-    updateTest("Traffic Tracking Setup", "running", "Checking installation...");
     try {
-      const testVisit = await fetch("/api/track-visit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campaignId: "test",
-          page: "/traffic-test"
-        })
-      });
+      console.log("🚀 Starting Full System Test...");
 
-      if (testVisit.ok) {
-        const data = await testVisit.json();
-        updateTest(
-          "Traffic Tracking Setup",
-          "pass",
-          `✅ Traffic tracking API working! Detected source: ${data.source}`,
-          data
-        );
-      } else {
-        updateTest("Traffic Tracking Setup", "fail", "❌ Traffic tracking API not responding");
+      // Step 1: Get session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Please log in first");
+        setTesting(false);
+        return;
       }
-    } catch (error: any) {
-      updateTest("Traffic Tracking Setup", "fail", `❌ Error: ${error.message}`);
-    }
 
-    // TEST 2: Get user session
-    updateTest("User Authentication", "running", "Checking session...");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      updateTest("User Authentication", "fail", "❌ No active session");
-      setIsRunning(false);
-      return;
-    }
-    updateTest("User Authentication", "pass", `✅ Logged in as ${session.user.email}`);
+      const userId = session.user.id;
+      console.log("✅ User authenticated:", userId);
 
-    // TEST 3: Get campaign for testing
-    updateTest("Campaign Access", "running", "Finding active campaign...");
-    const { data: campaigns } = await supabase
-      .from("campaigns")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("status", "active")
-      .limit(1);
+      // Step 2: Get all affiliate links
+      const { data: links, error: linksError } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
-    if (!campaigns || campaigns.length === 0) {
-      updateTest("Campaign Access", "fail", "❌ No active campaigns found");
-      setIsRunning(false);
-      return;
-    }
+      if (linksError) throw linksError;
 
-    const campaign = campaigns[0];
-    updateTest("Campaign Access", "pass", `✅ Using campaign: ${campaign.name}`);
+      console.log(`📊 Found ${links?.length || 0} links`);
 
-    // TEST 4: Check existing traffic sources
-    updateTest("Traffic Sources", "running", "Checking configured sources...");
-    const { data: sources } = await supabase
-      .from("traffic_sources")
-      .select("*")
-      .eq("campaign_id", campaign.id);
+      // Step 3: Test each link by trying to redirect
+      const linkTests = [];
+      const maxTests = 10; // Test first 10 links
 
-    if (sources && sources.length > 0) {
-      updateTest(
-        "Traffic Sources",
-        "pass",
-        `✅ Found ${sources.length} traffic source(s): ${sources.map(s => s.source_name).join(", ")}`,
-        sources
-      );
-    } else {
-      updateTest("Traffic Sources", "fail", "❌ No traffic sources configured");
-    }
+      for (const link of (links || []).slice(0, maxTests)) {
+        console.log(`Testing link: ${link.slug}`);
+        
+        const testResult = {
+          slug: link.slug,
+          productName: link.product_name,
+          network: link.network,
+          status: link.status,
+          originalUrl: link.original_url,
+          redirectTest: "not_tested",
+          redirectError: null
+        };
 
-    // TEST 5: Simulate real traffic from different sources
-    updateTest("Traffic Simulation", "running", "Simulating visits from multiple sources...");
-    
-    const simulatedSources = [
-      { referrer: "https://www.google.com/search?q=affiliate+marketing", expected: "Google Search" },
-      { referrer: "https://www.facebook.com/", expected: "Facebook" },
-      { referrer: "https://twitter.com/", expected: "Twitter/X" },
-      { referrer: "", expected: "Direct Traffic" }
-    ];
+        try {
+          // Try to fetch the redirect endpoint
+          const redirectResponse = await fetch(`/go/${link.slug}`, {
+            method: "HEAD",
+            redirect: "manual"
+          });
 
-    let successCount = 0;
-    for (const source of simulatedSources) {
+          if (redirectResponse.status === 302 || redirectResponse.status === 307) {
+            testResult.redirectTest = "success";
+          } else {
+            testResult.redirectTest = "failed";
+            testResult.redirectError = `HTTP ${redirectResponse.status}`;
+          }
+        } catch (err: any) {
+          testResult.redirectTest = "error";
+          testResult.redirectError = err.message;
+        }
+
+        linkTests.push(testResult);
+      }
+
+      // Step 4: Test Smart Repair API
+      console.log("🔧 Testing Smart Repair API...");
+      let repairResult = null;
       try {
-        const response = await fetch("/api/track-visit", {
+        const repairResponse = await fetch("/api/smart-repair", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Referer": source.referrer
-          },
-          body: JSON.stringify({
-            campaignId: campaign.id,
-            page: "/test"
-          })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId })
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.source === source.expected) {
-            successCount++;
-          }
+        if (repairResponse.ok) {
+          repairResult = await repairResponse.json();
+          console.log("✅ Smart Repair Result:", repairResult);
+        } else {
+          const errorText = await repairResponse.text();
+          console.error("❌ Smart Repair Failed:", errorText);
+          repairResult = { error: errorText.substring(0, 200) };
         }
-      } catch (error) {
-        console.error(`Failed to simulate ${source.expected}:`, error);
+      } catch (err: any) {
+        console.error("❌ Smart Repair Error:", err);
+        repairResult = { error: err.message };
       }
+
+      // Step 5: Get campaign info
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .limit(1);
+
+      setResults({
+        totalLinks: links?.length || 0,
+        activeLinks: links?.filter(l => l.status === "active").length || 0,
+        pausedLinks: links?.filter(l => l.status === "paused").length || 0,
+        linkTests,
+        repairResult,
+        campaign: campaigns?.[0] || null,
+        networks: {
+          amazon: links?.filter(l => l.network?.includes("Amazon")).length || 0,
+          temu: links?.filter(l => l.network?.includes("Temu")).length || 0,
+          aliexpress: links?.filter(l => l.network?.includes("AliExpress")).length || 0
+        }
+      });
+
+      console.log("✅ Full System Test Complete");
+    } catch (err: any) {
+      console.error("❌ Test Failed:", err);
+      setError(err.message);
+    } finally {
+      setTesting(false);
     }
-
-    if (successCount === simulatedSources.length) {
-      updateTest(
-        "Traffic Simulation",
-        "pass",
-        `✅ Successfully tracked ${successCount} different traffic sources`,
-        { sources: simulatedSources.map(s => s.expected) }
-      );
-    } else {
-      updateTest(
-        "Traffic Simulation",
-        "fail",
-        `❌ Only tracked ${successCount}/${simulatedSources.length} sources correctly`
-      );
-    }
-
-    // TEST 6: Get real traffic metrics
-    updateTest("Real Traffic Metrics", "running", "Fetching real visitor data...");
-    const metrics = await trafficAutomationService.getRealTrafficMetrics(campaign.id);
-    
-    if (metrics.length > 0) {
-      const totalVisitors = metrics.reduce((sum, m) => sum + m.visitors, 0);
-      updateTest(
-        "Real Traffic Metrics",
-        "pass",
-        `✅ Receiving real traffic! Total visitors: ${totalVisitors} from ${metrics.length} source(s)`,
-        metrics
-      );
-      setRealTraffic(metrics);
-    } else {
-      updateTest(
-        "Real Traffic Metrics",
-        "fail",
-        "❌ No real traffic data yet. Start sharing your links to get visitors!"
-      );
-    }
-
-    // TEST 7: Traffic status check
-    updateTest("Traffic Status", "running", "Checking live traffic status...");
-    const status = await trafficAutomationService.getTrafficStatus(campaign.id);
-    
-    updateTest(
-      "Traffic Status",
-      status.totalTraffic > 0 ? "pass" : "fail",
-      status.totalTraffic > 0 
-        ? `✅ Live traffic detected! ${status.totalTraffic} total visits. Top source: ${status.topSource}`
-        : "❌ No live traffic yet. Share your affiliate links to start getting visitors!",
-      status
-    );
-
-    setIsRunning(false);
   };
 
-  const passed = tests.filter(t => t.status === "pass").length;
-  const failed = tests.filter(t => t.status === "fail").length;
-  const total = tests.length;
+  const testSingleLink = async (slug: string) => {
+    try {
+      console.log(`Testing single link: ${slug}`);
+      
+      // Open in new tab to see what happens
+      window.open(`/go/${slug}`, "_blank");
+    } catch (err: any) {
+      console.error("Error:", err);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-            <Globe className="h-10 w-10 text-blue-600" />
-            Real Traffic Testing
-          </h1>
-          <p className="text-muted-foreground">
-            Verify your website is receiving REAL visitors and track traffic sources
-          </p>
-        </div>
-
-        {/* Control Panel */}
-        <Card className="mb-8">
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Card>
           <CardHeader>
-            <CardTitle>Traffic Test Control</CardTitle>
+            <CardTitle>🧪 Complete Traffic & Link System Test</CardTitle>
             <CardDescription>
-              Run comprehensive tests to verify real traffic tracking
+              Test your entire affiliate link system end-to-end with real database queries and API calls
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Button 
-              onClick={runTrafficTests} 
-              disabled={isRunning}
+              onClick={testFullSystem} 
+              disabled={testing}
               size="lg"
               className="w-full"
             >
-              {isRunning ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Running Tests...</>
+              {testing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Running Complete System Test...
+                </>
               ) : (
-                <><RefreshCw className="mr-2 h-5 w-5" /> Test Traffic Tracking</>
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Run Full System Test
+                </>
               )}
             </Button>
 
-            {total > 0 && (
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-green-600">{passed}</div>
-                  <div className="text-sm text-green-700 dark:text-green-400">Passed</div>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-red-600">{failed}</div>
-                  <div className="text-sm text-red-700 dark:text-red-400">Failed</div>
-                </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-blue-600">{total}</div>
-                  <div className="text-sm text-blue-700 dark:text-blue-400">Total</div>
-                </div>
-              </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
           </CardContent>
         </Card>
 
-        {/* Test Results */}
-        {tests.length > 0 && (
-          <div className="space-y-4 mb-8">
-            <h2 className="text-2xl font-bold">Test Results</h2>
-            {tests.map((test, index) => (
-              <Card key={index}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      {test.status === "pass" && <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />}
-                      {test.status === "fail" && <XCircle className="h-5 w-5 text-red-500 mt-0.5" />}
-                      {test.status === "running" && <Loader2 className="h-5 w-5 text-blue-500 animate-spin mt-0.5" />}
-                      
-                      <div className="flex-1">
-                        <h3 className="font-semibold mb-1">{test.name}</h3>
-                        <p className="text-sm text-muted-foreground">{test.message}</p>
-                        
-                        {test.data && (
-                          <details className="mt-2">
-                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                              View details
-                            </summary>
-                            <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-auto max-h-48">
-                              {JSON.stringify(test.data, null, 2)}
-                            </pre>
-                          </details>
-                        )}
-                      </div>
-                    </div>
-                    <Badge variant={test.status === "pass" ? "default" : test.status === "fail" ? "destructive" : "secondary"}>
-                      {test.status.toUpperCase()}
-                    </Badge>
+        {results && (
+          <>
+            {/* Overview Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>📊 System Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Total Links</p>
+                    <p className="text-2xl font-bold">{results.totalLinks}</p>
                   </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Active Links</p>
+                    <p className="text-2xl font-bold text-green-500">{results.activeLinks}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Paused Links</p>
+                    <p className="text-2xl font-bold text-orange-500">{results.pausedLinks}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Campaign</p>
+                    <p className="text-2xl font-bold">
+                      {results.campaign ? "✓" : "✗"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-sm font-semibold mb-2">Networks:</p>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary">Amazon: {results.networks.amazon}</Badge>
+                    <Badge variant="secondary">Temu: {results.networks.temu}</Badge>
+                    <Badge variant="secondary">AliExpress: {results.networks.aliexpress}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Smart Repair Results */}
+            {results.repairResult && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>🔧 Smart Repair API Test</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {results.repairResult.error ? (
+                    <Alert variant="destructive">
+                      <XCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        API Error: {results.repairResult.error}
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-4">
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          Smart Repair API is working correctly
+                        </AlertDescription>
+                      </Alert>
+                      
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Links Checked</p>
+                          <p className="text-2xl font-bold">{results.repairResult.totalChecked}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Dead Removed</p>
+                          <p className="text-2xl font-bold text-red-500">{results.repairResult.deadRemoved}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Replaced</p>
+                          <p className="text-2xl font-bold text-green-500">{results.repairResult.replaced}</p>
+                        </div>
+                      </div>
+
+                      {results.repairResult.deadLinks?.length > 0 && (
+                        <div className="mt-4 pt-4 border-t">
+                          <p className="text-sm font-semibold mb-2">Removed Dead Links:</p>
+                          <ul className="list-disc list-inside text-sm text-muted-foreground">
+                            {results.repairResult.deadLinks.map((name: string, i: number) => (
+                              <li key={i}>{name}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            )}
+
+            {/* Link Redirect Tests */}
+            <Card>
+              <CardHeader>
+                <CardTitle>🔗 Link Redirect Tests (First 10)</CardTitle>
+                <CardDescription>
+                  Testing actual redirect functionality for each link
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {results.linkTests.map((test: any, index: number) => (
+                    <div 
+                      key={index}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                    >
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{test.productName}</p>
+                          <Badge variant={test.status === "active" ? "default" : "secondary"}>
+                            {test.status}
+                          </Badge>
+                          <Badge variant="outline">{test.network}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">/go/{test.slug}</p>
+                        {test.redirectError && (
+                          <p className="text-xs text-red-500">Error: {test.redirectError}</p>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        {test.redirectTest === "success" ? (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        ) : test.redirectTest === "failed" ? (
+                          <XCircle className="w-5 h-5 text-red-500" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-orange-500" />
+                        )}
+                        
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => testSingleLink(test.slug)}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
 
-        {/* Real Traffic Dashboard */}
-        {realTraffic.length > 0 && (
-          <Card className="border-green-200 bg-green-50/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-green-600" />
-                Real Traffic Sources (Live Data)
-              </CardTitle>
-              <CardDescription>
-                Actual visitors coming to your site right now
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {realTraffic.map((traffic, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div>
-                      <div className="font-semibold">{traffic.source}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {traffic.visitors} visitor{traffic.visitors !== 1 ? "s" : ""} · 
-                        {traffic.conversions} conversion{traffic.conversions !== 1 ? "s" : ""}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-green-600">
-                        ${traffic.revenue.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Last: {new Date(traffic.lastUpdated).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {!results && !testing && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <p>Click "Run Full System Test" to start testing your link system</p>
             </CardContent>
           </Card>
         )}
-
-        {/* Success Message */}
-        {total > 0 && failed === 0 && !isRunning && (
-          <Alert className="mt-8 border-green-500 bg-green-50 dark:bg-green-900/10">
-            <TrendingUp className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800 dark:text-green-400">
-              <strong>🎉 ALL TRAFFIC TESTS PASSED!</strong> Your website is receiving real traffic:
-              <ul className="mt-2 space-y-1 text-sm">
-                <li>✅ Traffic tracking API operational</li>
-                <li>✅ All traffic sources detected correctly</li>
-                <li>✅ Real visitor data being recorded</li>
-                <li>✅ Traffic metrics available in real-time</li>
-              </ul>
-              <p className="mt-3 font-semibold">
-                Your affiliate system is LIVE and tracking real visitors! 🚀
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
