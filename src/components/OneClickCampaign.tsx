@@ -14,10 +14,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { campaignService } from "@/services/campaignService";
 import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import { freeTrafficEngine } from "@/services/freeTrafficEngine";
-import { useSession } from "@/lib/auth";
 
 export function OneClickCampaign() {
   const { toast } = useToast();
+  const [session, setSession] = useState<any>(null);
+  
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+  }, []);
+
   const [step, setStep] = useState<"input" | "processing" | "success">("input");
   const [productUrl, setProductUrl] = useState("");
   const [campaignGoal, setCampaignGoal] = useState<"sales" | "leads" | "traffic">("sales");
@@ -25,7 +30,6 @@ export function OneClickCampaign() {
   const [progressMessage, setProgressMessage] = useState("");
   const [campaignResult, setCampaignResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const { session } = useSession();
 
   const normalizeUrl = (url: string): string => {
     const trimmed = url.trim();

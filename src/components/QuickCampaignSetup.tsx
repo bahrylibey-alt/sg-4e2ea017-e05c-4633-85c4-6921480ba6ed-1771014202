@@ -7,16 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, Zap, CheckCircle, AlertCircle, Sparkles, Target, DollarSign, Users, TrendingUp, ExternalLink, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { campaignService } from "@/services/campaignService";
+import { smartCampaignService } from "@/services/smartCampaignService";
 import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import { useToast } from "@/hooks/use-toast";
-import { useSession } from "@/lib/auth";
 
 export function QuickCampaignSetup() {
   const { toast } = useToast();
-  const { session } = useSession();
+  const [session, setSession] = useState<any>(null);
+  
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+  }, []);
+  
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"input" | "processing" | "complete">("input");
   const [progress, setProgress] = useState(0);
@@ -84,12 +89,12 @@ export function QuickCampaignSetup() {
       const normalizedUrl = normalizeUrl(formData.productUrl);
       console.log("🚀 Creating quick campaign:", normalizedUrl);
 
-      const result = await campaignService.createQuickCampaign({
+      const result = await smartCampaignService.createQuickCampaign({
         name: "Quick Campaign",
         productUrls: [normalizedUrl],
         budget: parseFloat(formData.budget),
         goal: formData.goal
-      });
+      } as any);
 
       console.log("✅ Campaign result:", result);
 

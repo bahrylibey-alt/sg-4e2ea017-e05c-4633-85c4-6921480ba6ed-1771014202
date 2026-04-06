@@ -116,37 +116,26 @@ export function CampaignBuilder({
         setCreatedCampaign(result);
         if (onCampaignCreated) onCampaignCreated();
 
-        // Create the campaign
-        const newCampaign = await campaignService.createCampaign({
-          name: formData.name,
-          goal: formData.goal,
-          budget: parseFloat(formData.budget),
-          networks: selectedNetworks,
-          status: "active"
-        });
-
-        if (!newCampaign) throw new Error("Failed to create campaign");
-
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("Not authenticated");
+        if (session) {
+          // Log campaign creation instead of queuing content
+          const { error: activityError } = await supabase
+            .from('activity_logs')
+            .insert({
+              user_id: session.user.id,
+              action: 'campaign_created',
+              details: `Created campaign: ${campaignName || "Smart Campaign"}`,
+              metadata: {
+                campaign_id: result.campaign.id,
+                campaign_name: campaignName || "Smart Campaign",
+                budget: customBudget || 500
+              },
+              status: 'success'
+            });
 
-        // Log campaign creation instead of queuing content
-        const { error: activityError } = await supabase
-          .from('activity_logs')
-          .insert({
-            user_id: session.user.id,
-            action: 'campaign_created',
-            details: `Created campaign: ${formData.name}`,
-            metadata: {
-              campaign_id: newCampaign.id,
-              campaign_name: formData.name,
-              budget: formData.budget
-            },
-            status: 'success'
-          });
-
-        if (activityError) {
-          console.error('Activity log error:', activityError);
+          if (activityError) {
+            console.error('Activity log error:', activityError);
+          }
         }
       } else {
         setError(result.error || "Failed to create campaign. Please try again.");
