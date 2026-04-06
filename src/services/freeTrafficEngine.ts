@@ -190,6 +190,21 @@ export const freeTrafficEngine = {
         });
       }
 
+      // Log activity instead of content_queue
+      await supabase
+        .from("activity_logs")
+        .insert({
+          user_id: userId,
+          action: 'free_traffic_generated',
+          details: `Generated free traffic for campaign`,
+          metadata: {
+            campaign_id: campaignId,
+            traffic_sources: sources.map(s => s.source),
+            total_reach: sources.reduce((sum, s) => sum + s.reach, 0)
+          },
+          status: 'success'
+        });
+
       const { error } = await supabase
         .from("content_queue")
         .insert(contentPieces);

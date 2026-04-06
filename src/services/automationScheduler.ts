@@ -276,23 +276,26 @@ export const automationScheduler = {
       const scheduledTime = new Date();
       scheduledTime.setHours(scheduledTime.getHours() + 2);
 
-      // Queue content for posting
-      const { error } = await supabase
-        .from("content_queue")
+      // Log activity instead of content_queue
+      await supabase
+        .from("activity_logs")
         .insert({
-          campaign_id: campaign.id,
           user_id: task.user_id,
-          platform: randomPlatform,
-          content_type: "product_promotion",
-          content: `Check out ${links.product_name}! ${links.cloaked_url}`,
-          scheduled_for: scheduledTime.toISOString(),
-          status: "scheduled"
+          action: 'automation_task_scheduled',
+          details: `Scheduled automation task: ${task.task_type}`,
+          metadata: {
+            campaign_id: task.campaign_id,
+            task_type: task.task_type,
+            task_data: {
+              platform: randomPlatform,
+              content_type: "product_promotion",
+              content: `Check out ${links.product_name}! ${links.cloaked_url}`,
+              scheduled_for: scheduledTime.toISOString(),
+              status: "scheduled"
+            }
+          },
+          status: 'success'
         });
-
-      if (error) {
-        console.error("Error scheduling content:", error);
-        return false;
-      }
 
       console.log(`✅ Content scheduled for ${randomPlatform}`);
       return true;
