@@ -100,13 +100,17 @@ export default function Dashboard() {
     }
 
     setIsAuthenticated(true);
-    await loadDashboardData();
+    // Pass session to avoid re-fetching
+    await loadDashboardData(false, session);
     setLoading(false);
   };
 
-  const loadDashboardData = async (isRefresh = false) => {
+  const loadDashboardData = async (isRefresh = false, existingSession?: any) => {
     try {
       console.log("📊 Loading dashboard data...");
+      
+      // Reuse session if provided, otherwise get it once
+      const session = existingSession || await authService.getCurrentSession();
       
       // Load all data with error handling
       const [campaignsResult, analyticsSnapshot, systemHealth] = await Promise.all([
@@ -118,7 +122,7 @@ export default function Dashboard() {
           console.error("Failed to load analytics:", err);
           return null;
         }),
-        getSystemHealth().catch(err => {
+        getSystemHealth(session).catch(err => {
           console.error("Failed to check system health:", err);
           return {
             autopilotActive: false,
@@ -164,10 +168,11 @@ export default function Dashboard() {
     }
   };
 
-  const getSystemHealth = async () => {
+  const getSystemHealth = async (session?: any) => {
     try {
-      const session = await authService.getCurrentSession();
-      if (!session?.user?.id) {
+      // Use provided session or get cached one
+      const currentSession = session || await authService.getCurrentSession();
+      if (!currentSession?.user?.id) {
         return {
           autopilotActive: false,
           productsCount: 0,
@@ -182,11 +187,11 @@ export default function Dashboard() {
         supabase
           .from("user_settings")
           .select("autopilot_enabled")
-          .eq("user_id", session.user.id)
+          .eq("user_id", currentSession.user.id)
           .maybeSingle(),
         campaignService.getUserCampaigns(),
         affiliateIntegrationService.getProductCatalog(),
-        affiliateIntegrationService.getAffiliateLinkStats(session.user.id)
+        affiliateIntegrationService.getAffiliateLinkStats(currentSession.user.id)
       ]);
 
       console.log("📊 Settings data:", settingsData.data);

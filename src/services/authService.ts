@@ -13,6 +13,12 @@ export interface AuthError {
   code?: string;
 }
 
+// Session cache to prevent concurrent lock issues
+let cachedSession: Session | null = null;
+let sessionPromise: Promise<Session | null> | null = null;
+let lastSessionCheck = 0;
+const SESSION_CACHE_TTL = 5000; // 5 seconds cache
+
 // Dynamic URL Helper
 const getURL = () => {
   let url = process?.env?.NEXT_PUBLIC_VERCEL_URL ?? 
@@ -56,21 +62,57 @@ export const authService = {
     }
   },
 
-  // Get current session
-  async getCurrentSession() {
+  // Get current session with caching and deduplication
+  async getCurrentSession(): Promise<Session | null> {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const now = Date.now();
       
-      if (error) {
-        console.log("Auth error in getCurrentSession:", error.message);
-        return null;
+      // Return cached session if still valid
+      if (cachedSession && (now - lastSessionCheck) < SESSION_CACHE_TTL) {
+        return cachedSession;
       }
       
-      return session;
+      // If there's already a pending request, wait for it
+      if (sessionPromise) {
+        return await sessionPromise;
+      }
+      
+      // Create new session request
+      sessionPromise = (async () => {
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.log("Auth error in getCurrentSession:", error.message);
+            cachedSession = null;
+            return null;
+          }
+          
+          cachedSession = session;
+          lastSessionCheck = Date.now();
+          return session;
+        } catch (error) {
+          console.error("Session check failed:", error);
+          cachedSession = null;
+          return null;
+        } finally {
+          sessionPromise = null;
+        }
+      })();
+      
+      return await sessionPromise;
     } catch (error) {
       console.error("Session check failed:", error);
+      sessionPromise = null;
       return null;
     }
+  },
+
+  // Clear session cache (call after sign in/out)
+  clearSessionCache() {
+    cachedSession = null;
+    sessionPromise = null;
+    lastSessionCheck = 0;
   },
 
   // Sign up with email and password
@@ -96,6 +138,7 @@ export const authService = {
         created_at: data.user.created_at
       } : null;
 
+      this.clearSessionCache();
       return { user: authUser, error: null };
     } catch (error) {
       return { 
@@ -124,6 +167,7 @@ export const authService = {
         created_at: data.user.created_at
       } : null;
 
+      this.clearSessionCache();
       return { user: authUser, error: null };
     } catch (error) {
       return { 
@@ -142,6 +186,7 @@ export const authService = {
         return { error: { message: error.message } };
       }
 
+      this.clearSessionCache();
       return { error: null };
     } catch (error) {
       return { 
@@ -188,6 +233,7 @@ export const authService = {
         created_at: data.user.created_at
       } : null;
 
+      this.clearSessionCache();
       return { user: authUser, error: null };
     } catch (error) {
       return { 
@@ -199,6 +245,11 @@ export const authService = {
 
   // Listen to auth state changes
   onAuthStateChange(callback: (event: string, session: Session | null) => void) {
-    return supabase.auth.onAuthStateChange(callback);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Clear cache on auth state change
+      this.clearSessionCache();
+      callback(event, session);
+    });
+    return subscription;
   }
 };
