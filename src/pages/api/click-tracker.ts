@@ -70,15 +70,15 @@ export default async function handler(
         .insert({
           user_id: link.user_id,
           action: "link_click",
-          entity_type: "affiliate_link",
-          entity_id: link.id,
+          details: `Clicked link for ${link.product_name}`,
           metadata: {
             slug: link.slug,
             product_name: link.product_name,
             referrer: referrer || "direct",
             user_agent: userAgent || "unknown",
             ip_address: ipAddress
-          }
+          },
+          status: "success"
         });
     } catch (err) {
       console.error("Failed to log activity:", err);
