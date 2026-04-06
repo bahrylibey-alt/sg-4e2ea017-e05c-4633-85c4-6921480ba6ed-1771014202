@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,10 @@ import { Progress } from "@/components/ui/progress";
 import { Zap, Sparkles, TrendingUp, Target, DollarSign, CheckCircle2, Loader2, ExternalLink, Copy, BarChart3, AlertCircle } from "lucide-react";
 import { smartCampaignService } from "@/services/smartCampaignService";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
+import { campaignService } from "@/services/campaignService";
+import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
+import { freeTrafficEngine } from "@/services/freeTrafficEngine";
 import { useSession } from "@/lib/auth";
 
 export function OneClickCampaign() {

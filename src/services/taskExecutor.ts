@@ -127,28 +127,33 @@ export const taskExecutor = {
    */
   async executeSocialPosting(task: AutopilotTask): Promise<boolean> {
     // Check activity instead of content_queue
-    const { data: activity } = await supabase
+    const { data: activities } = await supabase
       .from("activity_logs")
       .select("*")
       .eq("user_id", task.user_id)
       .eq("action", "content_generated")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
-    if (!activity) return false;
+    const activityList = Array.isArray(activities) ? activities : [];
 
-    // Content already generated, mark as posted
-    await supabase
-      .from("activity_logs")
-      .update({ 
-        status: "completed",
-        metadata: { ...activity.metadata, posted_at: new Date().toISOString() }
-      })
-      .eq("id", activity.id);
+    if (activityList.length > 0) {
+      const activity = activityList[0];
+      // Content already generated, mark as posted
+      const currentMetadata = activity.metadata as Record<string, any> || {};
+      await supabase
+        .from("activity_logs")
+        .update({ 
+          status: "completed",
+          metadata: { ...currentMetadata, posted_at: new Date().toISOString() }
+        })
+        .eq("id", activity.id);
 
-    console.log(`✅ Posted ${activity.length} content items to social media`);
-    return true;
+      console.log(`✅ Posted ${activityList.length} content items to social media`);
+      return true;
+    }
+
+    return false;
   },
 
   /**

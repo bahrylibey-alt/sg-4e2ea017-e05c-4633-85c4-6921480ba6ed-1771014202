@@ -1,26 +1,17 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Zap, 
-  Target, 
-  DollarSign, 
-  Clock,
-  CheckCircle,
-  Sparkles,
-  TrendingUp,
-  Users,
-  ExternalLink,
-  AlertCircle
-} from "lucide-react";
-import { smartCampaignService } from "@/services/smartCampaignService";
+import { Loader2, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { campaignService } from "@/services/campaignService";
+import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import { useSession } from "@/lib/auth";
 
 export function QuickCampaignSetup() {
@@ -93,7 +84,7 @@ export function QuickCampaignSetup() {
       const normalizedUrl = normalizeUrl(formData.productUrl);
       console.log("🚀 Creating quick campaign:", normalizedUrl);
 
-      const result = await smartCampaignService.createQuickCampaign({
+      const result = await campaignService.createQuickCampaign({
         name: "Quick Campaign",
         productUrls: [normalizedUrl],
         budget: parseFloat(formData.budget),

@@ -116,6 +116,20 @@ export function CampaignBuilder({
         setCreatedCampaign(result);
         if (onCampaignCreated) onCampaignCreated();
 
+        // Create the campaign
+        const newCampaign = await campaignService.createCampaign({
+          name: formData.name,
+          goal: formData.goal,
+          budget: parseFloat(formData.budget),
+          networks: selectedNetworks,
+          status: "active"
+        });
+
+        if (!newCampaign) throw new Error("Failed to create campaign");
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Not authenticated");
+
         // Log campaign creation instead of queuing content
         const { error: activityError } = await supabase
           .from('activity_logs')
@@ -124,7 +138,7 @@ export function CampaignBuilder({
             action: 'campaign_created',
             details: `Created campaign: ${formData.name}`,
             metadata: {
-              campaign_id: campaign.id,
+              campaign_id: newCampaign.id,
               campaign_name: formData.name,
               budget: formData.budget
             },
