@@ -1,370 +1,425 @@
-import { useState } from "react";
-import { Header } from "@/components/Header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
-import { webhookService } from "@/services/webhookService";
+import { 
+  AlertCircle, 
+  CheckCircle, 
+  XCircle, 
+  Loader2, 
+  ExternalLink, 
+  RefreshCw,
+  Zap,
+  Shield,
+  TrendingUp
+} from "lucide-react";
 
 interface TestResult {
-  name: string;
-  status: "pending" | "running" | "pass" | "fail";
+  stage: string;
+  status: "success" | "error" | "warning";
   message: string;
   details?: any;
 }
 
 export default function TestAutoRepair() {
   const [testing, setTesting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentStage, setCurrentStage] = useState("");
   const [results, setResults] = useState<TestResult[]>([]);
+  const [repairResult, setRepairResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateResult = (name: string, status: TestResult["status"], message: string, details?: any) => {
-    setResults((prev) => {
-      const existing = prev.find((r) => r.name === name);
-      if (existing) {
-        return prev.map((r) => r.name === name ? { name, status, message, details } : r);
-      }
-      return [...prev, { name, status, message, details }];
-    });
-  };
-
-  const runIntegrationTests = async () => {
+  const runComprehensiveTest = async () => {
     setTesting(true);
+    setError(null);
     setResults([]);
+    setRepairResult(null);
+    setProgress(0);
+
+    const testResults: TestResult[] = [];
 
     try {
-      // TEST 1: Google Analytics
-      updateResult("Google Analytics", "running", "Checking GA4 configuration...");
-      const gaScript = document.querySelector('script[src*="googletagmanager.com"]');
-      const gaConfigScript = document.getElementById('google-analytics');
+      // Stage 1: Authentication Check
+      setCurrentStage("Checking Authentication...");
+      setProgress(10);
       
-      if (gaScript && gaConfigScript) {
-        // Try to send a test event
-        if (typeof (window as any).gtag === 'function') {
-          (window as any).gtag('event', 'integration_test', {
-            event_category: 'test',
-            event_label: 'Integration Test',
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        testResults.push({
+          stage: "Authentication",
+          status: "error",
+          message: "Not logged in. Please log in first."
+        });
+        setResults(testResults);
+        setTesting(false);
+        return;
+      }
+
+      testResults.push({
+        stage: "Authentication",
+        status: "success",
+        message: `✅ Authenticated as: ${session.user.email}`
+      });
+      setResults([...testResults]);
+
+      // Stage 2: Database Links Check
+      setCurrentStage("Checking Database Links...");
+      setProgress(25);
+
+      const { data: links, error: linksError } = await supabase
+        .from("affiliate_links")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (linksError) throw linksError;
+
+      const activeLinks = links?.filter(l => l.status === "active") || [];
+      const temuLinks = activeLinks.filter(l => l.network?.includes("Temu"));
+      const amazonLinks = activeLinks.filter(l => l.network?.includes("Amazon"));
+      const aliexpressLinks = activeLinks.filter(l => l.network?.includes("AliExpress"));
+
+      testResults.push({
+        stage: "Database Check",
+        status: "success",
+        message: `✅ Found ${links?.length || 0} total links (${activeLinks.length} active)`,
+        details: {
+          total: links?.length || 0,
+          active: activeLinks.length,
+          temu: temuLinks.length,
+          amazon: amazonLinks.length,
+          aliexpress: aliexpressLinks.length
+        }
+      });
+      setResults([...testResults]);
+
+      // Stage 3: Test Smart Repair API
+      setCurrentStage("Testing Smart Repair API...");
+      setProgress(50);
+
+      console.log("🔧 Calling Smart Repair API...");
+      const repairResponse = await fetch("/api/smart-repair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          userId: session.user.id,
+          testMode: true // Don't actually delete anything in test mode
+        })
+      });
+
+      if (!repairResponse.ok) {
+        const errorText = await repairResponse.text();
+        throw new Error(`API returned ${repairResponse.status}: ${errorText.substring(0, 200)}`);
+      }
+
+      const repairData = await repairResponse.json();
+      console.log("✅ Smart Repair Result:", repairData);
+      setRepairResult(repairData);
+
+      testResults.push({
+        stage: "Smart Repair API",
+        status: "success",
+        message: `✅ API working! Checked ${repairData.totalChecked} links, found ${repairData.invalidLinks?.length || 0} issues`,
+        details: repairData
+      });
+      setResults([...testResults]);
+
+      // Stage 4: Test Actual Redirects
+      setCurrentStage("Testing Link Redirects...");
+      setProgress(75);
+
+      const testLinks = activeLinks.slice(0, 5); // Test first 5 links
+      const redirectResults = [];
+
+      for (const link of testLinks) {
+        try {
+          const redirectUrl = `/go/${link.slug}`;
+          const response = await fetch(redirectUrl, {
+            method: "HEAD",
+            redirect: "manual"
           });
-          updateResult("Google Analytics", "pass", "✅ GA4 Active - Tracking ID: G-BNDP8BPD2S | Test event sent", {
-            script_loaded: true,
-            gtag_function: true,
-            measurement_id: "G-BNDP8BPD2S"
+
+          redirectResults.push({
+            slug: link.slug,
+            product: link.product_name,
+            network: link.network,
+            status: response.status,
+            working: response.status === 302 || response.status === 307
           });
-        } else {
-          updateResult("Google Analytics", "pass", "✅ GA4 Script loaded (gtag initializing...)", {
-            script_loaded: true,
-            gtag_function: false
+        } catch (err: any) {
+          redirectResults.push({
+            slug: link.slug,
+            product: link.product_name,
+            network: link.network,
+            status: 0,
+            working: false,
+            error: err.message
           });
         }
-      } else {
-        updateResult("Google Analytics", "fail", "❌ GA4 script not found in page", {
-          script_loaded: false
+      }
+
+      const workingRedirects = redirectResults.filter(r => r.working).length;
+      testResults.push({
+        stage: "Redirect Tests",
+        status: workingRedirects > 0 ? "success" : "error",
+        message: `${workingRedirects}/${redirectResults.length} redirects working`,
+        details: redirectResults
+      });
+      setResults([...testResults]);
+
+      // Stage 5: Temu Link Analysis
+      if (temuLinks.length > 0) {
+        setCurrentStage("Analyzing Temu Links...");
+        setProgress(90);
+
+        const temuAnalysis = temuLinks.map(link => ({
+          name: link.product_name,
+          url: link.original_url,
+          hasGoodsId: link.original_url?.includes("goods_id="),
+          slug: link.slug,
+          status: link.status
+        }));
+
+        const validTemu = temuAnalysis.filter(t => t.hasGoodsId);
+        testResults.push({
+          stage: "Temu Analysis",
+          status: validTemu.length > 0 ? "success" : "warning",
+          message: `${validTemu.length}/${temuLinks.length} Temu links have valid goods_id`,
+          details: temuAnalysis
         });
+        setResults([...testResults]);
       }
 
-      // TEST 2: Stripe Configuration
-      updateResult("Stripe", "running", "Checking Stripe integration...");
-      const { data: session } = await supabase.auth.getSession();
-      if (session?.session) {
-        const { data: stripeIntegration } = await supabase
-          .from("integrations")
-          .select("config, status")
-          .eq("user_id", session.session.user.id)
-          .eq("provider", "stripe")
-          .eq("status", "connected")
-          .single();
+      setProgress(100);
+      setCurrentStage("Test Complete!");
 
-        if (stripeIntegration && (stripeIntegration.config as any)?.publishable_key) {
-          const pubKey = (stripeIntegration.config as any).publishable_key;
-          const isTestKey = pubKey.startsWith('pk_test_');
-          updateResult("Stripe", "pass", `✅ Stripe Connected - ${isTestKey ? 'Test Mode' : 'Live Mode'}`, {
-            configured: true,
-            mode: isTestKey ? 'test' : 'live',
-            publishable_key_prefix: pubKey.substring(0, 15) + '...'
-          });
-        } else {
-          updateResult("Stripe", "fail", "❌ Stripe not configured", {
-            configured: false
-          });
-        }
-      } else {
-        updateResult("Stripe", "fail", "❌ Not logged in - cannot check Stripe");
-      }
-
-      // TEST 3: Zapier Webhook
-      updateResult("Zapier", "running", "Testing Zapier webhook...");
-      const { data: zapierSession } = await supabase.auth.getSession();
-      if (zapierSession?.session) {
-        const { data: zapierIntegration } = await supabase
-          .from("integrations")
-          .select("config, status")
-          .eq("user_id", zapierSession.session.user.id)
-          .eq("provider", "zapier")
-          .eq("status", "connected")
-          .single();
-
-        if (zapierIntegration && (zapierIntegration.config as any)?.webhook_url) {
-          // Try to send a test webhook
-          try {
-            const webhookSent = await webhookService.sendToZapier(zapierSession.session.user.id, {
-              event: "integration_test",
-              data: {
-                message: "Testing Zapier webhook from integration test page",
-              },
-              timestamp: new Date().toISOString(),
-            });
-
-            if (webhookSent) {
-              updateResult("Zapier", "pass", "✅ Zapier Webhook Active - Test event sent successfully", {
-                webhook_url: (zapierIntegration.config as any).webhook_url.substring(0, 30) + '...',
-                test_sent: true
-              });
-            } else {
-              updateResult("Zapier", "fail", "❌ Webhook configured but test send failed", {
-                webhook_url: (zapierIntegration.config as any).webhook_url.substring(0, 30) + '...',
-                test_sent: false
-              });
-            }
-          } catch (error: any) {
-            updateResult("Zapier", "fail", `❌ Webhook error: ${error.message}`);
-          }
-        } else {
-          updateResult("Zapier", "fail", "❌ Zapier webhook not configured");
-        }
-      } else {
-        updateResult("Zapier", "fail", "❌ Not logged in - cannot test Zapier");
-      }
-
-      // TEST 4: Amazon Associates
-      updateResult("Amazon Associates", "running", "Checking Amazon integration...");
-      const { data: amazonIntegration } = await supabase
-        .from("integrations")
-        .select("config, status")
-        .eq("provider", "amazon_associates")
-        .eq("status", "connected")
-        .maybeSingle();
-
-      if (amazonIntegration && (amazonIntegration.config as any)?.affiliate_tag) {
-        updateResult("Amazon Associates", "pass", `✅ Amazon Connected - Tag: ${(amazonIntegration.config as any).affiliate_tag}`, {
-          tag: (amazonIntegration.config as any).affiliate_tag
-        });
-      } else {
-        updateResult("Amazon Associates", "fail", "❌ Amazon Associates not configured");
-      }
-
-      // TEST 5: Temu Affiliate
-      updateResult("Temu Affiliate", "running", "Checking Temu integration...");
-      const { data: temuIntegration } = await supabase
-        .from("integrations")
-        .select("config, status")
-        .eq("provider", "temu_affiliate")
-        .eq("status", "connected")
-        .maybeSingle();
-
-      if (temuIntegration && (temuIntegration.config as any)?.affiliate_id) {
-        updateResult("Temu Affiliate", "pass", `✅ Temu Connected - ID: ${(temuIntegration.config as any).affiliate_id}`, {
-          affiliate_id: (temuIntegration.config as any).affiliate_id,
-          tracking_id: (temuIntegration.config as any).tracking_id
-        });
-      } else {
-        updateResult("Temu Affiliate", "fail", "❌ Temu Affiliate not configured");
-      }
-
-      // TEST 6: Webhook Service Availability
-      updateResult("Webhook Service", "running", "Checking webhook service...");
-      const hasWebhookService = typeof webhookService !== 'undefined' 
-        && typeof webhookService.sendToZapier === 'function'
-        && typeof webhookService.notifyClick === 'function'
-        && typeof webhookService.notifyConversion === 'function';
-
-      if (hasWebhookService) {
-        updateResult("Webhook Service", "pass", "✅ Webhook Service Ready - All methods available", {
-          methods: ['sendToZapier', 'notifyClick', 'notifyConversion', 'notifyMilestone']
-        });
-      } else {
-        updateResult("Webhook Service", "fail", "❌ Webhook service not loaded");
-      }
-
-      // TEST 7: Click Tracking API
-      updateResult("Click Tracker API", "running", "Testing click tracker endpoint...");
-      try {
-        const clickTestResponse = await fetch('/api/click-tracker', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: 'test-integration-check' })
-        });
-        
-        if (clickTestResponse.status === 404 || clickTestResponse.status === 400) {
-          // Expected - link doesn't exist, but API is working
-          updateResult("Click Tracker API", "pass", "✅ Click Tracker API Active (404 = API working, link not found)", {
-            endpoint: '/api/click-tracker',
-            status: clickTestResponse.status
-          });
-        } else if (clickTestResponse.ok) {
-          updateResult("Click Tracker API", "pass", "✅ Click Tracker API Active and responding", {
-            endpoint: '/api/click-tracker',
-            status: clickTestResponse.status
-          });
-        }
-      } catch (error: any) {
-        updateResult("Click Tracker API", "fail", `❌ Click Tracker API Error: ${error.message}`);
-      }
-
-      // TEST 8: Commission Postback API
-      updateResult("Commission Postback API", "running", "Testing postback endpoint...");
-      try {
-        const postbackTestResponse = await fetch('/api/postback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            network: 'test',
-            click_id: 'integration-test',
-            amount: 0,
-            status: 'pending'
-          })
-        });
-        
-        if (postbackTestResponse.ok) {
-          updateResult("Commission Postback API", "pass", "✅ Postback API Active - Ready to receive webhooks", {
-            endpoint: '/api/postback',
-            status: postbackTestResponse.status
-          });
-        }
-      } catch (error: any) {
-        updateResult("Commission Postback API", "fail", `❌ Postback API Error: ${error.message}`);
-      }
-
-      // TEST 9: SEO Meta Tags
-      updateResult("SEO Optimization", "running", "Checking SEO configuration...");
-      const metaTitle = document.querySelector('meta[property="og:title"]');
-      const metaDescription = document.querySelector('meta[property="og:description"]');
-      const metaImage = document.querySelector('meta[property="og:image"]');
-      
-      if (metaTitle && metaDescription && metaImage) {
-        updateResult("SEO Optimization", "pass", "✅ SEO Configured - All OG tags present", {
-          og_title: metaTitle.getAttribute('content')?.substring(0, 50),
-          og_description: metaDescription.getAttribute('content')?.substring(0, 50),
-          og_image: metaImage.getAttribute('content')
-        });
-      } else {
-        updateResult("SEO Optimization", "fail", "❌ Missing SEO meta tags", {
-          og_title: !!metaTitle,
-          og_description: !!metaDescription,
-          og_image: !!metaImage
-        });
-      }
-
-    } catch (error: any) {
-      updateResult("System Error", "fail", `❌ Test suite error: ${error.message}`);
+    } catch (err: any) {
+      console.error("❌ Test Failed:", err);
+      setError(err.message);
+      testResults.push({
+        stage: "System Error",
+        status: "error",
+        message: err.message
+      });
+      setResults(testResults);
+    } finally {
+      setTesting(false);
     }
-
-    setTesting(false);
   };
 
-  const passed = results.filter(r => r.status === "pass").length;
-  const failed = results.filter(r => r.status === "fail").length;
-  const total = results.length;
-  const score = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const runActualRepair = async () => {
+    if (!confirm("This will actually remove broken links and add new ones. Continue?")) {
+      return;
+    }
+
+    setTesting(true);
+    setError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Please log in first");
+        setTesting(false);
+        return;
+      }
+
+      const response = await fetch("/api/smart-repair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          userId: session.user.id,
+          testMode: false // Actually repair
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setRepairResult(result);
+      
+      alert(`Repair Complete!\n\nChecked: ${result.totalChecked}\nRemoved: ${result.deadRemoved}\nAdded: ${result.replaced}`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <Header />
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <Card className="mb-6">
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">🧪 Complete Integration Test Suite</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="w-6 h-6 text-primary" />
+              Smart Auto-Repair System - Deep Test
+            </CardTitle>
             <CardDescription>
-              Verify all your integrations are properly configured and working
+              Comprehensive testing of link validation, repair API, and redirect system
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button 
-              onClick={runIntegrationTests} 
-              disabled={testing}
-              size="lg"
-              className="w-full"
-            >
-              {testing ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Running Tests...
-                </>
-              ) : (
-                "🚀 Run Integration Tests"
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                onClick={runComprehensiveTest} 
+                disabled={testing}
+                size="lg"
+                className="flex-1"
+              >
+                {testing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Testing... {progress}%
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Run Deep Test (Safe - No Changes)
+                  </>
+                )}
+              </Button>
 
-            {results.length > 0 && (
-              <div className="flex gap-4 justify-center">
-                <Badge variant="outline" className="text-lg px-4 py-2">
-                  ✅ Passed: {passed}/{total}
-                </Badge>
-                <Badge variant="outline" className="text-lg px-4 py-2">
-                  ❌ Failed: {failed}/{total}
-                </Badge>
-                <Badge 
-                  variant={score === 100 ? "default" : score >= 70 ? "secondary" : "destructive"}
-                  className="text-lg px-4 py-2"
-                >
-                  Score: {score}%
-                </Badge>
+              <Button 
+                onClick={runActualRepair}
+                disabled={testing}
+                size="lg"
+                variant="destructive"
+                className="flex-1"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Run Actual Repair (Will Modify Links!)
+              </Button>
+            </div>
+
+            {testing && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>{currentStage}</span>
+                  <span className="font-bold">{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-2" />
               </div>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
           </CardContent>
         </Card>
 
         {results.length > 0 && (
-          <div className="space-y-4">
-            {results.map((result) => (
-              <Card key={result.name} className={
-                result.status === "pass" ? "border-green-500 bg-green-50" :
-                result.status === "fail" ? "border-red-500 bg-red-50" :
-                result.status === "running" ? "border-blue-500 bg-blue-50" :
-                ""
-              }>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {result.status === "pass" && <CheckCircle2 className="h-5 w-5 text-green-600" />}
-                      {result.status === "fail" && <XCircle className="h-5 w-5 text-red-600" />}
-                      {result.status === "running" && <Loader2 className="h-5 w-5 animate-spin text-blue-600" />}
-                      {result.status === "pending" && <AlertCircle className="h-5 w-5 text-slate-400" />}
-                      {result.name}
-                    </CardTitle>
-                    <Badge variant={
-                      result.status === "pass" ? "default" :
-                      result.status === "fail" ? "destructive" :
-                      "secondary"
-                    }>
-                      {result.status}
-                    </Badge>
+          <Card>
+            <CardHeader>
+              <CardTitle>Test Results</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {results.map((result, idx) => (
+                <div key={idx} className="border rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    {result.status === "success" && <CheckCircle className="w-5 h-5 text-green-500" />}
+                    {result.status === "error" && <XCircle className="w-5 h-5 text-red-500" />}
+                    {result.status === "warning" && <AlertCircle className="w-5 h-5 text-orange-500" />}
+                    <div>
+                      <div className="font-semibold">{result.stage}</div>
+                      <div className="text-sm text-muted-foreground">{result.message}</div>
+                    </div>
                   </div>
-                  <CardDescription>{result.message}</CardDescription>
-                </CardHeader>
-                {result.details && (
-                  <CardContent>
-                    <pre className="bg-slate-100 p-3 rounded text-xs overflow-auto">
-                      {JSON.stringify(result.details, null, 2)}
-                    </pre>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
+
+                  {result.details && (
+                    <div className="mt-3 p-3 bg-muted rounded text-xs font-mono">
+                      <pre className="overflow-auto max-h-64">
+                        {JSON.stringify(result.details, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
-        {results.length > 0 && score === 100 && (
-          <Alert className="mt-6 border-green-500 bg-green-50">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <AlertDescription className="text-green-800 font-medium">
-              🎉 ALL TESTS PASSED - YOUR SYSTEM IS FULLY OPERATIONAL!
-              <br />
-              <span className="text-sm">All integrations are properly configured and working correctly.</span>
-            </AlertDescription>
-          </Alert>
+        {repairResult && (
+          <Card className="border-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-green-500" />
+                Repair Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-primary/5 rounded">
+                  <div className="text-3xl font-bold">{repairResult.totalChecked}</div>
+                  <div className="text-sm text-muted-foreground">Links Checked</div>
+                </div>
+                <div className="text-center p-4 bg-red-500/5 rounded">
+                  <div className="text-3xl font-bold text-red-500">{repairResult.deadRemoved}</div>
+                  <div className="text-sm text-muted-foreground">Removed</div>
+                </div>
+                <div className="text-center p-4 bg-green-500/5 rounded">
+                  <div className="text-3xl font-bold text-green-500">{repairResult.replaced}</div>
+                  <div className="text-sm text-muted-foreground">Added Fresh</div>
+                </div>
+                <div className="text-center p-4 bg-orange-500/5 rounded">
+                  <div className="text-3xl font-bold text-orange-500">
+                    {repairResult.invalidLinks?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Issues Found</div>
+                </div>
+              </div>
+
+              {repairResult.invalidLinks && repairResult.invalidLinks.length > 0 && (
+                <div className="mt-4 p-4 border rounded">
+                  <h4 className="font-semibold mb-2">Invalid Links Detected:</h4>
+                  <ul className="space-y-1 text-sm">
+                    {repairResult.invalidLinks.map((link: any, idx: number) => (
+                      <li key={idx} className="text-muted-foreground">
+                        • {link.product_name} ({link.network}) - {link.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
-      </main>
+
+        <Card className="bg-blue-50 dark:bg-blue-950/20">
+          <CardHeader>
+            <CardTitle className="text-lg">About Temu Security Verification</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              <strong>Why does Temu show a CAPTCHA?</strong>
+            </p>
+            <p className="text-muted-foreground">
+              Temu's anti-bot system detects affiliate redirects and requires human verification. 
+              This is normal and expected behavior for affiliate marketing.
+            </p>
+            <div className="p-3 bg-background rounded border">
+              <p className="font-semibold mb-2">What This System Does:</p>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>✓ Validates Temu URLs have correct goods_id format</li>
+                <li>✓ Removes links with missing or invalid product IDs</li>
+                <li>✓ Replaces broken links with fresh verified products</li>
+                <li>✓ Tracks click failures automatically</li>
+              </ul>
+            </div>
+            <p className="text-muted-foreground">
+              Users will see the CAPTCHA once, solve it, then the link works normally. 
+              This is standard for affiliate marketing and cannot be completely avoided.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
