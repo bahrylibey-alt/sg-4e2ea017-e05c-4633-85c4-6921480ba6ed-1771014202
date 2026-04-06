@@ -13,6 +13,7 @@ import { trafficAutomationService } from "@/services/trafficAutomationService";
  * useEffect(() => {
  *   fetch('/api/track-visit', {
  *     method: 'POST',
+ *     headers: { 'Content-Type': 'application/json' },
  *     body: JSON.stringify({ campaignId, page: window.location.pathname })
  *   });
  * }, []);
@@ -34,7 +35,7 @@ export default async function handler(
     }
 
     // Get real visitor data from HTTP headers
-    const referrer = req.headers.referer || req.headers.referrer || "";
+    const referrer = (req.headers.referer || req.headers.referrer || "") as string;
     const userAgent = req.headers["user-agent"] || "";
     const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
 
@@ -42,7 +43,7 @@ export default async function handler(
     const result = await trafficAutomationService.trackRealVisitor({
       campaignId,
       source: page || "/",
-      referrer: referrer as string,
+      referrer,
       userAgent,
       ip
     });
@@ -51,7 +52,7 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         message: "Visit tracked",
-        source: trafficAutomationService.detectTrafficSource(referrer as string)
+        source: trafficAutomationService.detectTrafficSource(referrer)
       });
     } else {
       return res.status(500).json({ error: "Failed to track visit" });

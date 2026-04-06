@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -23,8 +23,9 @@ import { Button } from "@/components/ui/button";
 export default function RedirectPage() {
   const router = useRouter();
   const { slug } = router.query;
-  const [status, setStatus] = useState<"loading" | "redirecting" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "redirecting" | "error" | "paused">("loading");
   const [link, setLink] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState("");
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
@@ -32,23 +33,49 @@ export default function RedirectPage() {
 
     const trackAndRedirect = async () => {
       try {
-        // Get the affiliate link
+        console.log("🔍 Looking up link:", slug);
+
+        // Get the affiliate link by SLUG
         const { data: linkData, error } = await supabase
           .from("affiliate_links")
           .select("*")
           .eq("slug", slug)
           .maybeSingle();
 
-        if (error || !linkData) {
+        if (error) {
+          console.error("Database error:", error);
+          setErrorMessage(`Database error: ${error.message}`);
           setStatus("error");
+          return;
+        }
+
+        if (!linkData) {
+          console.error("Link not found:", slug);
+          setErrorMessage("This link doesn't exist in our database");
+          setStatus("error");
+          return;
+        }
+
+        console.log("✅ Found link:", {
+          product: linkData.product_name,
+          network: linkData.network,
+          status: linkData.status,
+          url: linkData.original_url
+        });
+
+        // Check if link is paused
+        if (linkData.status === "paused") {
+          setLink(linkData);
+          setErrorMessage("This link is currently paused");
+          setStatus("paused");
           return;
         }
 
         setLink(linkData);
         setStatus("redirecting");
 
-        // Track the click via API
-        await fetch("/api/click-tracker", {
+        // Track the click via API (don't wait for it)
+        fetch("/api/click-tracker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -56,14 +83,16 @@ export default function RedirectPage() {
             referrer: document.referrer,
             userAgent: navigator.userAgent
           })
-        });
+        }).catch(err => console.error("Click tracking failed:", err));
 
         // Countdown before redirect
         const interval = setInterval(() => {
           setCountdown(prev => {
             if (prev <= 1) {
               clearInterval(interval);
-              // Redirect to affiliate URL
+              
+              // CRITICAL: Direct redirect to original URL
+              console.log("🚀 Redirecting to:", linkData.original_url);
               window.location.href = linkData.original_url;
               return 0;
             }
@@ -71,8 +100,9 @@ export default function RedirectPage() {
           });
         }, 1000);
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Redirect error:", err);
+        setErrorMessage(err.message || "Unknown error occurred");
         setStatus("error");
       }
     };
@@ -94,16 +124,52 @@ export default function RedirectPage() {
     );
   }
 
+  if (status === "paused") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 to-orange-50">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-orange-500" />
+            <h2 className="text-xl font-semibold mb-2">Link Paused</h2>
+            {link && (
+              <div className="mb-4">
+                <p className="font-medium text-lg">{link.product_name}</p>
+                <p className="text-sm text-muted-foreground">{link.network}</p>
+              </div>
+            )}
+            <p className="text-muted-foreground mb-4">{errorMessage}</p>
+            <div className="space-y-2">
+              <Button 
+                onClick={() => router.push("/dashboard")}
+                className="w-full"
+              >
+                Go to Dashboard
+              </Button>
+              {link && (
+                <Button 
+                  variant="outline"
+                  onClick={() => window.location.href = link.original_url}
+                  className="w-full"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Visit Product Anyway
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (status === "error") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h2 className="text-xl font-semibold mb-2">Product Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The product link you clicked is no longer available.
-            </p>
+            <h2 className="text-xl font-semibold mb-2">Link Error</h2>
+            <p className="text-muted-foreground mb-4">{errorMessage}</p>
             <Button onClick={() => router.push("/dashboard")}>
               Return to Dashboard
             </Button>

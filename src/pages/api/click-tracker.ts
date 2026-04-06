@@ -36,14 +36,15 @@ export default async function handler(
       return res.status(400).json({ error: "Missing slug" });
     }
 
-    // Get affiliate link details
+    // Get affiliate link details using SLUG (CRITICAL FIX)
     const { data: link, error: linkError } = await supabase
       .from("affiliate_links")
       .select("*")
-      .eq("cloaked_url", `direct /go/${slug}`)
-      .single();
+      .eq("slug", slug)
+      .maybeSingle();
 
     if (linkError || !link) {
+      console.error("Link not found:", slug, linkError);
       return res.status(404).json({ error: "Link not found" });
     }
 
@@ -51,33 +52,50 @@ export default async function handler(
     const newClicks = (link.clicks || 0) + 1;
     await supabase
       .from("affiliate_links")
-      .update({ clicks: newClicks })
+      .update({ 
+        clicks: newClicks,
+        last_clicked_at: new Date().toISOString()
+      })
       .eq("id", link.id);
 
     // Get click metadata
     const referrer = req.headers.referer || req.headers.referrer;
     const userAgent = req.headers["user-agent"];
+    const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
 
-    // Store detailed click event
-    await supabase
-      .from("click_events" as any)
-      .insert({
-        link_id: link.id,
-        user_id: link.user_id,
-        referrer: referrer || "direct",
-        user_agent: userAgent || "unknown",
-        ip_address: (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress
-      } as any);
+    // Store detailed click event (if table exists)
+    try {
+      await supabase
+        .from("clicks")
+        .insert({
+          link_id: link.id,
+          user_id: link.user_id,
+          campaign_id: link.campaign_id,
+          referrer: referrer || "direct",
+          user_agent: userAgent || "unknown",
+          ip_address: ipAddress,
+          timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+      console.error("Failed to log click event:", err);
+      // Don't fail the request if click logging fails
+    }
 
     // Send webhook notification to Zapier
-    await webhookService.notifyClick(link.user_id, {
-      product_name: link.product_name,
-      network: link.network,
-      cloaked_url: link.cloaked_url
-    });
+    try {
+      await webhookService.notifyClick(link.user_id, {
+        product_name: link.product_name,
+        network: link.network,
+        cloaked_url: link.cloaked_url
+      });
+    } catch (err) {
+      console.error("Failed to send webhook:", err);
+      // Don't fail the request if webhook fails
+    }
 
     console.log("✅ Click tracked:", {
       product: link.product_name,
+      slug: link.slug,
       clicks: newClicks,
       referrer: referrer || "direct"
     });
