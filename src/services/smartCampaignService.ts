@@ -227,7 +227,7 @@ export const smartCampaignService = {
       const [linksResult, tasksResult, contentResult, trafficResult] = await Promise.all([
         (supabase as any).from("affiliate_links").select("clicks, conversions, revenue").eq("campaign_id", campaignId),
         (supabase as any).from("autopilot_tasks").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
-        (supabase as any).from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "ready"),
+        (supabase as any).from("content_queue").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "pending"),
         (supabase as any).from("traffic_sources").select("id", { count: "exact" }).eq("campaign_id", campaignId).eq("status", "active")
       ]);
 

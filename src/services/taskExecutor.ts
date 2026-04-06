@@ -116,25 +116,17 @@ export const taskExecutor = {
    */
   async executeSocialPosting(task: AutopilotTask): Promise<boolean> {
     const { data: content } = await (supabase as any).from("content_queue")
-      .select("id")
-      .eq("campaign_id", task.campaign_id)
-      .eq("status", "ready")
-      .lte("scheduled_for", new Date().toISOString())
-      .limit(5);
+      .select("*")
+      .eq("user_id", task.user_id)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
 
-    if (!content || content.length === 0) return false;
+    if (!content) return false;
 
-    for (const item of content) {
-      await (supabase as any).from("content_queue")
-        .update({
-          status: "posted" as const,
-          posted_at: new Date().toISOString(),
-          clicks: Math.floor(Math.random() * 100 + 20),
-          engagement_score: Math.random() * 0.1 + 0.02,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", item.id);
-    }
+    await (supabase as any).from("content_queue")
+      .update({ status: "posted", posted_at: new Date().toISOString() })
+      .eq("id", content.id);
 
     console.log(`✅ Posted ${content.length} content items to social media`);
     return true;
