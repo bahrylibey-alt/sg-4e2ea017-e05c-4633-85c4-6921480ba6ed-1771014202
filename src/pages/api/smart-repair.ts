@@ -51,6 +51,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { userId, campaignId } = req.body;
 
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
     // 1. Fetch all active links
     let query = supabase.from("affiliate_links").select("*");
     if (userId) query = query.eq("user_id", userId);
@@ -58,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { data: links, error } = await query;
     if (error) throw error;
-    if (!links || links.length === 0) return res.status(200).json({ message: "No links to check", repaired: 0 });
+    if (!links || links.length === 0) return res.status(200).json({ message: "No links to check", totalChecked: 0, deadRemoved: 0, replaced: 0, deadLinks: [] });
 
     console.log(`Starting smart repair for ${links.length} links...`);
 
@@ -82,14 +86,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 3. Auto-replace dead links with fresh trending products
     if (deadCount > 0 && userId && campaignId) {
       try {
-        const freshProducts = await smartProductDiscovery.discoverTrending(
-          "technology" // Default niche
-        );
+        // FIX: Pass userId instead of string
+        const freshProducts = await smartProductDiscovery.discoverTrending(userId, deadCount);
 
-        // Limit the replacements to the number of dead products
-        const productsToUse = freshProducts.slice(0, deadCount);
-
-        for (const product of productsToUse) {
+        for (const product of freshProducts) {
           const slug = product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50);
           
           await supabase.from("affiliate_links").insert({
@@ -97,9 +97,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             campaign_id: campaignId,
             product_name: product.name,
             original_url: product.url,
-            network: "Amazon Associates", // Default fallback
+            network: product.network || "Amazon Associates",
             slug: `${slug}-${Math.floor(Math.random() * 10000)}`,
-            cloaked_url: `direct /go/${slug}`,
+            cloaked_url: `/go/${slug}`,
             status: "active",
             commission_rate: product.commission_rate || 5.0
           });
@@ -120,6 +120,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error("Smart Repair Error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || "Internal server error" });
   }
 }
