@@ -48,8 +48,8 @@ export default function TestLinkSystem() {
     
     for (const network of Object.keys(testUrls)) {
       for (const url of testUrls[network as keyof typeof testUrls]) {
-        const result = await linkHealthMonitor.validateProduct(url);
-        const productId = linkHealthMonitor.extractProductId(url);
+        const result = await linkHealthMonitor.validateProduct(url, network);
+        const productId = linkHealthMonitor.extractProductId(url, network);
         
         testResults.push({
           url,

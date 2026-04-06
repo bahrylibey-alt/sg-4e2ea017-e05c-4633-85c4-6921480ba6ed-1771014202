@@ -105,7 +105,7 @@ export default function ComprehensiveTest() {
             return {
               name: "Link Health Monitoring",
               status: "passed",
-              message: `✅ Health: ${health.healthScore}% (${health.totalLinks} links, ${health.invalidLinks} invalid)`,
+              message: `✅ Health: ${health.healthScore}% (${health.activeLinks + health.brokenLinks} links, ${health.brokenLinks} invalid)`,
               details: health
             };
           } catch (err: any) {

@@ -152,8 +152,8 @@ export const linkHealthMonitor = {
   },
 
   async validateProduct(url: string, network?: string) {
-    if (!url) return { isValid: false, isOutofStock: true };
-    return { isValid: true, isOutofStock: false };
+    if (!url) return { valid: false, reason: "No URL", confidence: "high" };
+    return { valid: true, reason: undefined, confidence: "high" };
   },
 
   extractProductId(url: string, network: string) {
@@ -178,7 +178,7 @@ export const linkHealthMonitor = {
   },
 
   async repairLink(slug: string, fallbackUrl?: string) {
-    return { success: true, newUrl: fallbackUrl };
+    return { repaired: false, newUrl: fallbackUrl };
   },
 
   detectNetwork(url: string) {

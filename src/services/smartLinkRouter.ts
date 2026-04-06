@@ -120,11 +120,11 @@ export const smartLinkRouter = {
     const searchQuery = encodeURIComponent(link.product_name || "");
     
     switch (network) {
-      case "amazon":
+      case "Amazon Associates":
         return `https://www.amazon.com/s?k=${searchQuery}`;
-      case "temu":
+      case "Temu Affiliate":
         return `https://www.temu.com/search_result.html?search_key=${searchQuery}`;
-      case "aliexpress":
+      case "AliExpress Affiliate":
         return `https://www.aliexpress.com/wholesale?SearchText=${searchQuery}`;
       default:
         return `https://www.google.com/search?q=${searchQuery}`;
