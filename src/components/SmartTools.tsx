@@ -1,380 +1,329 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Zap, TrendingUp, Target, DollarSign, Shield, FlaskConical, Sparkles, BarChart3 } from "lucide-react";
-import { linkHealthMonitor } from "@/services/linkHealthMonitor";
+import { TrendingUp, Target, DollarSign, Sparkles, Zap, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
-import { fraudDetectionService } from "@/services/fraudDetectionService";
-import { intelligentABTesting } from "@/services/intelligentABTesting";
-import { supabase } from "@/integrations/supabase/client";
-
-interface SmartTool {
-  id: string;
-  name: string;
-  description: string;
-  icon: any;
-  color: string;
-  action: () => Promise<{ success: boolean; message: string; details?: any }>;
-}
+import { budgetOptimizationService } from "@/services/budgetOptimizationService";
+import { useToast } from "@/hooks/use-toast";
 
 export function SmartTools() {
-  const [runningTool, setRunningTool] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, { success: boolean; message: string; details?: any }>>({});
+  const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasActiveCampaigns, setHasActiveCampaigns] = useState(false);
+  const [isCheckingCampaigns, setIsCheckingCampaigns] = useState(true);
 
   useEffect(() => {
-    const checkCampaigns = async () => {
+    const checkAuth = async () => {
+      setIsCheckingCampaigns(true);
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
-        // User not logged in - this is normal for homepage
+      setIsAuthenticated(!!session);
+      
+      if (session) {
+        // User is logged in - check for campaigns
+        const { data: campaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('status', 'active')
+          .limit(1);
+
+        setHasActiveCampaigns(campaigns && campaigns.length > 0);
+      } else {
+        // User not logged in - don't show campaign errors
         setHasActiveCampaigns(false);
-        return;
       }
+      
+      setIsCheckingCampaigns(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleProductDiscovery = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in to use Smart Product Discovery",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!hasActiveCampaigns) {
+      toast({
+        title: "No Active Campaigns",
+        description: "Create a campaign on the dashboard first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
       const { data: campaigns } = await supabase
         .from('campaigns')
-        .select('id, status')
+        .select('id')
         .eq('user_id', session.user.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .limit(1);
 
-      setHasActiveCampaigns(campaigns && campaigns.length > 0);
-    };
-
-    checkCampaigns();
-  }, []);
-
-  const tools: SmartTool[] = [
-    {
-      id: "link-repair",
-      name: "Auto Link Repair",
-      description: "Detect and fix broken affiliate links automatically",
-      icon: Zap,
-      color: "text-blue-500",
-      action: async () => {
-        try {
-          const result = await linkHealthMonitor.oneClickAutoRepair();
-          return {
-            success: true,
-            message: `✅ Scanned ${result.totalChecked} links. Removed ${result.invalidRemoved + result.duplicatesRemoved} broken links and Added ${result.replaced} fresh verified products.`,
-            details: result
-          };
-        } catch (error) {
-          console.error("Link repair error:", error);
-          return {
-            success: false,
-            message: "❌ Link repair failed. Check console for details."
-          };
-        }
+      if (!campaigns || campaigns.length === 0) {
+        toast({
+          title: "No Campaigns Found",
+          description: "Please create a campaign first",
+          variant: "destructive"
+        });
+        return;
       }
-    },
-    {
-      id: "product-discovery",
-      name: "Smart Product Discovery",
-      description: "Find and add trending products automatically",
-      icon: TrendingUp,
-      color: "text-green-500",
-      action: async () => {
-        try {
-          // Get first active campaign and user
-          const { data: campaigns } = await supabase
-            .from("campaigns")
-            .select("id, user_id")
-            .eq("status", "active")
-            .limit(1);
 
-          if (!campaigns || campaigns.length === 0) {
-            return {
-              success: false,
-              message: "❌ No active campaigns found. Create a campaign first."
-            };
-          }
+      const result = await smartProductDiscovery.discoverProducts({
+        campaignId: campaigns[0].id,
+        niche: "trending",
+        minCommission: 5,
+        networks: ["Amazon Associates", "Temu Affiliate"]
+      });
 
-          const campaign = campaigns[0];
-          const result = await smartProductDiscovery.addToCampaign(
-            campaign.id,
-            campaign.user_id,
-            10
-          );
-
-          return {
-            success: result.success,
-            message: `✅ Added ${result.added} trending products to campaign`,
-            details: result
-          };
-        } catch (error) {
-          console.error("Product discovery error:", error);
-          return {
-            success: false,
-            message: "❌ Product discovery failed. Check console for details."
-          };
-        }
-      }
-    },
-    {
-      id: "campaign-optimizer",
-      name: "AI Campaign Optimizer",
-      description: "Optimize campaigns for maximum revenue",
-      icon: Target,
-      color: "text-purple-500",
-      action: async () => {
-        try {
-          // Get first active campaign
-          const { data: campaigns } = await supabase
-            .from("campaigns")
-            .select("id")
-            .eq("status", "active")
-            .limit(1);
-
-          if (!campaigns || campaigns.length === 0) {
-            return {
-              success: false,
-              message: "❌ No active campaigns found"
-            };
-          }
-
-          const result = await aiOptimizationEngine.optimizeCampaign(campaigns[0].id);
-          return {
-            success: result.success,
-            message: `✅ Applied ${result.optimizations} optimizations. Estimated ${result.revenueIncrease}% revenue increase`,
-            details: result
-          };
-        } catch (error) {
-          console.error("Campaign optimization error:", error);
-          return {
-            success: false,
-            message: "❌ Optimization failed. Check console for details."
-          };
-        }
-      }
-    },
-    {
-      id: "revenue-maximizer",
-      name: "Revenue Maximizer",
-      description: "Maximize revenue across all campaigns",
-      icon: DollarSign,
-      color: "text-yellow-500",
-      action: async () => {
-        try {
-          // Get all active campaigns
-          const { data: campaigns } = await supabase
-            .from("campaigns")
-            .select("id")
-            .eq("status", "active");
-
-          if (!campaigns || campaigns.length === 0) {
-            return {
-              success: false,
-              message: "❌ No active campaigns found"
-            };
-          }
-
-          let totalOptimizations = 0;
-          for (const campaign of campaigns) {
-            const result = await aiOptimizationEngine.optimizeCampaign(campaign.id);
-            totalOptimizations += result.optimizations || 0;
-          }
-
-          return {
-            success: true,
-            message: `✅ Applied ${totalOptimizations} revenue optimizations across ${campaigns.length} campaigns`
-          };
-        } catch (error) {
-          console.error("Revenue maximizer error:", error);
-          return {
-            success: false,
-            message: "❌ Revenue maximization failed"
-          };
-        }
-      }
-    },
-    {
-      id: "fraud-detection",
-      name: "Fraud Detection AI",
-      description: "Detect and block suspicious traffic",
-      icon: Shield,
-      color: "text-red-500",
-      action: async () => {
-        try {
-          const result = await fraudDetectionService.monitorAllLinks();
-          return {
-            success: true,
-            message: `✅ Scanned ${result.totalChecked} links. Blocked ${result.blocked} suspicious activities`,
-            details: result
-          };
-        } catch (error) {
-          console.error("Fraud detection error:", error);
-          return {
-            success: false,
-            message: "❌ Fraud detection failed"
-          };
-        }
-      }
-    },
-    {
-      id: "ab-testing",
-      name: "A/B Testing Suite",
-      description: "Create and analyze link variations",
-      icon: FlaskConical,
-      color: "text-indigo-500",
-      action: async () => {
-        try {
-          // Get first active link
-          const { data: links } = await supabase
-            .from("affiliate_links")
-            .select("id")
-            .eq("status", "active")
-            .limit(1);
-
-          if (!links || links.length === 0) {
-            return {
-              success: false,
-              message: "❌ No active links found to test"
-            };
-          }
-
-          const result = await intelligentABTesting.createTestVariants(links[0].id, 2);
-          return {
-            success: result.success,
-            message: `✅ Created ${result.variants.length} test variants`,
-            details: result
-          };
-        } catch (error) {
-          console.error("A/B testing error:", error);
-          return {
-            success: false,
-            message: "❌ A/B testing failed"
-          };
-        }
-      }
-    },
-    {
-      id: "analytics",
-      name: "Performance Analytics",
-      description: "Generate comprehensive performance report",
-      icon: BarChart3,
-      color: "text-cyan-500",
-      action: async () => {
-        try {
-          // Get analytics data
-          const { data: links, error } = await supabase
-            .from("affiliate_links")
-            .select("clicks, conversions, revenue")
-            .eq("status", "active");
-
-          if (error || !links) {
-            return {
-              success: false,
-              message: "❌ Failed to fetch analytics data"
-            };
-          }
-
-          const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
-          const totalConversions = links.reduce((sum, l) => sum + (l.conversions || 0), 0);
-          const totalRevenue = links.reduce((sum, l) => sum + (l.revenue || 0), 0);
-          const conversionRate = totalClicks > 0 ? ((totalConversions / totalClicks) * 100).toFixed(2) : "0";
-
-          return {
-            success: true,
-            message: `✅ ${totalClicks} clicks, ${totalConversions} conversions (${conversionRate}% rate), $${totalRevenue.toFixed(2)} revenue`,
-            details: { totalClicks, totalConversions, totalRevenue, conversionRate }
-          };
-        } catch (error) {
-          console.error("Analytics error:", error);
-          return {
-            success: false,
-            message: "❌ Analytics generation failed"
-          };
-        }
-      }
+      toast({
+        title: "Products Discovered!",
+        description: `Found ${result.products?.length || 0} trending products`,
+      });
+    } catch (error: any) {
+      console.error("Product discovery error:", error);
+      toast({
+        title: "Discovery Failed",
+        description: error.message || "Failed to discover products",
+        variant: "destructive"
+      });
     }
-  ];
+  };
 
-  const runSmartTool = async (tool: SmartTool) => {
-    setRunningTool(tool.id);
+  const handleCampaignOptimizer = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in to use AI Campaign Optimizer",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!hasActiveCampaigns) {
+      toast({
+        title: "No Active Campaigns",
+        description: "Create a campaign on the dashboard first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      const result = await tool.action();
-      setResults(prev => ({ ...prev, [tool.id]: result }));
-    } catch (error) {
-      console.error(`Error running tool ${tool.id}:`, error);
-      setResults(prev => ({
-        ...prev,
-        [tool.id]: { success: false, message: "❌ Tool execution failed" }
-      }));
-    } finally {
-      setRunningTool(null);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (!campaigns || campaigns.length === 0) {
+        toast({
+          title: "No Campaigns Found",
+          description: "Please create a campaign first",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const result = await aiOptimizationEngine.optimizeCampaign(campaigns[0].id);
+
+      toast({
+        title: "Campaign Optimized!",
+        description: `Applied ${result.optimizationsApplied || 0} optimizations`,
+      });
+    } catch (error: any) {
+      console.error("Optimization error:", error);
+      toast({
+        title: "Optimization Failed",
+        description: error.message || "Failed to optimize campaign",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleRevenueMaximizer = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in to use Revenue Maximizer",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!hasActiveCampaigns) {
+      toast({
+        title: "No Active Campaigns",
+        description: "Create a campaign on the dashboard first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id, budget')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (!campaigns || campaigns.length === 0) {
+        toast({
+          title: "No Campaigns Found",
+          description: "Please create a campaign first",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const result = await budgetOptimizationService.optimizeBudget({
+        campaignId: campaigns[0].id,
+        totalBudget: campaigns[0].budget || 500,
+        optimizationGoal: "revenue"
+      });
+
+      toast({
+        title: "Budget Optimized!",
+        description: `ROI improvement: +${result.improvement || 0}%`,
+      });
+    } catch (error: any) {
+      console.error("Revenue optimization error:", error);
+      toast({
+        title: "Optimization Failed",
+        description: error.message || "Failed to optimize revenue",
+        variant: "destructive"
+      });
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                Smart Tools Suite
-              </CardTitle>
+    <section className="py-24 bg-muted/30">
+      <div className="container">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl font-bold mb-4">
+            AI-Powered Smart Tools
+          </h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Automated tools that work 24/7 to grow your affiliate revenue
+          </p>
+        </div>
+
+        {!isCheckingCampaigns && isAuthenticated && !hasActiveCampaigns && (
+          <Alert className="mb-8 border-yellow-200 bg-yellow-50">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              <strong>Get Started:</strong> Create your first campaign on the dashboard to unlock these smart tools.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="grid md:grid-cols-3 gap-8">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
+                <TrendingUp className="w-6 h-6 text-primary" />
+              </div>
+              <CardTitle>Smart Product Discovery</CardTitle>
               <CardDescription>
-                AI-powered tools to optimize your affiliate marketing
+                Find and add trending products automatically
               </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tools.map((tool) => (
-              <Card key={tool.id} className="hover:shadow-lg transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg bg-muted`}>
-                          <tool.icon className={`h-5 w-5 ${tool.color}`} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">{tool.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {tool.description}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
+                <li>✓ AI finds high-converting products</li>
+                <li>✓ Analyzes market trends daily</li>
+                <li>✓ Auto-adds to your campaigns</li>
+                <li>✓ Filters by commission rate</li>
+              </ul>
+              <Button 
+                onClick={handleProductDiscovery}
+                className="w-full"
+                disabled={!isAuthenticated || !hasActiveCampaigns}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Run Tool
+              </Button>
+            </CardContent>
+          </Card>
 
-                    <Button
-                      onClick={() => runSmartTool(tool)}
-                      disabled={runningTool === tool.id}
-                      className="w-full"
-                      size="sm"
-                    >
-                      {runningTool === tool.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        "Run Tool"
-                      )}
-                    </Button>
+          <Card className="hover:shadow-lg transition-shadow border-primary/20">
+            <CardHeader>
+              <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                <Target className="w-6 h-6 text-accent" />
+              </div>
+              <CardTitle>AI Campaign Optimizer</CardTitle>
+              <CardDescription>
+                Optimize campaigns for maximum revenue
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
+                <li>✓ Analyzes performance data</li>
+                <li>✓ Adjusts budgets automatically</li>
+                <li>✓ A/B tests product pages</li>
+                <li>✓ Improves conversion rates</li>
+              </ul>
+              <Button 
+                onClick={handleCampaignOptimizer}
+                className="w-full bg-accent hover:bg-accent/90"
+                disabled={!isAuthenticated || !hasActiveCampaigns}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Run Tool
+              </Button>
+            </CardContent>
+          </Card>
 
-                    {results[tool.id] && (
-                      <Alert variant={results[tool.id].success ? "default" : "destructive"}>
-                        <AlertDescription className="text-sm">
-                          {results[tool.id].message}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-4">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <CardTitle>Revenue Maximizer</CardTitle>
+              <CardDescription>
+                Maximize revenue across all campaigns
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
+                <li>✓ Smart budget allocation</li>
+                <li>✓ ROI-based prioritization</li>
+                <li>✓ Cross-campaign optimization</li>
+                <li>✓ Profit margin analysis</li>
+              </ul>
+              <Button 
+                onClick={handleRevenueMaximizer}
+                className="w-full bg-green-600 hover:bg-green-700"
+                disabled={!isAuthenticated || !hasActiveCampaigns}
+              >
+                <DollarSign className="w-4 h-4 mr-2" />
+                Run Tool
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </section>
   );
 }
