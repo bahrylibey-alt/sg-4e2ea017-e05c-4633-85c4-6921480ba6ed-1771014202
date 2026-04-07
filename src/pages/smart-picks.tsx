@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
+import { AIContentGenerator } from "@/components/AIContentGenerator";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,16 +26,43 @@ import {
   Shield,
   Command,
   Zap,
-  Clock
+  Clock,
+  ExternalLink,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { taskExecutor } from "@/services/taskExecutor";
+import { smartContentGenerator } from "@/services/smartContentGenerator";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SmartPicksDashboard() {
   const { toast } = useToast();
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isRunning, setIsRunning] = useState(true);
+  const [showContentGenerator, setShowContentGenerator] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadGeneratedContent();
+  }, []);
+
+  const loadGeneratedContent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('generated_content' as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10) as any;
+
+      if (!error && data) {
+        setGeneratedContent(data);
+      }
+    } catch (err) {
+      console.error('Failed to load content:', err);
+    }
+  };
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
@@ -52,19 +80,142 @@ export default function SmartPicksDashboard() {
     }, 2500);
   };
 
+  const handleProductDiscovery = () => {
+    toast({
+      title: "Product Discovery",
+      description: "Opening product discovery tool...",
+    });
+  };
+
+  const handleBatchGenerate = async () => {
+    setLoading(true);
+    toast({
+      title: "Batch Generation Started",
+      description: "Generating content for multiple products...",
+    });
+
+    try {
+      await smartContentGenerator.batchGenerate(5);
+      await loadGeneratedContent();
+      toast({
+        title: "Batch Generation Complete",
+        description: "Successfully generated 5 new articles",
+      });
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate content. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteContent = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('generated_content' as any)
+        .delete()
+        .eq('id', id) as any;
+
+      if (!error) {
+        toast({
+          title: "Content Deleted",
+          description: "Article has been removed successfully",
+        });
+        await loadGeneratedContent();
+      }
+    } catch (err) {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete content",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePreviewContent = (content: any) => {
+    toast({
+      title: "Preview",
+      description: `Opening preview for: ${content.title}`,
+    });
+  };
+
   const adminTools = [
-    { icon: BarChart, label: "Dashboard", color: "text-blue-500" },
-    { icon: Search, label: "Product Discovery", color: "text-indigo-500" },
-    { icon: Sparkles, label: "Content Generator", color: "text-yellow-500" },
-    { icon: Zap, label: "Batch Generate", color: "text-orange-500" },
-    { icon: Target, label: "SEO Optimizer", color: "text-red-500" },
-    { icon: FileEdit, label: "Traffic Plan", color: "text-cyan-500", highlight: true },
-    { icon: Activity, label: "Performance Monitor", color: "text-pink-500" },
-    { icon: FolderTree, label: "Content Manager", color: "text-amber-500" },
-    { icon: RefreshCw, label: "Rewrite Low Performers", color: "text-emerald-500" },
-    { icon: DollarSign, label: "Commission Tracker", color: "text-green-500" },
-    { icon: Shield, label: "Compliance", color: "text-slate-500" },
-    { icon: Command, label: "AutoPilot Command Center", color: "text-purple-500" },
+    { 
+      icon: BarChart, 
+      label: "Dashboard", 
+      color: "text-blue-500",
+      onClick: () => window.location.href = '/dashboard'
+    },
+    { 
+      icon: Search, 
+      label: "Product Discovery", 
+      color: "text-indigo-500",
+      onClick: handleProductDiscovery
+    },
+    { 
+      icon: Sparkles, 
+      label: "Content Generator", 
+      color: "text-yellow-500",
+      onClick: () => setShowContentGenerator(true)
+    },
+    { 
+      icon: Zap, 
+      label: "Batch Generate", 
+      color: "text-orange-500",
+      onClick: handleBatchGenerate
+    },
+    { 
+      icon: Target, 
+      label: "SEO Optimizer", 
+      color: "text-red-500",
+      onClick: () => toast({ title: "SEO Optimizer", description: "Opening SEO optimization tool..." })
+    },
+    { 
+      icon: FileEdit, 
+      label: "Traffic Plan", 
+      color: "text-cyan-500", 
+      highlight: true,
+      onClick: () => window.location.href = '/traffic-channels'
+    },
+    { 
+      icon: Activity, 
+      label: "Performance Monitor", 
+      color: "text-pink-500",
+      onClick: () => toast({ title: "Performance Monitor", description: "Opening analytics dashboard..." })
+    },
+    { 
+      icon: FolderTree, 
+      label: "Content Manager", 
+      color: "text-amber-500",
+      onClick: () => toast({ title: "Content Manager", description: "Managing your content library..." })
+    },
+    { 
+      icon: RefreshCw, 
+      label: "Rewrite Low Performers", 
+      color: "text-emerald-500",
+      onClick: handleOptimize
+    },
+    { 
+      icon: DollarSign, 
+      label: "Commission Tracker", 
+      color: "text-green-500",
+      onClick: () => toast({ title: "Commission Tracker", description: "Opening earnings dashboard..." })
+    },
+    { 
+      icon: Shield, 
+      label: "Compliance", 
+      color: "text-slate-500",
+      onClick: () => toast({ title: "Compliance", description: "Checking compliance status..." })
+    },
+    { 
+      icon: Command, 
+      label: "AutoPilot Command Center", 
+      color: "text-purple-500",
+      onClick: () => window.location.href = '/dashboard'
+    },
   ];
 
   const scheduledAutomations = [
@@ -174,9 +325,11 @@ export default function SmartPicksDashboard() {
                   </div>
                 </div>
 
-                <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white text-lg py-6 rounded-xl transition-all shadow-md">
-                  Open Dashboard <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
-                </Button>
+                <Link href="/dashboard">
+                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white text-lg py-6 rounded-xl transition-all shadow-md">
+                    Open Dashboard <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -224,7 +377,7 @@ export default function SmartPicksDashboard() {
                         <div className="text-sm font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-md">
                           Priority: 2
                         </div>
-                        <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white">
+                        <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleOptimize}>
                           <Zap className="w-4 h-4 mr-2" /> Optimize
                         </Button>
                       </div>
@@ -257,7 +410,11 @@ export default function SmartPicksDashboard() {
                         <div className="text-sm font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-md">
                           Priority: 2
                         </div>
-                        <Button size="sm" className="bg-slate-900 hover:bg-slate-800 text-white">
+                        <Button 
+                          size="sm" 
+                          className="bg-slate-900 hover:bg-slate-800 text-white"
+                          onClick={() => setShowContentGenerator(true)}
+                        >
                           Chat to Edit
                         </Button>
                       </div>
@@ -277,19 +434,21 @@ export default function SmartPicksDashboard() {
             <Card className="shadow-sm border-0 bg-white">
               <div className="divide-y divide-slate-100">
                 {adminTools.map((tool, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`flex items-center gap-4 p-5 hover:bg-slate-50 cursor-pointer transition-colors ${
+                  <button
+                    key={idx}
+                    onClick={tool.onClick}
+                    disabled={loading}
+                    className={`w-full flex items-center gap-4 p-5 hover:bg-slate-50 cursor-pointer transition-colors text-left ${
                       tool.highlight ? 'bg-orange-50/50' : ''
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <tool.icon className={`w-6 h-6 ${tool.color}`} />
                     <span className="font-semibold text-slate-700 text-lg">{tool.label}</span>
-                  </div>
+                  </button>
                 ))}
-                <Link href="/magic-tools" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                  <span className="font-medium">Magic Tools</span>
+                <Link href="/magic-tools" className="flex items-center gap-3 p-5 hover:bg-slate-50 transition-colors">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                  <span className="font-semibold text-slate-700 text-lg">Magic Tools</span>
                 </Link>
               </div>
             </Card>
@@ -332,48 +491,93 @@ export default function SmartPicksDashboard() {
           <TabsContent value="products" className="space-y-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-900">Generated Content</h2>
+              <Button onClick={() => setShowContentGenerator(true)} className="bg-purple-600 hover:bg-purple-700">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate New
+              </Button>
             </div>
             
-            <div className="space-y-4">
-              {[
-                { title: "Discover the Best Home Organization Solutions Under $50", type: "review" },
-                { title: "Best Home Organization Under $20-$50", type: "best-under-price" }
-              ].map((content, idx) => (
-                <Card key={idx} className="shadow-sm border-slate-200">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="w-5 h-5 rounded border border-slate-300 mt-1" />
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-slate-900 mb-3">{content.title}</h3>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">Home Organization</Badge>
-                          <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">{content.type}</Badge>
-                          <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-200 border-none font-semibold">published</Badge>
-                        </div>
-                        <p className="text-slate-600 mb-4 line-clamp-2">
-                          Are you tired of clutter taking over your home? If so, investing in effective home organization solutions is the key...
-                        </p>
-                        <div className="flex items-center gap-6 text-slate-500 mb-4">
-                          <span className="flex items-center gap-2"><Activity className="w-4 h-4" /> 0 views</span>
-                          <span className="flex items-center gap-2"><Target className="w-4 h-4" /> 0 clicks</span>
-                        </div>
-                        <div className="flex gap-3">
-                          <Button variant="outline" size="sm" className="font-semibold">
-                            <Search className="w-4 h-4 mr-2" /> Preview
-                          </Button>
-                          <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                            <span className="font-bold text-lg">🗑</span>
-                          </Button>
+            {generatedContent.length === 0 ? (
+              <Card className="shadow-sm border-slate-200">
+                <CardContent className="p-12 text-center">
+                  <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p className="text-slate-600 mb-4">No content generated yet</p>
+                  <Button onClick={() => setShowContentGenerator(true)} variant="outline">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Create Your First Article
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {generatedContent.map((content, idx) => (
+                  <Card key={idx} className="shadow-sm border-slate-200 hover:border-purple-200 transition-colors">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-5 h-5 rounded border border-slate-300 mt-1" />
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-slate-900 mb-3">{content.title}</h3>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {content.category && (
+                              <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">
+                                {content.category}
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">
+                              {content.type}
+                            </Badge>
+                            <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-200 border-none font-semibold">
+                              {content.status}
+                            </Badge>
+                          </div>
+                          <p className="text-slate-600 mb-4 line-clamp-2">
+                            {content.meta_description || content.content?.substring(0, 150) + '...'}
+                          </p>
+                          <div className="flex items-center gap-6 text-slate-500 mb-4">
+                            <span className="flex items-center gap-2">
+                              <Activity className="w-4 h-4" /> 0 views
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <Target className="w-4 h-4" /> 0 clicks
+                            </span>
+                          </div>
+                          <div className="flex gap-3">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="font-semibold"
+                              onClick={() => handlePreviewContent(content)}
+                            >
+                              <Search className="w-4 h-4 mr-2" /> Preview
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => handleDeleteContent(content.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>
+      
+      <AIContentGenerator 
+        open={showContentGenerator} 
+        onOpenChange={(open) => {
+          setShowContentGenerator(open);
+          if (!open) loadGeneratedContent();
+        }} 
+      />
+      
       <Footer />
     </div>
   );
