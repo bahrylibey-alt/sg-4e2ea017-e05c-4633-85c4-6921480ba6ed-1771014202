@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 export type Json =
   | string
   | number
@@ -332,6 +332,62 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      auto_posts: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          engagement: Json | null
+          hashtags: string[] | null
+          id: string
+          platform: string
+          post_id: string | null
+          post_url: string | null
+          posted_at: string | null
+          product_id: string | null
+          product_name: string | null
+          revenue_generated: number | null
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          engagement?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          platform: string
+          post_id?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          revenue_generated?: number | null
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          engagement?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          platform?: string
+          post_id?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          revenue_generated?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       automation_metrics: {
         Row: {
@@ -1850,6 +1906,78 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      scheduled_posts: {
+        Row: {
+          caption: string | null
+          created_at: string | null
+          error_message: string | null
+          hashtags: string[] | null
+          id: string
+          platform: string
+          post_id: string | null
+          post_url: string | null
+          posted_at: string | null
+          product_id: string | null
+          product_name: string | null
+          schedule_config_id: string | null
+          scheduled_time: string
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          platform: string
+          post_id?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          schedule_config_id?: string | null
+          scheduled_time: string
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          platform?: string
+          post_id?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          schedule_config_id?: string | null
+          scheduled_time?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_posts_schedule_config_id_fkey"
+            columns: ["schedule_config_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_configs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       seo_config: {
         Row: {

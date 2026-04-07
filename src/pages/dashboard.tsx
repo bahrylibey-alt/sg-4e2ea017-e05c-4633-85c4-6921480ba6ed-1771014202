@@ -2,26 +2,38 @@ import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { DashboardOverview } from "@/components/DashboardOverview";
-import { SEO } from "@/components/SEO";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, Sparkles, TrendingUp, Zap, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { 
+  Bot, 
+  Zap, 
+  Sparkles, 
+  CheckCircle, 
+  XCircle,
+  Clock,
+  TrendingUp,
+  AlertCircle 
+} from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { toast } = useToast();
+  const [automationActive, setAutomationActive] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
-  const [autopilotStatus, setAutopilotStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    products_discovered: 0,
+    products_optimized: 0,
+    content_generated: 0,
+    posts_published: 0
+  });
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
     loadAutopilotStatus();
-    
-    // Auto-refresh status every 30 seconds
     const interval = setInterval(loadAutopilotStatus, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -29,87 +41,56 @@ export default function Dashboard() {
   const loadAutopilotStatus = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      if (!user) return;
 
-      const response = await supabase.functions.invoke('autopilot-engine', {
-        body: { action: 'status', user_id: user.id }
-      });
+      const { data: config } = await supabase
+        .from('ai_tools_config' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('tool_name', 'autopilot_engine')
+        .maybeSingle();
 
-      if (response.data) {
-        setAutopilotStatus(response.data);
+      if (config) {
+        setAutomationActive(config.is_active || false);
+        if (config.stats) {
+          setStats(config.stats);
+        }
+        setLastUpdate(new Date());
       }
     } catch (error) {
       console.error('Error loading autopilot status:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const launchAutopilot = async () => {
+  const toggleAutopilot = async () => {
     setIsLaunching(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast({
-          title: "Authentication Required",
-          description: "Please sign in to launch autopilot",
-          variant: "destructive"
-        });
+        alert('Please sign in to use autopilot');
+        setIsLaunching(false);
         return;
       }
 
-      const response = await supabase.functions.invoke('autopilot-engine', {
-        body: { action: 'start', user_id: user.id }
+      const newStatus = !automationActive;
+      
+      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+        body: { 
+          action: newStatus ? 'start' : 'stop',
+          user_id: user.id 
+        }
       });
 
-      if (response.error) throw response.error;
+      if (error) throw error;
 
-      toast({
-        title: "🚀 Autopilot Launched!",
-        description: "AI automation is now running 24/7 in the background",
-      });
-
+      setAutomationActive(newStatus);
       await loadAutopilotStatus();
     } catch (error: any) {
-      toast({
-        title: "Launch Failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      alert(`Error: ${error.message}`);
     } finally {
       setIsLaunching(false);
     }
   };
-
-  const stopAutopilot = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase.functions.invoke('autopilot-engine', {
-        body: { action: 'stop', user_id: user.id }
-      });
-
-      toast({
-        title: "Autopilot Stopped",
-        description: "AI automation has been paused",
-      });
-
-      await loadAutopilotStatus();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  };
-
-  const stats = autopilotStatus?.stats || {};
-  const isRunning = autopilotStatus?.is_running || false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -125,86 +106,93 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Your affiliate marketing command center</p>
         </div>
 
-        {/* AI Automation Hub Card */}
-        <Card className="mb-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200">
-          <CardContent className="p-8">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                    <Bot className="w-8 h-8 text-white" />
+        {/* AUTOPILOT CONTROL - PROMINENT AT TOP */}
+        <Card className="mb-8 border-2 border-primary/20 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${automationActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <CardTitle className="text-2xl">AI Autopilot Control</CardTitle>
+              </div>
+              <Badge variant={automationActive ? "default" : "secondary"} className="text-sm">
+                {automationActive ? '🟢 Running 24/7' : '⚫ Stopped'}
+              </Badge>
+            </div>
+            <CardDescription>
+              Your complete affiliate marketing system runs on autopilot—products, content, optimization, and tracking all managed by AI
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Left: Stats */}
+              <div className="space-y-3">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  Live Statistics
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-background/60 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{stats.products_discovered}</div>
+                    <div className="text-xs text-muted-foreground">Products Discovered</div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold">AI Automation Hub</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Your complete affiliate marketing system runs on autopilot—products, content, optimization, and tracking all managed by AI
-                    </p>
+                  <div className="bg-background/60 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{stats.products_optimized}</div>
+                    <div className="text-xs text-muted-foreground">Products Optimized</div>
+                  </div>
+                  <div className="bg-background/60 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-pink-600">{stats.content_generated}</div>
+                    <div className="text-xs text-muted-foreground">Content Generated</div>
+                  </div>
+                  <div className="bg-background/60 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{stats.posts_published}</div>
+                    <div className="text-xs text-muted-foreground">Posts Published</div>
                   </div>
                 </div>
-
-                {isRunning && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
-                      <div className="text-3xl font-bold text-purple-600">{stats.products_discovered || 0}</div>
-                      <div className="text-sm text-muted-foreground">Products Discovered</div>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
-                      <div className="text-3xl font-bold text-blue-600">{stats.products_optimized || 0}</div>
-                      <div className="text-sm text-muted-foreground">Products Optimized</div>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
-                      <div className="text-3xl font-bold text-green-600">{stats.posts_published || 0}</div>
-                      <div className="text-sm text-muted-foreground">Posts Published</div>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
-                      <div className="text-3xl font-bold text-orange-600">{stats.cycles_completed || 0}</div>
-                      <div className="text-sm text-muted-foreground">Cycles Completed</div>
-                    </div>
-                  </div>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Last updated: {lastUpdate.toLocaleTimeString()}
+                </p>
               </div>
 
-              <div className="flex flex-col gap-3 min-w-[200px]">
-                {loading ? (
-                  <Button disabled className="w-full">
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Loading...
-                  </Button>
-                ) : isRunning ? (
-                  <>
-                    <Badge variant="default" className="bg-green-600 text-white justify-center py-2">
-                      <div className="w-2 h-2 rounded-full bg-white mr-2 animate-pulse" />
-                      Running 24/7
-                    </Badge>
-                    <Button variant="outline" onClick={stopAutopilot}>
+              {/* Right: Controls */}
+              <div className="flex flex-col justify-center gap-4">
+                <Button 
+                  size="lg" 
+                  onClick={toggleAutopilot}
+                  disabled={isLaunching}
+                  className={automationActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+                >
+                  {isLaunching ? (
+                    <>
+                      <Clock className="w-5 h-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : automationActive ? (
+                    <>
+                      <XCircle className="w-5 h-5 mr-2" />
                       Stop Autopilot
-                    </Button>
-                    <Button asChild variant="secondary">
-                      <Link href="/smart-picks">
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Open Dashboard
-                      </Link>
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    onClick={launchAutopilot} 
-                    disabled={isLaunching}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                  >
-                    {isLaunching ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Launching...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-5 h-5 mr-2" />
-                        Launch Autopilot
-                      </>
-                    )}
-                  </Button>
-                )}
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-5 h-5 mr-2" />
+                      Launch Autopilot
+                    </>
+                  )}
+                </Button>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span>Runs 24/7 on server (not in browser)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span>Navigate anywhere - keeps running</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span>Stops only when you click "Stop"</span>
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
