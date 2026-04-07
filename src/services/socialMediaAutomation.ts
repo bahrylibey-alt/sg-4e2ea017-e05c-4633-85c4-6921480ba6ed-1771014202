@@ -11,6 +11,7 @@ interface SocialAccount {
   id: string;
   platform: string;
   account_name: string;
+  account_id: string;
   access_token: string;
   is_active: boolean;
 }
