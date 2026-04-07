@@ -19,10 +19,12 @@ import {
   DollarSign,
   Zap,
   CheckCircle,
-  Loader2
+  Loader2,
+  Settings
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { magicTools } from "@/services/magicTools";
+import Link from "next/link";
 
 export default function MagicTools() {
   const [loading, setLoading] = useState(false);
@@ -678,11 +680,14 @@ export default function MagicTools() {
                   </ul>
                 </div>
 
-                <Button className="w-full" variant="outline" asChild>
-                  <a href="/social-connect">
+                <p className="text-sm text-muted-foreground mb-4">
+                  <strong>Step 1:</strong> Connect your social media accounts first
+                </p>
+                <Button asChild>
+                  <Link href="/social-connect">
                     <Zap className="w-4 h-4 mr-2" />
                     Connect Social Media Accounts
-                  </a>
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
