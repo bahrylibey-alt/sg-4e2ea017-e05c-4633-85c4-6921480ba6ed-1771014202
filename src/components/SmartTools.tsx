@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,29 @@ interface SmartTool {
 export function SmartTools() {
   const [runningTool, setRunningTool] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, { success: boolean; message: string; details?: any }>>({});
+  const [hasActiveCampaigns, setHasActiveCampaigns] = useState(false);
+
+  useEffect(() => {
+    const checkCampaigns = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // User not logged in - this is normal for homepage
+        setHasActiveCampaigns(false);
+        return;
+      }
+
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id, status')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active');
+
+      setHasActiveCampaigns(campaigns && campaigns.length > 0);
+    };
+
+    checkCampaigns();
+  }, []);
 
   const tools: SmartTool[] = [
     {
