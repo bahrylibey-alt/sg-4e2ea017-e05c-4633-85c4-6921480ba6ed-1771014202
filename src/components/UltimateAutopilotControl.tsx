@@ -2,326 +2,372 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Rocket, Activity, TrendingUp, Zap, AlertCircle, CheckCircle2 } from "lucide-react";
-import { ultimateAutopilot } from "@/services/ultimateAutopilot";
-import { linkHealthMonitor } from "@/services/linkHealthMonitor";
-import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { 
+  Rocket, 
+  Zap, 
+  Search, 
+  TrendingUp, 
+  FileEdit, 
+  Send,
+  CheckCircle2,
+  Clock,
+  Settings,
+  Play,
+  Pause
+} from "lucide-react";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
+import { taskExecutor } from "@/services/taskExecutor";
 import { supabase } from "@/integrations/supabase/client";
 
+interface AutomationStatus {
+  productDiscovery: boolean;
+  performanceOptimization: boolean;
+  seoRewriter: boolean;
+  scheduledPosts: boolean;
+}
+
 export function UltimateAutopilotControl() {
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [isRepairing, setIsRepairing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [linkHealth, setLinkHealth] = useState<any>(null);
-  const { toast } = useToast();
+  const [isRunning, setIsRunning] = useState(false);
+  const [automations, setAutomations] = useState<AutomationStatus>({
+    productDiscovery: true,
+    performanceOptimization: true,
+    seoRewriter: true,
+    scheduledPosts: true
+  });
+  const [stats, setStats] = useState({
+    productsDiscovered: 0,
+    productsOptimized: 0,
+    postsPublished: 0,
+    lastRun: null as string | null
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadDashboard();
+    loadAutopilotStatus();
+    loadStats();
   }, []);
 
-  const loadDashboard = async () => {
-    setIsLoading(true);
-    // Find the active campaign first
-    const { data: campaign } = await supabase
-      .from("campaigns")
-      .select("id, user_id")
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+  const loadAutopilotStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    if (campaign) {
-      const data = await ultimateAutopilot.getUltimateDashboard(campaign.id);
-      if (data) {
-        setDashboardData(data);
-        const health = await linkHealthMonitor.getHealthDashboard(campaign.id);
-        setLinkHealth(health as any);
+      const { data: config } = await supabase
+        .from('ai_tools_config')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (config) {
+        setIsRunning(config.is_active || false);
+        if (config.settings) {
+          setAutomations(config.settings as AutomationStatus);
+        }
       }
+    } catch (error) {
+      console.error("Error loading autopilot status:", error);
     }
-    setIsLoading(false);
   };
 
-  const handleDeploy = async () => {
-    setIsDeploying(true);
+  const loadStats = async () => {
     try {
-      const result = await ultimateAutopilot.oneClickUltimateDeploy();
-      
-      if (result.success) {
-        toast({
-          title: "🚀 Ultimate Autopilot Deployed!",
-          description: `Campaign created with ${result.productsAdded} products, ${result.tasksCreated} automated tasks. Est. Revenue: $${result.estimatedRevenue}/month`,
-        });
-        
-        await loadDashboard();
-      } else {
-        toast({
-          title: "Deployment Failed",
-          description: "Please check console for details",
-          variant: "destructive",
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: logs } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('action', ['auto_product_discovery', 'auto_optimize_product', 'auto_post_success'])
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (logs) {
+        setStats({
+          productsDiscovered: logs.filter(l => l.action === 'auto_product_discovery').length,
+          productsOptimized: logs.filter(l => l.action === 'auto_optimize_product').length,
+          postsPublished: logs.filter(l => l.action === 'auto_post_success').length,
+          lastRun: logs[0]?.created_at || null
         });
       }
     } catch (error) {
-      console.error("Deploy error:", error);
-      toast({
-        title: "Deployment Error",
-        description: "An error occurred during deployment",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeploying(false);
+      console.error("Error loading stats:", error);
     }
   };
 
-  const handleAutoRepair = async () => {
-    if (!dashboardData?.campaign) {
-      toast({
-        title: "No Campaign Found",
-        description: "Deploy autopilot first to enable auto-repair",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsRepairing(true);
+  const toggleAutopilot = async () => {
+    setLoading(true);
     try {
-      const result = await linkHealthMonitor.oneClickAutoRepair(
-        dashboardData.campaign.id,
-        dashboardData.campaign.user_id
-      );
-      
-      toast({
-        title: "Auto-Repair Complete",
-        description: `Scanned ${result.totalChecked} links. Removed ${result.invalidRemoved + result.duplicatesRemoved} broken links. Added ${result.replaced} fresh products.`,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const newStatus = !isRunning;
+
+      await supabase.from('ai_tools_config').upsert({
+        user_id: user.id,
+        tool_name: 'ultimate_autopilot',
+        is_active: newStatus,
+        settings: automations,
+        updated_at: new Date().toISOString()
       });
-      
-      await loadDashboard();
-    } catch (error) {
-      console.error("Repair error:", error);
-      toast({
-        title: "Repair Failed",
-        description: "Please check console for details",
-        variant: "destructive",
+
+      setIsRunning(newStatus);
+
+      // Log activity
+      await supabase.from('activity_logs').insert({
+        user_id: user.id,
+        action: newStatus ? 'autopilot_started' : 'autopilot_stopped',
+        details: `Autopilot ${newStatus ? 'activated' : 'deactivated'}`,
+        status: 'success'
       });
+
+      if (newStatus) {
+        // Run initial tasks
+        await runNow();
+      }
+    } catch (error: any) {
+      console.error("Error toggling autopilot:", error);
     } finally {
-      setIsRepairing(false);
+      setLoading(false);
     }
   };
+
+  const toggleAutomation = async (key: keyof AutomationStatus) => {
+    const newAutomations = {
+      ...automations,
+      [key]: !automations[key]
+    };
+    setAutomations(newAutomations);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.from('ai_tools_config').upsert({
+        user_id: user.id,
+        tool_name: 'ultimate_autopilot',
+        is_active: isRunning,
+        settings: newAutomations,
+        updated_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error updating automation:", error);
+    }
+  };
+
+  const runNow = async () => {
+    setLoading(true);
+    try {
+      // Run all enabled tasks
+      if (automations.productDiscovery) {
+        await smartProductDiscovery.discoverTrendingProducts();
+      }
+
+      if (automations.performanceOptimization) {
+        await taskExecutor.optimizePerformance();
+      }
+
+      if (automations.seoRewriter) {
+        await taskExecutor.rewriteSEOContent();
+      }
+
+      if (automations.scheduledPosts) {
+        await taskExecutor.publishScheduledPosts();
+      }
+
+      // Reload stats
+      await loadStats();
+    } catch (error: any) {
+      console.error("Error running tasks:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const automationCards = [
+    {
+      key: 'productDiscovery' as keyof AutomationStatus,
+      icon: Search,
+      title: "Auto Product Discovery",
+      description: "AI finds trending products and adds them automatically",
+      features: ["Web search", "Smart categorization", "Affiliate link generation"],
+      schedule: "3:00 AM Daily"
+    },
+    {
+      key: 'performanceOptimization' as keyof AutomationStatus,
+      icon: TrendingUp,
+      title: "Performance Optimization",
+      description: "Optimize top 5 underperforming products automatically",
+      features: ["Title optimization", "Price adjustments", "Feature enhancement"],
+      schedule: "9:00 AM Daily"
+    },
+    {
+      key: 'seoRewriter' as keyof AutomationStatus,
+      icon: FileEdit,
+      title: "SEO Content Rewriter",
+      description: "Rewrite low-traffic articles for better rankings",
+      features: ["Keyword optimization", "Meta tags", "Content enhancement"],
+      schedule: "Weekly"
+    },
+    {
+      key: 'scheduledPosts' as keyof AutomationStatus,
+      icon: Send,
+      title: "Publish Scheduled Posts",
+      description: "Auto-publish articles when scheduled time arrives",
+      features: ["Social sharing", "Email campaigns", "Multi-platform"],
+      schedule: "Every 2 Hours"
+    }
+  ];
 
   return (
-    <div className="space-y-6">
-      <Card className="border-2 border-primary">
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <Card className="bg-gradient-to-r from-purple-500 to-blue-500 text-white">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <Rocket className="h-6 w-6 text-primary" />
-                Ultimate Autopilot Control
-              </CardTitle>
-              <CardDescription>
-                Deploy complete hands-free affiliate marketing system in one click
-              </CardDescription>
+            <div className="flex items-center gap-3">
+              <Rocket className="w-10 h-10" />
+              <div>
+                <CardTitle className="text-3xl">AI Automation Hub</CardTitle>
+                <CardDescription className="text-white/80">
+                  Your complete affiliate marketing system runs on autopilot—products, content, optimization, and tracking all managed by AI
+                </CardDescription>
+              </div>
             </div>
-            {dashboardData?.campaign && (
-              <Badge variant="default" className="h-8">
-                <Activity className="h-4 w-4 mr-2" />
-                Active
+            <div className="flex flex-col items-end gap-2">
+              <Badge className={isRunning ? "bg-green-500" : "bg-gray-500"}>
+                {isRunning ? "Running" : "Stopped"}
               </Badge>
-            )}
+              <Button
+                variant={isRunning ? "secondary" : "default"}
+                size="lg"
+                onClick={toggleAutopilot}
+                disabled={loading}
+                className="min-w-[150px]"
+              >
+                {loading ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : isRunning ? (
+                  <>
+                    <Pause className="w-4 h-4 mr-2" />
+                    Stop Autopilot
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Launch Autopilot Now
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Deployment Section */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Deploy</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  onClick={handleDeploy} 
-                  disabled={isDeploying}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isDeploying ? (
-                    <>
-                      <Activity className="mr-2 h-5 w-5 animate-spin" />
-                      Deploying...
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="mr-2 h-5 w-5" />
-                      Deploy Ultimate Autopilot
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Creates campaign, adds 15 trending products, generates links, starts 24/7 automation
-                </p>
-              </CardContent>
-            </Card>
+      </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Link Health Monitor</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="bg-muted p-4 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Total Links</div>
-                    <div className="text-2xl font-bold">{linkHealth?.totalLinks || 0}</div>
-                  </div>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Broken</div>
-                    <div className="text-2xl font-bold text-red-500">{linkHealth?.brokenLinks || 0}</div>
-                  </div>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Health</div>
-                    <div className="text-2xl font-bold text-green-500">{linkHealth?.healthScore || 0}%</div>
-                  </div>
-                </div>
+      {/* Stats */}
+      <div className="grid md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-primary">{stats.productsDiscovered}</div>
+            <div className="text-sm text-muted-foreground">Products Discovered</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-primary">{stats.productsOptimized}</div>
+            <div className="text-sm text-muted-foreground">Products Optimized</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-primary">{stats.postsPublished}</div>
+            <div className="text-sm text-muted-foreground">Posts Published</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-primary">
+              {stats.lastRun ? new Date(stats.lastRun).toLocaleDateString() : "Never"}
+            </div>
+            <div className="text-sm text-muted-foreground">Last Run</div>
+          </CardContent>
+        </Card>
+      </div>
 
-                <Button 
-                  onClick={handleAutoRepair} 
-                  disabled={isRepairing || !dashboardData?.campaign}
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isRepairing ? (
-                    <>
-                      <Activity className="mr-2 h-4 w-4 animate-spin" />
-                      Repairing...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="mr-2 h-4 w-4" />
-                      Auto-Repair Broken Links
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
+      {/* Active AI Systems */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-6 h-6 text-primary" />
+              <CardTitle>Active AI Systems</CardTitle>
+            </div>
+            <Button onClick={runNow} disabled={loading || !isRunning} size="sm">
+              <Rocket className="w-4 h-4 mr-2" />
+              Run All Now
+            </Button>
           </div>
-
-          {/* Dashboard Stats */}
-          {dashboardData && (
-            <Card>
+        </CardHeader>
+        <CardContent className="grid md:grid-cols-2 gap-4">
+          {automationCards.map((automation) => (
+            <Card key={automation.key} className={!automations[automation.key] ? "opacity-60" : ""}>
               <CardHeader>
-                <CardTitle className="text-lg">System Performance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">Active Products</div>
-                    <div className="text-2xl font-bold">{dashboardData.products?.length || 0}</div>
-                    <Progress value={dashboardData.products?.length ? 100 : 0} className="h-2" />
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <automation.icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{automation.title}</CardTitle>
+                      <CardDescription>{automation.description}</CardDescription>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">Total Clicks</div>
-                    <div className="text-2xl font-bold">{dashboardData.totalClicks || 0}</div>
-                    <Progress value={Math.min((dashboardData.totalClicks / 1000) * 100, 100)} className="h-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">Conversions</div>
-                    <div className="text-2xl font-bold">{dashboardData.totalConversions || 0}</div>
-                    <Progress value={Math.min((dashboardData.totalConversions / 50) * 100, 100)} className="h-2" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">Revenue</div>
-                    <div className="text-2xl font-bold">${dashboardData.totalRevenue?.toFixed(0) || 0}</div>
-                    <Progress value={Math.min((dashboardData.totalRevenue / 5000) * 100, 100)} className="h-2" />
-                  </div>
+                  <Switch
+                    checked={automations[automation.key]}
+                    onCheckedChange={() => toggleAutomation(automation.key)}
+                    disabled={!isRunning}
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Active Tasks */}
-          {dashboardData?.tasks && dashboardData.tasks.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Active Automation Tasks
-                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {dashboardData.tasks.slice(0, 5).map((task: any) => (
-                    <div key={task.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div>
-                          <div className="font-medium">{task.task_type}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Priority: {task.priority} | Success: {task.success_count || 0}
-                          </div>
-                        </div>
-                      </div>
-                      <Badge variant={task.status === "completed" ? "default" : "secondary"}>
-                        {task.status}
-                      </Badge>
+                  {automation.features.map((feature, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span>{feature}</span>
                     </div>
                   ))}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
+                    <Clock className="w-4 h-4" />
+                    <span>Schedule: {automation.schedule}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          )}
+          ))}
+        </CardContent>
+      </Card>
 
-          {/* System Features */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">What Gets Deployed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">15 Trending Products</div>
-                    <div className="text-sm text-muted-foreground">Latest high-converting Amazon products</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Smart Traffic Generation</div>
-                    <div className="text-sm text-muted-foreground">Automated multi-channel traffic sources</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">AI Optimization</div>
-                    <div className="text-sm text-muted-foreground">Automatic revenue & conversion optimization</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">24/7 Monitoring</div>
-                    <div className="text-sm text-muted-foreground">Continuous performance tracking & alerts</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Auto Link Repair</div>
-                    <div className="text-sm text-muted-foreground">Detects & replaces broken affiliate links</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Content Automation</div>
-                    <div className="text-sm text-muted-foreground">Auto-generates promotional content</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Instructions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Settings className="w-6 h-6 text-primary" />
+            <CardTitle>How It Works</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ol className="space-y-2 list-decimal list-inside">
+            <li className="text-sm">Click "Launch Autopilot Now" to start the AI automation engine</li>
+            <li className="text-sm">Enable/disable specific automations using the toggles</li>
+            <li className="text-sm">AI runs scheduled tasks automatically (Daily at 3 AM, 9 AM, Weekly on Monday)</li>
+            <li className="text-sm">Click "Run All Now" to execute all enabled tasks immediately</li>
+            <li className="text-sm">Monitor stats above to track automation performance</li>
+          </ol>
         </CardContent>
       </Card>
     </div>
