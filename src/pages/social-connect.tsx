@@ -27,14 +27,13 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { socialMediaAutomation } from "@/services/socialMediaAutomation";
-import { automationScheduler } from "@/services/automationScheduler";
 
 interface ConnectedAccount {
   id: string;
   platform: string;
   account_name: string;
   is_active: boolean;
-  connected_at: string;
+  created_at: string;
 }
 
 interface ScheduleConfig {
@@ -78,9 +77,13 @@ export default function SocialConnect() {
         setConnectedAccounts(accounts);
       }
 
-      const scheduleData = await automationScheduler.getSchedules();
+      const { data: scheduleData } = await supabase
+        .from('schedule_configs')
+        .select('*')
+        .eq('user_id', user.id);
+
       const scheduleMap: Record<string, ScheduleConfig> = {};
-      scheduleData.forEach((s: any) => {
+      (scheduleData || []).forEach((s: any) => {
         scheduleMap[s.platform] = s;
       });
       setSchedules(scheduleMap);
@@ -139,6 +142,9 @@ export default function SocialConnect() {
 
   const updateSchedule = async (platform: string, updates: Partial<ScheduleConfig>) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const currentSchedule = schedules[platform] || {
         platform,
         posts_per_day: 2,
@@ -149,7 +155,17 @@ export default function SocialConnect() {
       };
 
       const newSchedule = { ...currentSchedule, ...updates };
-      await automationScheduler.saveSchedule(newSchedule);
+      
+      await supabase.from('schedule_configs').upsert({
+        user_id: user.id,
+        platform: newSchedule.platform,
+        posts_per_day: newSchedule.posts_per_day,
+        posting_times: newSchedule.posting_times,
+        auto_select_products: newSchedule.auto_select_products,
+        use_viral_predictor: newSchedule.use_viral_predictor,
+        is_active: newSchedule.is_active,
+        updated_at: new Date().toISOString()
+      });
       
       setSchedules(prev => ({ ...prev, [platform]: newSchedule }));
     } catch (error) {
@@ -261,7 +277,7 @@ export default function SocialConnect() {
                     <CardContent>
                       <div className="text-sm text-muted-foreground space-y-1">
                         <p><strong>Account:</strong> {account.account_name}</p>
-                        <p><strong>Connected:</strong> {new Date(account.connected_at).toLocaleDateString()}</p>
+                        <p><strong>Connected:</strong> {new Date(account.created_at).toLocaleDateString()}</p>
                         <p><strong>Status:</strong> <Badge variant="outline" className="text-green-600">Active & Ready</Badge></p>
                       </div>
                     </CardContent>

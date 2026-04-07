@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 export type Json =
   | string
   | number
@@ -1811,6 +1811,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      schedule_configs: {
+        Row: {
+          auto_select_products: boolean | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          platform: string
+          posting_times: Json | null
+          posts_per_day: number | null
+          updated_at: string | null
+          use_viral_predictor: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          auto_select_products?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform: string
+          posting_times?: Json | null
+          posts_per_day?: number | null
+          updated_at?: string | null
+          use_viral_predictor?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          auto_select_products?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform?: string
+          posting_times?: Json | null
+          posts_per_day?: number | null
+          updated_at?: string | null
+          use_viral_predictor?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       seo_config: {
         Row: {
