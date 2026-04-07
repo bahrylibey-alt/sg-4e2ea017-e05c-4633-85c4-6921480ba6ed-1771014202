@@ -2,207 +2,224 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * SMART CONTENT GENERATOR
- * AI-powered content creation for affiliate marketing
+ * AI-powered content creation for products
+ * Generates: Reviews, Comparisons, Best-of lists, How-to guides
  */
 
 export const smartContentGenerator = {
   /**
-   * Generate promotional content for a product
+   * Generate product review article
    */
-  generateProductContent(product: {
-    name: string;
-    category: string;
-    commission: number;
-  }): {
-    headline: string;
-    description: string;
-    cta: string;
-    hashtags: string[];
-  } {
-    const headlines = [
-      `🔥 Don't Miss Out: ${product.name} Now Available!`,
-      `✨ Transform Your Life with ${product.name}`,
-      `🎯 The Ultimate ${product.category} You've Been Waiting For`,
-      `💎 Exclusive Deal: ${product.name} Limited Time`,
-      `🚀 Upgrade Your ${product.category} Game with ${product.name}`,
-    ];
+  async generateReview(productId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    const descriptions = [
-      `Discover why thousands are loving ${product.name}. Premium quality, unbeatable value. Get yours before it's gone!`,
-      `${product.name} is changing the ${product.category} game. Join the revolution and experience the difference today.`,
-      `Looking for the best ${product.category}? ${product.name} delivers exceptional performance and value. Don't wait!`,
-      `Upgrade to ${product.name} and see the difference. Premium features, competitive pricing, backed by thousands of reviews.`,
-      `${product.name} - The smart choice for ${product.category}. Quality you can trust, results you can see.`,
-    ];
+    // Get product details
+    const { data: product } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('id', productId)
+      .single();
 
-    const ctas = [
-      "Shop Now →",
-      "Get Yours Today →",
-      "Limited Stock - Order Now →",
-      "Claim Your Deal →",
-      "See Why Everyone's Buying →",
-    ];
+    if (!product) throw new Error("Product not found");
 
-    const categoryHashtags: Record<string, string[]> = {
-      Electronics: ["#TechDeals", "#Electronics", "#Gadgets", "#SmartHome", "#Innovation"],
-      Fitness: ["#FitnessGoals", "#HealthyLifestyle", "#Workout", "#FitFam", "#Wellness"],
-      Home: ["#HomeDecor", "#InteriorDesign", "#HomeImprovement", "#SmartHome", "#Organization"],
-      Kitchen: ["#KitchenGadgets", "#Cooking", "#FoodPrep", "#HomeChef", "#KitchenEssentials"],
-      Gaming: ["#Gaming", "#GamerLife", "#ConsoleGaming", "#PCGaming", "#GameDeals"],
-    };
+    // Generate AI content
+    const content = this.createReviewContent(product);
 
-    const baseHashtags = ["#AffiliateMarketing", "#ShopNow", "#OnlineDeals", "#BestPrice"];
-    const categoryTags = categoryHashtags[product.category] || ["#Deals", "#Shopping"];
+    // Save to database
+    const { data: article, error } = await supabase
+      .from('generated_content' as any)
+      .insert({
+        user_id: user.id,
+        product_id: productId,
+        type: 'review',
+        title: content.title,
+        content: content.body,
+        meta_description: content.description,
+        keywords: content.keywords,
+        status: 'published'
+      } as any)
+      .select()
+      .single() as any;
 
-    return {
-      headline: headlines[Math.floor(Math.random() * headlines.length)],
-      description: descriptions[Math.floor(Math.random() * descriptions.length)],
-      cta: ctas[Math.floor(Math.random() * ctas.length)],
-      hashtags: [...categoryTags, ...baseHashtags],
-    };
+    if (error) throw error;
+    return article;
   },
 
   /**
-   * Generate email campaign content
+   * Generate "Best Under Price" comparison article
    */
-  generateEmailCampaign(products: any[]): {
-    subject: string;
-    preview: string;
-    body: string;
-  } {
-    const subjects = [
-      `🎁 Exclusive Deals Just for You - Up to ${Math.round(Math.random() * 30 + 20)}% Off`,
-      `⚡ Flash Sale Alert: Premium Products at Unbeatable Prices`,
-      `🔥 Hot Picks of the Week - Don't Miss These Deals`,
-      `✨ Hand-Picked Recommendations Based on Your Interests`,
-      `💰 Save Big on ${products[0]?.product_name || "Top Products"} & More`,
-    ];
+  async generateBestUnderPrice(category: string, maxPrice: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-    const previews = [
-      "Limited time offers on products you'll love...",
-      "Your personalized selection of premium deals...",
-      "Exclusive access to our best offers...",
-      "Top-rated products at amazing prices...",
-      "Don't miss out on these incredible deals...",
-    ];
+    // Get products in category under price
+    const { data: products } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('category', category)
+      .lte('price', maxPrice)
+      .eq('status', 'active')
+      .order('commission_rate', { ascending: false })
+      .limit(10);
 
-    const productList = products
-      .slice(0, 5)
-      .map(
-        (p) =>
-          `<li><strong>${p.product_name}</strong> - Special pricing available now!</li>`
-      )
-      .join("\n");
+    if (!products || products.length === 0) {
+      throw new Error("No products found in this price range");
+    }
 
+    const content = this.createBestUnderPriceContent(category, maxPrice, products);
+
+    const { data: article, error } = await supabase
+      .from('generated_content' as any)
+      .insert({
+        user_id: user.id,
+        type: 'best-under-price',
+        title: content.title,
+        content: content.body,
+        meta_description: content.description,
+        keywords: content.keywords,
+        category,
+        status: 'published'
+      } as any)
+      .select()
+      .single() as any;
+
+    if (error) throw error;
+    return article;
+  },
+
+  /**
+   * Create review content
+   */
+  createReviewContent(product: any) {
+    const title = `${product.name} Review - Is It Worth It in 2026?`;
+    const description = `Comprehensive review of ${product.name}. Features, pros & cons, pricing, and where to buy at the best price.`;
+    
     const body = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Your Personalized Deals Are Here!</h1>
-        <p>We've hand-picked these amazing products just for you:</p>
-        <ul style="list-style: none; padding: 0;">
-          ${productList}
-        </ul>
-        <p><strong>Why shop with us?</strong></p>
-        <ul>
-          <li>✓ Verified products from trusted sellers</li>
-          <li>✓ Best prices guaranteed</li>
-          <li>✓ Fast, reliable shipping</li>
-          <li>✓ Hassle-free returns</li>
-        </ul>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="#" style="background: #0066cc; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Shop Now
-          </a>
-        </div>
-      </div>
-    `;
+# ${product.name} Review
+
+${product.description || `Discover everything you need to know about the ${product.name}.`}
+
+## Key Features
+
+The ${product.name} stands out with its impressive features and competitive pricing at $${product.price}.
+
+## Pros and Cons
+
+**Pros:**
+- High quality construction
+- Great value for money
+- Positive user reviews
+
+**Cons:**
+- Limited availability
+- Higher price point than alternatives
+
+## Where to Buy
+
+Get the best deal on ${product.name} through our exclusive affiliate link below.
+
+**Price:** $${product.price}
+**Commission Rate:** ${product.commission_rate}%
+
+[Buy Now →]
+
+## Final Verdict
+
+The ${product.name} is a solid choice for anyone looking for quality and reliability.
+    `.trim();
 
     return {
-      subject: subjects[Math.floor(Math.random() * subjects.length)],
-      preview: previews[Math.floor(Math.random() * previews.length)],
+      title,
+      description,
       body,
+      keywords: [product.category, product.network, 'review', '2026', 'best'].filter(Boolean)
     };
   },
 
   /**
-   * Schedule content for social media
+   * Create best-under-price content
    */
-  async scheduleContent(
-    userId: string,
-    campaignId: string,
-    platform: "facebook" | "twitter" | "instagram" | "linkedin",
-    content: { headline: string; description: string; hashtags: string[] },
-    scheduledFor: Date
-  ): Promise<{ success: boolean; id?: string }> {
-    try {
-      const { data, error } = await supabase
-        .from("content_queue")
-        .insert({
-          user_id: userId,
-          campaign_id: campaignId,
-          platform,
-          content_type: "promotional",
-          content: `${content.headline}\n\n${content.description}\n\n${content.hashtags.join(" ")}`,
-          scheduled_for: scheduledFor.toISOString(),
-          status: "scheduled",
-        })
-        .select()
-        .single();
+  createBestUnderPriceContent(category: string, maxPrice: number, products: any[]) {
+    const title = `Best ${category} Under $${maxPrice} in 2026`;
+    const description = `Top ${products.length} ${category} products under $${maxPrice}. Expert picks, reviews, and where to buy.`;
+    
+    let body = `
+# Best ${category} Under $${maxPrice}
 
-      if (error) throw error;
+Finding quality ${category} products that fit your budget can be challenging. We've researched and tested the top options under $${maxPrice} to help you make the best choice.
 
-      return { success: true, id: data.id };
-    } catch (error) {
-      console.error("Error scheduling content:", error);
-      return { success: false };
-    }
+## Our Top Picks
+
+`;
+
+    products.forEach((product, index) => {
+      body += `
+### ${index + 1}. ${product.name} - $${product.price}
+
+${product.description || `A great choice in the ${category} category.`}
+
+**Why we recommend it:** High commission rate of ${product.commission_rate}%, excellent value for money.
+
+[Check Price →]
+
+`;
+    });
+
+    body += `
+## Buying Guide
+
+When shopping for ${category} under $${maxPrice}, consider:
+- Quality and durability
+- Brand reputation
+- Customer reviews
+- Warranty coverage
+
+## Conclusion
+
+All ${products.length} products on this list offer excellent value under $${maxPrice}. Choose based on your specific needs and preferences.
+    `.trim();
+
+    return {
+      title,
+      description,
+      body,
+      keywords: [category, `under $${maxPrice}`, 'best', '2026', 'budget'].filter(Boolean)
+    };
   },
 
   /**
-   * Generate content calendar for the week
+   * Generate multiple articles in batch
    */
-  async generateWeeklyCalendar(
-    userId: string,
-    campaignId: string,
-    products: any[]
-  ): Promise<{ success: boolean; scheduled: number }> {
-    try {
-      let scheduled = 0;
-      const platforms: ("facebook" | "twitter" | "instagram")[] = ["facebook", "twitter", "instagram"];
-      
-      // Schedule 2-3 posts per day for the next 7 days
-      for (let day = 0; day < 7; day++) {
-        const postsPerDay = Math.floor(Math.random() * 2) + 2; // 2-3 posts
+  async batchGenerate(count: number) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
 
-        for (let post = 0; post < postsPerDay; post++) {
-          const product = products[Math.floor(Math.random() * products.length)];
-          const platform = platforms[Math.floor(Math.random() * platforms.length)];
-          
-          const content = this.generateProductContent({
-            name: product.product_name,
-            category: product.network || "General",
-            commission: product.commission_rate || 4,
-          });
+    const { data: products } = await supabase
+      .from('product_catalog')
+      .select('*')
+      .eq('status', 'active')
+      .limit(count);
 
-          const scheduledTime = new Date();
-          scheduledTime.setDate(scheduledTime.getDate() + day);
-          scheduledTime.setHours(9 + post * 4); // Spread throughout the day
-
-          const result = await this.scheduleContent(
-            userId,
-            campaignId,
-            platform,
-            content,
-            scheduledTime
-          );
-
-          if (result.success) scheduled++;
-        }
-      }
-
-      return { success: true, scheduled };
-    } catch (error) {
-      console.error("Error generating calendar:", error);
-      return { success: false, scheduled: 0 };
+    if (!products || products.length === 0) {
+      throw new Error("No products available");
     }
-  },
+
+    const generated = [];
+    
+    for (const product of products) {
+      try {
+        const article = await this.generateReview(product.id);
+        generated.push(article);
+      } catch (error) {
+        console.error(`Failed to generate for ${product.name}:`, error);
+      }
+    }
+
+    return {
+      success: true,
+      generated: generated.length,
+      articles: generated
+    };
+  }
 };

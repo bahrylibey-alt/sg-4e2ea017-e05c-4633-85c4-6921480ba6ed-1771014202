@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Zap, TrendingUp, Shield, Sparkles } from "lucide-react";
+import { Sparkles, Zap, TrendingUp, Shield } from "lucide-react";
+import Link from "next/link";
 
 export function Hero() {
   return (
@@ -22,13 +23,15 @@ export function Hero() {
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
           <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
-            <a href="/traffic-channels">
+            <Link href="/traffic-channels">
               <Zap className="w-4 h-4 mr-2" />
               View 8 Traffic Channels
-            </a>
+            </Link>
           </Button>
-          <Button size="lg" variant="outline" onClick={() => window.location.href = '/traffic-sources'}>
-            See Traffic Sources
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/dashboard">
+              Get Started Free
+            </Link>
           </Button>
         </div>
         
