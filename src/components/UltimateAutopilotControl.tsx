@@ -54,10 +54,10 @@ export function UltimateAutopilotControl() {
       if (!user) return;
 
       const { data: config } = await supabase
-        .from('ai_tools_config')
+        .from('ai_tools_config' as any)
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle();
+        .maybeSingle() as any;
 
       if (config) {
         setIsRunning(config.is_active || false);
@@ -104,13 +104,13 @@ export function UltimateAutopilotControl() {
 
       const newStatus = !isRunning;
 
-      await supabase.from('ai_tools_config').upsert({
+      await supabase.from('ai_tools_config' as any).upsert({
         user_id: user.id,
         tool_name: 'ultimate_autopilot',
         is_active: newStatus,
         settings: automations,
         updated_at: new Date().toISOString()
-      });
+      } as any);
 
       setIsRunning(newStatus);
 
@@ -144,13 +144,13 @@ export function UltimateAutopilotControl() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      await supabase.from('ai_tools_config').upsert({
+      await supabase.from('ai_tools_config' as any).upsert({
         user_id: user.id,
         tool_name: 'ultimate_autopilot',
         is_active: isRunning,
         settings: newAutomations,
         updated_at: new Date().toISOString()
-      });
+      } as any);
     } catch (error) {
       console.error("Error updating automation:", error);
     }
