@@ -1586,6 +1586,44 @@ export type Database = {
           },
         ]
       }
+      seo_config: {
+        Row: {
+          created_at: string | null
+          google_console_verified: boolean | null
+          id: string
+          indexed_pages: number | null
+          last_sitemap_generation: string | null
+          sitemap_url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          google_console_verified?: boolean | null
+          id?: string
+          indexed_pages?: number | null
+          last_sitemap_generation?: string | null
+          sitemap_url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          google_console_verified?: boolean | null
+          id?: string
+          indexed_pages?: number | null
+          last_sitemap_generation?: string | null
+          sitemap_url?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_config_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_proof_events: {
         Row: {
           amount: number | null
