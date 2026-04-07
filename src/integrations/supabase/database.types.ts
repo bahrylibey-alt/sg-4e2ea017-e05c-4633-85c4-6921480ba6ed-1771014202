@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -954,6 +954,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_subscribers: {
+        Row: {
+          email: string
+          id: string
+          metadata: Json | null
+          name: string | null
+          source: string | null
+          status: string | null
+          subscribed_at: string | null
+        }
+        Insert: {
+          email: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          source?: string | null
+          status?: string | null
+          subscribed_at?: string | null
+        }
+        Update: {
+          email?: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          source?: string | null
+          status?: string | null
+          subscribed_at?: string | null
+        }
+        Relationships: []
       }
       email_templates: {
         Row: {
