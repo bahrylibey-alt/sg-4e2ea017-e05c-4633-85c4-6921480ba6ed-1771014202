@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 export type Json =
   | string
   | number
@@ -299,6 +299,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_tools_config: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          last_used_at: string | null
+          tool_name: string
+          usage_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          last_used_at?: string | null
+          tool_name: string
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          last_used_at?: string | null
+          tool_name?: string
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       automation_metrics: {
         Row: {
@@ -1376,6 +1409,169 @@ export type Database = {
           },
         ]
       }
+      posted_content: {
+        Row: {
+          caption: string | null
+          clicks: number | null
+          comments: number | null
+          created_at: string | null
+          engagement_data: Json | null
+          hashtags: string[] | null
+          id: string
+          likes: number | null
+          link_id: string | null
+          media_urls: string[] | null
+          platform: string
+          platform_post_id: string | null
+          post_type: string | null
+          post_url: string | null
+          posted_at: string | null
+          product_id: string | null
+          revenue_generated: number | null
+          scheduled_for: string | null
+          shares: number | null
+          social_account_id: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          caption?: string | null
+          clicks?: number | null
+          comments?: number | null
+          created_at?: string | null
+          engagement_data?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          likes?: number | null
+          link_id?: string | null
+          media_urls?: string[] | null
+          platform: string
+          platform_post_id?: string | null
+          post_type?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          revenue_generated?: number | null
+          scheduled_for?: string | null
+          shares?: number | null
+          social_account_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          caption?: string | null
+          clicks?: number | null
+          comments?: number | null
+          created_at?: string | null
+          engagement_data?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          likes?: number | null
+          link_id?: string | null
+          media_urls?: string[] | null
+          platform?: string
+          platform_post_id?: string | null
+          post_type?: string | null
+          post_url?: string | null
+          posted_at?: string | null
+          product_id?: string | null
+          revenue_generated?: number | null
+          scheduled_for?: string | null
+          shares?: number | null
+          social_account_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posted_content_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posted_content_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
+          },
+          {
+            foreignKeyName: "posted_content_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posted_content_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posting_schedule: {
+        Row: {
+          auto_generate_content: boolean | null
+          auto_select_products: boolean | null
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          platform: string
+          post_frequency: string | null
+          posting_times: string[] | null
+          posts_per_day: number | null
+          updated_at: string | null
+          use_ai_captions: boolean | null
+          use_trending_hashtags: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          auto_generate_content?: boolean | null
+          auto_select_products?: boolean | null
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform: string
+          post_frequency?: string | null
+          posting_times?: string[] | null
+          posts_per_day?: number | null
+          updated_at?: string | null
+          use_ai_captions?: boolean | null
+          use_trending_hashtags?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          auto_generate_content?: boolean | null
+          auto_select_products?: boolean | null
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform?: string
+          post_frequency?: string | null
+          posting_times?: string[] | null
+          posts_per_day?: number | null
+          updated_at?: string | null
+          use_ai_captions?: boolean | null
+          use_trending_hashtags?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posting_schedule_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_history: {
         Row: {
           applied_at: string | null
@@ -1653,6 +1849,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      social_media_accounts: {
+        Row: {
+          access_token: string | null
+          account_id: string | null
+          account_name: string | null
+          avg_engagement_rate: number | null
+          created_at: string | null
+          follower_count: number | null
+          id: string
+          is_active: boolean | null
+          last_posted_at: string | null
+          platform: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          total_posts: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          avg_engagement_rate?: number | null
+          created_at?: string | null
+          follower_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_posted_at?: string | null
+          platform: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          total_posts?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          avg_engagement_rate?: number | null
+          created_at?: string | null
+          follower_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_posted_at?: string | null
+          platform?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          total_posts?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       social_proof_events: {
         Row: {
