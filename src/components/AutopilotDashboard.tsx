@@ -9,7 +9,7 @@ import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
 import { trafficAutomationService } from "@/services/trafficAutomationService";
 import { conversionOptimizationService } from "@/services/conversionOptimizationService";
 import { campaignService } from "@/services/campaignService";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AutopilotStatus {
   active: boolean;
