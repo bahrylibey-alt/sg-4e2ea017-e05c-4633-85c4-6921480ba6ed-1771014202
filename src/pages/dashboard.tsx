@@ -212,8 +212,8 @@ export default function Dashboard() {
 
         {/* Quick Access Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
-            <Link href="/smart-picks">
+          <Link href="/smart-picks" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bot className="w-5 h-5 text-purple-600" />
@@ -226,11 +226,11 @@ export default function Dashboard() {
                 </p>
                 <Badge variant="secondary">12 Tools Available</Badge>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
-            <Link href="/social-connect">
+          <Link href="/social-connect" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="w-5 h-5 text-blue-600" />
@@ -243,11 +243,11 @@ export default function Dashboard() {
                 </p>
                 <Badge variant="secondary">5 Platforms</Badge>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
-            <Link href="/magic-tools">
+          <Link href="/magic-tools" className="block">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-pink-600" />
@@ -260,8 +260,8 @@ export default function Dashboard() {
                 </p>
                 <Badge variant="secondary">7 Magic Tools</Badge>
               </CardContent>
-            </Link>
-          </Card>
+            </Card>
+          </Link>
         </div>
 
         {/* Alert based on autopilot status */}
