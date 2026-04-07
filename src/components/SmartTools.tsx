@@ -82,16 +82,11 @@ export function SmartTools() {
         return;
       }
 
-      const result = await smartProductDiscovery.discoverProducts({
-        campaignId: campaigns[0].id,
-        niche: "trending",
-        minCommission: 5,
-        networks: ["Amazon Associates", "Temu Affiliate"]
-      });
+      const result = await smartProductDiscovery.refreshCatalog(campaigns[0].id);
 
       toast({
         title: "Products Discovered!",
-        description: `Found ${result.products?.length || 0} trending products`,
+        description: `Found ${result.productsAdded || 0} trending products`,
       });
     } catch (error: any) {
       console.error("Product discovery error:", error);
@@ -146,7 +141,7 @@ export function SmartTools() {
 
       toast({
         title: "Campaign Optimized!",
-        description: `Applied ${result.optimizationsApplied || 0} optimizations`,
+        description: `Applied ${result.optimizations || 0} optimizations`,
       });
     } catch (error: any) {
       console.error("Optimization error:", error);
@@ -197,15 +192,14 @@ export function SmartTools() {
         return;
       }
 
-      const result = await budgetOptimizationService.optimizeBudget({
-        campaignId: campaigns[0].id,
-        totalBudget: campaigns[0].budget || 500,
-        optimizationGoal: "revenue"
-      });
+      const result = await budgetOptimizationService.optimizeBudgetAllocation(
+        campaigns[0].id,
+        campaigns[0].budget || 500
+      );
 
       toast({
         title: "Budget Optimized!",
-        description: `ROI improvement: +${result.improvement || 0}%`,
+        description: `Projected Revenue: $${result.projectedRevenue || 0}`,
       });
     } catch (error: any) {
       console.error("Revenue optimization error:", error);
