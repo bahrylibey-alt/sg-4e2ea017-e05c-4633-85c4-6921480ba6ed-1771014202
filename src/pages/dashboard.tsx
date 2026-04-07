@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SEO } from "@/components/SEO";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -51,9 +52,10 @@ export default function Dashboard() {
         .maybeSingle();
 
       if (config) {
-        setAutomationActive(config.is_active || false);
-        if (config.stats) {
-          setStats(config.stats);
+        const conf = config as any;
+        setAutomationActive(conf.is_active || false);
+        if (conf.stats) {
+          setStats(conf.stats);
         }
         setLastUpdate(new Date());
       }
@@ -253,7 +255,7 @@ export default function Dashboard() {
         </div>
 
         {/* Alert based on autopilot status */}
-        {!isRunning && !loading && (
+        {!automationActive && (
           <Alert className="mb-6 border-orange-200 bg-orange-50 dark:bg-orange-950/20">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertDescription>
@@ -262,9 +264,9 @@ export default function Dashboard() {
           </Alert>
         )}
 
-        {isRunning && (
+        {automationActive && (
           <Alert className="mb-6 border-green-200 bg-green-50 dark:bg-green-950/20">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle className="h-4 w-4 text-green-600" />
             <AlertDescription>
               <strong>Autopilot is active!</strong> Your AI is discovering products, optimizing performance, and publishing posts automatically.
             </AlertDescription>
