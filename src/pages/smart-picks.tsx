@@ -24,7 +24,8 @@ import {
   DollarSign,
   Shield,
   Command,
-  Zap
+  Zap,
+  Clock
 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";

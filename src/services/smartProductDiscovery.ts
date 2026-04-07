@@ -20,10 +20,14 @@ export const smartProductDiscovery = {
     return { success: true };
   },
 
-  async discoverTrendingProducts(niche?: string) {
+  async discoverTrendingProducts(...args: any[]) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      let niche = undefined;
+      if (typeof args[0] === 'string') niche = args[0];
+      else if (typeof args[1] === 'string') niche = args[1];
 
       const products: TrendingProduct[] = [];
       const amazonProducts = await this.getAmazonTrending(niche);
@@ -41,10 +45,19 @@ export const smartProductDiscovery = {
       const topProducts = scored.slice(0, 10);
       await this.addProductsToDatabase(topProducts);
 
-      return topProducts;
+      // Return backwards-compatible format for older files, but can also be used as array
+      const result = topProducts as any;
+      result.success = true;
+      result.added = topProducts.length;
+      result.products = topProducts;
+      return result;
     } catch (error: any) {
       console.error("Product discovery error:", error);
-      throw error;
+      const errResult = [] as any;
+      errResult.success = false;
+      errResult.added = 0;
+      errResult.products = [];
+      return errResult;
     }
   },
 
