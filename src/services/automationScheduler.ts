@@ -276,23 +276,16 @@ export const automationScheduler = {
       const scheduledTime = new Date();
       scheduledTime.setHours(scheduledTime.getHours() + 2);
 
-      // Log activity instead of content_queue
+      // Log automation task
       await supabase
         .from("activity_logs")
         .insert({
           user_id: task.user_id,
-          action: 'automation_task_scheduled',
-          details: `Scheduled automation task: ${task.task_type}`,
+          action: 'automation_scheduled',
+          details: `Automation task scheduled: ${task.task_type}`,
           metadata: {
             campaign_id: task.campaign_id,
-            task_type: task.task_type,
-            task_data: {
-              platform: randomPlatform,
-              content_type: "product_promotion",
-              content: `Check out ${links.product_name}! ${links.cloaked_url}`,
-              scheduled_for: scheduledTime.toISOString(),
-              status: "scheduled"
-            }
+            task_type: task.task_type
           },
           status: 'success'
         });

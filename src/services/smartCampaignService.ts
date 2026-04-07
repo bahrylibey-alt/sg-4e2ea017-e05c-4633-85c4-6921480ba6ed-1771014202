@@ -240,12 +240,12 @@ export const smartCampaignService = {
         trafficSources: trafficResult.count || 0
       };
 
-      // Remove content_queue check, use activity_logs count instead
+      // Use activity_logs instead of content_queue
       const { count: activityCount } = await supabase
         .from("activity_logs")
         .select("id", { count: "exact" })
-        .eq("metadata->>campaign_id", campaignId)
-        .eq("action", "content_generated");
+        .eq("action", "content_generated")
+        .like("metadata->>campaign_id", `%${campaignId}%`);
 
       stats.contentReady = activityCount || 0;
 

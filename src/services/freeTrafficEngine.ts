@@ -190,30 +190,19 @@ export const freeTrafficEngine = {
         });
       }
 
-      // Log activity instead of content_queue
+      // Log traffic generation
       await supabase
         .from("activity_logs")
         .insert({
           user_id: userId,
           action: 'free_traffic_generated',
-          details: `Generated free traffic for campaign`,
+          details: 'Free traffic generation completed',
           metadata: {
             campaign_id: campaignId,
-            traffic_sources: sources.map(s => s.source),
-            total_reach: sources.reduce((sum, s) => sum + s.reach, 0)
+            traffic_sources: sources.length
           },
           status: 'success'
         });
-
-      const { error } = await supabase
-        .from("content_queue")
-        .insert(contentPieces);
-
-      if (!error) {
-        console.log(`✅ Generated ${contentPieces.length} content pieces for posting`);
-      } else {
-        console.error("Error queuing content:", error);
-      }
 
     } catch (err) {
       console.error("Content generation error:", err);

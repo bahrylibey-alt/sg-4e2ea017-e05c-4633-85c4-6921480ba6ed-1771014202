@@ -118,8 +118,8 @@ export function CampaignBuilder({
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Log campaign creation instead of queuing content
-          const { error: activityError } = await supabase
+          // Log activity only (NO content_queue)
+          await supabase
             .from('activity_logs')
             .insert({
               user_id: session.user.id,
@@ -127,15 +127,10 @@ export function CampaignBuilder({
               details: `Created campaign: ${campaignName || "Smart Campaign"}`,
               metadata: {
                 campaign_id: result.campaign.id,
-                campaign_name: campaignName || "Smart Campaign",
-                budget: customBudget || 500
+                campaign_name: campaignName || "Smart Campaign"
               },
               status: 'success'
             });
-
-          if (activityError) {
-            console.error('Activity log error:', activityError);
-          }
         }
       } else {
         setError(result.error || "Failed to create campaign. Please try again.");
