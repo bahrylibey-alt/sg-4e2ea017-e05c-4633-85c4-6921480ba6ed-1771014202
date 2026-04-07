@@ -12,15 +12,15 @@ interface TrendingProduct {
 }
 
 export const smartProductDiscovery = {
-  async refreshCatalog() {
-    return this.discoverTrendingProducts();
+  async refreshCatalog(...args: any[]): Promise<any> {
+    return this.discoverTrendingProducts(...args);
   },
 
-  async addToCampaign(product: any, campaignId: string) {
-    return { success: true };
+  async addToCampaign(product: any, campaignId: string, ...args: any[]): Promise<any> {
+    return { success: true, added: 1, products: [product] };
   },
 
-  async discoverTrendingProducts(...args: any[]) {
+  async discoverTrendingProducts(...args: any[]): Promise<any> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
