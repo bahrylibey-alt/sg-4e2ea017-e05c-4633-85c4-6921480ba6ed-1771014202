@@ -43,18 +43,36 @@ export default function RedirectPage() {
 
         setLinkData(link);
 
-        // Track the click
+        // Track the click using activity_logs (link_clicks table doesn't exist)
         const { error: clickError } = await supabase
-          .from('link_clicks')
+          .from('activity_logs')
           .insert({
-            link_id: link.id,
-            user_agent: navigator.userAgent,
-            referrer: document.referrer || 'direct'
+            user_id: link.user_id,
+            action: 'link_clicked',
+            details: `Clicked on ${link.product_name}`,
+            metadata: {
+              link_id: link.id,
+              slug: link.slug,
+              product_name: link.product_name,
+              network: link.network,
+              user_agent: navigator.userAgent,
+              referrer: document.referrer || 'direct'
+            },
+            status: 'success'
           });
 
         if (clickError) {
           console.error("⚠️ Click tracking failed:", clickError);
         }
+
+        // Update click count on the affiliate link
+        await supabase
+          .from('affiliate_links')
+          .update({ 
+            click_count: (link.click_count || 0) + 1,
+            clicks: (link.clicks || 0) + 1
+          })
+          .eq('id', link.id);
 
         // Start countdown
         const timer = setInterval(() => {
