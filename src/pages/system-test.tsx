@@ -86,6 +86,22 @@ export default function SystemTest() {
     }
   ];
 
+  const runFullSystemTest = async () => {
+    setIsRunning(true);
+    setResults([]);
+
+    try {
+      // Test 1: Launch autopilot
+      addResult('Launching Ultimate Autopilot...', 'running');
+      const autopilotResult = await ultimateAutopilot.launch();
+      addResult('✅ Autopilot launched successfully', 'success', autopilotResult);
+    } catch (error: any) {
+      addResult(`❌ Error launching autopilot: ${error.message}`, 'error', error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const runAllTests = async () => {
     setIsRunning(true);
     setResults([]);
