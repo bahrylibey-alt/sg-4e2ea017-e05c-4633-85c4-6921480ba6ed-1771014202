@@ -86,7 +86,7 @@ export function SmartTools() {
 
       toast({
         title: "Products Discovered!",
-        description: `Found ${result.productsAdded || 0} trending products`,
+        description: `Found ${result.added || 0} trending products`,
       });
     } catch (error: any) {
       console.error("Product discovery error:", error);
