@@ -1,543 +1,293 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+import React, { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { DashboardOverview } from "@/components/DashboardOverview";
 import { SEO } from "@/components/SEO";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  TrendingUp, 
-  DollarSign, 
-  MousePointerClick, 
-  Plus,
-  Target,
-  Activity,
-  Loader2,
-  Zap,
-  RefreshCw,
-  ShoppingCart,
-  TrendingDown,
-  CheckCircle2,
-  AlertCircle,
-  ExternalLink,
-  Copy
-} from "lucide-react";
+import { Bot, Sparkles, TrendingUp, Zap, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
-import { authService } from "@/services/authService";
-import { campaignService } from "@/services/campaignService";
-import { realTimeAnalytics } from "@/services/realTimeAnalytics";
-import { affiliateIntegrationService } from "@/services/affiliateIntegrationService";
-import { CampaignBuilder } from "@/components/CampaignBuilder";
-import { AdvancedAnalyticsDashboard } from "@/components/AdvancedAnalyticsDashboard";
-import { AdvancedAutomationHub } from "@/components/AdvancedAutomationHub";
-import { OneClickAutopilot } from "@/components/OneClickAutopilot";
-import { ProductGallery } from "@/components/ProductGallery";
-import { IntegrationsDashboard } from "@/components/IntegrationsDashboard";
-import { UltimateAutopilotControl } from "@/components/UltimateAutopilotControl";
-import { SmartTools } from "@/components/SmartTools";
-
-interface Campaign {
-  id: string;
-  name: string;
-  status: string;
-  created_at: string;
-  goal: string;
-  budget: number;
-  clicks?: number;
-  conversions?: number;
-  revenue?: number;
-  affiliateLinks?: number;
-  trafficSources?: number;
-}
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
-  const router = useRouter();
+  const { toast } = useToast();
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [autopilotStatus, setAutopilotStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [stats, setStats] = useState({
-    totalClicks: 0,
-    totalConversions: 0,
-    totalRevenue: 0,
-    activeCampaigns: 0,
-    totalCommissions: 0,
-    activeLinks: 0
-  });
-  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [syncingProducts, setSyncingProducts] = useState(false);
-  const [systemStatus, setSystemStatus] = useState<{
-    autopilotActive: boolean;
-    productsCount: number;
-    linksCount: number;
-  }>({
-    autopilotActive: false,
-    productsCount: 0,
-    linksCount: 0
-  });
 
   useEffect(() => {
-    checkAuthAndLoadData();
+    loadAutopilotStatus();
+    
+    // Auto-refresh status every 30 seconds
+    const interval = setInterval(loadAutopilotStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (!autoRefresh || !isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      loadDashboardData(true);
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, isAuthenticated]);
-
-  const checkAuthAndLoadData = async () => {
-    const session = await authService.getCurrentSession();
-    
-    if (!session) {
-      router.push("/?auth=login");
-      return;
-    }
-
-    setIsAuthenticated(true);
-    // Pass session to avoid re-fetching
-    await loadDashboardData(false, session);
-    setLoading(false);
-  };
-
-  const loadDashboardData = async (isRefresh = false, existingSession?: any) => {
+  const loadAutopilotStatus = async () => {
     try {
-      console.log("📊 Loading dashboard data...");
-      
-      // Reuse session if provided, otherwise get it once
-      const session = existingSession || await authService.getCurrentSession();
-      
-      // Load all data with error handling
-      const [campaignsResult, analyticsSnapshot, systemHealth] = await Promise.all([
-        campaignService.getUserCampaigns().catch(err => {
-          console.error("Failed to load campaigns:", err);
-          return { campaigns: [], error: err.message };
-        }),
-        realTimeAnalytics.getPerformanceSnapshot().catch(err => {
-          console.error("Failed to load analytics:", err);
-          return null;
-        }),
-        getSystemHealth(session).catch(err => {
-          console.error("Failed to check system health:", err);
-          return {
-            autopilotActive: false,
-            productsCount: 0,
-            linksCount: 0
-          };
-        })
-      ]);
-      
-      console.log("✅ Dashboard data loaded:", {
-        campaigns: campaignsResult.campaigns?.length || 0,
-        analytics: analyticsSnapshot ? "loaded" : "failed",
-        health: systemHealth
-      });
-      
-      if (campaignsResult.campaigns) {
-        const typedCampaigns = campaignsResult.campaigns as unknown as Campaign[];
-        setCampaigns(typedCampaigns);
-        
-        const totalClicks = typedCampaigns.reduce((sum, c) => sum + (c.clicks || 0), 0);
-        const totalConversions = typedCampaigns.reduce((sum, c) => sum + (c.conversions || 0), 0);
-        const totalRevenue = typedCampaigns.reduce((sum, c) => sum + (c.revenue || 0), 0);
-        const activeCampaigns = typedCampaigns.filter(c => c.status === "active").length;
-        
-        setStats({
-          totalClicks: analyticsSnapshot?.totalClicks || totalClicks,
-          totalConversions: analyticsSnapshot?.totalConversions || totalConversions,
-          totalRevenue: analyticsSnapshot?.totalRevenue || totalRevenue,
-          activeCampaigns,
-          totalCommissions: analyticsSnapshot?.totalCommissions || 0,
-          activeLinks: analyticsSnapshot?.activeLinks || 0
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
       }
 
-      setSystemStatus(systemHealth);
-      
-      if (isRefresh) {
-        setLastUpdate(new Date());
-      }
-    } catch (error) {
-      console.error("💥 Critical error loading dashboard:", error);
-      // Continue with empty data instead of crashing
-    }
-  };
-
-  const getSystemHealth = async (session?: any) => {
-    try {
-      // Use provided session or get cached one
-      const currentSession = session || await authService.getCurrentSession();
-      if (!currentSession?.user?.id) {
-        return {
-          autopilotActive: false,
-          productsCount: 0,
-          linksCount: 0
-        };
-      }
-
-      console.log("🔍 Checking system health...");
-
-      // Check BOTH user_settings AND campaigns for autopilot status
-      const [settingsData, campaignsData, productsData, linksData] = await Promise.all([
-        supabase
-          .from("user_settings")
-          .select("autopilot_enabled")
-          .eq("user_id", currentSession.user.id)
-          .maybeSingle(),
-        campaignService.getUserCampaigns(),
-        affiliateIntegrationService.getProductCatalog(),
-        affiliateIntegrationService.getAffiliateLinkStats(currentSession.user.id)
-      ]);
-
-      console.log("📊 Settings data:", settingsData.data);
-      console.log("📊 Campaigns data:", campaignsData.campaigns?.length);
-
-      // Check if autopilot is enabled in user_settings
-      const settingsEnabled = settingsData.data?.autopilot_enabled === true;
-      
-      // Check if there are any active autopilot campaigns
-      const hasActiveCampaigns = campaignsData.campaigns?.some(c => 
-        c.status === "active" && (c as any).is_autopilot === true
-      ) || false;
-
-      // Autopilot is ACTIVE if BOTH conditions are true
-      const isAutopilotActive = settingsEnabled && hasActiveCampaigns;
-
-      console.log("🎯 Autopilot status check:", {
-        settingsEnabled,
-        hasActiveCampaigns,
-        finalStatus: isAutopilotActive
+      const response = await supabase.functions.invoke('autopilot-engine', {
+        body: { action: 'status', user_id: user.id }
       });
 
-      return {
-        autopilotActive: isAutopilotActive,
-        productsCount: productsData.products?.length || 0,
-        linksCount: linksData.totalLinks || 0
-      };
-    } catch (error) {
-      console.error("Error checking system health:", error);
-      return {
-        autopilotActive: false,
-        productsCount: 0,
-        linksCount: 0
-      };
-    }
-  };
-
-  const handleAutoProductSync = async () => {
-    setSyncingProducts(true);
-    try {
-      const result = await affiliateIntegrationService.autoDiscoverProducts({
-        category: "general",
-        minCommissionRate: 5,
-        autoGenerateLinks: true
-      });
-
-      if (result.success) {
-        await loadDashboardData();
-        alert(`Successfully added ${result.addedCount} new products!`);
-      } else {
-        alert("Failed to sync products. Please try again.");
+      if (response.data) {
+        setAutopilotStatus(response.data);
       }
     } catch (error) {
-      console.error("Error syncing products:", error);
-      alert("An error occurred while syncing products.");
+      console.error('Error loading autopilot status:', error);
     } finally {
-      setSyncingProducts(false);
+      setLoading(false);
     }
   };
 
-  const handleCampaignCreated = () => {
-    setShowCampaignBuilder(false);
-    loadDashboardData();
+  const launchAutopilot = async () => {
+    setIsLaunching(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to launch autopilot",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const response = await supabase.functions.invoke('autopilot-engine', {
+        body: { action: 'start', user_id: user.id }
+      });
+
+      if (response.error) throw response.error;
+
+      toast({
+        title: "🚀 Autopilot Launched!",
+        description: "AI automation is now running 24/7 in the background",
+      });
+
+      await loadAutopilotStatus();
+    } catch (error: any) {
+      toast({
+        title: "Launch Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLaunching(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  const stopAutopilot = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const conversionRate = stats.totalClicks > 0 
-    ? ((stats.totalConversions / stats.totalClicks) * 100).toFixed(2)
-    : "0.00";
+      await supabase.functions.invoke('autopilot-engine', {
+        body: { action: 'stop', user_id: user.id }
+      });
+
+      toast({
+        title: "Autopilot Stopped",
+        description: "AI automation has been paused",
+      });
+
+      await loadAutopilotStatus();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const stats = autopilotStatus?.stats || {};
+  const isRunning = autopilotStatus?.is_running || false;
 
   return (
-    <>
-      <SEO title="Dashboard - Sale Makseb" description="Manage your affiliate campaigns and track performance" />
-      <div className="min-h-screen bg-background">
-        <Header />
-        
-        <main className="container py-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-              <p className="text-muted-foreground">
-                Real-time affiliate performance • Last updated: {lastUpdate.toLocaleTimeString()}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Button 
-                variant="outline"
-                onClick={() => loadDashboardData(true)}
-                disabled={loading}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button 
-                size="lg" 
-                onClick={() => setShowCampaignBuilder(true)}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Create Campaign
-              </Button>
-            </div>
-          </div>
+    <div className="min-h-screen bg-background">
+      <SEO 
+        title="Dashboard | AffiliatePro"
+        description="Your affiliate marketing command center"
+      />
+      <Header />
+      
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Welcome Back! 👋</h1>
+          <p className="text-muted-foreground">Your affiliate marketing command center</p>
+        </div>
 
-          {systemStatus.autopilotActive && (
-            <Alert className="mb-6 border-green-500/50 bg-green-500/10">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <AlertDescription className="text-green-700 dark:text-green-400">
-                <strong>Autopilot Active:</strong> Your affiliate system is running automatically with {systemStatus.productsCount} products and {systemStatus.linksCount} active links.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
-                <MousePointerClick className="h-4 w-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats.activeLinks} active links
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Conversions</CardTitle>
-                <Target className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalConversions.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {conversionRate}% conversion rate
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-purple-500">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  ${stats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  ${stats.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} in commissions
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-orange-500">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
-                <Activity className="h-4 w-4 text-orange-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.activeCampaigns}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Out of {campaigns.length} total
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2 mb-8">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">System Status</CardTitle>
-                    <CardDescription>Auto-sync and monitoring</CardDescription>
+        {/* AI Automation Hub Card */}
+        <Card className="mb-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200">
+          <CardContent className="p-8">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                    <Bot className="w-8 h-8 text-white" />
                   </div>
-                  <Badge variant={systemStatus.autopilotActive ? "default" : "secondary"}>
-                    {systemStatus.autopilotActive ? "Active" : "Inactive"}
-                  </Badge>
+                  <div>
+                    <h2 className="text-2xl font-bold">AI Automation Hub</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Your complete affiliate marketing system runs on autopilot—products, content, optimization, and tracking all managed by AI
+                    </p>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Product Catalog</p>
-                      <p className="text-sm text-muted-foreground">{systemStatus.productsCount} products available</p>
+
+                {isRunning && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
+                      <div className="text-3xl font-bold text-purple-600">{stats.products_discovered || 0}</div>
+                      <div className="text-sm text-muted-foreground">Products Discovered</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
+                      <div className="text-3xl font-bold text-blue-600">{stats.products_optimized || 0}</div>
+                      <div className="text-sm text-muted-foreground">Products Optimized</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
+                      <div className="text-3xl font-bold text-green-600">{stats.posts_published || 0}</div>
+                      <div className="text-sm text-muted-foreground">Posts Published</div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-lg p-4 border">
+                      <div className="text-3xl font-bold text-orange-600">{stats.cycles_completed || 0}</div>
+                      <div className="text-sm text-muted-foreground">Cycles Completed</div>
                     </div>
                   </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 min-w-[200px]">
+                {loading ? (
+                  <Button disabled className="w-full">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </Button>
+                ) : isRunning ? (
+                  <>
+                    <Badge variant="default" className="bg-green-600 text-white justify-center py-2">
+                      <div className="w-2 h-2 rounded-full bg-white mr-2 animate-pulse" />
+                      Running 24/7
+                    </Badge>
+                    <Button variant="outline" onClick={stopAutopilot}>
+                      Stop Autopilot
+                    </Button>
+                    <Button asChild variant="secondary">
+                      <Link href="/smart-picks">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Open Dashboard
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
                   <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={handleAutoProductSync}
-                    disabled={syncingProducts}
+                    onClick={launchAutopilot} 
+                    disabled={isLaunching}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                   >
-                    {syncingProducts ? (
+                    {isLaunching ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Syncing...
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Launching...
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Sync New
+                        <Zap className="w-5 h-5 mr-2" />
+                        Launch Autopilot
                       </>
                     )}
                   </Button>
-                </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Zap className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Autopilot System</p>
-                      <p className="text-sm text-muted-foreground">
-                        {systemStatus.autopilotActive ? 'Running automated campaigns' : 'Ready to launch'}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={systemStatus.autopilotActive ? "default" : "outline"}>
-                    {systemStatus.autopilotActive ? 'ON' : 'OFF'}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Activity className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Real-time Tracking</p>
-                      <p className="text-sm text-muted-foreground">
-                        Auto-refresh: {autoRefresh ? 'Every 30s' : 'Off'}
-                      </p>
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant={autoRefresh ? "default" : "outline"}
-                    onClick={() => setAutoRefresh(!autoRefresh)}
-                  >
-                    {autoRefresh ? 'ON' : 'OFF'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
+        {/* Quick Access Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
+            <Link href="/smart-picks">
               <CardHeader>
-                <CardTitle className="text-xl">Quick Actions</CardTitle>
-                <CardDescription>Launch campaigns and optimize performance</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button 
-                  className="w-full justify-start" 
-                  variant="outline"
-                  onClick={() => setShowCampaignBuilder(true)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create New Campaign
-                </Button>
-                <Button 
-                  className="w-full justify-start" 
-                  variant="outline"
-                  onClick={handleAutoProductSync}
-                  disabled={syncingProducts}
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Discover New Products
-                </Button>
-                <Button 
-                  className="w-full justify-start" 
-                  variant="outline"
-                  onClick={() => loadDashboardData(true)}
-                >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  View Analytics
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Ultimate Autopilot Section - TOP PRIORITY */}
-          <div className="mb-8">
-            <UltimateAutopilotControl />
-          </div>
-
-          {/* Smart Tools Suite */}
-          <div className="mb-8">
-            <SmartTools />
-          </div>
-
-          {/* One-Click Autopilot */}
-          <OneClickAutopilot />
-
-          {/* Product Gallery */}
-          <div className="mt-8">
-            <ProductGallery />
-          </div>
-
-          {/* Advanced Analytics Dashboard */}
-          <div className="mt-8">
-            <AdvancedAnalyticsDashboard />
-          </div>
-
-          {/* Advanced Automation Hub */}
-          <div className="mt-8">
-            <AdvancedAutomationHub />
-          </div>
-
-          {/* Integrations Dashboard */}
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-2xl">Connected Integrations</CardTitle>
-                <CardDescription>
-                  Manage your third-party service connections
-                </CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-purple-600" />
+                  SmartPicks Hub
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <IntegrationsDashboard />
+                <p className="text-sm text-muted-foreground mb-4">
+                  AI automation dashboard with 12 admin tools and scheduled automations
+                </p>
+                <Badge variant="secondary">12 Tools Available</Badge>
               </CardContent>
-            </Card>
-          </div>
-        </main>
+            </Link>
+          </Card>
 
-        <Footer />
-        
-        <CampaignBuilder 
-          open={showCampaignBuilder} 
-          onOpenChange={setShowCampaignBuilder}
-          onCampaignCreated={handleCampaignCreated}
-        />
-      </div>
-    </>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
+            <Link href="/social-connect">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-blue-600" />
+                  Social Connect
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Connect social media once, post automatically forever
+                </p>
+                <Badge variant="secondary">5 Platforms</Badge>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" asChild>
+            <Link href="/magic-tools">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-pink-600" />
+                  Magic Tools
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  7 revolutionary AI tools never built before
+                </p>
+                <Badge variant="secondary">7 Magic Tools</Badge>
+              </CardContent>
+            </Link>
+          </Card>
+        </div>
+
+        {/* Alert based on autopilot status */}
+        {!isRunning && !loading && (
+          <Alert className="mb-6 border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription>
+              <strong>Autopilot is not running.</strong> Click "Launch Autopilot" above to activate 24/7 automation.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isRunning && (
+          <Alert className="mb-6 border-green-200 bg-green-50 dark:bg-green-950/20">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription>
+              <strong>Autopilot is active!</strong> Your AI is discovering products, optimizing performance, and publishing posts automatically.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Main Dashboard Content */}
+        <DashboardOverview />
+      </main>
+
+      <Footer />
+    </div>
   );
 }
