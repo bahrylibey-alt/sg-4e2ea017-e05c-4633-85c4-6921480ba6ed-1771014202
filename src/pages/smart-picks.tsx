@@ -287,6 +287,10 @@ export default function SmartPicksDashboard() {
                     <span className="font-semibold text-slate-700 text-lg">{tool.label}</span>
                   </div>
                 ))}
+                <Link href="/magic-tools" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <span className="font-medium">Magic Tools</span>
+                </Link>
               </div>
             </Card>
           </TabsContent>
