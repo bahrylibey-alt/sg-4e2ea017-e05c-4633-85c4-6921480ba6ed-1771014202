@@ -512,7 +512,7 @@ export const magicTools = {
    * Advanced ROI analysis with actionable insights
    */
   async optimizeProfitStrategy(userId: string) {
-    const response = await supabase
+    const response = await (supabase as any)
       .from('affiliate_links')
       .select(`*, product_catalog (price, commission_rate, category, network)`)
       .eq('user_id', userId)
