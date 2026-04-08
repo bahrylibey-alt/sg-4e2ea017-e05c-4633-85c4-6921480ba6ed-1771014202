@@ -1,378 +1,368 @@
 import React, { useState, useEffect } from "react";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Zap, Mail, Share2, Video, MessageCircle, TrendingUp, Globe, CheckCircle, ExternalLink, Copy, Loader2, XCircle } from "lucide-react";
+import { 
+  Globe, 
+  TrendingUp, 
+  CheckCircle, 
+  XCircle,
+  Activity,
+  AlertCircle,
+  Clock,
+  Zap,
+  Facebook,
+  Twitter,
+  Youtube,
+  Instagram,
+  Linkedin,
+  MessageSquare,
+  Share2,
+  Mail
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SEO } from "@/components/SEO";
 import { trafficAutomationService } from "@/services/trafficAutomationService";
 
 const TRAFFIC_CHANNELS = [
   {
-    id: 1,
+    id: "pinterest-autopinning",
     name: "Pinterest Auto-Pinning",
+    description: "Auto-post product pins to Pinterest boards",
     icon: Share2,
-    category: "Social",
-    status: "automated",
-    setup: "zapier",
-    reach: "500-2000/month",
-    description: "Automatically pin products to Pinterest boards",
-    steps: [
-      "Create Pinterest business account",
-      "Set up Zapier: Google Sheets → Pinterest",
-      "Add products to Sheet daily",
-      "Zapier auto-pins with hashtags"
-    ],
-    zapierTemplate: "https://zapier.com/apps/google-sheets/integrations/pinterest"
+    color: "bg-red-100 text-red-600 dark:bg-red-900/20",
+    traffic: "100-500/month",
+    automation: "automated"
   },
   {
-    id: 2,
+    id: "email-drip",
     name: "Email Drip Campaigns",
+    description: "Send automated email sequences to subscribers",
     icon: Mail,
-    category: "Email",
-    status: "automated",
-    setup: "zapier",
-    reach: "$1000-5000/month",
-    description: "Send automated email sequences to your list",
-    steps: [
-      "Build email list (use EmailCaptureForm)",
-      "Set up Zapier: Supabase → Mailchimp",
-      "Create 5-email welcome sequence",
-      "Auto-send when user subscribes"
-    ],
-    zapierTemplate: "https://zapier.com/apps/supabase/integrations/mailchimp"
+    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/20",
+    traffic: "200-1000/month",
+    automation: "automated"
   },
   {
-    id: 3,
+    id: "twitter-autopost",
     name: "Twitter/X Auto-Posting",
-    icon: MessageCircle,
-    category: "Social",
-    status: "automated",
-    setup: "zapier",
-    reach: "100-500/month",
-    description: "Tweet products automatically 3x per day",
-    steps: [
-      "Create Twitter developer account",
-      "Set up Zapier: RSS Feed → Twitter",
-      "Schedule posts for peak times",
-      "Include product links + hashtags"
-    ],
-    zapierTemplate: "https://zapier.com/apps/rss/integrations/twitter"
+    description: "Schedule and auto-post tweets with product links",
+    icon: Twitter,
+    color: "bg-sky-100 text-sky-600 dark:bg-sky-900/20",
+    traffic: "100-500/month",
+    automation: "automated"
   },
   {
-    id: 4,
+    id: "youtube-community",
     name: "YouTube Community Posts",
-    icon: Video,
-    category: "Video",
-    status: "automated",
-    setup: "zapier",
-    reach: "500-3000/month",
-    description: "Auto-post to YouTube community tab",
-    steps: [
-      "Have YouTube channel with 1000+ subs",
-      "Set up Zapier: Google Sheets → YouTube",
-      "Create product review posts",
-      "Auto-publish weekly"
-    ],
-    zapierTemplate: "https://zapier.com/apps/google-sheets/integrations/youtube"
+    description: "Auto-publish community posts to YouTube channel",
+    icon: Youtube,
+    color: "bg-red-100 text-red-600 dark:bg-red-900/20",
+    traffic: "500-3000/month",
+    automation: "automated"
   },
   {
-    id: 5,
+    id: "facebook-groups",
     name: "Facebook Group Sharing",
-    icon: Share2,
-    category: "Social",
-    status: "semi-automated",
-    setup: "manual+zapier",
-    reach: "200-1000/month",
-    description: "Share deals in relevant FB groups",
-    steps: [
-      "Join 10+ relevant Facebook groups",
-      "Create Zapier: Schedule → Notification",
-      "Get daily reminders to post",
-      "Share 2-3 products per day"
-    ],
-    zapierTemplate: "https://zapier.com/apps/schedule/integrations/slack"
+    description: "Auto-share products to relevant Facebook groups",
+    icon: Facebook,
+    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/20",
+    traffic: "200-1000/month",
+    automation: "automated"
   },
   {
-    id: 6,
+    id: "instagram-stories",
     name: "Instagram Stories Automation",
-    icon: Share2,
-    category: "Social",
-    status: "semi-automated",
-    setup: "zapier",
-    reach: "300-1500/month",
-    description: "Auto-publish product stories",
-    steps: [
-      "Connect Instagram business account",
-      "Set up Zapier: Google Drive → Instagram",
-      "Upload story templates to Drive",
-      "Auto-post 2x daily"
-    ],
-    zapierTemplate: "https://zapier.com/apps/google-drive/integrations/instagram"
+    description: "Auto-post product stories to Instagram",
+    icon: Instagram,
+    color: "bg-pink-100 text-pink-600 dark:bg-pink-900/20",
+    traffic: "300-1500/month",
+    automation: "automated"
   },
   {
-    id: 7,
+    id: "reddit-deals",
     name: "Reddit Deal Posting",
-    icon: Globe,
-    category: "Community",
-    status: "semi-automated",
-    setup: "manual",
-    reach: "200-1500/month",
-    description: "Share deals in r/deals and niche subreddits",
-    steps: [
-      "Build Reddit karma (30+ days old account)",
-      "Find 5-10 relevant subreddits",
-      "Use Zapier for post reminders",
-      "Manually post best deals"
-    ],
-    zapierTemplate: null
+    description: "Auto-post deals to relevant subreddits",
+    icon: MessageSquare,
+    color: "bg-orange-100 text-orange-600 dark:bg-orange-900/20",
+    traffic: "500-2000/month",
+    automation: "semi-automated"
   },
   {
-    id: 8,
+    id: "linkedin-articles",
     name: "LinkedIn Article Publishing",
-    icon: TrendingUp,
-    category: "Professional",
-    status: "automated",
-    setup: "zapier",
-    reach: "100-800/month",
-    description: "Auto-publish product reviews on LinkedIn",
-    steps: [
-      "Build LinkedIn connections (500+)",
-      "Set up Zapier: Medium → LinkedIn",
-      "Write articles on Medium first",
-      "Auto-cross-post to LinkedIn"
-    ],
-    zapierTemplate: "https://zapier.com/apps/medium/integrations/linkedin"
+    description: "Auto-publish product articles to LinkedIn",
+    icon: Linkedin,
+    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/20",
+    traffic: "100-800/month",
+    automation: "automated"
   }
 ];
 
 export default function TrafficChannels() {
   const { toast } = useToast();
-  const [activeChannels, setActiveChannels] = useState<string[]>([]);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [affiliateLinks, setAffiliateLinks] = useState<any[]>([]);
+  const [activeChannels, setActiveChannels] = useState<Record<string, boolean>>({});
+  const [channelStats, setChannelStats] = useState<Record<string, { views: number; clicks: number }>>({});
+  const [isAutopilotActive, setIsAutopilotActive] = useState(false);
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    loadData();
+    loadChannelStatus();
+    loadAutopilotStatus();
+    const interval = setInterval(() => {
+      loadChannelStatus();
+      loadAutopilotStatus();
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
-    await Promise.all([
-      loadAffiliateLinks(),
-      loadActiveChannels()
-    ]);
+  const loadAutopilotStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // SINGLE SOURCE OF TRUTH: user_settings.autopilot_enabled
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (settings) {
+        setIsAutopilotActive(settings.autopilot_enabled || false);
+      }
+    } catch (error) {
+      console.error('Error loading autopilot status:', error);
+    }
   };
 
-  const loadAffiliateLinks = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+  const loadChannelStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data } = await supabase
-      .from('affiliate_links')
-      .select('cloaked_url, product_name, network')
-      .eq('user_id', session.user.id)
-      .eq('status', 'active')
-      .limit(5);
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user.id);
 
-    if (data) setAffiliateLinks(data);
+      if (!campaigns || campaigns.length === 0) return;
+
+      const campaignIds = campaigns.map(c => c.id);
+
+      const { data: sources } = await supabase
+        .from('traffic_sources')
+        .select('source_name, status, automation_enabled, stats')
+        .in('campaign_id', campaignIds);
+
+      const channelStatus: Record<string, boolean> = {};
+      const stats: Record<string, { views: number; clicks: number }> = {};
+
+      TRAFFIC_CHANNELS.forEach(channel => {
+        const source = sources?.find(s => s.source_name === channel.name);
+        channelStatus[channel.id] = source?.automation_enabled || false;
+        stats[channel.id] = {
+          views: (source?.stats as any)?.views || 0,
+          clicks: (source?.stats as any)?.clicks || 0
+        };
+      });
+
+      setActiveChannels(channelStatus);
+      setChannelStats(stats);
+    } catch (error) {
+      console.error('Error loading channel status:', error);
+    }
   };
 
-  const loadActiveChannels = async () => {
-    const channels = await trafficAutomationService.getActiveChannels();
-    setActiveChannels(channels);
-    console.log("📊 Loaded active channels:", channels);
-  };
+  const toggleChannel = async (channelId: string) => {
+    const channel = TRAFFIC_CHANNELS.find(c => c.id === channelId);
+    if (!channel) return;
 
-  const activateChannel = async (channelName: string, channelType: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    setLoading(prev => ({ ...prev, [channelId]: true }));
+
+    try {
+      const isCurrentlyActive = activeChannels[channelId];
+      
+      if (isCurrentlyActive) {
+        const result = await trafficAutomationService.deactivateChannel(channel.name);
+        if (result.success) {
+          setActiveChannels(prev => ({ ...prev, [channelId]: false }));
+          toast({
+            title: "Channel Stopped",
+            description: `${channel.name} has been deactivated`,
+          });
+        }
+      } else {
+        const result = await trafficAutomationService.activateChannel(channel.name, "automated");
+        if (result.success) {
+          setActiveChannels(prev => ({ ...prev, [channelId]: true }));
+          toast({
+            title: "Channel Activated!",
+            description: `${channel.name} is now running 24/7`,
+          });
+        }
+      }
+
+      await loadChannelStatus();
+    } catch (error: any) {
       toast({
-        title: "Sign In Required",
-        description: "Please sign in to activate traffic channels",
+        title: "Error",
+        description: error.message,
         variant: "destructive"
       });
-      return;
+    } finally {
+      setLoading(prev => ({ ...prev, [channelId]: false }));
     }
-
-    setLoading(channelName);
-    
-    const result = await trafficAutomationService.activateChannel(channelName, channelType);
-    
-    if (result.success) {
-      setActiveChannels([...activeChannels, channelName]);
-      toast({
-        title: "Channel Activated! 🚀",
-        description: result.message,
-      });
-    } else {
-      toast({
-        title: "Activation Failed",
-        description: result.message,
-        variant: "destructive"
-      });
-    }
-
-    setLoading(null);
   };
 
-  const deactivateChannel = async (channelName: string) => {
-    setLoading(channelName);
-
-    const result = await trafficAutomationService.deactivateChannel(channelName);
-
-    if (result.success) {
-      setActiveChannels(activeChannels.filter(c => c !== channelName));
-      toast({
-        title: "Channel Stopped",
-        description: result.message,
-      });
-    } else {
-      toast({
-        title: "Deactivation Failed",
-        description: result.message,
-        variant: "destructive"
-      });
-    }
-
-    setLoading(null);
-  };
-
-  const copyLink = (link: string) => {
-    navigator.clipboard.writeText(link);
-    toast({
-      title: "Copied!",
-      description: "Link copied to clipboard"
-    });
-  };
+  const totalActiveChannels = Object.values(activeChannels).filter(Boolean).length;
+  const totalViews = Object.values(channelStats).reduce((sum, stat) => sum + stat.views, 0);
+  const totalClicks = Object.values(channelStats).reduce((sum, stat) => sum + stat.clicks, 0);
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <SEO title="Traffic Channels - AffiliatePro" />
+      <Header />
+
+      <main className="container mx-auto px-4 pt-24 pb-16 max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">8 Automated Traffic Channels</h1>
-          <p className="text-xl text-muted-foreground">
-            Real traffic generation methods - runs 24/7 even when you navigate
-          </p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mb-2">
+            Traffic Distribution Channels
+          </h1>
+          <p className="text-muted-foreground">Manage your 8 automated traffic sources</p>
         </div>
 
-        <Alert className="mb-8 border-blue-200 bg-blue-50">
-          <Zap className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-900">
-            <strong>Combined Potential:</strong> 2,400-15,300 monthly visitors → $500-$5,000/month revenue
-            <br />
-            <strong>Setup Time:</strong> 2-4 hours total (one-time setup)
-            <br />
-            <strong>✨ NEW: Channels stay active even when you close browser!</strong>
-          </AlertDescription>
-        </Alert>
+        {/* Autopilot Status Card */}
+        <Card className={`mb-8 border-2 ${isAutopilotActive ? 'border-green-500/50 bg-green-50/50 dark:bg-green-950/20' : 'border-muted'}`}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-4 h-4 rounded-full ${isAutopilotActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <CardTitle className="text-xl">AI Autopilot Status</CardTitle>
+              </div>
+              <Badge variant={isAutopilotActive ? "default" : "secondary"} className={isAutopilotActive ? 'bg-green-500' : ''}>
+                {isAutopilotActive ? '🟢 RUNNING 24/7' : '⚫ STOPPED'}
+              </Badge>
+            </div>
+            <CardDescription>
+              {isAutopilotActive 
+                ? "Autopilot is active - traffic channels will auto-activate and post content"
+                : "Launch autopilot from Dashboard to enable automated traffic generation"
+              }
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
-        {affiliateLinks.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Your Affiliate Links (Ready to Promote)</CardTitle>
+        {/* Stats Overview */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Active Channels</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {affiliateLinks.map((link, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-muted rounded">
-                    <span className="flex-1 text-sm truncate">{link.product_name}</span>
-                    <Badge variant="secondary">{link.network}</Badge>
-                    <Button size="sm" variant="ghost" onClick={() => copyLink(link.cloaked_url)}>
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              <div className="text-3xl font-bold">{totalActiveChannels}/8</div>
+              <Progress value={(totalActiveChannels / 8) * 100} className="mt-2" />
             </CardContent>
           </Card>
-        )}
 
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Views</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{totalViews.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-2">From all active channels</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Clicks</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{totalClicks.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-2">Affiliate link clicks</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Traffic Channels Grid */}
         <div className="grid md:grid-cols-2 gap-6">
           {TRAFFIC_CHANNELS.map((channel) => {
-            const Icon = channel.icon;
-            const isActive = activeChannels.includes(channel.name);
-            const isLoading = loading === channel.name;
+            const isActive = activeChannels[channel.id] || false;
+            const stats = channelStats[channel.id] || { views: 0, clicks: 0 };
+            const isLoading = loading[channel.id] || false;
 
             return (
-              <Card key={channel.id} className={isActive ? "border-green-500 shadow-lg" : ""}>
+              <Card key={channel.id} className={`transition-all ${isActive ? 'border-green-500/50' : ''}`}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${isActive ? "bg-green-500/10" : "bg-primary/10"}`}>
-                        <Icon className={`w-6 h-6 ${isActive ? "text-green-600" : "text-primary"}`} />
+                    <div className="flex items-start gap-3">
+                      <div className={`w-12 h-12 rounded-lg ${channel.color} flex items-center justify-center`}>
+                        <channel.icon className="w-6 h-6" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{channel.name}</CardTitle>
-                        <CardDescription>{channel.category}</CardDescription>
+                        <CardDescription className="mt-1">{channel.description}</CardDescription>
                       </div>
                     </div>
-                    {isActive && (
-                      <Badge className="bg-green-500">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Running 24/7
-                      </Badge>
-                    )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">{channel.description}</p>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Traffic Potential</div>
+                        <div className="font-semibold">{channel.traffic}</div>
+                      </div>
+                      <div className="space-y-1 text-right">
+                        <div className="text-sm text-muted-foreground">Type</div>
+                        <Badge variant="outline">{channel.automation}</Badge>
+                      </div>
+                    </div>
 
-                  <div className="flex gap-2">
-                    <Badge variant="secondary">{channel.reach}</Badge>
-                    <Badge variant="outline">{channel.status}</Badge>
-                  </div>
+                    {isActive && (
+                      <div className="grid grid-cols-2 gap-4 pt-3 border-t">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Views</div>
+                          <div className="text-2xl font-bold text-blue-600">{stats.views}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Clicks</div>
+                          <div className="text-2xl font-bold text-green-600">{stats.clicks}</div>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="space-y-2">
-                    <h4 className="font-semibold text-sm">Setup Steps:</h4>
-                    <ol className="space-y-1 text-sm text-muted-foreground">
-                      {channel.steps.map((step, idx) => (
-                        <li key={idx} className="flex gap-2">
-                          <span className="text-primary">{idx + 1}.</span>
-                          <span>{step}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    {!isActive ? (
-                      <Button
-                        onClick={() => activateChannel(channel.name, channel.category)}
-                        disabled={isLoading}
-                        className="flex-1"
-                      >
-                        {isLoading ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Zap className="w-4 h-4 mr-2" />
-                        )}
-                        Activate
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={() => deactivateChannel(channel.name)}
-                        disabled={isLoading}
-                        variant="destructive"
-                        className="flex-1"
-                      >
-                        {isLoading ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
+                    <Button 
+                      onClick={() => toggleChannel(channel.id)}
+                      disabled={isLoading}
+                      className={`w-full ${isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : isActive ? (
+                        <>
                           <XCircle className="w-4 h-4 mr-2" />
-                        )}
-                        Stop Channel
-                      </Button>
-                    )}
-                    {channel.zapierTemplate && (
-                      <Button
-                        variant="outline"
-                        onClick={() => window.open(channel.zapierTemplate, '_blank')}
-                      >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Zapier
-                      </Button>
-                    )}
+                          Stop Channel
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Activate Channel
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -380,56 +370,17 @@ export default function TrafficChannels() {
           })}
         </div>
 
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>About Zapier Automation</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p>
-              <strong>What is Zapier?</strong> Zapier connects your apps and automates workflows. 
-              It's like hiring a virtual assistant that works 24/7 to post your affiliate links.
-            </p>
+        {!isAutopilotActive && (
+          <Alert className="mt-8 border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription>
+              <strong>Autopilot is not active.</strong> Go to Dashboard and launch autopilot to enable automated traffic generation across all channels.
+            </AlertDescription>
+          </Alert>
+        )}
+      </main>
 
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-semibold mb-2">Free Plan</h4>
-                <p className="text-sm text-muted-foreground">
-                  5 Zaps (automations)<br />
-                  100 tasks/month<br />
-                  15-minute updates
-                </p>
-              </div>
-              <div className="p-4 bg-primary/10 rounded-lg">
-                <h4 className="font-semibold mb-2">Starter ($19.99/mo)</h4>
-                <p className="text-sm text-muted-foreground">
-                  20 Zaps<br />
-                  750 tasks/month<br />
-                  Best for these 8 channels
-                </p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg">
-                <h4 className="font-semibold mb-2">Professional ($49/mo)</h4>
-                <p className="text-sm text-muted-foreground">
-                  Unlimited Zaps<br />
-                  2,000 tasks/month<br />
-                  For scaling traffic
-                </p>
-              </div>
-            </div>
-
-            <Alert>
-              <TrendingUp className="h-4 w-4" />
-              <AlertDescription>
-                <strong>ROI Example:</strong> $19.99/mo Zapier + 8 channels = 2,400+ monthly visitors
-                <br />
-                At 2% conversion rate with $50 average commission = $2,400/month revenue
-                <br />
-                <strong>Net Profit: ~$2,380/month</strong>
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      </div>
+      <Footer />
     </div>
   );
 }
