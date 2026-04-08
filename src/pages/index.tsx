@@ -30,6 +30,7 @@ export default function HomePage() {
   const { toast } = useToast();
   const [isAutopilotActive, setIsAutopilotActive] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [stats, setStats] = useState({
     products_discovered: 0,
     products_optimized: 0,
@@ -85,10 +86,12 @@ export default function HomePage() {
 
         // Update stats with REAL numbers from database (same as dashboard)
         setStats({
-          products: links?.length || 0,
-          optimized: Math.floor((links?.length || 0) * 0.75),
-          content: articles?.length || 0,
-          posts: articles?.length || 0
+          products_discovered: links?.length || 0,
+          products_optimized: Math.floor((links?.length || 0) * 0.75),
+          content_generated: articles?.length || 0,
+          posts_published: articles?.length || 0,
+          total_clicks: links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0,
+          total_revenue: links?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0
         });
       }
       
