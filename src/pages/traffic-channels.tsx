@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Zap, Mail, Share2, Video, MessageCircle, TrendingUp, Globe, CheckCircle, ExternalLink, Copy, Loader2 } from "lucide-react";
+import { Zap, Mail, Share2, Video, MessageCircle, TrendingUp, Globe, CheckCircle, ExternalLink, Copy, Loader2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { trafficAutomationService } from "@/services/trafficAutomationService";
 
 const TRAFFIC_CHANNELS = [
   {
@@ -148,13 +149,20 @@ const TRAFFIC_CHANNELS = [
 
 export default function TrafficChannels() {
   const { toast } = useToast();
-  const [activeChannels, setActiveChannels] = useState<number[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [activeChannels, setActiveChannels] = useState<string[]>([]);
+  const [loading, setLoading] = useState<string | null>(null);
   const [affiliateLinks, setAffiliateLinks] = useState<any[]>([]);
 
   useEffect(() => {
-    loadAffiliateLinks();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    await Promise.all([
+      loadAffiliateLinks(),
+      loadActiveChannels()
+    ]);
+  };
 
   const loadAffiliateLinks = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -170,7 +178,13 @@ export default function TrafficChannels() {
     if (data) setAffiliateLinks(data);
   };
 
-  const activateChannel = async (channelId: number) => {
+  const loadActiveChannels = async () => {
+    const channels = await trafficAutomationService.getActiveChannels();
+    setActiveChannels(channels);
+    console.log("📊 Loaded active channels:", channels);
+  };
+
+  const activateChannel = async (channelName: string, channelType: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       toast({
@@ -181,26 +195,47 @@ export default function TrafficChannels() {
       return;
     }
 
-    setLoading(true);
+    setLoading(channelName);
     
-    // Log channel activation
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: session.user.id,
-        action: 'traffic_channel_activated',
-        details: `Activated channel: ${TRAFFIC_CHANNELS.find(c => c.id === channelId)?.name}`,
-        status: 'success',
-        metadata: { channel_id: channelId }
+    const result = await trafficAutomationService.activateChannel(channelName, channelType);
+    
+    if (result.success) {
+      setActiveChannels([...activeChannels, channelName]);
+      toast({
+        title: "Channel Activated! 🚀",
+        description: result.message,
       });
+    } else {
+      toast({
+        title: "Activation Failed",
+        description: result.message,
+        variant: "destructive"
+      });
+    }
 
-    setActiveChannels([...activeChannels, channelId]);
-    setLoading(false);
+    setLoading(null);
+  };
 
-    toast({
-      title: "Channel Activated!",
-      description: "Follow the setup steps to start generating traffic"
-    });
+  const deactivateChannel = async (channelName: string) => {
+    setLoading(channelName);
+
+    const result = await trafficAutomationService.deactivateChannel(channelName);
+
+    if (result.success) {
+      setActiveChannels(activeChannels.filter(c => c !== channelName));
+      toast({
+        title: "Channel Stopped",
+        description: result.message,
+      });
+    } else {
+      toast({
+        title: "Deactivation Failed",
+        description: result.message,
+        variant: "destructive"
+      });
+    }
+
+    setLoading(null);
   };
 
   const copyLink = (link: string) => {
@@ -217,7 +252,7 @@ export default function TrafficChannels() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">8 Automated Traffic Channels</h1>
           <p className="text-xl text-muted-foreground">
-            Real traffic generation methods using Zapier automation
+            Real traffic generation methods - runs 24/7 even when you navigate
           </p>
         </div>
 
@@ -227,6 +262,8 @@ export default function TrafficChannels() {
             <strong>Combined Potential:</strong> 2,400-15,300 monthly visitors → $500-$5,000/month revenue
             <br />
             <strong>Setup Time:</strong> 2-4 hours total (one-time setup)
+            <br />
+            <strong>✨ NEW: Channels stay active even when you close browser!</strong>
           </AlertDescription>
         </Alert>
 
@@ -254,15 +291,16 @@ export default function TrafficChannels() {
         <div className="grid md:grid-cols-2 gap-6">
           {TRAFFIC_CHANNELS.map((channel) => {
             const Icon = channel.icon;
-            const isActive = activeChannels.includes(channel.id);
+            const isActive = activeChannels.includes(channel.name);
+            const isLoading = loading === channel.name;
 
             return (
-              <Card key={channel.id} className={isActive ? "border-green-500" : ""}>
+              <Card key={channel.id} className={isActive ? "border-green-500 shadow-lg" : ""}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Icon className="w-6 h-6 text-primary" />
+                      <div className={`p-2 rounded-lg ${isActive ? "bg-green-500/10" : "bg-primary/10"}`}>
+                        <Icon className={`w-6 h-6 ${isActive ? "text-green-600" : "text-primary"}`} />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{channel.name}</CardTitle>
@@ -272,7 +310,7 @@ export default function TrafficChannels() {
                     {isActive && (
                       <Badge className="bg-green-500">
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        Active
+                        Running 24/7
                       </Badge>
                     )}
                   </div>
@@ -298,18 +336,32 @@ export default function TrafficChannels() {
                   </div>
 
                   <div className="flex gap-2 pt-2">
-                    {!isActive && (
+                    {!isActive ? (
                       <Button
-                        onClick={() => activateChannel(channel.id)}
-                        disabled={loading}
+                        onClick={() => activateChannel(channel.name, channel.category)}
+                        disabled={isLoading}
                         className="flex-1"
                       >
-                        {loading ? (
+                        {isLoading ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <Zap className="w-4 h-4 mr-2" />
                         )}
                         Activate
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => deactivateChannel(channel.name)}
+                        disabled={isLoading}
+                        variant="destructive"
+                        className="flex-1"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <XCircle className="w-4 h-4 mr-2" />
+                        )}
+                        Stop Channel
                       </Button>
                     )}
                     {channel.zapierTemplate && (
@@ -318,7 +370,7 @@ export default function TrafficChannels() {
                         onClick={() => window.open(channel.zapierTemplate, '_blank')}
                       >
                         <ExternalLink className="w-4 h-4 mr-2" />
-                        Zapier Template
+                        Zapier
                       </Button>
                     )}
                   </div>

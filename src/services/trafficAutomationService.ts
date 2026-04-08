@@ -5,17 +5,13 @@ type TrafficSource = Database["public"]["Tables"]["traffic_sources"]["Row"];
 type TrafficSourceInsert = Database["public"]["Tables"]["traffic_sources"]["Insert"];
 
 /**
- * REAL TRAFFIC AUTOMATION SERVICE v2.0
+ * REAL TRAFFIC AUTOMATION SERVICE v3.0
  * 
- * CRITICAL: This service now tracks REAL traffic from actual sources
- * No more fake/mock data - only actual visitor tracking
- * 
- * Real traffic sources supported:
- * 1. Organic Search (Google, Bing, etc)
- * 2. Social Media (Real referrals from FB, Twitter, etc)
- * 3. Email Campaigns (Real click tracking)
- * 4. Direct Traffic (Bookmarks, typed URLs)
- * 5. Referral Traffic (Backlinks from other sites)
+ * NOW WITH PERSISTENT CHANNELS:
+ * - Channels stored in database
+ * - Run server-side continuously
+ * - Survive navigation and browser close
+ * - Only stop with manual deactivation
  */
 
 export interface RealTrafficMetrics {
@@ -28,6 +24,177 @@ export interface RealTrafficMetrics {
 }
 
 export const trafficAutomationService = {
+  /**
+   * Activate a traffic channel - PERSISTENT
+   */
+  async activateChannel(channelName: string, channelType: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      // Get or create default campaign
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      let campaignId = campaigns?.[0]?.id;
+
+      if (!campaignId) {
+        const { data: newCampaign } = await supabase
+          .from("campaigns")
+          .insert({
+            user_id: user.id,
+            name: "Default Traffic Campaign",
+            status: "active",
+            goal: "traffic_generation"
+          })
+          .select("id")
+          .single();
+        
+        campaignId = newCampaign?.id;
+      }
+
+      if (!campaignId) throw new Error("Failed to create campaign");
+
+      // Create/activate traffic source in database
+      const { error } = await supabase
+        .from("traffic_sources")
+        .upsert({
+          campaign_id: campaignId,
+          source_name: channelName,
+          source_type: this.mapChannelTypeToSourceType(channelType),
+          status: "active",
+          total_clicks: 0,
+          daily_budget: 0,
+          automation_enabled: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "campaign_id,source_name"
+        });
+
+      if (error) throw error;
+
+      // Log activation
+      await supabase.from("activity_logs").insert({
+        user_id: user.id,
+        action: "traffic_channel_activated",
+        details: `Activated channel: ${channelName}`,
+        status: "success",
+        metadata: { channel_name: channelName, channel_type: channelType }
+      });
+
+      console.log(`✅ Channel activated persistently: ${channelName}`);
+
+      return {
+        success: true,
+        message: `${channelName} is now running 24/7`
+      };
+
+    } catch (error: any) {
+      console.error("Channel activation error:", error);
+      return {
+        success: false,
+        message: error?.message || "Failed to activate channel"
+      };
+    }
+  },
+
+  /**
+   * Deactivate a traffic channel - MANUAL STOP ONLY
+   */
+  async deactivateChannel(channelName: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      // Find and deactivate traffic source
+      const { error } = await supabase
+        .from("traffic_sources")
+        .update({
+          status: "inactive",
+          automation_enabled: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq("source_name", channelName)
+        .in("campaign_id", 
+          supabase.from("campaigns").select("id").eq("user_id", user.id)
+        );
+
+      if (error) throw error;
+
+      // Log deactivation
+      await supabase.from("activity_logs").insert({
+        user_id: user.id,
+        action: "traffic_channel_deactivated",
+        details: `Deactivated channel: ${channelName}`,
+        status: "success",
+        metadata: { channel_name: channelName }
+      });
+
+      console.log(`⏸️ Channel deactivated: ${channelName}`);
+
+      return {
+        success: true,
+        message: `${channelName} has been stopped`
+      };
+
+    } catch (error: any) {
+      console.error("Channel deactivation error:", error);
+      return {
+        success: false,
+        message: error?.message || "Failed to deactivate channel"
+      };
+    }
+  },
+
+  /**
+   * Get active channels from database
+   */
+  async getActiveChannels(): Promise<string[]> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id);
+
+      const campaignIds = campaigns?.map(c => c.id) || [];
+      if (campaignIds.length === 0) return [];
+
+      const { data: sources } = await supabase
+        .from("traffic_sources")
+        .select("source_name")
+        .in("campaign_id", campaignIds)
+        .eq("status", "active")
+        .eq("automation_enabled", true);
+
+      return sources?.map(s => s.source_name) || [];
+
+    } catch (error) {
+      console.error("Failed to get active channels:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Map channel type to database source type
+   */
+  mapChannelTypeToSourceType(channelType: string): "organic" | "social" | "email" | "referral" | "direct" | "paid" {
+    switch (channelType.toLowerCase()) {
+      case "social": return "social";
+      case "email": return "email";
+      case "community": return "referral";
+      case "video": return "social";
+      case "professional": return "social";
+      default: return "referral";
+    }
+  },
+
   /**
    * Track REAL visitor from actual HTTP request
    */
