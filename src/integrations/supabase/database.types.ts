@@ -1206,6 +1206,62 @@ export type Database = {
           },
         ]
       }
+      generated_content: {
+        Row: {
+          body: string
+          campaign_id: string | null
+          category: string | null
+          clicks: number | null
+          created_at: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          type: string
+          updated_at: string | null
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          body: string
+          campaign_id?: string | null
+          category?: string | null
+          clicks?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title: string
+          type: string
+          updated_at?: string | null
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          body?: string
+          campaign_id?: string | null
+          category?: string | null
+          clicks?: number | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_content_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geo_routing_rules: {
         Row: {
           country_code: string
