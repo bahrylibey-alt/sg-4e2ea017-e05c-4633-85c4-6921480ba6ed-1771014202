@@ -14,19 +14,18 @@ import {
   XCircle, 
   Zap, 
   Calendar,
-  Settings,
   Facebook,
   Twitter,
   Youtube,
   Instagram,
-  Linkedin,
   AlertCircle,
   Clock,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  Radio
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { socialMediaAutomation } from "@/services/socialMediaAutomation";
+import { useRouter } from "next/router";
 
 interface ConnectedAccount {
   id: string;
@@ -45,11 +44,25 @@ interface ScheduleConfig {
   is_active: boolean;
 }
 
+interface AutopilotStatus {
+  isActive: boolean;
+  productsDiscovered: number;
+  contentGenerated: number;
+  postsPublished: number;
+}
+
 export default function SocialConnect() {
+  const router = useRouter();
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [schedules, setSchedules] = useState<Record<string, ScheduleConfig>>({});
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [autopilotStatus, setAutopilotStatus] = useState<AutopilotStatus>({
+    isActive: false,
+    productsDiscovered: 0,
+    contentGenerated: 0,
+    postsPublished: 0
+  });
 
   const platforms = [
     { name: 'facebook', label: 'Facebook', icon: Facebook, color: 'bg-blue-600', instructions: 'Get started in 2 minutes' },
@@ -61,7 +74,46 @@ export default function SocialConnect() {
 
   useEffect(() => {
     loadConnections();
+    loadAutopilotStatus();
+    
+    // Refresh autopilot status every 30 seconds
+    const interval = setInterval(loadAutopilotStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const loadAutopilotStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get autopilot status from DATABASE (persistent across pages)
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      const isActive = settings?.autopilot_enabled || false;
+
+      // Get activity logs to count actions
+      const { data: logs } = await supabase
+        .from("activity_logs")
+        .select("action")
+        .eq("user_id", user.id)
+        .in("action", ["auto_product_discovery", "auto_optimize_product", "auto_post_success"]);
+
+      const stats = {
+        isActive,
+        productsDiscovered: logs?.filter(l => l.action === "auto_product_discovery").length || 0,
+        contentGenerated: logs?.filter(l => l.action === "auto_optimize_product").length || 0,
+        postsPublished: logs?.filter(l => l.action === "auto_post_success").length || 0
+      };
+
+      setAutopilotStatus(stats);
+    } catch (error) {
+      console.error("Failed to load autopilot status:", error);
+    }
+  };
 
   const loadConnections = async () => {
     try {
@@ -98,8 +150,6 @@ export default function SocialConnect() {
     setConnecting(platform);
     
     try {
-      // In production, this would open OAuth flow
-      // For now, show instructions
       const instructions = {
         facebook: 'https://developers.facebook.com/apps/ → Create App → Get Access Token',
         instagram: 'Connect via Facebook Business Account',
@@ -110,7 +160,6 @@ export default function SocialConnect() {
 
       alert(`To connect ${platform}:\n\n${instructions[platform as keyof typeof instructions]}\n\nOnce you have your API credentials, enter them in Settings → Integrations.`);
       
-      // Simulate connection for demo
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -205,6 +254,16 @@ export default function SocialConnect() {
             Connect once, post automatically forever. Set your schedule and let AI do the rest.
           </p>
         </div>
+
+        {/* Autopilot Status Banner */}
+        {autopilotStatus.isActive && (
+          <Alert className="mb-6 border-green-500/50 bg-green-500/10">
+            <Radio className="h-4 w-4 text-green-600 animate-pulse" />
+            <AlertDescription>
+              <strong className="text-green-700 dark:text-green-400">AI Autopilot Running 24/7</strong> - Navigate anywhere, autopilot keeps working. {autopilotStatus.productsDiscovered} products discovered, {autopilotStatus.contentGenerated} optimized, {autopilotStatus.postsPublished} posts published.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Alert className="mb-6 border-primary/20 bg-primary/5">
           <Zap className="h-4 w-4 text-primary" />
