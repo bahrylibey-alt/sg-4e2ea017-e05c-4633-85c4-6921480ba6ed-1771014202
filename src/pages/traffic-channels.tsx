@@ -245,18 +245,25 @@ export default function TrafficChannels() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-4 h-4 rounded-full ${isAutopilotActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                <CardTitle className="text-xl">AI Autopilot Status</CardTitle>
+                <div>
+                  <CardTitle className="text-xl">AI Autopilot Status</CardTitle>
+                  <CardDescription className="mt-1">
+                    {isAutopilotActive 
+                      ? "Autopilot is running - traffic channels will auto-post content 24/7"
+                      : "Launch autopilot from Dashboard to enable automated traffic generation"
+                    }
+                  </CardDescription>
+                </div>
               </div>
-              <Badge variant={isAutopilotActive ? "default" : "secondary"} className={isAutopilotActive ? 'bg-green-500' : ''}>
-                {isAutopilotActive ? '🟢 RUNNING 24/7' : '⚫ STOPPED'}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Badge variant={isAutopilotActive ? "default" : "secondary"} className={isAutopilotActive ? 'bg-green-500' : ''}>
+                  {isAutopilotActive ? '🟢 ACTIVE' : '⚫ STOPPED'}
+                </Badge>
+                <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+                  Go to Dashboard
+                </Button>
+              </div>
             </div>
-            <CardDescription>
-              {isAutopilotActive 
-                ? "Autopilot is active - traffic channels will auto-activate and post content"
-                : "Launch autopilot from Dashboard to enable automated traffic generation"
-              }
-            </CardDescription>
           </CardHeader>
         </Card>
 
