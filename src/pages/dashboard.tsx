@@ -262,10 +262,9 @@ export default function Dashboard() {
 
         case 'trend_scanner':
           if ('scanTrendingProducts' in smartProductDiscovery) {
-            // @ts-expect-error
+            // @ts-expect-error: dynamic method checking for optional service methods
             result = await smartProductDiscovery.scanTrendingProducts('tech', 'amazon');
           } else if ('saveTrendingProducts' in smartProductDiscovery) {
-            // @ts-expect-error
             result = await smartProductDiscovery.saveTrendingProducts([{
               productName: 'Trending Product',
               asin: 'B0TEST123',
