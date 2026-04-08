@@ -15,39 +15,69 @@ import {
   Loader2,
   Activity,
   Target,
-  Users
+  Users,
+  StopCircle
 } from "lucide-react";
 import { autopilotEngine } from "@/services/autopilotEngine";
 import { productCatalogService } from "@/services/productCatalogService";
 import { realTimeAnalytics } from "@/services/realTimeAnalytics";
-import { intelligentTrafficRouter } from "@/services/intelligentTrafficRouter";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export function AutopilotControl() {
   const [stats, setStats] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [isAutopilotActive, setIsAutopilotActive] = useState(false);
   const [productPerformance, setProductPerformance] = useState<any[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
+    loadAutopilotStatus();
     loadStats();
     loadAnalytics();
     
     // Refresh analytics every 30 seconds
-    const interval = setInterval(loadAnalytics, 30000);
+    const interval = setInterval(() => {
+      loadAutopilotStatus();
+      loadAnalytics();
+    }, 30000);
+    
     return () => clearInterval(interval);
   }, []);
+
+  const loadAutopilotStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsAutopilotActive(false);
+        return;
+      }
+
+      // Get autopilot status from database
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      const isEnabled = settings?.autopilot_enabled || false;
+      setIsAutopilotActive(isEnabled);
+      
+      console.log("🔍 Autopilot status loaded:", isEnabled ? "ACTIVE" : "INACTIVE");
+    } catch (error) {
+      console.error("Failed to load autopilot status:", error);
+      setIsAutopilotActive(false);
+    }
+  };
 
   const loadStats = async () => {
     try {
       const data = await autopilotEngine.getStatus();
       setStats(data);
-      setIsAutopilotActive(data?.activeCampaigns > 0);
     } catch (error) {
       console.error("Failed to load stats:", error);
-      // Set default values on error
       setStats({
         totalClicks: 0,
         totalConversions: 0,
@@ -86,27 +116,20 @@ export function AutopilotControl() {
   const launchAutopilot = async () => {
     setIsLaunching(true);
     try {
-      // Get top converting products
-      const products = productCatalogService.getHighConvertingProducts(10);
-      const productUrls = products.slice(0, 5).map(p => p.url);
-
-      // Launch autopilot campaign
       const result = await autopilotEngine.oneClickLaunch();
 
-      // Activate intelligent traffic routing
-      if (result.campaignId) {
-        // We handle routing internally in the engine now, but keep this hook for future extensions
-        console.log("Autopilot launched with campaign:", result.campaignId);
+      if (result.success) {
+        toast({
+          title: "🚀 Autopilot Launched Successfully!",
+          description: `System activated and running on server 24/7. Navigate anywhere - it keeps working!`,
+        });
+
+        await loadAutopilotStatus();
+        await loadStats();
+        await loadAnalytics();
+      } else {
+        throw new Error(result.message);
       }
-
-      toast({
-        title: "🚀 Autopilot Launched Successfully!",
-        description: `System activated with ${result.tasksCreated || 8} automation tasks. Traffic generation starting now!`,
-      });
-
-      await loadStats();
-      await loadAnalytics();
-      setIsAutopilotActive(true);
     } catch (error: any) {
       toast({
         title: "Launch Failed",
@@ -115,6 +138,33 @@ export function AutopilotControl() {
       });
     } finally {
       setIsLaunching(false);
+    }
+  };
+
+  const stopAutopilot = async () => {
+    setIsStopping(true);
+    try {
+      const result = await autopilotEngine.stopAutopilot();
+
+      if (result.success) {
+        toast({
+          title: "⏸️ Autopilot Stopped",
+          description: "All automation has been paused. Click Launch to restart.",
+        });
+
+        await loadAutopilotStatus();
+        await loadStats();
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Stop Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsStopping(false);
     }
   };
 
@@ -166,14 +216,14 @@ export function AutopilotControl() {
                 Autopilot Control Center
               </CardTitle>
               <CardDescription className="mt-2">
-                One-click automated traffic generation and sales optimization
+                Server-side automation - runs 24/7 even when you close the browser
               </CardDescription>
             </div>
             <Badge variant={isAutopilotActive ? "default" : "secondary"} className="text-sm px-3 py-1">
               {isAutopilotActive ? (
-                <><Radio className="h-3 w-3 mr-1 animate-pulse" /> ACTIVE</>
+                <><Radio className="h-3 w-3 mr-1 animate-pulse" /> RUNNING ON SERVER</>
               ) : (
-                <>INACTIVE</>
+                <>STOPPED</>
               )}
             </Badge>
           </div>
@@ -230,34 +280,89 @@ export function AutopilotControl() {
             </div>
           </div>
 
-          {/* Launch Button */}
-          <div className="pt-4 border-t">
-            <Button
-              onClick={launchAutopilot}
-              disabled={isLaunching}
-              size="lg"
-              className="w-full text-lg h-14 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-            >
-              {isLaunching ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Launching Autopilot...
-                </>
-              ) : isAutopilotActive ? (
-                <>
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  Launch New Autopilot Campaign
-                </>
-              ) : (
-                <>
-                  <Rocket className="mr-2 h-5 w-5" />
-                  Launch Autopilot (One-Click)
-                </>
-              )}
-            </Button>
-            <p className="text-xs text-center text-muted-foreground mt-2">
-              Automatically generates affiliate links, activates traffic sources, and optimizes for conversions
-            </p>
+          {/* Control Buttons */}
+          <div className="pt-4 border-t space-y-3">
+            {!isAutopilotActive ? (
+              <>
+                <Button
+                  onClick={launchAutopilot}
+                  disabled={isLaunching}
+                  size="lg"
+                  className="w-full text-lg h-14 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                >
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Launching Autopilot...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="mr-2 h-5 w-5" />
+                      Launch Autopilot (One-Click)
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Starts server-side automation that runs 24/7 - even when you close your browser
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-3">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span className="font-semibold">Autopilot is Running on Server</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    ✅ Navigate anywhere - autopilot keeps running<br/>
+                    ✅ Close browser - autopilot continues working<br/>
+                    ✅ Auto-generates content, optimizes products, drives traffic
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={launchAutopilot}
+                    disabled={isLaunching}
+                    size="lg"
+                    variant="outline"
+                    className="h-12"
+                  >
+                    {isLaunching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Boosting...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="mr-2 h-4 w-4" />
+                        Boost Campaign
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    onClick={stopAutopilot}
+                    disabled={isStopping}
+                    size="lg"
+                    variant="destructive"
+                    className="h-12"
+                  >
+                    {isStopping ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Stopping...
+                      </>
+                    ) : (
+                      <>
+                        <StopCircle className="mr-2 h-4 w-4" />
+                        Stop Autopilot
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -342,7 +447,7 @@ export function AutopilotControl() {
                 <div className="space-y-2">
                   {safeAnalytics.topTrafficSources.map((source: any, index: number) => {
                     const sourceClicks = safeNum(source.clicks);
-                    const totalClicks = safeNum(safeAnalytics.totalClicks, 1); // Avoid division by zero
+                    const totalClicks = safeNum(safeAnalytics.totalClicks, 1);
                     const percentage = (sourceClicks / totalClicks) * 100;
                     
                     return (
@@ -409,8 +514,8 @@ export function AutopilotControl() {
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">4</div>
               <div>
-                <h4 className="font-semibold">Monitor & Optimize</h4>
-                <p className="text-sm text-muted-foreground">AI continuously monitors performance and auto-adjusts for maximum ROI</p>
+                <h4 className="font-semibold">Runs 24/7 on Server</h4>
+                <p className="text-sm text-muted-foreground">Continues working even when you close browser - truly hands-free automation</p>
               </div>
             </div>
           </div>
