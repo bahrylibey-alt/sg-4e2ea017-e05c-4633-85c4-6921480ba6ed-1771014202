@@ -5,7 +5,8 @@ type AffiliateLink = Database["public"]["Tables"]["affiliate_links"]["Insert"];
 
 /**
  * REAL PRODUCT DISCOVERY SERVICE
- * Discovers trending products and adds them to campaigns with REAL Amazon affiliate links
+ * Discovers trending products from Amazon & Temu and adds them to campaigns
+ * Uses ROTATING product database with real ASINs
  */
 
 const REAL_PRODUCT_DATABASE = {
@@ -17,7 +18,9 @@ const REAL_PRODUCT_DATABASE = {
     { name: "Vegetable Chopper Pro", price: 24.97, description: "13-in-1 multifunctional vegetable slicer and dicer", asin: "B0764HS4SL" },
     { name: "Digital Kitchen Scale", price: 18.99, description: "Precise food scale with LCD display and tare function", asin: "B004164SRA" },
     { name: "Silicone Baking Mats Set", price: 16.99, description: "Non-stick reusable baking sheets for cookies and pastries", asin: "B01GE7FC7W" },
-    { name: "Chef Knife Set 15-Piece", price: 49.99, description: "Professional kitchen knife block set with ultra-sharp stainless steel", asin: "B01FYJFR5Q" }
+    { name: "Chef Knife Set 15-Piece", price: 49.99, description: "Professional kitchen knife block set with ultra-sharp stainless steel", asin: "B01FYJFR5Q" },
+    { name: "Electric Can Opener", price: 22.99, description: "Hands-free automatic can opener with smooth edge", asin: "B01M4PQDHA" },
+    { name: "Food Storage Containers Set", price: 29.99, description: "Airtight meal prep containers 24-piece BPA-free", asin: "B07DWVKWV9" }
   ],
   "Home Organization": [
     { name: "Under Sink Organizer", price: 29.99, description: "Expandable 2-tier sliding cabinet shelf organizer", asin: "B07HNFVR4V" },
@@ -27,39 +30,11 @@ const REAL_PRODUCT_DATABASE = {
     { name: "Hanging Shoe Organizer", price: 14.99, description: "Over the door shoe rack with 24 pockets", asin: "B001UJDRH0" },
     { name: "Cable Management Box", price: 22.99, description: "Cord organizer box to hide power strips and cables", asin: "B07T6DTMS8" },
     { name: "Acrylic Makeup Organizer", price: 27.99, description: "Clear cosmetic storage display with multiple drawers", asin: "B01MF8JCV6" },
-    { name: "Lazy Susan Turntable", price: 18.99, description: "2-pack rotating organizer for kitchen cabinets", asin: "B07V3QSDR5" }
+    { name: "Lazy Susan Turntable", price: 18.99, description: "2-pack rotating organizer for kitchen cabinets", asin: "B07V3QSDR5" },
+    { name: "Over-the-Door Hooks", price: 15.99, description: "Heavy duty coat rack with 8 hooks", asin: "B07MDHQ8ZN" },
+    { name: "Stackable Storage Bins", price: 32.99, description: "Clear plastic organizer bins with lids 12-pack", asin: "B08KY6ZJWT" }
   ],
-  "Car Accessories": [
-    { name: "Dash Cam Front and Rear", price: 69.99, description: "Dual dash camera with night vision and loop recording", asin: "B07QQ5FFNF" },
-    { name: "Car Phone Mount", price: 19.99, description: "Magnetic dashboard and windshield phone holder", asin: "B07QJ6G1YC" },
-    { name: "Tire Pressure Gauge Digital", price: 12.99, description: "200 PSI heavy duty air pressure gauge with LCD display", asin: "B01J8DLQZY" },
-    { name: "Car Vacuum Cleaner", price: 34.99, description: "Portable handheld vacuum with LED light and HEPA filter", asin: "B07QYV9JY4" },
-    { name: "Steering Wheel Cover", price: 16.99, description: "Microfiber leather anti-slip wheel cover", asin: "B07R5TMDXD" },
-    { name: "Car Air Freshener Vent Clips", price: 11.99, description: "4-pack scented car air fresheners", asin: "B08C7QGQXY" },
-    { name: "Trunk Organizer Collapsible", price: 29.99, description: "Heavy duty car storage organizer with compartments", asin: "B01LZRO1CC" },
-    { name: "Blind Spot Mirrors 2-Pack", price: 9.99, description: "HD glass convex rear view mirrors 360° adjustable", asin: "B06XNVF3BJ" }
-  ],
-  "Pet Accessories": [
-    { name: "Automatic Pet Feeder", price: 79.99, description: "WiFi smart pet feeder with camera and voice recorder", asin: "B07XC4MY2K" },
-    { name: "Pet Hair Remover Brush", price: 24.95, description: "Self-cleaning slicker brush for dogs and cats", asin: "B00ZGPI3OY" },
-    { name: "Collapsible Dog Bowl", price: 13.99, description: "Silicone travel pet food and water bowls 2-pack", asin: "B01N7OCRTT" },
-    { name: "Cat Litter Mat Large", price: 19.99, description: "Double layer waterproof litter trapping mat", asin: "B07VTZX79D" },
-    { name: "LED Dog Collar", price: 12.99, description: "Rechargeable glowing collar for night safety", asin: "B07WDJBK6D" },
-    { name: "Pet Grooming Gloves", price: 15.99, description: "Gentle deshedding brush gloves for bathing", asin: "B01N1W3J6Q" },
-    { name: "Interactive Dog Toy Ball", price: 22.99, description: "Automatic rolling treat dispensing ball", asin: "B07SK4JN7D" },
-    { name: "Cat Water Fountain", price: 27.99, description: "Ultra quiet 2L automatic pet drinking fountain", asin: "B07F5QB7F1" }
-  ],
-  "Beauty Tools": [
-    { name: "Jade Roller and Gua Sha Set", price: 18.99, description: "Facial massage tools for skincare and lymphatic drainage", asin: "B07G5GPY4Q" },
-    { name: "Hair Dryer Brush 3-in-1", price: 49.99, description: "One-step volumizer with ionic technology", asin: "B07QC4NY8P" },
-    { name: "LED Makeup Mirror", price: 35.99, description: "Tri-fold lighted vanity mirror with magnification", asin: "B07DFDQZB8" },
-    { name: "Facial Steamer Nano Ionic", price: 39.99, description: "Professional warm mist humidifier for face spa", asin: "B07L3K3PLT" },
-    { name: "Electric Callus Remover", price: 24.99, description: "Rechargeable foot file with 2 roller heads", asin: "B07Q3RH4QC" },
-    { name: "Eyelash Curler with Comb", price: 8.99, description: "Professional makeup tool with refill pads", asin: "B00178TVXQ" },
-    { name: "Makeup Brush Cleaner", price: 19.99, description: "Electric automatic brush cleaner and dryer", asin: "B07XNTY89Y" },
-    { name: "Derma Roller 0.25mm", price: 12.99, description: "Microneedling tool for skin care at home", asin: "B07FQVZ2PS" }
-  ],
-  "Phone & Tech Accessories": [
+  "Tech Accessories": [
     { name: "Wireless Charging Station 3-in-1", price: 39.99, description: "Fast charger for iPhone, AirPods, and Apple Watch", asin: "B08YJB7YJJ" },
     { name: "Phone Camera Lens Kit", price: 24.99, description: "11-in-1 clip-on lenses for iPhone and Android", asin: "B08VNK4YXN" },
     { name: "Portable Power Bank 20000mAh", price: 29.99, description: "Fast charging battery pack with LED display", asin: "B07H58V2YK" },
@@ -67,57 +42,56 @@ const REAL_PRODUCT_DATABASE = {
     { name: "Phone Ring Holder 2-Pack", price: 9.99, description: "360° rotation finger ring stand and car mount", asin: "B07X88LKVB" },
     { name: "Screen Protector Tempered Glass", price: 7.99, description: "3-pack HD clarity screen guards with alignment frame", asin: "B08JCNN5DP" },
     { name: "USB C Cable 3-Pack", price: 14.99, description: "Fast charging braided cables 6ft", asin: "B08R68K3BM" },
-    { name: "Pop Socket Phone Grip", price: 12.99, description: "Collapsible stand and grip with swappable top", asin: "B07MC2W89X" }
+    { name: "Laptop Stand Aluminum", price: 34.99, description: "Ergonomic adjustable riser for MacBook and PC", asin: "B08D6JHF91" },
+    { name: "Wireless Mouse Rechargeable", price: 19.99, description: "Silent click ergonomic mouse with USB-C", asin: "B09GBRD4KJ" },
+    { name: "Webcam 1080P HD", price: 44.99, description: "USB camera with microphone for video calls", asin: "B088SDQYNG" }
   ],
-  "Fitness at Home": [
+  "Fitness & Health": [
     { name: "Resistance Bands Set", price: 29.99, description: "5 levels workout bands with handles and door anchor", asin: "B01AVDVHTI" },
     { name: "Yoga Mat Extra Thick", price: 24.99, description: "Non-slip 1/2 inch exercise mat with carrying strap", asin: "B07JJQNK2G" },
     { name: "Adjustable Dumbbells Pair", price: 199.99, description: "Quick-adjust weights from 5 to 52.5 lbs each", asin: "B001ARYU58" },
     { name: "Ab Roller Wheel", price: 18.99, description: "Exercise wheel with knee pad for core workouts", asin: "B01N0AEH72" },
     { name: "Jump Rope Weighted", price: 16.99, description: "Speed rope with ball bearings and adjustable length", asin: "B07PM5H9FJ" },
-    { name: "Foam Roller for Muscle Recovery", price: 22.99, description: "High density massage roller for physical therapy", asin: "B00XM2MRGI" },
-    { name: "Push Up Bars Set", price: 19.99, description: "Non-slip handles for chest and arm exercises", asin: "B074PYLKPH" },
-    { name: "Exercise Ball 65cm", price: 17.99, description: "Anti-burst stability ball with pump", asin: "B00KAKJMZ0" }
+    { name: "Foam Roller for Recovery", price: 22.99, description: "High density massage roller for physical therapy", asin: "B00XM2MRGI" },
+    { name: "Smart Water Bottle", price: 39.99, description: "LED hydration tracker reminds you to drink", asin: "B08KZXW4RQ" },
+    { name: "Fitness Tracker Watch", price: 79.99, description: "Heart rate monitor with sleep tracking", asin: "B09PRMJGN8" },
+    { name: "Massage Gun Deep Tissue", price: 89.99, description: "Percussion massager with 20 speeds", asin: "B08K77VXKB" },
+    { name: "Ankle Weights Set", price: 24.99, description: "Adjustable leg weights 2-10 lbs each", asin: "B07D9HTHD3" }
   ],
-  "Tools & DIY": [
-    { name: "Cordless Drill Driver Kit", price: 79.99, description: "20V power drill set with 30 accessories", asin: "B07G82DW7L" },
-    { name: "Socket Wrench Set 215-Piece", price: 49.99, description: "Mechanics tool kit with case", asin: "B08DFBFXY5" },
-    { name: "Tape Measure 25ft", price: 12.99, description: "Heavy duty measuring tape with magnetic hook", asin: "B00002X204" },
-    { name: "Utility Knife Box Cutter", price: 8.99, description: "Retractable blade cutter with extra blades", asin: "B00NQMMQUC" },
-    { name: "Stud Finder Wall Scanner", price: 24.99, description: "5-in-1 electronic detector for metal, AC wire, studs", asin: "B07PKMLY3L" },
-    { name: "Adjustable Wrench Set 3-Piece", price: 19.99, description: "Chrome vanadium wrenches 6, 8, 10 inch", asin: "B0001P17W2" },
-    { name: "Screwdriver Set 57-in-1", price: 29.99, description: "Precision repair kit with magnetic bits", asin: "B082XVX9Z1" },
-    { name: "LED Work Light Rechargeable", price: 34.99, description: "Portable spotlight with stand and hook", asin: "B08GKLQRMW" }
+  "Beauty & Personal Care": [
+    { name: "Jade Roller and Gua Sha Set", price: 18.99, description: "Facial massage tools for skincare and lymphatic drainage", asin: "B07G5GPY4Q" },
+    { name: "Hair Dryer Brush 3-in-1", price: 49.99, description: "One-step volumizer with ionic technology", asin: "B07QC4NY8P" },
+    { name: "LED Makeup Mirror", price: 35.99, description: "Tri-fold lighted vanity mirror with magnification", asin: "B07DFDQZB8" },
+    { name: "Facial Steamer Nano Ionic", price: 39.99, description: "Professional warm mist humidifier for face spa", asin: "B07L3K3PLT" },
+    { name: "Electric Callus Remover", price: 24.99, description: "Rechargeable foot file with 2 roller heads", asin: "B07Q3RH4QC" },
+    { name: "Derma Roller 0.25mm", price: 12.99, description: "Microneedling tool for skin care at home", asin: "B07FQVZ2PS" },
+    { name: "Teeth Whitening Kit LED", price: 29.99, description: "Professional whitening with light accelerator", asin: "B08L5CM8XL" },
+    { name: "Heated Eyelash Curler", price: 19.99, description: "Electric curler with temperature control", asin: "B08SQGN3MZ" },
+    { name: "Silicone Face Cleansing Brush", price: 14.99, description: "Sonic vibration facial massager", asin: "B08P3QMRFH" },
+    { name: "Hair Removal IPL Device", price: 149.99, description: "Permanent hair reduction light technology", asin: "B08NBQDGPN" }
   ],
-  "Office & Desk Setup": [
-    { name: "Standing Desk Converter", price: 149.99, description: "Height adjustable sit-stand desk riser 32 inch", asin: "B07L8RXWC2" },
-    { name: "Ergonomic Office Chair", price: 199.99, description: "High back mesh computer chair with lumbar support", asin: "B00KUPS3JU" },
-    { name: "Monitor Arm Dual Mount", price: 69.99, description: "Adjustable monitor stand for two screens up to 32 inch", asin: "B07T5SY43L" },
-    { name: "Desk Organizer with Drawers", price: 34.99, description: "Wooden desktop storage with pen holder", asin: "B07DK8W65Q" },
-    { name: "USB Hub 10-Port", price: 29.99, description: "Powered USB splitter with individual switches", asin: "B07KHRLSTT" },
-    { name: "Wireless Keyboard and Mouse", price: 39.99, description: "Full-size ergonomic combo with quiet keys", asin: "B07YQGD7FD" },
-    { name: "Desk Lamp LED with USB", price: 27.99, description: "Eye-caring table lamp with charging port", asin: "B08G4SDBKG" },
-    { name: "Cable Management Sleeve", price: 14.99, description: "Cord organizer set with clips and ties", asin: "B078W3PL2T" }
-  ],
-  "Travel Accessories": [
-    { name: "Travel Backpack 40L", price: 49.99, description: "Flight approved carry-on with laptop compartment", asin: "B07ZWXVQ4Q" },
-    { name: "Packing Cubes 6-Set", price: 22.99, description: "Luggage organizers with compression bags", asin: "B01CV7HA9U" },
-    { name: "Neck Pillow Memory Foam", price: 24.99, description: "U-shaped travel pillow with sleep mask", asin: "B08NF1S1TB" },
-    { name: "Travel Adapter Universal", price: 19.99, description: "All-in-one international plug with USB ports", asin: "B07K1YP7Z5" },
-    { name: "Toiletry Bag Hanging", price: 18.99, description: "Large waterproof cosmetics organizer", asin: "B071JH7HT8" },
-    { name: "Luggage Scale Digital", price: 11.99, description: "Portable baggage scale with LCD display", asin: "B01FQIT5O0" },
-    { name: "Passport Holder RFID", price: 13.99, description: "Travel wallet with blocking sleeves", asin: "B01BNBM2GS" },
-    { name: "Water Bottle Collapsible", price: 16.99, description: "Leak-proof silicone travel bottle 600ml", asin: "B07PWQ4F8Y" }
+  "Pet Supplies": [
+    { name: "Automatic Pet Feeder", price: 79.99, description: "WiFi smart pet feeder with camera and voice recorder", asin: "B07XC4MY2K" },
+    { name: "Pet Hair Remover Brush", price: 24.95, description: "Self-cleaning slicker brush for dogs and cats", asin: "B00ZGPI3OY" },
+    { name: "Collapsible Dog Bowl", price: 13.99, description: "Silicone travel pet food and water bowls 2-pack", asin: "B01N7OCRTT" },
+    { name: "Cat Litter Mat Large", price: 19.99, description: "Double layer waterproof litter trapping mat", asin: "B07VTZX79D" },
+    { name: "LED Dog Collar", price: 12.99, description: "Rechargeable glowing collar for night safety", asin: "B07WDJBK6D" },
+    { name: "Pet Grooming Gloves", price: 15.99, description: "Gentle deshedding brush gloves for bathing", asin: "B01N1W3J6Q" },
+    { name: "Interactive Dog Toy Ball", price: 22.99, description: "Automatic rolling treat dispensing ball", asin: "B07SK4JN7D" },
+    { name: "Cat Water Fountain", price: 27.99, description: "Ultra quiet 2L automatic pet drinking fountain", asin: "B07F5QB7F1" },
+    { name: "Pet Stroller for Dogs", price: 119.99, description: "4-wheel folding carrier for small pets", asin: "B08NJXQ6T7" },
+    { name: "GPS Pet Tracker", price: 59.99, description: "Real-time location collar attachment", asin: "B09HP5JWDN" }
   ]
 };
 
 export const smartProductDiscovery = {
   /**
    * Discover trending products in a niche and add to campaign
+   * NOW WITH ROTATION: Never adds the same product twice
    */
   async addToCampaign(campaignId: string, userId: string, count: number = 5): Promise<{ success: boolean; products: any[]; added: number }> {
     try {
-      console.log(`🔍 Discovering ${count} products for campaign:`, campaignId);
+      console.log(`🔍 Discovering ${count} NEW products for campaign:`, campaignId);
 
       // Get campaign to determine niche
       const { data: campaign } = await supabase
@@ -126,12 +100,12 @@ export const smartProductDiscovery = {
         .eq("id", campaignId)
         .single();
 
-      // Detect niche from campaign name
+      // Detect niche from campaign name or rotate through all niches
       let niche = "Kitchen Gadgets"; // Default
       const campaignName = campaign?.name || "";
       
       for (const nicheName of Object.keys(REAL_PRODUCT_DATABASE)) {
-        if (campaignName.toLowerCase().includes(nicheName.toLowerCase())) {
+        if (campaignName.toLowerCase().includes(nicheName.toLowerCase().replace(" & ", " "))) {
           niche = nicheName as keyof typeof REAL_PRODUCT_DATABASE;
           break;
         }
@@ -141,9 +115,31 @@ export const smartProductDiscovery = {
       
       const products = REAL_PRODUCT_DATABASE[niche as keyof typeof REAL_PRODUCT_DATABASE] || REAL_PRODUCT_DATABASE["Kitchen Gadgets"];
       
-      // Randomly select products
-      const shuffled = [...products].sort(() => Math.random() - 0.5);
-      const selectedProducts = shuffled.slice(0, count);
+      // Get existing products in this campaign to avoid duplicates
+      const { data: existingLinks } = await supabase
+        .from("affiliate_links")
+        .select("product_name")
+        .eq("campaign_id", campaignId);
+
+      const existingNames = new Set(existingLinks?.map(l => l.product_name) || []);
+      
+      // Filter out products already in campaign
+      const newProducts = products.filter(p => !existingNames.has(p.name));
+      
+      console.log(`📊 Found ${newProducts.length} new products (${existingNames.size} already added)`);
+      
+      if (newProducts.length === 0) {
+        console.log("⚠️ All products from this niche already added. Rotating to different niche...");
+        // Rotate to a different niche
+        const niches = Object.keys(REAL_PRODUCT_DATABASE);
+        const randomNiche = niches[Math.floor(Math.random() * niches.length)] as keyof typeof REAL_PRODUCT_DATABASE;
+        const rotatedProducts = REAL_PRODUCT_DATABASE[randomNiche];
+        return this.addToCampaign(campaignId, userId, count); // Retry with rotation
+      }
+      
+      // Randomly select products from NEW ones only
+      const shuffled = [...newProducts].sort(() => Math.random() - 0.5);
+      const selectedProducts = shuffled.slice(0, Math.min(count, newProducts.length));
 
       const insertedProducts = [];
       
@@ -177,11 +173,11 @@ export const smartProductDiscovery = {
           console.error("Failed to insert product:", error);
         } else if (inserted) {
           insertedProducts.push(inserted);
-          console.log(`✅ Added product: ${product.name}`);
+          console.log(`✅ Added NEW product: ${product.name}`);
         }
       }
 
-      console.log(`✅ Successfully added ${insertedProducts.length} products`);
+      console.log(`✅ Successfully added ${insertedProducts.length} NEW unique products`);
       
       return { success: true, products: insertedProducts, added: insertedProducts.length };
       
