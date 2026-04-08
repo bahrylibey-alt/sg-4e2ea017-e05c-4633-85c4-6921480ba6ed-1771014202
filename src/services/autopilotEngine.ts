@@ -337,7 +337,7 @@ export const autopilotEngine = {
         };
       }
 
-      // Get autopilot status from DATABASE (persistent across sessions)
+      // Get autopilot status from DATABASE (persistent across sessions and navigation)
       const { data: settings } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
@@ -345,6 +345,8 @@ export const autopilotEngine = {
         .single();
 
       const isActive = settings?.autopilot_enabled || false;
+
+      console.log("📊 Loading autopilot status from DATABASE:", isActive ? "ACTIVE ✅" : "STOPPED ⏸️");
 
       // Get campaign stats
       const { data: campaigns } = await supabase
@@ -366,16 +368,7 @@ export const autopilotEngine = {
       const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
       const totalRevenue = links?.reduce((sum, l) => sum + (Number(l.revenue) || 0), 0) || 0;
       const totalConversions = links?.reduce((sum, l) => sum + (l.conversions || 0), 0) || 0;
-      const totalCommissions = totalRevenue * 0.15; // Estimating 15% commission as fallback
-
-      console.log("📊 Autopilot status loaded from database:", {
-        isActive,
-        activeCampaigns,
-        totalProducts: links?.length || 0,
-        totalClicks,
-        totalRevenue,
-        totalConversions
-      });
+      const totalCommissions = totalRevenue * 0.15;
 
       return {
         isActive,
@@ -386,7 +379,7 @@ export const autopilotEngine = {
         totalConversions,
         totalCommissions,
         activeLinks: links?.length || 0,
-        trafficSources: activeCampaigns > 0 ? 3 : 0 // Fallback traffic sources count
+        trafficSources: activeCampaigns > 0 ? 3 : 0
       };
     } catch (error) {
       console.error("Error getting autopilot status:", error);

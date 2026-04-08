@@ -38,9 +38,10 @@ export function AutopilotControl() {
     loadStats();
     loadAnalytics();
     
-    // Refresh analytics every 30 seconds
+    // Refresh status and analytics every 30 seconds
     const interval = setInterval(() => {
       loadAutopilotStatus();
+      loadStats();
       loadAnalytics();
     }, 30000);
     
@@ -55,7 +56,7 @@ export function AutopilotControl() {
         return;
       }
 
-      // Get autopilot status from database
+      // Get autopilot status from DATABASE (persistent state)
       const { data: settings } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
@@ -65,7 +66,7 @@ export function AutopilotControl() {
       const isEnabled = settings?.autopilot_enabled || false;
       setIsAutopilotActive(isEnabled);
       
-      console.log("🔍 Autopilot status loaded:", isEnabled ? "ACTIVE" : "INACTIVE");
+      console.log("🔍 Autopilot Control loaded status from database:", isEnabled ? "ACTIVE ✅" : "STOPPED ⏸️");
     } catch (error) {
       console.error("Failed to load autopilot status:", error);
       setIsAutopilotActive(false);
