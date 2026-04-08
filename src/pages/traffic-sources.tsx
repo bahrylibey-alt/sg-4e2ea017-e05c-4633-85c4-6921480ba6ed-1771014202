@@ -19,7 +19,14 @@ import {
   Copy,
   Lightbulb
 } from "lucide-react";
-import { realTrafficSources, trafficGenerationService, moneyMakingStrategies } from "@/services/realTrafficSources";
+import { 
+  REAL_TRAFFIC_SOURCES,
+  getAutomatableTrafficSources,
+  calculatePotentialTraffic,
+  trackTrafficEvent,
+  getRealTimeTrafficStats,
+  type TrafficSource
+} from "@/services/realTrafficSources";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
