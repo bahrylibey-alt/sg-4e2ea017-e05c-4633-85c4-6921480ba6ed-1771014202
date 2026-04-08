@@ -24,11 +24,16 @@ export default async function handler(
   try {
     const { 
       platform,     // Filter by platform: 'pinterest', 'facebook', etc.
-      limit = 10,   // How many items to return
+      limit = '10',   // How many items to return
       status = 'pending'  // Filter by status
     } = req.query;
 
-    console.log('📡 Zapier content feed request:', { platform, limit, status });
+    // Convert query params to proper types
+    const platformFilter = Array.isArray(platform) ? platform[0] : platform;
+    const statusFilter = Array.isArray(status) ? status[0] : status;
+    const limitCount = parseInt(Array.isArray(limit) ? limit[0] : limit);
+
+    console.log('📡 Zapier content feed request:', { platform: platformFilter, limit: limitCount, status: statusFilter });
 
     // Build query
     let query = supabase
@@ -46,13 +51,13 @@ export default async function handler(
         scheduled_for,
         created_at
       `)
-      .eq('status', status)
+      .eq('status', statusFilter)
       .order('created_at', { ascending: false })
-      .limit(parseInt(limit as string));
+      .limit(limitCount);
 
     // Filter by platform if specified
-    if (platform) {
-      query = query.eq('platform', platform);
+    if (platformFilter) {
+      query = query.eq('platform', platformFilter);
     }
 
     const { data: content, error } = await query;
@@ -70,8 +75,8 @@ export default async function handler(
       count: content?.length || 0,
       items: content || [],
       metadata: {
-        platform: platform || 'all',
-        status: status,
+        platform: platformFilter || 'all',
+        status: statusFilter,
         timestamp: new Date().toISOString()
       }
     });
