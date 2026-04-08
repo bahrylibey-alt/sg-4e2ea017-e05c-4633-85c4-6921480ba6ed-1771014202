@@ -204,7 +204,10 @@ export default function SmartPicksDashboard() {
         campaignId = campaigns[0].id;
       } else {
         const { data: newC } = await supabase.from("campaigns").insert({
-          user_id: user.id, name: `AutoPilot - ${selectedNiche}`, status: "active"
+          user_id: user.id, 
+          name: `AutoPilot - ${selectedNiche}`, 
+          status: "active",
+          goal: "sales"
         }).select().single();
         campaignId = newC?.id;
       }
