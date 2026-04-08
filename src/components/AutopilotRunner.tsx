@@ -20,12 +20,12 @@ export function AutopilotRunner() {
         // Check if autopilot is active
         const { data: config } = await supabase
           .from('ai_tools_config' as any)
-          .select('is_active, stats')
+          .select('is_enabled, config')
           .eq('user_id', session.user.id)
           .eq('tool_name', 'autopilot_engine')
           .maybeSingle();
 
-        if (config && (config as any).is_active) {
+        if (config && (config as any).is_enabled) {
           // Background simulation: randomly increment stats to show active work
           const currentStats = (config as any).stats || {
             products_discovered: 0,
