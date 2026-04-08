@@ -5,8 +5,6 @@ export function AutopilotRunner() {
   const isRunningRef = useRef(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
     const runEngine = async () => {
       // Prevent overlapping executions
       if (isRunningRef.current) return;
@@ -64,7 +62,7 @@ export function AutopilotRunner() {
     };
 
     // Run every 10 seconds silently in the background
-    interval = setInterval(runEngine, 10000);
+    const interval = setInterval(runEngine, 10000);
     
     // Initial run after a short delay
     setTimeout(runEngine, 2000);
