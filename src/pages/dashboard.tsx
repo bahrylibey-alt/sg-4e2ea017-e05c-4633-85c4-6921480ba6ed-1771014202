@@ -37,7 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/SEO";
 import Link from "next/link";
 import { magicTools } from "@/services/magicTools";
-import { smartProductDiscovery } from "@/services/smartProductDiscovery";
+import * as smartProductDiscovery from "@/services/smartProductDiscovery";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -211,14 +211,14 @@ export default function Dashboard() {
           // Get a random product to analyze
           const { data: products } = await supabase
             .from('affiliate_links')
-            .select('product_name, price, category')
+            .select('product_name, category')
             .limit(1)
             .maybeSingle();
           
           if (products) {
             result = await magicTools.predictViralScore(
               products.product_name || 'Product',
-              parseFloat(products.price?.toString() || '25'),
+              25, // Default price since column doesn't exist
               products.category || 'general'
             );
           }
@@ -235,14 +235,14 @@ export default function Dashboard() {
         case 'content_strategy':
           const { data: prod } = await supabase
             .from('affiliate_links')
-            .select('product_name, price')
+            .select('product_name')
             .limit(1)
             .maybeSingle();
           
           if (prod) {
             result = await magicTools.generateContentStrategy(
               prod.product_name || 'Product',
-              parseFloat(prod.price?.toString() || '25'),
+              25, // Default price
               'tiktok'
             );
           }
