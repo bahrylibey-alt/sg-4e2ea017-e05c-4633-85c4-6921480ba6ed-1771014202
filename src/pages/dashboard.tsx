@@ -41,6 +41,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [automationActive, setAutomationActive] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [stats, setStats] = useState({
     products_discovered: 0,
     products_optimized: 0,
@@ -67,6 +68,7 @@ export default function Dashboard() {
 
   // Global persistence listener
   useEffect(() => {
+    setIsMounted(true);
     // Check local storage immediately for snappy UI
     const localState = localStorage.getItem('autopilot_active');
     if (localState === 'true') {
@@ -273,7 +275,7 @@ export default function Dashboard() {
                     </div>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <RefreshCw className="w-3 h-3" />
-                      Last synced: {lastUpdate.toLocaleTimeString()}
+                      Last synced: {isMounted ? lastUpdate.toLocaleTimeString() : '...'}
                     </p>
                   </div>
 
