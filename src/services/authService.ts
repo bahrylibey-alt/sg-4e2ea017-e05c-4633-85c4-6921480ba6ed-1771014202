@@ -13,11 +13,15 @@ export interface AuthError {
   code?: string;
 }
 
-// Session cache to prevent concurrent lock issues
+// Enhanced session cache with retry logic
 let cachedSession: Session | null = null;
 let sessionPromise: Promise<Session | null> | null = null;
 let lastSessionCheck = 0;
-const SESSION_CACHE_TTL = 5000; // 5 seconds cache
+const SESSION_CACHE_TTL = 30000; // 30 seconds cache (increased from 5s)
+
+// Request queue to prevent concurrent auth calls
+const authRequestQueue: Array<() => void> = [];
+const isProcessingQueue = false;
 
 // Dynamic URL Helper
 const getURL = () => {
@@ -25,49 +29,78 @@ const getURL = () => {
            process?.env?.NEXT_PUBLIC_SITE_URL ?? 
            'http://localhost:3000'
   
-  // Handle undefined or null url
   if (!url) {
     url = 'http://localhost:3000';
   }
   
-  // Ensure url has protocol
   url = url.startsWith('http') ? url : `https://${url}`
-  
-  // Ensure url ends with slash
   url = url.endsWith('/') ? url : `${url}/`
   
   return url
 }
 
+// Retry helper for network requests
+async function retryRequest<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Only retry on network errors
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        if (i < maxRetries - 1) {
+          console.log(`Retry ${i + 1}/${maxRetries - 1} after network error...`);
+          await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
+
 export const authService = {
-  // Get current user
+  // Get current user with retry logic
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const result = await retryRequest(async () => {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          console.log("Auth error in getCurrentUser:", error.message);
+          return null;
+        }
+        
+        return user ? {
+          id: user.id,
+          email: user.email || "",
+          user_metadata: user.user_metadata,
+          created_at: user.created_at
+        } : null;
+      });
       
-      if (error) {
-        console.log("Auth error in getCurrentUser:", error.message);
-        return null;
-      }
-      
-      return user ? {
-        id: user.id,
-        email: user.email || "",
-        user_metadata: user.user_metadata,
-        created_at: user.created_at
-      } : null;
+      return result;
     } catch (error) {
       console.log("Exception in getCurrentUser:", error);
       return null;
     }
   },
 
-  // Get current session with caching and deduplication
+  // Enhanced session management with longer cache and retry
   async getCurrentSession(): Promise<Session | null> {
     try {
       const now = Date.now();
       
-      // Return cached session if still valid
+      // Return cached session if still valid (30s TTL)
       if (cachedSession && (now - lastSessionCheck) < SESSION_CACHE_TTL) {
         return cachedSession;
       }
@@ -77,8 +110,8 @@ export const authService = {
         return await sessionPromise;
       }
       
-      // Create new session request
-      sessionPromise = (async () => {
+      // Create new session request with retry
+      sessionPromise = retryRequest(async () => {
         try {
           const { data: { session }, error } = await supabase.auth.getSession();
           
@@ -98,7 +131,7 @@ export const authService = {
         } finally {
           sessionPromise = null;
         }
-      })();
+      }, 3, 1000);
       
       return await sessionPromise;
     } catch (error) {
