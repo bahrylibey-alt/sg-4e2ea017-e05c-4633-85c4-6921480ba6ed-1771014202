@@ -19,7 +19,8 @@ import {
   Globe,
   Target,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  Wand2
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
@@ -344,51 +345,45 @@ export default function HomePage() {
         {/* Quick Access Tools */}
         <section id="features" className="mb-16">
           <h2 className="text-3xl font-bold mb-8 text-center">Powerful AI Tools</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Link href="/smart-picks" className="block">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50">
-                <CardHeader>
-                  <Bot className="w-12 h-12 text-purple-600 mb-4" />
-                  <CardTitle>SmartPicks Hub</CardTitle>
-                  <CardDescription>
-                    12 AI admin tools, scheduled automations, and product discovery
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Badge>12 Tools</Badge>
-                </CardContent>
-              </Card>
-            </Link>
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            <Card className="p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => window.location.href = '/dashboard'}>
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
+                <Sparkles className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3">SmartPicks Hub</h3>
+              <p className="text-muted-foreground mb-6">
+                12 AI admin tools, scheduled automations, and product discovery
+              </p>
+              <Button variant="default">
+                12 Tools
+              </Button>
+            </Card>
 
-            <Link href="/social-connect" className="block">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50">
-                <CardHeader>
-                  <Globe className="w-12 h-12 text-blue-600 mb-4" />
-                  <CardTitle>Social Connect</CardTitle>
-                  <CardDescription>
-                    One-click social media setup - post automatically forever
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Badge>5 Platforms</Badge>
-                </CardContent>
-              </Card>
-            </Link>
+            <Card className="p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => window.location.href = '/traffic-channels'}>
+              <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <Globe className="w-8 h-8 text-blue-500" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3">Social Connect</h3>
+              <p className="text-muted-foreground mb-6">
+                One-click social media setup - post automatically forever
+              </p>
+              <Button variant="default" className="bg-blue-500 hover:bg-blue-600">
+                5 Platforms
+              </Button>
+            </Card>
 
-            <Link href="/magic-tools" className="block">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50">
-                <CardHeader>
-                  <Sparkles className="w-12 h-12 text-pink-600 mb-4" />
-                  <CardTitle>Magic Tools</CardTitle>
-                  <CardDescription>
-                    7 revolutionary AI tools never built before
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Badge>7 Magic Tools</Badge>
-                </CardContent>
-              </Card>
-            </Link>
+            <Card className="p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => window.location.href = '/dashboard'}>
+              <div className="w-16 h-16 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <Wand2 className="w-8 h-8 text-pink-500" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3">Magic Tools</h3>
+              <p className="text-muted-foreground mb-6">
+                7 revolutionary AI tools never built before
+              </p>
+              <Button variant="default" className="bg-pink-500 hover:bg-pink-600">
+                7 Magic Tools
+              </Button>
+            </Card>
           </div>
         </section>
 
