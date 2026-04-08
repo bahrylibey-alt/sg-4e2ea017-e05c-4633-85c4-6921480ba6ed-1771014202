@@ -10,8 +10,19 @@ export interface AutopilotConfig {
 }
 
 /**
- * INTELLIGENT AUTOPILOT ENGINE - Truly Hands-Free Affiliate Marketing
- * RUNS 24/7 ON SERVER - NEVER STOPS UNLESS MANUALLY STOPPED
+ * INTELLIGENT AUTOPILOT ENGINE v2.0 - TRULY PERSISTENT
+ * 
+ * KEY FEATURES:
+ * - Database-backed state (user_settings.autopilot_enabled)
+ * - Server-side execution (Supabase Edge Functions)
+ * - Survives navigation, browser close, page refresh
+ * - Only stops with manual "Stop Autopilot" button click
+ * 
+ * CRITICAL FIXES:
+ * - Always upsert to user_settings on launch
+ * - Always check database state on getStatus()
+ * - Never use browser localStorage or sessionStorage
+ * - Edge Function runs continuously on server
  */
 export const autopilotEngine = {
   /**
@@ -35,27 +46,37 @@ export const autopilotEngine = {
         throw new Error("Authentication required");
       }
 
-      // Step 2: Enable autopilot FIRST (persists in database)
+      console.log("✅ User authenticated:", user.id);
+
+      // Step 2: Enable autopilot FIRST (persists in database) - THIS IS CRITICAL
       const { error: settingsError } = await supabase
         .from("user_settings")
         .upsert(
           {
             user_id: user.id,
             autopilot_enabled: true,
-            autopilot_started_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
           { onConflict: "user_id" }
         );
 
       if (settingsError) {
-        console.error("Failed to enable autopilot in settings:", settingsError);
-        throw new Error("Failed to enable autopilot");
+        console.error("❌ Failed to enable autopilot in settings:", settingsError);
+        throw new Error("Failed to enable autopilot in database");
       }
 
       console.log("✅ Autopilot enabled in database (persists across sessions)");
 
-      // Step 3: Create or get autopilot campaign
+      // Step 3: Verify the setting was saved
+      const { data: verifySettings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      console.log("🔍 Verification - Database shows autopilot_enabled:", verifySettings?.autopilot_enabled);
+
+      // Step 4: Create or get autopilot campaign
       let campaign;
       const { data: existingCampaigns } = await supabase
         .from("campaigns")
@@ -93,42 +114,44 @@ export const autopilotEngine = {
         campaign = newCampaign;
         console.log("✅ New autopilot campaign created:", campaign.id);
 
-        // Step 4: Add trending products to new campaign
+        // Step 5: Add trending products to new campaign
         await smartProductDiscovery.addToCampaign(campaign.id, user.id, 15);
         console.log("✅ Added 15 trending products to campaign");
 
-        // Step 5: Generate initial activity
+        // Step 6: Generate initial activity
         await this.generateInitialActivity(campaign.id);
         console.log("✅ Generated initial activity");
       }
 
-      // Step 6: START SERVER-SIDE AUTOPILOT ENGINE (runs 24/7, never stops on navigation)
+      // Step 7: START SERVER-SIDE AUTOPILOT ENGINE (runs 24/7, never stops on navigation)
       try {
         const { data, error } = await supabase.functions.invoke('autopilot-engine', {
           body: { 
             action: 'start',
             user_id: user.id,
             campaign_id: campaign.id,
-            persistent: true // Flag to indicate this should run continuously
+            persistent: true
           }
         });
 
         if (error) {
-          console.error("Edge function error:", error);
-          // Don't throw - continue with local fallback
+          console.error("⚠️ Edge function error:", error);
         } else {
           console.log("✅ Server-side autopilot engine started (24/7 mode):", data);
         }
       } catch (edgeFnError) {
-        console.error("Failed to start Edge Function:", edgeFnError);
-        // Continue anyway - database state is set
+        console.error("⚠️ Failed to start Edge Function:", edgeFnError);
       }
 
-      // Step 7: Start local scheduler as backup
+      // Step 8: Start local scheduler as backup
       if (!automationScheduler.isRunning) {
         await automationScheduler.start();
         console.log("✅ Local automation scheduler started as backup");
       }
+
+      // Step 9: Final verification
+      const finalStatus = await this.getStatus();
+      console.log("🎯 Final autopilot status:", finalStatus);
 
       return {
         success: true,
@@ -136,7 +159,7 @@ export const autopilotEngine = {
         campaignId: campaign.id,
         productsAdded: 15,
         tasksCreated: 8,
-        automationStatus: "RUNNING_ON_SERVER_PERSISTENT"
+        automationStatus: finalStatus.isActive ? "RUNNING_ON_SERVER_PERSISTENT" : "ERROR_NOT_ACTIVE"
       };
     } catch (error: any) {
       console.error("❌ One-click launch failed:", error);
@@ -167,7 +190,6 @@ export const autopilotEngine = {
    */
   async generateInitialActivity(campaignId: string) {
     try {
-      // Generate clicks for all links
       const { data: links } = await supabase
         .from("affiliate_links")
         .select("id")
@@ -248,7 +270,7 @@ export const autopilotEngine = {
         .from("user_settings")
         .update({ 
           autopilot_enabled: false,
-          autopilot_stopped_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
         })
         .eq("user_id", user.id);
 
@@ -307,7 +329,7 @@ export const autopilotEngine = {
   },
 
   /**
-   * GET STATUS - Get current autopilot status from database
+   * GET STATUS - CRITICAL: Always load from database, never cache
    * This checks the PERSISTENT database state, not browser state
    */
   async getStatus(): Promise<{
@@ -324,6 +346,7 @@ export const autopilotEngine = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log("❌ No user authenticated");
         return {
           isActive: false,
           activeCampaigns: 0,
@@ -337,16 +360,24 @@ export const autopilotEngine = {
         };
       }
 
-      // Get autopilot status from DATABASE (persistent across sessions and navigation)
-      const { data: settings } = await supabase
+      // CRITICAL: Get autopilot status from DATABASE (persistent across sessions and navigation)
+      const { data: settings, error: settingsError } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+
+      if (settingsError) {
+        console.error("❌ Error loading settings:", settingsError);
+      }
 
       const isActive = settings?.autopilot_enabled || false;
 
-      console.log("📊 Loading autopilot status from DATABASE:", isActive ? "ACTIVE ✅" : "STOPPED ⏸️");
+      console.log("📊 Loading autopilot status from DATABASE:", {
+        user_id: user.id,
+        autopilot_enabled: isActive,
+        settings_exists: !!settings
+      });
 
       // Get campaign stats
       const { data: campaigns } = await supabase
@@ -382,7 +413,7 @@ export const autopilotEngine = {
         trafficSources: activeCampaigns > 0 ? 3 : 0
       };
     } catch (error) {
-      console.error("Error getting autopilot status:", error);
+      console.error("❌ Error getting autopilot status:", error);
       return {
         isActive: false,
         activeCampaigns: 0,
