@@ -125,7 +125,7 @@ export const trafficAutomationService = {
       const { error } = await supabase
         .from("traffic_sources")
         .update({
-          status: "inactive",
+          status: "paused",
           automation_enabled: false,
           updated_at: new Date().toISOString()
         })
