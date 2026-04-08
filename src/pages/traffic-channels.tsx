@@ -159,7 +159,7 @@ export default function TrafficChannels() {
 
       const { data: sources } = await supabase
         .from('traffic_sources')
-        .select('source_name, status, automation_enabled, stats')
+        .select('source_name, status, automation_enabled')
         .in('campaign_id', campaignIds);
 
       const channelStatus: Record<string, boolean> = {};
@@ -169,8 +169,8 @@ export default function TrafficChannels() {
         const source = sources?.find(s => s.source_name === channel.name);
         channelStatus[channel.id] = source?.automation_enabled || false;
         stats[channel.id] = {
-          views: (source?.stats as any)?.views || 0,
-          clicks: (source?.stats as any)?.clicks || 0
+          views: 0,
+          clicks: 0
         };
       });
 
