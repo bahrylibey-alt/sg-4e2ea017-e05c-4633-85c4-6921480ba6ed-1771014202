@@ -23,16 +23,38 @@ export function AutopilotRunner() {
         if (settings?.autopilot_enabled) {
           console.log('🤖 Autopilot is ACTIVE - background tasks running');
           
-          // Call the edge function to execute autopilot tasks
-          try {
-            await supabase.functions.invoke('autopilot-engine', {
-              body: { 
-                action: 'execute',
-                user_id: session.user.id 
+          // Get user's active autopilot campaign
+          const { data: campaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('is_autopilot', true)
+            .eq('status', 'active')
+            .limit(1);
+
+          const campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
+
+          if (campaignId) {
+            // Call Edge Function with BOTH user_id AND campaign_id
+            try {
+              const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+                body: { 
+                  action: 'execute',
+                  user_id: session.user.id,
+                  campaign_id: campaignId
+                }
+              });
+
+              if (error) {
+                console.error('❌ Autopilot background execution error:', error);
+              } else {
+                console.log('✅ Autopilot background tasks completed:', data);
               }
-            });
-          } catch (error) {
-            console.error('Autopilot execution error:', error);
+            } catch (fnError) {
+              console.error('Edge function call failed:', fnError);
+            }
+          } else {
+            console.log('⚠️ No active autopilot campaign found - skipping execution');
           }
         }
       } catch (error) {
