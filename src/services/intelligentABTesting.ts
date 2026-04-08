@@ -62,75 +62,91 @@ export function calculateSignificance(
 }
 
 /**
- * Get A/B test results
+ * Create a new A/B test
  */
-export async function getABTestResults(testId: string): Promise<ABTestResult | null> {
+export async function createABTest(params: {
+  userId: string;
+  campaignId: string;
+  testName: string;
+  variantA: any;
+  variantB: any;
+}): Promise<string | null> {
   try {
-    const { data: test, error } = await supabase
+    const { data, error } = await supabase
       .from("ab_tests")
-      .select("*")
-      .eq("id", testId)
+      .insert({
+        user_id: params.userId,
+        campaign_id: params.campaignId,
+        test_name: params.testName,
+        variant_a: params.variantA,
+        variant_b: params.variantB,
+        variant_a_visitors: 0,
+        variant_a_conversions: 0,
+        variant_b_visitors: 0,
+        variant_b_conversions: 0,
+        status: "running"
+      })
+      .select()
       .single();
 
-    if (error || !test) return null;
-
-    const variantA: ABTestVariant = {
-      id: "a",
-      name: "Original",
-      config: test.variant_a,
-      visitors: test.variant_a_visitors,
-      conversions: test.variant_a_conversions,
-      conversionRate: test.variant_a_visitors > 0 
-        ? (test.variant_a_conversions / test.variant_a_visitors) * 100 
-        : 0
-    };
-
-    const variantB: ABTestVariant = {
-      id: "b",
-      name: "Variant B",
-      config: test.variant_b,
-      visitors: test.variant_b_visitors,
-      conversions: test.variant_b_conversions,
-      conversionRate: test.variant_b_visitors > 0 
-        ? (test.variant_b_conversions / test.variant_b_visitors) * 100 
-        : 0
-    };
-
-    const significance = calculateSignificance(
-      variantA.visitors,
-      variantA.conversions,
-      variantB.visitors,
-      variantB.conversions
-    );
-
-    let winner: "a" | "b" | null = test.winning_variant as "a" | "b" | null;
-    
-    // Auto-declare winner if significant and not already declared
-    if (!winner && significance.isSignificant) {
-      winner = variantA.conversionRate > variantB.conversionRate ? "a" : "b";
-      
-      // Update database
-      await supabase
-        .from("ab_tests")
-        .update({
-          winning_variant: winner,
-          confidence_level: significance.confidenceLevel,
-          ended_at: new Date().toISOString(),
-          status: "completed"
-        })
-        .eq("id", testId);
+    if (error) {
+      console.error("Failed to create A/B test:", error);
+      return null;
     }
 
-    return {
-      testId: test.id,
-      variantA,
-      variantB,
-      winner,
-      confidenceLevel: significance.confidenceLevel,
-      isSignificant: significance.isSignificant
-    };
+    return data.id;
   } catch (error) {
-    console.error("Error getting A/B test results:", error);
+    console.error("Error creating A/B test:", error);
     return null;
+  }
+}
+
+/**
+ * Record a visitor for A/B test
+ */
+export async function recordABTestVisitor(testId: string, variant: "a" | "b"): Promise<boolean> {
+  try {
+    const column = variant === "a" ? "variant_a_visitors" : "variant_b_visitors";
+    
+    // Increment visitor count
+    const { error } = await supabase.rpc("increment_ab_test_visitors", {
+      test_id: testId,
+      variant_column: column
+    });
+
+    if (error) {
+      console.error("Failed to record visitor:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error recording visitor:", error);
+    return false;
+  }
+}
+
+/**
+ * Record a conversion for A/B test
+ */
+export async function recordABTestConversion(testId: string, variant: "a" | "b"): Promise<boolean> {
+  try {
+    const column = variant === "a" ? "variant_a_conversions" : "variant_b_conversions";
+    
+    // Increment conversion count
+    const { error } = await supabase.rpc("increment_ab_test_conversions", {
+      test_id: testId,
+      variant_column: column
+    });
+
+    if (error) {
+      console.error("Failed to record conversion:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error recording conversion:", error);
+    return false;
   }
 }
