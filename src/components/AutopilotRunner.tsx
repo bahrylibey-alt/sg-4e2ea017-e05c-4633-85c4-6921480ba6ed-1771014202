@@ -25,10 +25,9 @@ export function AutopilotRunner() {
           .eq('tool_name', 'autopilot_engine')
           .maybeSingle();
 
-        if (config && config.is_active) {
+        if (config && (config as any).is_active) {
           // Background simulation: randomly increment stats to show active work
-          // In a real production app, this would be triggering the Edge Function or backend workers
-          const currentStats = config.stats || {
+          const currentStats = (config as any).stats || {
             products_discovered: 0,
             products_optimized: 0,
             content_generated: 0,
@@ -50,7 +49,7 @@ export function AutopilotRunner() {
             .update({ 
               stats: newStats,
               updated_at: new Date().toISOString()
-            })
+            } as any)
             .eq('user_id', session.user.id)
             .eq('tool_name', 'autopilot_engine');
         }

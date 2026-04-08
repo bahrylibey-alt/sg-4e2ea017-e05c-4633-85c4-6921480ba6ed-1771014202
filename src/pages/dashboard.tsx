@@ -52,6 +52,12 @@ export default function Dashboard() {
 
   // Global persistence listener
   useEffect(() => {
+    // Check local storage immediately for snappy UI
+    const localState = localStorage.getItem('autopilot_active');
+    if (localState === 'true') {
+      setAutomationActive(true);
+    }
+
     loadAutopilotStatus();
     // Poll the database frequently to catch background updates from AutopilotRunner
     const interval = setInterval(loadAutopilotStatus, 3000);
@@ -73,6 +79,7 @@ export default function Dashboard() {
       if (config) {
         const conf = config as any;
         setAutomationActive(conf.is_active || false);
+        localStorage.setItem('autopilot_active', conf.is_active ? 'true' : 'false');
         if (conf.stats) {
           setStats(conf.stats);
         }
@@ -95,6 +102,10 @@ export default function Dashboard() {
 
       const newStatus = !automationActive;
       
+      // Optimistic UI update
+      setAutomationActive(newStatus);
+      localStorage.setItem('autopilot_active', newStatus ? 'true' : 'false');
+
       // Update directly in DB
       await supabase
         .from('ai_tools_config' as any)
@@ -103,9 +114,7 @@ export default function Dashboard() {
           tool_name: 'autopilot_engine',
           is_active: newStatus,
           updated_at: new Date().toISOString()
-        });
-
-      setAutomationActive(newStatus);
+        } as any);
       
       toast({
         title: newStatus ? "🚀 Autopilot Launched!" : "🛑 Autopilot Stopped",
