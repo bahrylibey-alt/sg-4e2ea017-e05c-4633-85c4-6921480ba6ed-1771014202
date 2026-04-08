@@ -74,10 +74,9 @@ export const autopilotEngine = {
 
       // 3. Discover and add products
       console.log("🔍 Discovering products...");
-      const productResult = await smartProductDiscovery.discoverAndAddProducts(
+      const productResult = await smartProductDiscovery.addToCampaign(
         campaignId,
         user.id,
-        niche,
         10
       );
 
@@ -85,12 +84,7 @@ export const autopilotEngine = {
 
       // 4. Generate content for products
       console.log("📝 Generating content...");
-      const contentResult = await smartContentGenerator.generateBatchContent(
-        campaignId,
-        user.id,
-        niche,
-        5
-      );
+      const contentResult = await smartContentGenerator.batchGenerate(5);
 
       console.log(`✅ Created ${contentResult.generated} articles`);
 
@@ -230,7 +224,7 @@ export const autopilotEngine = {
 
       // Get articles
       const { data: articles } = await supabase
-        .from("content")
+        .from("generated_content" as any)
         .select("id")
         .in("campaign_id", campaignIds);
 
@@ -297,18 +291,13 @@ export const autopilotEngine = {
       // Task 2: Generate new content if needed
       try {
         const { data: articles } = await supabase
-          .from("content")
+          .from("generated_content" as any)
           .select("id")
           .eq("campaign_id", campaignId);
 
         if (!articles || articles.length < 5) {
           // Need more content
-          const result = await smartContentGenerator.generateBatchContent(
-            campaignId,
-            userId,
-            "Kitchen Gadgets",
-            2
-          );
+          const result = await smartContentGenerator.batchGenerate(2);
           tasksCompleted.push(`Generated ${result.generated} new articles`);
         }
       } catch (e: any) {
