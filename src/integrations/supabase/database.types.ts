@@ -1426,6 +1426,45 @@ export type Database = {
           },
         ]
       }
+      magic_tools: {
+        Row: {
+          created_at: string | null
+          execution_count: number | null
+          id: string
+          last_run: string | null
+          results: Json | null
+          status: string
+          tool_name: string
+          tool_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          last_run?: string | null
+          results?: Json | null
+          status?: string
+          tool_name: string
+          tool_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          last_run?: string | null
+          results?: Json | null
+          status?: string
+          tool_name?: string
+          tool_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       optimization_insights: {
         Row: {
           applied_at: string | null

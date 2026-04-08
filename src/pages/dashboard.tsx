@@ -36,6 +36,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/SEO";
 import Link from "next/link";
+import { magicTools } from "@/services/magicTools";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -54,6 +56,7 @@ export default function Dashboard() {
   const [connectedPlatforms, setConnectedPlatforms] = useState<Record<string, boolean>>({
     'Facebook Page': true
   });
+  const [magicToolLoading, setMagicToolLoading] = useState<string | null>(null);
 
   const toggleConnection = (platformName: string) => {
     setConnectedPlatforms(prev => ({
@@ -187,6 +190,107 @@ export default function Dashboard() {
       toast({ title: `Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsLaunching(false);
+    }
+  };
+
+  const executeMagicTool = async (toolName: string, toolType: string) => {
+    setMagicToolLoading(toolName);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Please sign in", variant: "destructive" });
+        setMagicToolLoading(null);
+        return;
+      }
+
+      let result: any = null;
+
+      switch (toolType) {
+        case 'viral_predictor':
+          // Get a random product to analyze
+          const { data: products } = await supabase
+            .from('affiliate_links')
+            .select('product_name, price, category')
+            .limit(1)
+            .maybeSingle();
+          
+          if (products) {
+            result = await magicTools.predictViralScore(
+              products.product_name || 'Product',
+              parseFloat(products.price?.toString() || '25'),
+              products.category || 'general'
+            );
+          }
+          break;
+
+        case 'revenue_heatmap':
+          result = await magicTools.generateRevenueHeatmap(user.id, 30);
+          break;
+
+        case 'profit_optimizer':
+          result = await magicTools.optimizeProfitStrategy(user.id);
+          break;
+
+        case 'content_strategy':
+          const { data: prod } = await supabase
+            .from('affiliate_links')
+            .select('product_name, price')
+            .limit(1)
+            .maybeSingle();
+          
+          if (prod) {
+            result = await magicTools.generateContentStrategy(
+              prod.product_name || 'Product',
+              parseFloat(prod.price?.toString() || '25'),
+              'tiktok'
+            );
+          }
+          break;
+
+        case 'competitor_intel':
+          result = await magicTools.analyzeCompetitorIntelligence('tech', 'amazon');
+          break;
+
+        case 'smart_reply':
+          result = await magicTools.generateSmartReply(
+            'This looks amazing! Where can I get it?',
+            'Product Name',
+            'Great product review'
+          );
+          break;
+
+        case 'trend_scanner':
+          result = await smartProductDiscovery.scanTrendingProducts('tech', 'amazon');
+          break;
+      }
+
+      // Save execution to database
+      await supabase.from('magic_tools').upsert({
+        user_id: user.id,
+        tool_name: toolName,
+        tool_type: toolType,
+        status: 'completed',
+        last_run: new Date().toISOString(),
+        results: result
+      }, { onConflict: 'user_id,tool_name' });
+
+      toast({
+        title: `✅ ${toolName} Complete!`,
+        description: result ? `Processed successfully. Check results in console.` : 'Executed successfully'
+      });
+
+      console.log(`🎯 ${toolName} Results:`, result);
+      
+    } catch (error: any) {
+      console.error(`${toolName} error:`, error);
+      toast({
+        title: `Error in ${toolName}`,
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setMagicToolLoading(null);
     }
   };
 
@@ -443,13 +547,14 @@ export default function Dashboard() {
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[
-                    { name: 'AI Video Generator', desc: 'Turn product images into viral TikToks', icon: Video, color: 'bg-purple-100 text-purple-600', txtColor: 'text-purple-600' },
-                    { name: 'Viral Predictor', desc: 'Score products 0-100 on viral potential', icon: TrendingUp, color: 'bg-blue-100 text-blue-600', txtColor: 'text-blue-600' },
-                    { name: 'Best Time Oracle', desc: 'AI calculates optimal posting times', icon: Clock, color: 'bg-green-100 text-green-600', txtColor: 'text-green-600' },
-                    { name: 'Auto-Hashtag Mixer', desc: '30 trending hashtags updated daily', icon: Hash, color: 'bg-pink-100 text-pink-600', txtColor: 'text-pink-600' },
-                    { name: 'Engagement Multiplier', desc: 'AI auto-responds to comments', icon: MessageCircle, color: 'bg-orange-100 text-orange-600', txtColor: 'text-orange-600' },
-                    { name: 'Competitor Spy', desc: 'Track top affiliates in your niche', icon: Eye, color: 'bg-teal-100 text-teal-600', txtColor: 'text-teal-600' },
-                    { name: 'Revenue Heatmap', desc: 'Visualize your money-making patterns', icon: Activity, color: 'bg-red-100 text-red-600', txtColor: 'text-red-600' },
+                    { name: 'AI Video Generator', desc: 'Turn product images into viral TikToks', icon: Video, color: 'bg-purple-100 text-purple-600', txtColor: 'text-purple-600', type: 'video_gen' },
+                    { name: 'Viral Predictor', desc: 'Score products 0-100 on viral potential', icon: TrendingUp, color: 'bg-blue-100 text-blue-600', txtColor: 'text-blue-600', type: 'viral_predictor' },
+                    { name: 'Best Time Oracle', desc: 'AI calculates optimal posting times', icon: Clock, color: 'bg-green-100 text-green-600', txtColor: 'text-green-600', type: 'revenue_heatmap' },
+                    { name: 'Auto-Hashtag Mixer', desc: '30 trending hashtags updated daily', icon: Hash, color: 'bg-pink-100 text-pink-600', txtColor: 'text-pink-600', type: 'content_strategy' },
+                    { name: 'Engagement Multiplier', desc: 'AI auto-responds to comments', icon: MessageCircle, color: 'bg-orange-100 text-orange-600', txtColor: 'text-orange-600', type: 'smart_reply' },
+                    { name: 'Competitor Spy', desc: 'Track top affiliates in your niche', icon: Eye, color: 'bg-teal-100 text-teal-600', txtColor: 'text-teal-600', type: 'competitor_intel' },
+                    { name: 'Revenue Heatmap', desc: 'Visualize your money-making patterns', icon: Activity, color: 'bg-red-100 text-red-600', txtColor: 'text-red-600', type: 'revenue_heatmap' },
+                    { name: 'Trend Scanner', desc: 'Discover trending products before competitors', icon: Search, color: 'bg-indigo-100 text-indigo-600', txtColor: 'text-indigo-600', type: 'trend_scanner' },
                   ].map((tool) => (
                     <Dialog key={tool.name}>
                       <DialogTrigger asChild>
@@ -480,13 +585,20 @@ export default function Dashboard() {
                            <Button 
                              size="lg"
                              className="gap-2"
-                             onClick={() => toast({ 
-                               title: `${tool.name} Activated!`, 
-                               description: "Processing started in the background. Results will be available in your logs." 
-                             })}
+                             disabled={magicToolLoading === tool.name}
+                             onClick={() => executeMagicTool(tool.name, tool.type)}
                            >
-                             <Zap className="w-4 h-4" />
-                             Run {tool.name} Now
+                             {magicToolLoading === tool.name ? (
+                               <>
+                                 <RefreshCw className="w-4 h-4 animate-spin" />
+                                 Processing...
+                               </>
+                             ) : (
+                               <>
+                                 <Zap className="w-4 h-4" />
+                                 Run {tool.name} Now
+                               </>
+                             )}
                            </Button>
                         </div>
                       </DialogContent>
