@@ -73,32 +73,18 @@ export function OneClickAutopilot() {
         return;
       }
 
-      // Check if autopilot campaigns are active
-      const { data: campaigns } = await supabase
-        .from("campaigns")
-        .select("id, status")
-        .eq("user_id", user.id)
-        .eq("is_autopilot", true)
-        .eq("status", "active");
-
-      const hasActiveCampaigns = (campaigns?.length || 0) > 0;
-
-      // Check user settings
+      // Check user settings FIRST - This is the ultimate source of truth
       const { data: settings } = await supabase
         .from("user_settings")
         .select("autopilot_enabled")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const settingsEnabled = settings?.autopilot_enabled || false;
-
-      // Autopilot is active if BOTH conditions are true
-      const isAutopilotActive = hasActiveCampaigns && settingsEnabled;
+      const isAutopilotActive = settings?.autopilot_enabled || false;
       
-      console.log("📊 Autopilot Status Check:", {
-        hasActiveCampaigns,
-        settingsEnabled,
-        isAutopilotActive
+      console.log("📊 Autopilot Status Check (from DB):", {
+        userId: user.id,
+        settingsEnabled: isAutopilotActive
       });
 
       setIsActive(isAutopilotActive);
