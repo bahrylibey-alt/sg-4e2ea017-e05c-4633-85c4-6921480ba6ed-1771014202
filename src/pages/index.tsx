@@ -49,18 +49,15 @@ export default function HomePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: config } = await supabase
-        .from('ai_tools_config' as any)
-        .select('*')
+      // SINGLE SOURCE OF TRUTH: user_settings.autopilot_enabled
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
         .eq('user_id', user.id)
-        .eq('tool_name', 'autopilot_engine')
-        .maybeSingle() as any;
+        .maybeSingle();
 
-      if (config) {
-        setIsAutopilotActive(config.is_active || false);
-        if (config.stats) {
-          setStats(config.stats);
-        }
+      if (settings) {
+        setIsAutopilotActive(settings.autopilot_enabled || false);
       }
 
       // Load real stats from database
@@ -109,17 +106,33 @@ export default function HomePage() {
 
       const newStatus = !isAutopilotActive;
       
-      // Call Edge Function to start/stop autopilot
-      const { error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { 
-          action: newStatus ? 'start' : 'stop',
-          user_id: user.id 
-        }
-      });
+      // 1. SAVE TO DATABASE FIRST (single source of truth)
+      const { error: dbError } = await supabase
+        .from('user_settings')
+        .upsert({ 
+          user_id: user.id, 
+          autopilot_enabled: newStatus,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
 
-      if (error) throw error;
+      if (dbError) {
+        console.error("Database error:", dbError);
+        throw dbError;
+      }
 
-      // Update local state
+      // 2. Call Edge Function to start/stop autopilot backend
+      try {
+        await supabase.functions.invoke('autopilot-engine', {
+          body: { 
+            action: newStatus ? 'start' : 'stop',
+            user_id: user.id 
+          }
+        });
+      } catch (fnError) {
+        console.error("Edge function error (non-fatal):", fnError);
+      }
+
+      // 3. Update local state
       setIsAutopilotActive(newStatus);
       
       toast({

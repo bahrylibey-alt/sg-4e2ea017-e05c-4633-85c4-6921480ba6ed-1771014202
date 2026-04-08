@@ -84,22 +84,19 @@ export default function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: config } = await supabase
-        .from('ai_tools_config' as any)
-        .select('*')
+      // SINGLE SOURCE OF TRUTH: user_settings.autopilot_enabled
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
         .eq('user_id', user.id)
-        .eq('tool_name', 'autopilot_engine')
         .maybeSingle();
 
-      if (config) {
-        const conf = config as any;
-        setAutomationActive(conf.is_active || false);
-        localStorage.setItem('autopilot_active', conf.is_active ? 'true' : 'false');
-        if (conf.stats) {
-          setStats(conf.stats);
-        }
-        setLastUpdate(new Date());
+      if (settings) {
+        setAutomationActive(settings.autopilot_enabled || false);
+        localStorage.setItem('autopilot_active', settings.autopilot_enabled ? 'true' : 'false');
       }
+      
+      setLastUpdate(new Date());
     } catch (error) {
       console.error('Error loading autopilot status:', error);
     }
@@ -117,19 +114,35 @@ export default function Dashboard() {
 
       const newStatus = !automationActive;
       
-      // Optimistic UI update
+      // 1. Save to database (single source of truth)
+      const { error: dbError } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: newStatus,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+      
+      if (dbError) {
+        console.error("Database error:", dbError);
+        throw dbError;
+      }
+
+      // 2. Update local state
       setAutomationActive(newStatus);
       localStorage.setItem('autopilot_active', newStatus ? 'true' : 'false');
 
-      // Update directly in DB
-      await supabase
-        .from('ai_tools_config' as any)
-        .upsert({
-          user_id: user.id,
-          tool_name: 'autopilot_engine',
-          is_active: newStatus,
-          updated_at: new Date().toISOString()
-        } as any);
+      // 3. Call edge function
+      try {
+        await supabase.functions.invoke('autopilot-engine', {
+          body: { 
+            action: newStatus ? 'start' : 'stop',
+            user_id: user.id 
+          }
+        });
+      } catch (fnError) {
+        console.error("Edge function error (non-fatal):", fnError);
+      }
       
       toast({
         title: newStatus ? "🚀 Autopilot Launched!" : "🛑 Autopilot Stopped",
