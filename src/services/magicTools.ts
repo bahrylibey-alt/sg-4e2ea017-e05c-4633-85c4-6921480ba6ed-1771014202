@@ -536,7 +536,7 @@ export const magicTools = {
         const clickThroughRate = link.clicks > 0 ? (link.conversions || 0) / link.clicks : 0.03;
         
         // Get historical performance
-        const { data: postHistory } = await supabase
+        const { data: postHistory } = await (supabase as any)
           .from('posted_content')
           .select('likes, shares, clicks, revenue_generated')
           .eq('affiliate_link_id', link.id)
