@@ -93,6 +93,7 @@ export const magicTools = {
       .reduce((sum, [_, score]) => sum + score, 0);
 
     // FACTOR 4: Historical Performance (from database)
+    let histDataCount = 0;
     try {
       const { data: histData } = await supabase
         .from('posted_content')
@@ -101,6 +102,7 @@ export const magicTools = {
         .limit(20);
 
       if (histData && histData.length > 0) {
+        histDataCount = histData.length;
         const avgEngagement = histData.reduce((sum, post) => 
           sum + ((post.likes || 0) + (post.comments || 0) * 3 + (post.shares || 0) * 5), 0
         ) / histData.length;
@@ -138,7 +140,7 @@ export const magicTools = {
     ));
 
     // Confidence based on data availability
-    const confidence = histData && histData.length > 5 ? 90 : 75;
+    const confidence = histDataCount > 5 ? 90 : 75;
 
     // AI Recommendation
     let recommendation = "";
@@ -510,15 +512,13 @@ export const magicTools = {
    * Advanced ROI analysis with actionable insights
    */
   async optimizeProfitStrategy(userId: string) {
-    const { data: links } = await supabase
+    const response = await supabase
       .from('affiliate_links')
-      .select(`
-        *,
-        product_catalog (price, commission_rate, category, network)
-      `)
+      .select(`*, product_catalog (price, commission_rate, category, network)`)
       .eq('user_id', userId)
       .eq('status', 'active');
 
+    const links: any[] = response.data || [];
     if (!links || links.length === 0) return [];
 
     const enrichedData = await Promise.all(links.map(async (link) => {
