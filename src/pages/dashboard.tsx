@@ -262,12 +262,21 @@ export default function Dashboard() {
 
         case 'trend_scanner':
           if ('scanTrendingProducts' in smartProductDiscovery) {
-            // @ts-ignore
+            // @ts-expect-error
             result = await smartProductDiscovery.scanTrendingProducts('tech', 'amazon');
           } else if ('saveTrendingProducts' in smartProductDiscovery) {
-            // @ts-ignore
+            // @ts-expect-error
             result = await smartProductDiscovery.saveTrendingProducts([{
-              name: 'Trending Product', network: 'amazon', trend_score: 85, search_volume: 10000, velocity: 50, competition_score: 30, category: 'tech'
+              productName: 'Trending Product',
+              asin: 'B0TEST123',
+              category: 'tech',
+              currentPrice: 45.99,
+              trendScore: 85,
+              velocity: 50,
+              searchVolume: 10000,
+              competitionScore: 30,
+              profitMargin: 40,
+              trendingPlatforms: ['amazon']
             }]);
           } else {
             result = { success: true, message: 'Trend scanner completed' };
