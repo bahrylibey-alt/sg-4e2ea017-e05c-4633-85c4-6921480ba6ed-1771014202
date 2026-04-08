@@ -2165,6 +2165,48 @@ export type Database = {
           },
         ]
       }
+      traffic_events: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          device_type: string | null
+          event_type: string | null
+          id: string
+          page_url: string | null
+          product_id: string | null
+          referrer: string | null
+          revenue: number | null
+          user_id: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          device_type?: string | null
+          event_type?: string | null
+          id?: string
+          page_url?: string | null
+          product_id?: string | null
+          referrer?: string | null
+          revenue?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          device_type?: string | null
+          event_type?: string | null
+          id?: string
+          page_url?: string | null
+          product_id?: string | null
+          referrer?: string | null
+          revenue?: number | null
+          user_id?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: []
+      }
       traffic_sources: {
         Row: {
           automation_enabled: boolean | null
@@ -2229,6 +2271,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trend_products: {
+        Row: {
+          asin: string | null
+          category: string | null
+          competition_score: number | null
+          current_price: number | null
+          first_seen_at: string | null
+          id: string
+          last_updated: string | null
+          metadata: Json | null
+          product_name: string
+          profit_margin: number | null
+          search_volume: number | null
+          status: string | null
+          trend_score: number | null
+          trending_platforms: string[] | null
+          velocity: number | null
+        }
+        Insert: {
+          asin?: string | null
+          category?: string | null
+          competition_score?: number | null
+          current_price?: number | null
+          first_seen_at?: string | null
+          id?: string
+          last_updated?: string | null
+          metadata?: Json | null
+          product_name: string
+          profit_margin?: number | null
+          search_volume?: number | null
+          status?: string | null
+          trend_score?: number | null
+          trending_platforms?: string[] | null
+          velocity?: number | null
+        }
+        Update: {
+          asin?: string | null
+          category?: string | null
+          competition_score?: number | null
+          current_price?: number | null
+          first_seen_at?: string | null
+          id?: string
+          last_updated?: string | null
+          metadata?: Json | null
+          product_name?: string
+          profit_margin?: number | null
+          search_volume?: number | null
+          status?: string | null
+          trend_score?: number | null
+          trending_platforms?: string[] | null
+          velocity?: number | null
+        }
+        Relationships: []
       }
       user_settings: {
         Row: {

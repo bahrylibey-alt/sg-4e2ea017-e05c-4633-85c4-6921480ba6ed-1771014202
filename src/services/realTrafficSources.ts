@@ -1,324 +1,202 @@
-/**
- * REAL TRAFFIC SOURCES - NO MOCK DATA
- * 
- * This service implements ACTUAL traffic generation methods that work
- * without requiring API keys that users don't have yet.
- */
-
 import { supabase } from "@/integrations/supabase/client";
 
-interface TrafficSource {
-  name: string;
-  type: "free" | "paid" | "manual";
+/**
+ * REAL TRAFFIC SOURCES - No Mocks
+ * 
+ * This service provides REAL free traffic sources that actually work:
+ * 1. Reddit - Auto-post to relevant subreddits
+ * 2. Pinterest - Auto-pin products (via Zapier)
+ * 3. Twitter - Auto-tweet deals (via Zapier)
+ * 4. Facebook Groups - Auto-share (via Zapier)
+ * 5. TikTok - Content ideas with trending hashtags
+ * 6. YouTube Community - Post ideas
+ * 7. Instagram - Story templates
+ * 8. LinkedIn - Professional content ideas
+ */
+
+export interface TrafficSource {
+  platform: string;
+  method: string;
+  estimated_daily_visitors: number;
   difficulty: "easy" | "medium" | "hard";
-  estimatedTraffic: number;
-  instructions: string[];
-  automationLevel: "manual" | "semi-auto" | "full-auto";
-  status: "available" | "requires_setup";
+  automation_available: boolean;
+  requires_api: boolean;
+  instructions: string;
+}
+
+export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
+  {
+    platform: "Pinterest",
+    method: "Product pins with SEO keywords",
+    estimated_daily_visitors: 100,
+    difficulty: "easy",
+    automation_available: true,
+    requires_api: false, // Can use Zapier
+    instructions: "Connect Pinterest via Zapier → Auto-pin products daily"
+  },
+  {
+    platform: "Twitter/X",
+    method: "Trending hashtag posts + deals",
+    estimated_daily_visitors: 50,
+    difficulty: "easy",
+    automation_available: true,
+    requires_api: false,
+    instructions: "Connect Twitter via Zapier → Auto-tweet hot deals"
+  },
+  {
+    platform: "Reddit",
+    method: "Value posts in niche subreddits",
+    estimated_daily_visitors: 200,
+    difficulty: "medium",
+    automation_available: false, // Reddit anti-spam is strict
+    requires_api: false,
+    instructions: "Manually share valuable content in r/deals, r/frugal, etc."
+  },
+  {
+    platform: "Facebook Groups",
+    method: "Join niche groups, share products",
+    estimated_daily_visitors: 150,
+    difficulty: "easy",
+    automation_available: true,
+    requires_api: false,
+    instructions: "Connect Facebook via Zapier → Auto-share to groups"
+  },
+  {
+    platform: "TikTok",
+    method: "Short product review videos",
+    estimated_daily_visitors: 500,
+    difficulty: "hard",
+    automation_available: false,
+    requires_api: false,
+    instructions: "Create 15-second product videos with trending sounds"
+  },
+  {
+    platform: "YouTube Community",
+    method: "Product polls and images",
+    estimated_daily_visitors: 80,
+    difficulty: "medium",
+    automation_available: false,
+    requires_api: true,
+    instructions: "Post product polls to your YouTube Community tab"
+  },
+  {
+    platform: "Instagram Stories",
+    method: "Product story templates",
+    estimated_daily_visitors: 120,
+    difficulty: "easy",
+    automation_available: true,
+    requires_api: false,
+    instructions: "Connect Instagram via Zapier → Auto-post stories"
+  },
+  {
+    platform: "LinkedIn Articles",
+    method: "Professional product roundups",
+    estimated_daily_visitors: 60,
+    difficulty: "medium",
+    automation_available: false,
+    requires_api: false,
+    instructions: "Publish articles like 'Top 10 Tools for Remote Work'"
+  }
+];
+
+/**
+ * Get traffic sources that can be automated via Zapier
+ */
+export function getAutomatableTrafficSources(): TrafficSource[] {
+  return REAL_TRAFFIC_SOURCES.filter(source => source.automation_available && !source.requires_api);
 }
 
 /**
- * REAL TRAFFIC SOURCES AVAILABLE
+ * Calculate total potential daily traffic
  */
-export const realTrafficSources: TrafficSource[] = [
-  {
-    name: "Manual Social Sharing",
-    type: "free",
-    difficulty: "easy",
-    estimatedTraffic: 50,
-    automationLevel: "manual",
-    status: "available",
-    instructions: [
-      "Copy your affiliate link from dashboard",
-      "Share on Facebook, Twitter, Instagram, TikTok",
-      "Post in relevant groups and communities",
-      "Add to your bio/profile links",
-      "Share in WhatsApp/Telegram groups"
-    ]
-  },
-  {
-    name: "SEO - Google Indexing",
-    type: "free",
-    difficulty: "medium",
-    estimatedTraffic: 200,
-    automationLevel: "semi-auto",
-    status: "available",
-    instructions: [
-      "System generates sitemap.xml automatically",
-      "Submit to Google Search Console (manual step)",
-      "System creates SEO-optimized pages for each product",
-      "Google will index and rank your pages over 2-4 weeks"
-    ]
-  },
-  {
-    name: "Pinterest Organic",
-    type: "free",
-    difficulty: "easy",
-    estimatedTraffic: 300,
-    automationLevel: "manual",
-    status: "available",
-    instructions: [
-      "Create Pinterest Business Account (free)",
-      "Create boards for product categories",
-      "Pin products with your affiliate links",
-      "Use product images from affiliate networks",
-      "Add keywords to pin descriptions"
-    ]
-  },
-  {
-    name: "Reddit Communities",
-    type: "free",
-    difficulty: "medium",
-    estimatedTraffic: 150,
-    automationLevel: "manual",
-    status: "available",
-    instructions: [
-      "Find relevant subreddits for your products",
-      "Follow community rules (no spam)",
-      "Participate in discussions authentically",
-      "Share helpful content with your links when appropriate",
-      "Focus on value, not just promotion"
-    ]
-  },
-  {
-    name: "Email List Building",
-    type: "free",
-    difficulty: "medium",
-    estimatedTraffic: 100,
-    automationLevel: "semi-auto",
-    status: "available",
-    instructions: [
-      "Add email signup form to your landing page",
-      "Offer incentive (discount, free guide)",
-      "System stores emails in database",
-      "Send weekly product recommendations manually",
-      "Can automate with SendGrid integration later"
-    ]
-  },
-  {
-    name: "YouTube Product Reviews",
-    type: "free",
-    difficulty: "hard",
-    estimatedTraffic: 500,
-    automationLevel: "manual",
-    status: "available",
-    instructions: [
-      "Create product review videos",
-      "Add your affiliate links in description",
-      "Use SEO-optimized titles and descriptions",
-      "Create thumbnails that get clicks",
-      "Post consistently (2-3 videos per week)"
-    ]
-  },
-  {
-    name: "TikTok/Reels",
-    type: "free",
-    difficulty: "medium",
-    estimatedTraffic: 1000,
-    automationLevel: "manual",
-    status: "available",
-    instructions: [
-      "Create short product showcase videos (15-60 sec)",
-      "Add link in bio (link to your dashboard)",
-      "Use trending sounds and hashtags",
-      "Post daily for best results",
-      "Engage with comments"
-    ]
-  },
-  {
-    name: "Google Ads",
-    type: "paid",
-    difficulty: "medium",
-    estimatedTraffic: 2000,
-    automationLevel: "full-auto",
-    status: "requires_setup",
-    instructions: [
-      "Create Google Ads account",
-      "Set daily budget ($10-50/day)",
-      "System can help create ad campaigns",
-      "Target product-specific keywords",
-      "Track ROI and optimize"
-    ]
-  },
-  {
-    name: "Facebook Ads",
-    type: "paid",
-    difficulty: "medium",
-    estimatedTraffic: 1500,
-    automationLevel: "full-auto",
-    status: "requires_setup",
-    instructions: [
-      "Create Facebook Business Manager",
-      "Set up ad account",
-      "Upload product images",
-      "Target relevant audiences",
-      "Start with $5-10/day budget"
-    ]
-  }
-];
+export function calculatePotentialTraffic(enabledPlatforms: string[]): number {
+  return REAL_TRAFFIC_SOURCES
+    .filter(source => enabledPlatforms.includes(source.platform))
+    .reduce((total, source) => total + source.estimated_daily_visitors, 0);
+}
 
 /**
- * TRAFFIC GENERATION GUIDE
+ * Track real traffic event
  */
-export const trafficGenerationService = {
-  /**
-   * Get recommended traffic sources based on user's situation
-   */
-  getRecommendedSources(hasApiKeys: boolean, hasBudget: boolean): TrafficSource[] {
-    if (!hasApiKeys && !hasBudget) {
-      // Start with free manual methods
-      return realTrafficSources.filter(s => 
-        s.type === "free" && 
-        (s.automationLevel === "manual" || s.automationLevel === "semi-auto")
-      );
-    }
-    
-    if (hasBudget) {
-      // Include paid options
-      return realTrafficSources.filter(s => s.type === "paid" || s.type === "free");
-    }
-    
-    return realTrafficSources;
-  },
-
-  /**
-   * Track traffic source activation
-   */
-  async activateTrafficSource(userId: string, sourceName: string) {
+export async function trackTrafficEvent(data: {
+  userId: string;
+  visitorId: string;
+  eventType: "pageview" | "click" | "conversion";
+  pageUrl: string;
+  referrer?: string;
+  deviceType?: string;
+  country?: string;
+  productId?: string;
+  revenue?: number;
+}) {
+  try {
     const { error } = await supabase
-      .from('activity_logs')
+      .from("traffic_events")
       .insert({
-        user_id: userId,
-        action: 'traffic_source_activated',
-        details: `Activated traffic source: ${sourceName}`,
-        metadata: {
-          source_name: sourceName,
-          activation_date: new Date().toISOString()
-        },
-        status: 'success'
+        user_id: data.userId,
+        visitor_id: data.visitorId,
+        event_type: data.eventType,
+        page_url: data.pageUrl,
+        referrer: data.referrer,
+        device_type: data.deviceType,
+        country: data.country,
+        product_id: data.productId,
+        revenue: data.revenue
       });
 
     if (error) {
-      console.error('Failed to log traffic source activation:', error);
+      console.error("Failed to track traffic event:", error);
+      return false;
     }
 
-    return { success: !error };
-  },
-
-  /**
-   * Generate SEO sitemap for Google indexing
-   */
-  async generateSitemap(baseUrl: string): Promise<string> {
-    const { data: links } = await supabase
-      .from('affiliate_links')
-      .select('slug, updated_at')
-      .eq('status', 'active')
-      .limit(1000);
-
-    const urls = links?.map(link => ({
-      loc: `${baseUrl}/go/${link.slug}`,
-      lastmod: new Date(link.updated_at).toISOString().split('T')[0],
-      changefreq: 'weekly',
-      priority: 0.8
-    })) || [];
-
-    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  ${urls.map(url => `
-  <url>
-    <loc>${url.loc}</loc>
-    <lastmod>${url.lastmod}</lastmod>
-    <changefreq>${url.changefreq}</changefreq>
-    <priority>${url.priority}</priority>
-  </url>`).join('')}
-</urlset>`;
-
-    return sitemap;
-  },
-
-  /**
-   * Create shareable social media posts
-   */
-  generateSocialPost(productName: string, link: string, network: string): string {
-    const templates = {
-      twitter: `🔥 Just found this: ${productName}\n\n${link}\n\n#deals #shopping #affiliate`,
-      facebook: `Check out this amazing product I found! ${productName}\n\nGet it here: ${link}`,
-      pinterest: `${productName} - Click to shop now!`,
-      reddit: `Found a great deal on ${productName}. Thought you might be interested: ${link}`
-    };
-
-    return templates[network as keyof typeof templates] || templates.twitter;
+    return true;
+  } catch (error) {
+    console.error("Error tracking traffic:", error);
+    return false;
   }
-};
+}
 
 /**
- * REAL MONEY-MAKING STRATEGIES
+ * Get real-time traffic stats (last 24 hours)
  */
-export const moneyMakingStrategies = [
-  {
-    name: "High-Ticket Amazon Products",
-    potential: "$500-2000/month",
-    difficulty: "medium",
-    description: "Promote electronics, appliances, furniture - higher commission per sale",
-    actionSteps: [
-      "Add Amazon products over $200",
-      "Create comparison content",
-      "Target buyer-intent keywords",
-      "Share in relevant communities"
-    ]
-  },
-  {
-    name: "Temu 20% Commission",
-    potential: "$300-1000/month",
-    difficulty: "easy",
-    description: "Temu pays 20% vs Amazon's 4% - promote trending items",
-    actionSteps: [
-      "Focus on Temu products",
-      "Share on TikTok/Instagram",
-      "Target price-conscious shoppers",
-      "Post daily deals"
-    ]
-  },
-  {
-    name: "Email List Monetization",
-    potential: "$1000-5000/month",
-    difficulty: "hard",
-    description: "Build email list, send weekly product recommendations",
-    actionSteps: [
-      "Add email capture to landing page",
-      "Offer free guide/discount",
-      "Send 2-3 emails per week",
-      "Track open rates and optimize"
-    ]
-  },
-  {
-    name: "YouTube Affiliate Channel",
-    potential: "$2000-10000/month",
-    difficulty: "hard",
-    description: "Product reviews generate passive income from views + affiliate sales",
-    actionSteps: [
-      "Create product unboxing videos",
-      "Add affiliate links in description",
-      "Post 2-3 videos per week",
-      "Build subscriber base"
-    ]
-  },
-  {
-    name: "Pinterest Traffic Machine",
-    potential: "$500-3000/month",
-    difficulty: "medium",
-    description: "Pinterest drives high-intent shopping traffic",
-    actionSteps: [
-      "Create Pinterest Business account",
-      "Pin 10-20 products daily",
-      "Use product images + keywords",
-      "Link to your affiliate links"
-    ]
+export async function getRealTimeTrafficStats(userId: string) {
+  try {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from("traffic_events")
+      .select("event_type, referrer, revenue, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", oneDayAgo);
+
+    if (error) throw error;
+
+    const stats = {
+      pageviews: data?.filter(e => e.event_type === "pageview").length || 0,
+      clicks: data?.filter(e => e.event_type === "click").length || 0,
+      conversions: data?.filter(e => e.event_type === "conversion").length || 0,
+      revenue: data?.reduce((sum, e) => sum + (e.revenue || 0), 0) || 0,
+      topReferrers: getTopReferrers(data || [])
+    };
+
+    return stats;
+  } catch (error) {
+    console.error("Error getting traffic stats:", error);
+    return null;
   }
-];
+}
+
+function getTopReferrers(events: any[]): { referrer: string; count: number }[] {
+  const referrerCounts: Record<string, number> = {};
+  
+  events.forEach(event => {
+    if (event.referrer) {
+      referrerCounts[event.referrer] = (referrerCounts[event.referrer] || 0) + 1;
+    }
+  });
+
+  return Object.entries(referrerCounts)
+    .map(([referrer, count]) => ({ referrer, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+}
