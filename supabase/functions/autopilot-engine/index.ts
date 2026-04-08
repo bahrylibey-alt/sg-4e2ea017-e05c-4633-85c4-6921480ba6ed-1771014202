@@ -1,25 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Create Supabase admin client
+// Initialize Supabase Admin Client
 const supabaseAdmin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-/**
- * AUTOPILOT ENGINE - RUNS 24/7 ON SERVER
- * This Edge Function executes autopilot tasks and persists state across user navigation
- */
-
 // Helper function: Add products to campaign
 async function addProducts(campaignId: string, userId: string): Promise<number> {
   try {
+    console.log(`🛍️ Adding products to campaign ${campaignId}...`);
+    
     // Real products from Amazon/Temu trending items
     const products = [
       { name: 'Smart Kitchen Scale with App', asin: 'B08XYZ123', price: 29.99 },
@@ -51,13 +48,17 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
           commission_earned: 0
         });
 
-      if (!error) addedCount++;
+      if (!error) {
+        addedCount++;
+      } else {
+        console.error('Error adding product:', product.name, error);
+      }
     }
 
-    console.log(`✅ Added ${addedCount} products to campaign ${campaignId}`);
+    console.log(`✅ Added ${addedCount}/${products.length} products`);
     return addedCount;
   } catch (error) {
-    console.error('Error adding products:', error);
+    console.error('❌ Error in addProducts:', error);
     return 0;
   }
 }
@@ -65,6 +66,8 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
 // Helper function: Generate content for campaign
 async function generateContent(campaignId: string, userId: string): Promise<number> {
   try {
+    console.log(`📝 Generating content for campaign ${campaignId}...`);
+    
     const articles = [
       {
         title: '10 Must-Have Kitchen Gadgets That Will Transform Your Cooking',
@@ -94,13 +97,17 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
           clicks: 0
         });
 
-      if (!error) generatedCount++;
+      if (!error) {
+        generatedCount++;
+      } else {
+        console.error('Error generating article:', article.title, error);
+      }
     }
 
-    console.log(`✅ Generated ${generatedCount} articles for campaign ${campaignId}`);
+    console.log(`✅ Generated ${generatedCount}/${articles.length} articles`);
     return generatedCount;
   } catch (error) {
-    console.error('Error generating content:', error);
+    console.error('❌ Error in generateContent:', error);
     return 0;
   }
 }
@@ -108,6 +115,8 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
 // Helper function: Activate traffic sources
 async function activateTraffic(campaignId: string, userId: string): Promise<number> {
   try {
+    console.log(`🚦 Activating traffic for campaign ${campaignId}...`);
+    
     const sources = [
       { name: 'Facebook', automation_enabled: true },
       { name: 'Instagram', automation_enabled: true },
@@ -135,31 +144,46 @@ async function activateTraffic(campaignId: string, userId: string): Promise<numb
           ignoreDuplicates: false 
         });
 
-      if (!error) activatedCount++;
+      if (!error) {
+        activatedCount++;
+      } else {
+        console.error('Error activating source:', source.name, error);
+      }
     }
 
-    console.log(`✅ Activated ${activatedCount} traffic sources for campaign ${campaignId}`);
+    console.log(`✅ Activated ${activatedCount}/${sources.length} traffic sources`);
     return activatedCount;
   } catch (error) {
-    console.error('Error activating traffic:', error);
+    console.error('❌ Error in activateTraffic:', error);
     return 0;
   }
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { action, user_id, campaign_id } = await req.json();
+    console.log('📥 Autopilot Engine Request:', req.method, req.url);
+    
+    const body = await req.json();
+    console.log('📋 Request Body:', JSON.stringify(body));
+    
+    const { action, user_id, campaign_id } = body;
 
     // Validate action
     const validActions = ['start', 'stop', 'status', 'launch', 'execute'];
     if (!action || !validActions.includes(action)) {
+      console.error('❌ Invalid action:', action, 'Valid actions:', validActions);
       return new Response(
-        JSON.stringify({ error: 'Invalid action. Must be: start, stop, status, launch, or execute' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Invalid action', 
+          received: action,
+          valid_actions: validActions 
+        }),
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -167,7 +191,14 @@ serve(async (req) => {
 
     // Handle different actions
     if (action === 'status') {
-      // Get autopilot status
+      // Get current autopilot status
+      if (!user_id) {
+        return new Response(
+          JSON.stringify({ error: 'user_id required for status check' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
       const { data: settings } = await supabaseAdmin
         .from('user_settings')
         .select('autopilot_enabled')
@@ -176,10 +207,10 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ 
-          success: true,
-          is_active: settings?.autopilot_enabled || false
+          enabled: settings?.autopilot_enabled || false,
+          timestamp: new Date().toISOString()
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: corsHeaders }
       );
     }
 
@@ -188,9 +219,11 @@ serve(async (req) => {
       if (!user_id) {
         return new Response(
           JSON.stringify({ error: 'user_id required for start action' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         );
       }
+
+      console.log(`🚀 Starting autopilot for user ${user_id}...`);
 
       // 1. Enable autopilot in user settings
       const { error: updateError } = await supabaseAdmin
@@ -202,10 +235,10 @@ serve(async (req) => {
         }, { onConflict: 'user_id' });
 
       if (updateError) {
-        console.error('Failed to enable autopilot:', updateError);
+        console.error('❌ Failed to enable autopilot:', updateError);
         return new Response(
           JSON.stringify({ error: 'Failed to enable autopilot', details: updateError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 500, headers: corsHeaders }
         );
       }
 
@@ -223,9 +256,10 @@ serve(async (req) => {
 
         if (campaigns && campaigns.length > 0) {
           activeCampaignId = campaigns[0].id;
+          console.log(`📌 Using existing campaign ${activeCampaignId}`);
         } else {
           // Create new autopilot campaign
-          const { data: newCampaign } = await supabaseAdmin
+          const { data: newCampaign, error: campaignError } = await supabaseAdmin
             .from('campaigns')
             .insert({
               user_id,
@@ -237,21 +271,30 @@ serve(async (req) => {
             .select()
             .single();
           
+          if (campaignError) {
+            console.error('❌ Failed to create campaign:', campaignError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to create campaign', details: campaignError.message }),
+              { status: 500, headers: corsHeaders }
+            );
+          }
+          
           activeCampaignId = newCampaign?.id;
+          console.log(`✨ Created new campaign ${activeCampaignId}`);
         }
       }
 
       if (!activeCampaignId) {
         return new Response(
-          JSON.stringify({ error: 'Failed to create campaign' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Failed to get or create campaign' }),
+          { status: 500, headers: corsHeaders }
         );
       }
 
       console.log(`✅ Autopilot enabled for user ${user_id}, campaign ${activeCampaignId}`);
 
       // 3. Execute initial work cycle immediately
-      console.log('🚀 Executing initial work cycle...');
+      console.log('🔨 Executing initial work cycle...');
       
       // Add products
       const productCount = await addProducts(activeCampaignId, user_id);
@@ -261,6 +304,8 @@ serve(async (req) => {
       
       // Activate traffic sources
       const trafficCount = await activateTraffic(activeCampaignId, user_id);
+
+      console.log('🎉 Initial work cycle complete!');
 
       return new Response(
         JSON.stringify({ 
@@ -273,45 +318,97 @@ serve(async (req) => {
             traffic_channels: trafficCount
           }
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: corsHeaders }
       );
     }
 
     if (action === 'stop') {
-      // Stop autopilot
+      // Stop autopilot: Disable in database
       if (!user_id) {
         return new Response(
           JSON.stringify({ error: 'user_id required for stop action' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         );
       }
 
+      console.log(`⏸️ Stopping autopilot for user ${user_id}...`);
+
       const { error: updateError } = await supabaseAdmin
         .from('user_settings')
-        .update({ 
+        .update({
           autopilot_enabled: false,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user_id);
 
       if (updateError) {
+        console.error('❌ Failed to disable autopilot:', updateError);
         return new Response(
-          JSON.stringify({ error: 'Failed to stop autopilot', details: updateError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Failed to disable autopilot', details: updateError.message }),
+          { status: 500, headers: corsHeaders }
         );
       }
 
+      console.log('✅ Autopilot stopped successfully');
+
       return new Response(
-        JSON.stringify({ success: true, message: 'Autopilot stopped' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: true,
+          message: 'Autopilot stopped successfully'
+        }),
+        { headers: corsHeaders }
       );
     }
 
-    throw new Error('Invalid action');
-  } catch (error: any) {
-    console.error('Autopilot engine error:', error);
+    if (action === 'execute') {
+      // Execute work cycle for existing autopilot
+      if (!user_id || !campaign_id) {
+        return new Response(
+          JSON.stringify({ error: 'user_id and campaign_id required for execute action' }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+
+      console.log(`⚙️ Executing work cycle for campaign ${campaign_id}...`);
+
+      // Add products
+      const productCount = await addProducts(campaign_id, user_id);
+      
+      // Generate content
+      const contentCount = await generateContent(campaign_id, user_id);
+      
+      // Activate traffic sources
+      const trafficCount = await activateTraffic(campaign_id, user_id);
+
+      console.log('✅ Work cycle complete!');
+
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Work cycle executed successfully',
+          work_completed: {
+            products_added: productCount,
+            content_generated: contentCount,
+            traffic_channels: trafficCount
+          }
+        }),
+        { headers: corsHeaders }
+      );
+    }
+
+    // Should never reach here due to validation, but just in case
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Unhandled action' }),
+      { status: 400, headers: corsHeaders }
+    );
+
+  } catch (error) {
+    console.error('❌ Autopilot Engine Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
