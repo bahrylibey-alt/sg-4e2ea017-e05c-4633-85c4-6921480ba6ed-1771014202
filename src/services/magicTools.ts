@@ -511,102 +511,109 @@ export const magicTools = {
    * TOOL 7: Smart Profit Optimizer
    * Advanced ROI analysis with actionable insights
    */
-  async optimizeProfitStrategy(userId: string) {
-    const response = await (supabase as any)
-      .from('affiliate_links')
-      .select(`*, product_catalog (price, commission_rate, category, network)`)
-      .eq('user_id', userId)
-      .eq('status', 'active');
+  async optimizeProfitStrategy(userId: string): Promise<any[]> {
+    try {
+      const response = await (supabase as any)
+        .from('affiliate_links')
+        .select('*, product_catalog (price, commission_rate, category, network)')
+        .eq('user_id', userId)
+        .eq('status', 'active');
 
-    const links: any[] = response.data || [];
-    if (!links || links.length === 0) return [];
+      const links = response.data || [];
+      if (links.length === 0) return [];
 
-    const enrichedData = await Promise.all(links.map(async (link) => {
-      const catalog = link.product_catalog as any;
-      const price = catalog?.price || 0;
-      const commissionRate = catalog?.commission_rate || 0;
-      const category = catalog?.category || 'general';
-      const network = catalog?.network || 'amazon';
-      
-      // Calculate metrics
-      const commissionPerSale = price * (commissionRate / 100);
-      const clickThroughRate = link.clicks > 0 ? (link.conversions || 0) / link.clicks : 0.03;
-      
-      // Get historical performance
-      const { data: postHistory } = await supabase
-        .from('posted_content')
-        .select('likes, shares, clicks, revenue_generated')
-        .eq('affiliate_link_id', link.id)
-        .not('posted_at', 'is', null);
+      const results: any[] = [];
 
-      const avgEngagement = postHistory && postHistory.length > 0
-        ? postHistory.reduce((sum, p) => sum + ((p.likes || 0) + (p.shares || 0) * 2), 0) / postHistory.length
-        : 100;
+      for (const link of links) {
+        const catalog = link.product_catalog || {};
+        const price = catalog.price || 0;
+        const commissionRate = catalog.commission_rate || 0;
+        const category = catalog.category || 'general';
+        const network = catalog.network || 'amazon';
+        
+        // Calculate metrics
+        const commissionPerSale = price * (commissionRate / 100);
+        const clickThroughRate = link.clicks > 0 ? (link.conversions || 0) / link.clicks : 0.03;
+        
+        // Get historical performance
+        const { data: postHistory } = await supabase
+          .from('posted_content')
+          .select('likes, shares, clicks, revenue_generated')
+          .eq('affiliate_link_id', link.id)
+          .not('posted_at', 'is', null);
 
-      // Viral score prediction
-      const viralPrediction = await magicTools.predictViralScore(
-        link.product_name || 'Product',
-        price,
-        category
-      );
+        const avgEngagement = postHistory && postHistory.length > 0
+          ? postHistory.reduce((sum: number, p: any) => sum + ((p.likes || 0) + (p.shares || 0) * 2), 0) / postHistory.length
+          : 100;
 
-      // Calculate profit potential
-      const estimatedDailyClicks = Math.max(50, avgEngagement * 0.5);
-      const estimatedDailySales = estimatedDailyClicks * clickThroughRate;
-      const estimatedDailyRevenue = estimatedDailySales * commissionPerSale;
-      const estimatedMonthlyRevenue = estimatedDailyRevenue * 30;
+        // Viral score prediction
+        const viralPrediction = await this.predictViralScore(
+          link.product_name || 'Product',
+          price,
+          category
+        );
 
-      // Optimization opportunities
-      const opportunities: string[] = [];
-      
-      if (viralPrediction.score >= 75) {
-        opportunities.push("🔥 HIGH VIRAL POTENTIAL - Scale up immediately");
+        // Calculate profit potential
+        const estimatedDailyClicks = Math.max(50, avgEngagement * 0.5);
+        const estimatedDailySales = estimatedDailyClicks * clickThroughRate;
+        const estimatedDailyRevenue = estimatedDailySales * commissionPerSale;
+        const estimatedMonthlyRevenue = estimatedDailyRevenue * 30;
+
+        // Optimization opportunities
+        const opportunities: string[] = [];
+        
+        if (viralPrediction.score >= 75) {
+          opportunities.push("🔥 HIGH VIRAL POTENTIAL - Scale up immediately");
+        }
+        if (clickThroughRate < 0.02) {
+          opportunities.push("⚠️ LOW CTR - Improve landing page or CTA");
+        }
+        if (commissionRate < 5) {
+          opportunities.push("💰 LOW COMMISSION - Find better alternatives");
+        }
+        if (avgEngagement > 200) {
+          opportunities.push("📈 HIGH ENGAGEMENT - Post more frequently");
+        }
+        if (price > 100 && clickThroughRate < 0.03) {
+          opportunities.push("💡 HIGH PRICE - Add trust signals or testimonials");
+        }
+
+        // Strategic recommendation
+        let strategy = "";
+        if (estimatedMonthlyRevenue > 500) {
+          strategy = "🚀 TOP PERFORMER: Max out posting frequency, test new platforms";
+        } else if (estimatedMonthlyRevenue > 200) {
+          strategy = "⚡ STRONG ASSET: Maintain current pace, optimize content";
+        } else if (estimatedMonthlyRevenue > 50) {
+          strategy = "💡 POTENTIAL: Test different angles, improve conversions";
+        } else {
+          strategy = "🔄 NEEDS WORK: Consider replacement or major content pivot";
+        }
+
+        results.push({
+          id: link.id,
+          product_name: link.product_name,
+          network,
+          category,
+          price,
+          commission_rate: commissionRate,
+          commission_per_sale: Math.round(commissionPerSale * 100) / 100,
+          current_ctr: Math.round(clickThroughRate * 10000) / 100,
+          viral_score: viralPrediction.score,
+          estimated_daily_clicks: Math.round(estimatedDailyClicks),
+          estimated_daily_revenue: Math.round(estimatedDailyRevenue * 100) / 100,
+          estimated_monthly_revenue: Math.round(estimatedMonthlyRevenue * 100) / 100,
+          profit_score: estimatedMonthlyRevenue * viralPrediction.score / 100,
+          opportunities,
+          strategy,
+          next_actions: opportunities.slice(0, 2)
+        });
       }
-      if (clickThroughRate < 0.02) {
-        opportunities.push("⚠️ LOW CTR - Improve landing page or CTA");
-      }
-      if (commissionRate < 5) {
-        opportunities.push("💰 LOW COMMISSION - Find better alternatives");
-      }
-      if (avgEngagement > 200) {
-        opportunities.push("📈 HIGH ENGAGEMENT - Post more frequently");
-      }
-      if (price > 100 && clickThroughRate < 0.03) {
-        opportunities.push("💡 HIGH PRICE - Add trust signals or testimonials");
-      }
 
-      // Strategic recommendation
-      let strategy = "";
-      if (estimatedMonthlyRevenue > 500) {
-        strategy = "🚀 TOP PERFORMER: Max out posting frequency, test new platforms";
-      } else if (estimatedMonthlyRevenue > 200) {
-        strategy = "⚡ STRONG ASSET: Maintain current pace, optimize content";
-      } else if (estimatedMonthlyRevenue > 50) {
-        strategy = "💡 POTENTIAL: Test different angles, improve conversions";
-      } else {
-        strategy = "🔄 NEEDS WORK: Consider replacement or major content pivot";
-      }
-
-      return {
-        id: link.id,
-        product_name: link.product_name,
-        network,
-        category,
-        price,
-        commission_rate: commissionRate,
-        commission_per_sale: Math.round(commissionPerSale * 100) / 100,
-        current_ctr: Math.round(clickThroughRate * 10000) / 100,
-        viral_score: viralPrediction.score,
-        estimated_daily_clicks: Math.round(estimatedDailyClicks),
-        estimated_daily_revenue: Math.round(estimatedDailyRevenue * 100) / 100,
-        estimated_monthly_revenue: Math.round(estimatedMonthlyRevenue * 100) / 100,
-        profit_score: estimatedMonthlyRevenue * viralPrediction.score / 100,
-        opportunities,
-        strategy,
-        next_actions: opportunities.slice(0, 2) // Top 2 actions
-      };
-    }));
-
-    return enrichedData.sort((a, b) => b.profit_score - a.profit_score);
+      return results.sort((a, b) => b.profit_score - a.profit_score);
+    } catch (error) {
+      console.error("Profit optimization error:", error);
+      return [];
+    }
   }
 };
