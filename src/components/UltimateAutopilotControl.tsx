@@ -161,7 +161,7 @@ export function UltimateAutopilotControl() {
     try {
       // Run all enabled tasks
       if (automations.productDiscovery) {
-        await smartProductDiscovery.discoverTrendingProducts();
+        await smartProductDiscovery.discoverTrendingProducts("Kitchen Gadgets", 5);
       }
 
       if (automations.performanceOptimization) {

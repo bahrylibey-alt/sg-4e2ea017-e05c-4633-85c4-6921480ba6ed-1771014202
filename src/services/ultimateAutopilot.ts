@@ -97,11 +97,11 @@ export const ultimateAutopilot = {
 
     try {
       // 1. Product Discovery
-      const discoveryResult = await smartProductDiscovery.discoverTrendingProducts();
+      const discoveryResult = await smartProductDiscovery.discoverTrendingProducts("Kitchen Gadgets", 5);
       results.product_discovery = {
         success: discoveryResult.success || false,
-        added: discoveryResult.added || 0,
-        message: `Discovered ${discoveryResult.added || 0} trending products`
+        added: discoveryResult.products?.length || 0,
+        message: `Discovered ${discoveryResult.products?.length || 0} trending products`
       };
 
       // 2. Performance Optimization
