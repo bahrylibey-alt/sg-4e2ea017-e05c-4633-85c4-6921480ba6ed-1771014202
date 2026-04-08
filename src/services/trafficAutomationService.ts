@@ -110,6 +110,17 @@ export const trafficAutomationService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
 
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id);
+        
+      const campaignIds = campaigns?.map(c => c.id) || [];
+      
+      if (campaignIds.length === 0) {
+        return { success: false, message: "No active campaigns found" };
+      }
+
       // Find and deactivate traffic source
       const { error } = await supabase
         .from("traffic_sources")
@@ -119,9 +130,7 @@ export const trafficAutomationService = {
           updated_at: new Date().toISOString()
         })
         .eq("source_name", channelName)
-        .in("campaign_id", 
-          supabase.from("campaigns").select("id").eq("user_id", user.id)
-        );
+        .in("campaign_id", campaignIds);
 
       if (error) throw error;
 
