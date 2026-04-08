@@ -1,198 +1,78 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { AuthModal } from "@/components/AuthModal";
-import { Menu, Search, Zap, X, LogOut, User } from "lucide-react";
-import { authService } from "@/services/authService";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Menu, X, Zap } from "lucide-react";
 
 export function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authModalTab, setAuthModalTab] = useState<"login" | "signup">("login");
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const session = await authService.getCurrentSession();
-    setIsAuthenticated(!!session);
-    setUserEmail(session?.user?.email || null);
-  };
-
-  const scrollToSection = (sectionId: string) => {
-    const element = document.querySelector(`[data-section="${sectionId}"]`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-      setMobileMenuOpen(false);
-    }
-  };
-
-  const handleSignIn = () => {
-    setAuthModalTab("login");
-    setAuthModalOpen(true);
-  };
-
-  const handleSignUp = () => {
-    setAuthModalTab("signup");
-    setAuthModalOpen(true);
-  };
-
-  const handleSignOut = async () => {
-    await authService.signOut();
-    setIsAuthenticated(false);
-    setUserEmail(null);
-    window.location.reload();
-  };
-
-  const handleStartTrial = () => {
-    if (isAuthenticated) {
-      const pricingSection = document.querySelector("[data-section=\"pricing\"]");
-      if (pricingSection) {
-        pricingSection.scrollIntoView({ behavior: "smooth" });
-      }
-    } else {
-      handleSignUp();
-    }
-  };
-
-  const handleSearch = () => {
-    const searchQuery = prompt("Search for affiliate products, tools, or documentation:");
-    if (searchQuery && searchQuery.trim()) {
-      alert(`🔍 Searching for: "${searchQuery}"\n\nThis would show search results for:\n• Products matching "${searchQuery}"\n• Tools and features\n• Documentation\n• Blog posts`);
-    }
-  };
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <>
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-6">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AffiliatePro</span>
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
             </div>
+            <span className="bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+              AffiliatePro
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="/#features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+          <nav className="hidden md:flex items-center gap-6">
+            <Link href="/#features" className="text-sm font-medium hover:text-primary transition-colors">
               Features
             </Link>
-            <Link href="/#pricing" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/#pricing" className="text-sm font-medium hover:text-primary transition-colors">
               Pricing
             </Link>
-            {isAuthenticated ? (
-              <Link href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                Dashboard
-              </Link>
-            ) : null}
+            <ThemeSwitch />
+            <Button asChild>
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
           </nav>
 
-          {/* Right side actions */}
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={handleSearch}>
-              <Search className="w-5 h-5" />
-            </Button>
+          {/* Mobile Menu Button */}
+          <div className="flex md:hidden items-center gap-2">
             <ThemeSwitch />
-            
-            {isAuthenticated ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="hidden md:flex gap-2">
-                    <User className="w-4 h-4" />
-                    {userEmail?.split("@")[0]}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => window.location.href = "/dashboard"}>
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.location.href = "/settings"}>
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Button variant="ghost" className="hidden md:flex" onClick={handleSignIn}>
-                Sign In
-              </Button>
-            )}
-            
-            <Button className="hidden md:flex bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleStartTrial}>
-              {isAuthenticated ? "View Plans" : "Start Free Trial"}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </Button>
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
         </div>
-      </header>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 animate-in slide-in-from-top">
-          <nav className="container px-6 py-8 space-y-4">
-            <Link href="/#features" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden py-4 space-y-2 border-t">
+            <Link 
+              href="/#features" 
+              className="block px-4 py-2 hover:bg-accent rounded-lg transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Features
             </Link>
-            <Link href="/#pricing" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
+            <Link 
+              href="/#pricing" 
+              className="block px-4 py-2 hover:bg-accent rounded-lg transition-colors"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Pricing
             </Link>
-            {isAuthenticated ? (
-              <Link href="/dashboard" className="block w-full text-left py-3 px-4 text-lg font-medium text-foreground hover:bg-primary/10 rounded-lg transition-colors">
-                Dashboard
-              </Link>
-            ) : null}
-            <div className="pt-4 space-y-3">
-              {isAuthenticated ? (
-                <>
-                  <Button variant="outline" className="w-full" onClick={() => window.location.href = "/dashboard"}>
-                    Dashboard
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => window.location.href = "/settings"}>
-                    Settings
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={handleSignOut}>
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <Button variant="outline" className="w-full" onClick={handleSignIn}>
-                  Sign In
-                </Button>
-              )}
-              <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleStartTrial}>
-                {isAuthenticated ? "View Plans" : "Start Free Trial"}
-              </Button>
-            </div>
-          </nav>
-        </div>
-      )}
-
-      <AuthModal 
-        open={authModalOpen} 
-        onOpenChange={setAuthModalOpen}
-        defaultTab={authModalTab}
-        onSuccess={checkAuth}
-      />
-    </>
+            <Link 
+              href="/dashboard" 
+              className="block px-4 py-2 bg-primary text-primary-foreground rounded-lg text-center font-medium"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Dashboard
+            </Link>
+          </div>
+        )}
+      </div>
+    </header>
   );
 }
