@@ -115,7 +115,7 @@ export const smartProductDiscovery = {
       
       const products = REAL_PRODUCT_DATABASE[niche as keyof typeof REAL_PRODUCT_DATABASE] || REAL_PRODUCT_DATABASE["Kitchen Gadgets"];
       
-      // Get existing products in this campaign to avoid duplicates
+      // CRITICAL: Get existing products in THIS SPECIFIC campaign to avoid duplicates
       const { data: existingLinks } = await supabase
         .from("affiliate_links")
         .select("product_name")
@@ -123,68 +123,103 @@ export const smartProductDiscovery = {
 
       const existingNames = new Set(existingLinks?.map(l => l.product_name) || []);
       
-      // Filter out products already in campaign
+      // Filter out products ALREADY in THIS campaign
       const newProducts = products.filter(p => !existingNames.has(p.name));
       
-      console.log(`📊 Found ${newProducts.length} new products (${existingNames.size} already added)`);
+      console.log(`📊 Found ${newProducts.length} new products for this campaign (${existingNames.size} already added)`);
       
       if (newProducts.length === 0) {
-        console.log("⚠️ All products from this niche already added. Rotating to different niche...");
+        console.log("⚠️ All products from this niche already in campaign. Rotating to different niche...");
         // Rotate to a different niche
         const niches = Object.keys(REAL_PRODUCT_DATABASE);
-        const randomNiche = niches[Math.floor(Math.random() * niches.length)] as keyof typeof REAL_PRODUCT_DATABASE;
-        const rotatedProducts = REAL_PRODUCT_DATABASE[randomNiche];
-        return this.addToCampaign(campaignId, userId, count); // Retry with rotation
+        const currentIndex = niches.indexOf(niche);
+        const nextIndex = (currentIndex + 1) % niches.length;
+        const nextNiche = niches[nextIndex] as keyof typeof REAL_PRODUCT_DATABASE;
+        
+        console.log(`🔄 Rotating from ${niche} to ${nextNiche}`);
+        
+        const rotatedProducts = REAL_PRODUCT_DATABASE[nextNiche];
+        const freshProducts = rotatedProducts.filter(p => !existingNames.has(p.name));
+        
+        if (freshProducts.length === 0) {
+          console.log("⚠️ All products from all niches already added to this campaign!");
+          return { success: true, products: [], added: 0 };
+        }
+        
+        // Use the fresh products from rotated niche
+        const shuffled = [...freshProducts].sort(() => Math.random() - 0.5);
+        const selectedProducts = shuffled.slice(0, Math.min(count, freshProducts.length));
+        return this.insertProducts(selectedProducts, campaignId, userId);
       }
       
       // Randomly select products from NEW ones only
       const shuffled = [...newProducts].sort(() => Math.random() - 0.5);
       const selectedProducts = shuffled.slice(0, Math.min(count, newProducts.length));
 
-      const insertedProducts = [];
-      
-      for (const product of selectedProducts) {
-        // Create affiliate link
-        const affiliateTag = "yourstore0c-20"; // Replace with actual Amazon Associates ID
-        const affiliateUrl = `https://www.amazon.com/dp/${product.asin}?tag=${affiliateTag}`;
-        const slug = Math.random().toString(36).substring(2, 10);
-        
-        const linkData = {
-          campaign_id: campaignId,
-          user_id: userId,
-          product_name: product.name,
-          original_url: affiliateUrl,
-          cloaked_url: `https://yourapp.com/go/${slug}`,
-          slug: slug,
-          status: "active",
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
-          commission_earned: 0
-        };
-
-        const { data: inserted, error } = await supabase
-          .from("affiliate_links")
-          .insert(linkData as any)
-          .select()
-          .single();
-
-        if (error) {
-          console.error("Failed to insert product:", error);
-        } else if (inserted) {
-          insertedProducts.push(inserted);
-          console.log(`✅ Added NEW product: ${product.name}`);
-        }
-      }
-
-      console.log(`✅ Successfully added ${insertedProducts.length} NEW unique products`);
-      
-      return { success: true, products: insertedProducts, added: insertedProducts.length };
+      return this.insertProducts(selectedProducts, campaignId, userId);
       
     } catch (error) {
       console.error("Product discovery error:", error);
       return { success: false, products: [], added: 0 };
     }
+  },
+
+  /**
+   * Helper to insert products and avoid duplicates
+   */
+  async insertProducts(products: any[], campaignId: string, userId: string): Promise<{ success: boolean; products: any[]; added: number }> {
+    const insertedProducts = [];
+    
+    for (const product of products) {
+      // Double-check: Does this exact product already exist in this campaign?
+      const { data: existing } = await supabase
+        .from("affiliate_links")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("product_name", product.name)
+        .maybeSingle();
+
+      if (existing) {
+        console.log(`⏭️ Skipping ${product.name} - already in this campaign`);
+        continue;
+      }
+
+      // Create affiliate link
+      const affiliateTag = "yourstore0c-20"; // Replace with actual Amazon Associates ID
+      const affiliateUrl = `https://www.amazon.com/dp/${product.asin}?tag=${affiliateTag}`;
+      const slug = Math.random().toString(36).substring(2, 10);
+      
+      const linkData = {
+        campaign_id: campaignId,
+        user_id: userId,
+        product_name: product.name,
+        original_url: affiliateUrl,
+        cloaked_url: `https://yourapp.com/go/${slug}`,
+        slug: slug,
+        status: "active",
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        commission_earned: 0
+      };
+
+      const { data: inserted, error } = await supabase
+        .from("affiliate_links")
+        .insert(linkData as any)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to insert product:", error);
+      } else if (inserted) {
+        insertedProducts.push(inserted);
+        console.log(`✅ Added NEW product: ${product.name}`);
+      }
+    }
+
+    console.log(`✅ Successfully added ${insertedProducts.length} UNIQUE products to campaign`);
+    
+    return { success: true, products: insertedProducts, added: insertedProducts.length };
   },
 
   /**
