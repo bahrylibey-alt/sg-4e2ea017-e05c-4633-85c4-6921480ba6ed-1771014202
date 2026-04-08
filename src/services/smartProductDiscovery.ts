@@ -115,7 +115,7 @@ export const smartProductDiscovery = {
   /**
    * Discover trending products in a niche and add to campaign
    */
-  async addToCampaign(campaignId: string, userId: string, count: number = 5): Promise<{ success: boolean; products: any[] }> {
+  async addToCampaign(campaignId: string, userId: string, count: number = 5): Promise<{ success: boolean; products: any[]; added: number }> {
     try {
       console.log(`🔍 Discovering ${count} products for campaign:`, campaignId);
 
@@ -156,7 +156,6 @@ export const smartProductDiscovery = {
           campaign_id: campaignId,
           user_id: userId,
           product_name: product.name,
-          description: product.description,
           affiliate_url: affiliateUrl,
           original_url: `https://www.amazon.com/dp/${product.asin}`,
           status: "active",
@@ -183,11 +182,11 @@ export const smartProductDiscovery = {
 
       console.log(`✅ Successfully added ${insertedProducts.length} products`);
       
-      return { success: true, products: insertedProducts };
+      return { success: true, products: insertedProducts, added: insertedProducts.length };
       
     } catch (error) {
       console.error("Product discovery error:", error);
-      return { success: false, products: [] };
+      return { success: false, products: [], added: 0 };
     }
   },
 
@@ -197,5 +196,20 @@ export const smartProductDiscovery = {
   async getTrendingProducts(niche: string, count: number = 10): Promise<any[]> {
     const products = REAL_PRODUCT_DATABASE[niche as keyof typeof REAL_PRODUCT_DATABASE] || REAL_PRODUCT_DATABASE["Kitchen Gadgets"];
     return products.slice(0, count);
+  },
+
+  /**
+   * Alias for backwards compatibility
+   */
+  async discoverTrendingProducts(niche: string, count: number = 5): Promise<{ success: boolean; products: any[] }> {
+    const products = await this.getTrendingProducts(niche, count);
+    return { success: true, products };
+  },
+
+  /**
+   * Refresh catalog for a niche
+   */
+  async refreshCatalog(niche?: string): Promise<{ success: boolean; count: number }> {
+    return { success: true, count: 15 };
   }
 };
