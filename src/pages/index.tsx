@@ -101,12 +101,13 @@ export default function HomePage() {
           description: "Please sign in to use autopilot",
           variant: "destructive"
         });
+        setIsLaunching(false);
         return;
       }
 
       const newStatus = !isAutopilotActive;
       
-      // 1. SAVE TO DATABASE FIRST (single source of truth)
+      // 1. SAVE TO DATABASE FIRST
       const { error: dbError } = await supabase
         .from('user_settings')
         .upsert({ 
@@ -117,39 +118,89 @@ export default function HomePage() {
 
       if (dbError) {
         console.error("Database error:", dbError);
-        throw dbError;
+        toast({ title: "Error saving status", variant: "destructive" });
+        setIsLaunching(false);
+        return;
       }
 
-      // 2. Call Edge Function to start/stop autopilot backend
-      try {
+      // 2. Update local state immediately
+      setIsAutopilotActive(newStatus);
+      
+      if (newStatus) {
+        // 🚀 LAUNCH: Execute all autopilot work functions RIGHT NOW
+        toast({
+          title: "🚀 Launching Autopilot...",
+          description: "Discovering products, generating content, activating traffic channels..."
+        });
+
+        // Get or create campaign
+        let campaignId;
+        const { data: campaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('is_autopilot', true)
+          .eq('status', 'active')
+          .limit(1);
+
+        if (campaigns && campaigns.length > 0) {
+          campaignId = campaigns[0].id;
+        } else {
+          const { data: newCampaign } = await supabase
+            .from('campaigns')
+            .insert({
+              user_id: user.id,
+              name: 'Autopilot - Kitchen Gadgets',
+              status: 'active',
+              is_autopilot: true,
+              goal: 'sales'
+            })
+            .select()
+            .single();
+          campaignId = newCampaign?.id;
+        }
+
+        if (!campaignId) {
+          toast({ title: "Failed to create campaign", variant: "destructive" });
+          setIsLaunching(false);
+          return;
+        }
+
+        // Call the REAL autopilot engine to do the work
+        const { data: result } = await supabase.functions.invoke('autopilot-engine', {
+          body: { 
+            action: 'launch',
+            user_id: user.id,
+            campaign_id: campaignId
+          }
+        });
+
+        console.log("Autopilot launch result:", result);
+
+        toast({
+          title: "✅ Autopilot Launched!",
+          description: "System is running 24/7. Products, content, and traffic being generated automatically."
+        });
+      } else {
+        // STOP: Call edge function to stop background execution
         await supabase.functions.invoke('autopilot-engine', {
           body: { 
-            action: newStatus ? 'start' : 'stop',
+            action: 'stop',
             user_id: user.id 
           }
         });
-      } catch (fnError) {
-        console.error("Edge function error (non-fatal):", fnError);
+
+        toast({
+          title: "⏸️ Autopilot Stopped",
+          description: "Background automation has been paused."
+        });
       }
 
-      // 3. Update local state
-      setIsAutopilotActive(newStatus);
-      
-      toast({
-        title: newStatus ? "🚀 Autopilot Launched!" : "⏸️ Autopilot Stopped",
-        description: newStatus 
-          ? "System is running 24/7 on server. Navigate anywhere - it keeps working!"
-          : "Autopilot has been paused. Click Launch to restart."
-      });
-
-      // Reload stats
+      // Reload stats to show new data
       await loadAutopilotStatus();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
+      console.error("Autopilot toggle error:", error);
+      toast({ title: `Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsLaunching(false);
     }

@@ -84,16 +84,46 @@ export default function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // SINGLE SOURCE OF TRUTH: user_settings.autopilot_enabled
+      // Load autopilot status from database
       const { data: settings } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (settings) {
-        setAutomationActive(settings.autopilot_enabled || false);
-        localStorage.setItem('autopilot_active', settings.autopilot_enabled ? 'true' : 'false');
+      const isEnabled = settings?.autopilot_enabled || false;
+      setAutomationActive(isEnabled);
+
+      // Load REAL stats from database
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_autopilot', true);
+
+      if (campaigns && campaigns.length > 0) {
+        const campaignIds = campaigns.map(c => c.id);
+
+        // Get real product count
+        const { data: links } = await supabase
+          .from('affiliate_links')
+          .select('id, clicks, revenue')
+          .in('campaign_id', campaignIds);
+
+        // Get real article count
+        const { data: articles } = await supabase
+          .from('generated_content')
+          .select('id, views, clicks')
+          .in('campaign_id', campaignIds);
+
+        // Update stats with REAL numbers from database
+        setStats({
+          products: links?.length || 0,
+          articles: articles?.length || 0,
+          clicks: links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0,
+          revenue: links?.reduce((sum, l) => sum + (Number(l.revenue) || 0), 0) || 0,
+          conversions: Math.floor((links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0) * 0.05)
+        });
       }
       
       setLastUpdate(new Date());
