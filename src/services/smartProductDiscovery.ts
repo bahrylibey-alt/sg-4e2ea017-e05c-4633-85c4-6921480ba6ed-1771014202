@@ -151,24 +151,25 @@ export const smartProductDiscovery = {
         // Create affiliate link
         const affiliateTag = "yourstore0c-20"; // Replace with actual Amazon Associates ID
         const affiliateUrl = `https://www.amazon.com/dp/${product.asin}?tag=${affiliateTag}`;
+        const slug = Math.random().toString(36).substring(2, 10);
         
-        const linkData: AffiliateLink = {
+        const linkData = {
           campaign_id: campaignId,
           user_id: userId,
           product_name: product.name,
-          affiliate_url: affiliateUrl,
-          original_url: `https://www.amazon.com/dp/${product.asin}`,
+          original_url: affiliateUrl,
+          cloaked_url: `https://yourapp.com/go/${slug}`,
+          slug: slug,
           status: "active",
           clicks: 0,
           conversions: 0,
           revenue: 0,
-          commission_earned: 0,
-          price: product.price.toString()
+          commission_earned: 0
         };
 
         const { data: inserted, error } = await supabase
           .from("affiliate_links")
-          .insert(linkData)
+          .insert(linkData as any)
           .select()
           .single();
 
