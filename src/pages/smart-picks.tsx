@@ -28,83 +28,214 @@ import {
   Zap,
   Clock,
   ExternalLink,
-  Trash2
+  Trash2,
+  Play,
+  Pause
 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { taskExecutor } from "@/services/taskExecutor";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 import { smartContentGenerator } from "@/services/smartContentGenerator";
+import { trafficAutomationService } from "@/services/trafficAutomationService";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const NICHES = [
+  "Kitchen Gadgets",
+  "Home Organization",
+  "Car Accessories",
+  "Pet Accessories",
+  "Beauty Tools",
+  "Phone & Tech Accessories",
+  "Fitness at Home",
+  "Tools & DIY",
+  "Office & Desk Setup",
+  "Travel Accessories"
+];
 
 export default function SmartPicksDashboard() {
   const { toast } = useToast();
+  const [selectedNiche, setSelectedNiche] = useState("Kitchen Gadgets");
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [isRunning, setIsRunning] = useState(true);
+  const [isAutoPilotRunning, setIsAutoPilotRunning] = useState(false);
   const [showContentGenerator, setShowContentGenerator] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalArticles: 0,
+    activeTrafficSources: 0,
+    totalClicks: 0
+  });
 
   useEffect(() => {
-    loadGeneratedContent();
+    loadData();
+    checkAutoPilotStatus();
   }, []);
 
-  const loadGeneratedContent = async () => {
+  const checkAutoPilotStatus = async () => {
     try {
-      const { data, error } = await supabase
-        .from('generated_content' as any)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10) as any;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (!error && data) {
-        setGeneratedContent(data);
-      }
-    } catch (err) {
-      console.error('Failed to load content:', err);
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("autopilot_enabled")
+        .eq("user_id", user.id)
+        .single();
+
+      setIsAutoPilotRunning(settings?.autopilot_enabled || false);
+    } catch (error) {
+      console.error("Failed to check autopilot status:", error);
     }
   };
 
-  const handleOptimize = async () => {
-    setIsOptimizing(true);
-    toast({
-      title: "Optimization Started",
-      description: "AI is rewriting descriptions, fixing niches, and adjusting prices...",
-    });
-    
-    setTimeout(() => {
-      setIsOptimizing(false);
-      toast({
-        title: "Optimization Complete",
-        description: "5 products have been fully optimized for conversion.",
-      });
-    }, 2500);
+  const loadData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Load generated content
+      const { data: contentData } = await supabase
+        .from('generated_content' as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50) as any;
+
+      if (contentData) {
+        setGeneratedContent(contentData);
+      }
+
+      // Load products
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id);
+
+      if (campaigns && campaigns.length > 0) {
+        const campaignIds = campaigns.map(c => c.id);
+        
+        const { data: linksData } = await supabase
+          .from("affiliate_links")
+          .select("*")
+          .in("campaign_id", campaignIds)
+          .order("created_at", { ascending: false });
+
+        if (linksData) {
+          setProducts(linksData);
+        }
+
+        // Load traffic sources
+        const { data: trafficData } = await supabase
+          .from("traffic_sources")
+          .select("*")
+          .in("campaign_id", campaignIds)
+          .eq("status", "active");
+
+        // Calculate stats
+        const totalClicks = linksData?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+        
+        setStats({
+          totalProducts: linksData?.length || 0,
+          totalArticles: contentData?.length || 0,
+          activeTrafficSources: trafficData?.length || 0,
+          totalClicks
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    }
   };
 
-  const handleProductDiscovery = () => {
-    toast({
-      title: "Product Discovery",
-      description: "Opening product discovery tool...",
-    });
-  };
-
-  const handleBatchGenerate = async () => {
+  const startFullAutoPilot = async () => {
     setLoading(true);
     toast({
-      title: "Batch Generation Started",
-      description: "Generating content for multiple products...",
+      title: "🚀 Starting Full AutoPilot",
+      description: "Discovering products → Generating content → Activating traffic...",
     });
 
     try {
-      await smartContentGenerator.batchGenerate(5);
-      await loadGeneratedContent();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please sign in first");
+
+      // Step 1: Get or create campaign
+      let campaign;
+      const { data: existingCampaigns } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_autopilot", true)
+        .limit(1);
+
+      if (existingCampaigns && existingCampaigns.length > 0) {
+        campaign = existingCampaigns[0];
+      } else {
+        const { data: newCampaign } = await supabase
+          .from("campaigns")
+          .insert({
+            user_id: user.id,
+            name: `AutoPilot - ${selectedNiche}`,
+            goal: "sales",
+            status: "active",
+            is_autopilot: true
+          })
+          .select()
+          .single();
+        campaign = newCampaign;
+      }
+
+      if (!campaign) throw new Error("Failed to create campaign");
+
+      // Step 2: Discover trending products
       toast({
-        title: "Batch Generation Complete",
-        description: "Successfully generated 5 new articles",
+        title: "🔍 Discovering Products",
+        description: `Finding trending ${selectedNiche} products...`,
       });
-    } catch (error) {
+      
+      await smartProductDiscovery.addToCampaign(campaign.id, user.id, 10);
+
+      // Step 3: Generate content for products
       toast({
-        title: "Generation Failed",
-        description: "Failed to generate content. Please try again.",
+        title: "✍️ Generating Content",
+        description: "Creating SEO-optimized articles...",
+      });
+
+      await smartContentGenerator.batchGenerate(5);
+
+      // Step 4: Activate traffic sources
+      toast({
+        title: "📡 Activating Traffic",
+        description: "Starting Pinterest, Twitter, YouTube channels...",
+      });
+
+      await trafficAutomationService.activateChannel("Pinterest Auto-Pinning", "social");
+      await trafficAutomationService.activateChannel("Twitter/X Auto-Posting", "social");
+      await trafficAutomationService.activateChannel("YouTube Community Posts", "video");
+
+      // Step 5: Enable autopilot in database
+      await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: true,
+          autopilot_started_at: new Date().toISOString()
+        }, { onConflict: "user_id" });
+
+      setIsAutoPilotRunning(true);
+
+      // Reload data
+      await loadData();
+
+      toast({
+        title: "✅ AutoPilot Active!",
+        description: "System running 24/7. Products → Content → Traffic all automated!",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Failed to start AutoPilot",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
@@ -112,142 +243,139 @@ export default function SmartPicksDashboard() {
     }
   };
 
-  const handleDeleteContent = async (id: string) => {
+  const stopAutoPilot = async () => {
     try {
-      const { error } = await supabase
-        .from('generated_content' as any)
-        .delete()
-        .eq('id', id) as any;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (!error) {
-        toast({
-          title: "Content Deleted",
-          description: "Article has been removed successfully",
-        });
-        await loadGeneratedContent();
-      }
-    } catch (err) {
+      await supabase
+        .from("user_settings")
+        .update({
+          autopilot_enabled: false,
+          autopilot_stopped_at: new Date().toISOString()
+        })
+        .eq("user_id", user.id);
+
+      setIsAutoPilotRunning(false);
+
       toast({
-        title: "Delete Failed",
-        description: "Failed to delete content",
+        title: "AutoPilot Stopped",
+        description: "You can restart it anytime",
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to stop AutoPilot",
         variant: "destructive"
       });
     }
   };
 
-  const handlePreviewContent = (content: any) => {
+  const discoverProductsOnly = async () => {
+    setLoading(true);
     toast({
-      title: "Preview",
-      description: `Opening preview for: ${content.title}`,
+      title: "🔍 Product Discovery",
+      description: `Finding trending ${selectedNiche} products...`,
+    });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please sign in");
+
+      const { data: campaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      let campaignId = campaigns?.[0]?.id;
+
+      if (!campaignId) {
+        const { data: newCampaign } = await supabase
+          .from("campaigns")
+          .insert({
+            user_id: user.id,
+            name: `${selectedNiche} Campaign`,
+            status: "active"
+          })
+          .select("id")
+          .single();
+        campaignId = newCampaign?.id;
+      }
+
+      if (!campaignId) throw new Error("Failed to create campaign");
+
+      const result = await smartProductDiscovery.addToCampaign(campaignId, user.id, 10);
+
+      await loadData();
+
+      toast({
+        title: "✅ Products Discovered!",
+        description: `Added ${result.count} trending products to your campaign`,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Discovery Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateContentOnly = async () => {
+    setLoading(true);
+    toast({
+      title: "✍️ Generating Content",
+      description: "Creating SEO articles for your products...",
+    });
+
+    try {
+      await smartContentGenerator.batchGenerate(5);
+      await loadData();
+
+      toast({
+        title: "✅ Content Generated!",
+        description: "5 new articles created",
+      });
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const viewProduct = (product: any) => {
+    toast({
+      title: product.product_name,
+      description: `Price: $${product.price || 'N/A'} | Clicks: ${product.clicks || 0}`,
     });
   };
 
-  const adminTools = [
-    { 
-      icon: BarChart, 
-      label: "Dashboard", 
-      color: "text-blue-500",
-      onClick: () => window.location.href = '/dashboard'
-    },
-    { 
-      icon: Search, 
-      label: "Product Discovery", 
-      color: "text-indigo-500",
-      onClick: handleProductDiscovery
-    },
-    { 
-      icon: Sparkles, 
-      label: "Content Generator", 
-      color: "text-yellow-500",
-      onClick: () => setShowContentGenerator(true)
-    },
-    { 
-      icon: Zap, 
-      label: "Batch Generate", 
-      color: "text-orange-500",
-      onClick: handleBatchGenerate
-    },
-    { 
-      icon: Target, 
-      label: "SEO Optimizer", 
-      color: "text-red-500",
-      onClick: () => toast({ title: "SEO Optimizer", description: "Opening SEO optimization tool..." })
-    },
-    { 
-      icon: FileEdit, 
-      label: "Traffic Plan", 
-      color: "text-cyan-500", 
-      highlight: true,
-      onClick: () => window.location.href = '/traffic-channels'
-    },
-    { 
-      icon: Activity, 
-      label: "Performance Monitor", 
-      color: "text-pink-500",
-      onClick: () => toast({ title: "Performance Monitor", description: "Opening analytics dashboard..." })
-    },
-    { 
-      icon: FolderTree, 
-      label: "Content Manager", 
-      color: "text-amber-500",
-      onClick: () => toast({ title: "Content Manager", description: "Managing your content library..." })
-    },
-    { 
-      icon: RefreshCw, 
-      label: "Rewrite Low Performers", 
-      color: "text-emerald-500",
-      onClick: handleOptimize
-    },
-    { 
-      icon: DollarSign, 
-      label: "Commission Tracker", 
-      color: "text-green-500",
-      onClick: () => toast({ title: "Commission Tracker", description: "Opening earnings dashboard..." })
-    },
-    { 
-      icon: Shield, 
-      label: "Compliance", 
-      color: "text-slate-500",
-      onClick: () => toast({ title: "Compliance", description: "Checking compliance status..." })
-    },
-    { 
-      icon: Command, 
-      label: "AutoPilot Command Center", 
-      color: "text-purple-500",
-      onClick: () => window.location.href = '/dashboard'
-    },
-  ];
+  const deleteContent = async (id: string) => {
+    try {
+      await supabase
+        .from('generated_content' as any)
+        .delete()
+        .eq('id', id) as any;
 
-  const scheduledAutomations = [
-    {
-      title: "Daily Product Refresh",
-      time: "3:00 AM Daily",
-      description: "Scan all niches, add trending products, remove low performers",
-      function: "autoRefreshAllProducts",
-      icon: RefreshCw
-    },
-    {
-      title: "Performance Optimization",
-      time: "9:00 AM Daily",
-      description: "Optimize top 5 underperforming products automatically",
-      function: "autoOptimizeUnderperformers",
-      icon: TrendingUp
-    },
-    {
-      title: "SEO Content Rewriter",
-      time: "Weekly",
-      description: "Rewrite low-traffic articles for better rankings",
-      function: "autoRewriteLowPerformers",
-      icon: FileEdit
-    },
-    {
-      title: "Publish Scheduled Posts",
-      time: "Every 2 Hours",
-      description: "Auto-publish articles when scheduled time arrives",
-      function: "autoPublishToSocial",
-      icon: Send
+      toast({
+        title: "Content Deleted",
+        description: "Article removed successfully",
+      });
+      
+      await loadData();
+    } catch (err) {
+      toast({
+        title: "Delete Failed",
+        variant: "destructive"
+      });
     }
-  ];
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -264,302 +392,236 @@ export default function SmartPicksDashboard() {
             <div className="bg-teal-600 text-white w-8 h-8 rounded-md flex items-center justify-center font-bold">
               S
             </div>
-            <h1 className="text-xl font-bold">SmartPicks</h1>
+            <h1 className="text-xl font-bold">SmartPicks Admin</h1>
           </div>
           <Button variant="ghost" size="icon">
             <Menu className="w-6 h-6" />
           </Button>
         </div>
 
-        <Tabs defaultValue="hub" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="hub">AI Hub</TabsTrigger>
-            <TabsTrigger value="admin">Admin Tools</TabsTrigger>
-            <TabsTrigger value="automations">Schedules</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
+        {/* AutoPilot Status Card */}
+        <Card className="mb-6 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                  <Bot className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Full AutoPilot System</h3>
+                  <p className="text-sm text-slate-600">Products → Content → Traffic</p>
+                </div>
+              </div>
+              <Badge variant={isAutoPilotRunning ? "default" : "secondary"} className={isAutoPilotRunning ? "bg-green-500 hover:bg-green-600" : ""}>
+                {isAutoPilotRunning ? (
+                  <><div className="w-2 h-2 rounded-full bg-white mr-2 animate-pulse" />Running 24/7</>
+                ) : (
+                  "Stopped"
+                )}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-2xl font-bold text-teal-600">{stats.totalProducts}</div>
+                <div className="text-sm text-slate-600">Products</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{stats.totalArticles}</div>
+                <div className="text-sm text-slate-600">Articles</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{stats.activeTrafficSources}</div>
+                <div className="text-sm text-slate-600">Traffic Channels</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{stats.totalClicks}</div>
+                <div className="text-sm text-slate-600">Total Clicks</div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Select Niche</label>
+              <Select value={selectedNiche} onValueChange={setSelectedNiche}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {NICHES.map(niche => (
+                    <SelectItem key={niche} value={niche}>{niche}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!isAutoPilotRunning ? (
+              <Button 
+                onClick={startFullAutoPilot} 
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-6 text-lg"
+              >
+                {loading ? (
+                  <><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Starting...</>
+                ) : (
+                  <><Play className="w-5 h-5 mr-2" /> Start Full AutoPilot</>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                onClick={stopAutoPilot}
+                variant="destructive"
+                className="w-full py-6 text-lg"
+              >
+                <Pause className="w-5 h-5 mr-2" /> Stop AutoPilot
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <Tabs defaultValue="quick" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="quick">Quick Actions</TabsTrigger>
+            <TabsTrigger value="products">Products ({stats.totalProducts})</TabsTrigger>
+            <TabsTrigger value="content">Content ({stats.totalArticles})</TabsTrigger>
           </TabsList>
 
-          {/* AI Automation Hub Tab */}
-          <TabsContent value="hub" className="space-y-6">
-            <div className="text-center py-6">
-              <h2 className="text-4xl font-extrabold mb-4 text-slate-900 tracking-tight">AI Automation Hub</h2>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                Your complete affiliate marketing system runs on autopilot—products, content, optimization, and tracking all managed by AI
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 text-2xl font-bold text-slate-800">
-              <Bot className="w-7 h-7 text-teal-600" />
-              Active AI Systems
-            </div>
-
-            <Card className="border-2 border-purple-100 shadow-md">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-inner">
-                    <Bot className="w-8 h-8 text-white" />
-                  </div>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-semibold px-3 py-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
-                    Running
-                  </Badge>
-                </div>
+          {/* Quick Actions Tab */}
+          <TabsContent value="quick" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="w-5 h-5 text-indigo-600" />
+                  Quick Actions
+                </CardTitle>
+                <CardDescription>Run individual automation tasks</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button 
+                  onClick={discoverProductsOnly} 
+                  disabled={loading}
+                  className="w-full justify-start bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Discover 10 Trending Products ({selectedNiche})
+                </Button>
                 
-                <h3 className="text-2xl font-bold mb-3 text-slate-900">Auto Product Discovery</h3>
-                <p className="text-slate-600 mb-6 text-lg">
-                  AI finds trending products and adds them automatically
-                </p>
-
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">✓</div>
-                    Web search
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">✓</div>
-                    Smart categorization
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center text-teal-600">✓</div>
-                    Affiliate link generation
-                  </div>
-                </div>
-
-                <Link href="/dashboard">
-                  <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white text-lg py-6 rounded-xl transition-all shadow-md">
-                    Open Dashboard <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
+                <Button 
+                  onClick={generateContentOnly}
+                  disabled={loading}
+                  className="w-full justify-start bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate 5 SEO Articles
+                </Button>
+                
+                <Link href="/traffic-channels" className="block">
+                  <Button className="w-full justify-start bg-orange-600 hover:bg-orange-700 text-white">
+                    <Send className="w-4 h-4 mr-2" />
+                    Activate Traffic Sources
                   </Button>
                 </Link>
+                
+                <Button 
+                  onClick={() => setShowContentGenerator(true)}
+                  className="w-full justify-start bg-teal-600 hover:bg-teal-700 text-white"
+                >
+                  <FileEdit className="w-4 h-4 mr-2" />
+                  Open AI Content Generator
+                </Button>
               </CardContent>
             </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-100">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">Auto-Optimize Top 5 Products</h3>
-                    <p className="text-slate-600 max-w-md">
-                      AI will automatically improve descriptions, fix niches, adjust pricing, and enhance features
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handleOptimize} 
-                    disabled={isOptimizing}
-                    className="bg-purple-600 hover:bg-purple-700 text-white min-w-[160px] shadow-sm"
-                  >
-                    {isOptimizing ? (
-                      <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Optimizing...</>
-                    ) : (
-                      <><Sparkles className="w-4 h-4 mr-2" /> Optimize Now</>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="pt-6">
-              <div className="flex items-center gap-2 text-2xl font-bold text-slate-800 mb-6">
-                <Target className="w-7 h-7 text-orange-500" />
-                Top Priority Products
-              </div>
-              
-              <div className="space-y-4">
-                <Card className="shadow-sm border-slate-200 hover:border-teal-200 transition-colors">
-                  <CardContent className="p-5">
-                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
-                      <div>
-                        <h4 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                          Ab Roller Wheel
-                          <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal">stagnant</Badge>
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-sm font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-md">
-                          Priority: 2
-                        </div>
-                        <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleOptimize}>
-                          <Zap className="w-4 h-4 mr-2" /> Optimize
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-6 text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg">
-                      <div className="flex items-center gap-2"><span className="font-semibold text-slate-900">0</span> Clicks</div>
-                      <div className="flex items-center gap-2"><span className="font-semibold text-slate-900">0</span> Conversions</div>
-                      <div className="flex items-center gap-2">Rate: <span className="font-semibold text-slate-900">0.00%</span></div>
-                      <div className="flex items-center gap-2">Revenue: <span className="font-semibold text-green-600">$0.00</span></div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-md text-sm font-medium border border-amber-100">
-                      <span className="w-4 h-4 rounded-full border border-amber-600 flex items-center justify-center text-[10px]">!</span>
-                      No clicks in 30+ days
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-sm border-slate-200 hover:border-teal-200 transition-colors">
-                  <CardContent className="p-5">
-                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                      <div>
-                        <h4 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                          Yoga Mat with Alignment
-                          <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal">stagnant</Badge>
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-sm font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-md">
-                          Priority: 2
-                        </div>
-                        <Button 
-                          size="sm" 
-                          className="bg-slate-900 hover:bg-slate-800 text-white"
-                          onClick={() => setShowContentGenerator(true)}
-                        >
-                          Chat to Edit
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Admin Tools Tab */}
-          <TabsContent value="admin" className="space-y-6">
-            <h2 className="text-sm font-bold text-amber-500 uppercase tracking-wider mb-6 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-amber-500" />
-              Admin Tools
-            </h2>
-            <Card className="shadow-sm border-0 bg-white">
-              <div className="divide-y divide-slate-100">
-                {adminTools.map((tool, idx) => (
-                  <button
-                    key={idx}
-                    onClick={tool.onClick}
-                    disabled={loading}
-                    className={`w-full flex items-center gap-4 p-5 hover:bg-slate-50 cursor-pointer transition-colors text-left ${
-                      tool.highlight ? 'bg-orange-50/50' : ''
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <tool.icon className={`w-6 h-6 ${tool.color}`} />
-                    <span className="font-semibold text-slate-700 text-lg">{tool.label}</span>
-                  </button>
-                ))}
-                <Link href="/magic-tools" className="flex items-center gap-3 p-5 hover:bg-slate-50 transition-colors">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                  <span className="font-semibold text-slate-700 text-lg">Magic Tools</span>
-                </Link>
-              </div>
-            </Card>
-          </TabsContent>
-
-          {/* Schedules Tab */}
-          <TabsContent value="automations" className="space-y-6">
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3 mb-6">
-              <Clock className="w-7 h-7 text-indigo-600" />
-              Scheduled Automations
-            </h2>
-            <div className="space-y-4">
-              {scheduledAutomations.map((schedule, idx) => (
-                <Card key={idx} className="shadow-sm hover:shadow-md transition-shadow border-slate-200">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-3">
-                      <div className="flex items-start gap-4">
-                        <schedule.icon className="w-6 h-6 text-indigo-600 mt-1" />
-                        <div>
-                          <h3 className="text-xl font-bold text-slate-900">{schedule.title}</h3>
-                          <p className="text-slate-600 mt-2">{schedule.description}</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="bg-slate-50 font-semibold px-3 py-1 whitespace-nowrap">
-                        {schedule.time}
-                      </Badge>
-                    </div>
-                    <div className="mt-4 bg-slate-50 p-3 rounded-md border border-slate-100">
-                      <code className="text-sm text-slate-500 font-mono">
-                        Function: {schedule.function}
-                      </code>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           </TabsContent>
 
           {/* Products Tab */}
-          <TabsContent value="products" className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">Generated Content</h2>
-              <Button onClick={() => setShowContentGenerator(true)} className="bg-purple-600 hover:bg-purple-700">
-                <Sparkles className="w-4 h-4 mr-2" />
-                Generate New
-              </Button>
-            </div>
-            
+          <TabsContent value="products" className="space-y-4">
+            {products.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Search className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p className="text-slate-600 mb-4">No products discovered yet</p>
+                  <Button onClick={discoverProductsOnly} disabled={loading}>
+                    <Search className="w-4 h-4 mr-2" />
+                    Discover Products Now
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {products.map((product, idx) => (
+                  <Card 
+                    key={idx} 
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => viewProduct(product)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-lg mb-1">{product.product_name}</h3>
+                          <div className="flex gap-4 text-sm text-slate-600 mb-2">
+                            <span>Price: ${product.price || 'N/A'}</span>
+                            <span>Clicks: {product.clicks || 0}</span>
+                            <span>Conversions: {product.conversions || 0}</span>
+                          </div>
+                          {product.affiliate_url && (
+                            <a 
+                              href={product.affiliate_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-teal-600 hover:underline flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View Product <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <Badge variant="secondary">{product.status || 'active'}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Content Tab */}
+          <TabsContent value="content" className="space-y-4">
             {generatedContent.length === 0 ? (
-              <Card className="shadow-sm border-slate-200">
+              <Card>
                 <CardContent className="p-12 text-center">
                   <Sparkles className="w-12 h-12 mx-auto mb-4 text-slate-300" />
                   <p className="text-slate-600 mb-4">No content generated yet</p>
-                  <Button onClick={() => setShowContentGenerator(true)} variant="outline">
+                  <Button onClick={generateContentOnly} disabled={loading}>
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Create Your First Article
+                    Generate Content Now
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
                 {generatedContent.map((content, idx) => (
-                  <Card key={idx} className="shadow-sm border-slate-200 hover:border-purple-200 transition-colors">
+                  <Card key={idx} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-5 h-5 rounded border border-slate-300 mt-1" />
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-slate-900 mb-3">{content.title}</h3>
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {content.category && (
-                              <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">
-                                {content.category}
-                              </Badge>
-                            )}
-                            <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200">
-                              {content.type}
-                            </Badge>
-                            <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-200 border-none font-semibold">
-                              {content.status}
-                            </Badge>
-                          </div>
-                          <p className="text-slate-600 mb-4 line-clamp-2">
-                            {content.meta_description || content.content?.substring(0, 150) + '...'}
-                          </p>
-                          <div className="flex items-center gap-6 text-slate-500 mb-4">
-                            <span className="flex items-center gap-2">
-                              <Activity className="w-4 h-4" /> 0 views
-                            </span>
-                            <span className="flex items-center gap-2">
-                              <Target className="w-4 h-4" /> 0 clicks
-                            </span>
-                          </div>
-                          <div className="flex gap-3">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="font-semibold"
-                              onClick={() => handlePreviewContent(content)}
-                            >
-                              <Search className="w-4 h-4 mr-2" /> Preview
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => handleDeleteContent(content.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
+                      <h3 className="text-xl font-bold mb-3">{content.title}</h3>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Badge variant="secondary">{content.category}</Badge>
+                        <Badge variant="secondary">{content.type}</Badge>
+                        <Badge className="bg-green-100 text-green-700">{content.status}</Badge>
+                      </div>
+                      <p className="text-slate-600 mb-4 line-clamp-2">
+                        {content.meta_description || content.content?.substring(0, 150) + '...'}
+                      </p>
+                      <div className="flex gap-3">
+                        <Button size="sm" variant="outline">
+                          <ExternalLink className="w-4 h-4 mr-2" /> Preview
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => deleteContent(content.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -574,7 +636,7 @@ export default function SmartPicksDashboard() {
         open={showContentGenerator} 
         onOpenChange={(open) => {
           setShowContentGenerator(open);
-          if (!open) loadGeneratedContent();
+          if (!open) loadData();
         }} 
       />
       
