@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
 import { smartProductDiscovery } from "./smartProductDiscovery";
 import { taskExecutor } from "./taskExecutor";

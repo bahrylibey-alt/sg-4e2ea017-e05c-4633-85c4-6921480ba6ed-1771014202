@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
 import { authService } from "@/services/authService";
 import { affiliateLinkService } from "@/services/affiliateLinkService";

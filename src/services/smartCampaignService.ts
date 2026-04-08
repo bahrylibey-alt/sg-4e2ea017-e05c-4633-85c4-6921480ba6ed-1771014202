@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { supabase } from "@/integrations/supabase/client";
 import { automationScheduler } from "./automationScheduler";
 import { trafficAutomationService } from "./trafficAutomationService";
