@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 export type Json =
   | string
   | number
@@ -2475,6 +2475,7 @@ export type Database = {
       }
     }
     Functions: {
+      execute_autopilot_cycle: { Args: never; Returns: Json }
       increment_link_clicks: { Args: { link_uuid: string }; Returns: undefined }
       refresh_link_performance_summary: { Args: never; Returns: undefined }
       run_autopilot_cycle: { Args: never; Returns: undefined }

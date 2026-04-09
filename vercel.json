@@ -30,6 +30,10 @@
     {
       "path": "/api/cron/autopilot",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/autopilot/trigger",
+      "schedule": "*/2 * * * *"
     }
   ]
 }
