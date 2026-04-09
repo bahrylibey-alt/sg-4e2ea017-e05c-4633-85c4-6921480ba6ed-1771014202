@@ -32,7 +32,13 @@ export const affiliateLinkService = {
       }
 
       const slug = this.generateSlug();
-      const cloakedUrl = `${window.location.origin}/go/${slug}`;
+      
+      // CRITICAL FIX: Use actual domain from environment or window.location
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'https://sale-makseb.vercel.app';
+      
+      const cloakedUrl = `${baseUrl}/go/${slug}`;
 
       const insert: AffiliateLinkInsert = {
         user_id: user.id,
@@ -334,19 +340,27 @@ export const affiliateLinkService = {
         return { success: false, created: 0, failed: 0, error: "Not authenticated" };
       }
 
-      const inserts: AffiliateLinkInsert[] = links.map(link => ({
-        user_id: user.id,
-        original_url: link.originalUrl,
-        cloaked_url: `${window.location.origin}/go/${this.generateSlug()}`,
-        slug: this.generateSlug(),
-        product_name: link.productName,
-        network: link.network,
-        campaign_id: link.campaignId,
-        status: "active",
-        clicks: 0,
-        conversions: 0,
-        revenue: 0
-      }));
+      // CRITICAL FIX: Use actual domain
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || 'https://sale-makseb.vercel.app';
+
+      const inserts: AffiliateLinkInsert[] = links.map(link => {
+        const slug = this.generateSlug();
+        return {
+          user_id: user.id,
+          original_url: link.originalUrl,
+          cloaked_url: `${baseUrl}/go/${slug}`,
+          slug: slug,
+          product_name: link.productName,
+          network: link.network,
+          campaign_id: link.campaignId,
+          status: "active",
+          clicks: 0,
+          conversions: 0,
+          revenue: 0
+        };
+      });
 
       const { data, error } = await (supabase as any).from("affiliate_links")
         .insert(inserts)
