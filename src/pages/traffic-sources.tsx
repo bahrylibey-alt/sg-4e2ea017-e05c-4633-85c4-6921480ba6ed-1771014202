@@ -174,14 +174,14 @@ export default function TrafficSourcesPage() {
     setUserId(user.id);
 
     try {
-      // 1. Get or create a default campaign for this user
+      // 1. Get all campaigns for this user (not just one)
       const { data: campaigns } = await supabase
         .from('campaigns')
         .select('id')
-        .eq('user_id', user.id)
-        .limit(1);
+        .eq('user_id', user.id);
 
       let currentCampaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
+      const allCampaignIds = campaigns?.map(c => c.id) || [];
 
       if (!currentCampaignId) {
         const { data: newCampaign } = await supabase
@@ -195,17 +195,20 @@ export default function TrafficSourcesPage() {
           .select('id')
           .single();
           
-        if (newCampaign) currentCampaignId = newCampaign.id;
+        if (newCampaign) {
+          currentCampaignId = newCampaign.id;
+          allCampaignIds.push(newCampaign.id);
+        }
       }
 
       if (currentCampaignId) {
         setCampaignId(currentCampaignId);
         
-        // 2. Load active traffic sources linked to this campaign
+        // 2. Load active traffic sources from ALL user campaigns
         const { data: sources } = await supabase
           .from('traffic_sources')
           .select('source_name')
-          .eq('campaign_id', currentCampaignId)
+          .in('campaign_id', allCampaignIds)
           .eq('status', 'active');
 
         if (sources) {
@@ -225,18 +228,12 @@ export default function TrafficSourcesPage() {
         const conversions = events.filter(e => e.event_type === 'conversion').length;
 
         // Get REAL revenue from affiliate_links table
-        const { data: campaigns } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('user_id', user.id);
-
         let totalRevenue = 0;
-        if (campaigns && campaigns.length > 0) {
-          const campaignIds = campaigns.map(c => c.id);
+        if (allCampaignIds.length > 0) {
           const { data: links } = await supabase
             .from('affiliate_links')
             .select('revenue')
-            .in('campaign_id', campaignIds);
+            .in('campaign_id', allCampaignIds);
 
           if (links) {
             totalRevenue = links.reduce((sum, link) => sum + (link.revenue || 0), 0);
@@ -245,7 +242,7 @@ export default function TrafficSourcesPage() {
 
         setStats({
           total_visitors: pageviews,
-          active_sources: activeSources.length, // use activeSources state which is loaded from database
+          active_sources: activeSources.length,
           total_revenue: Math.round(totalRevenue * 100) / 100,
           conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
         });

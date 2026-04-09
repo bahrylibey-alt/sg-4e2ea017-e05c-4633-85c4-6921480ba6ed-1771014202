@@ -48,7 +48,8 @@ export default function Dashboard() {
     products_discovered: 0,
     products_optimized: 0,
     content_generated: 0,
-    posts_published: 0
+    posts_published: 0,
+    active_sources: 0
   });
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   // States for other tabs to make the UI feel alive
@@ -111,7 +112,8 @@ export default function Dashboard() {
           products_discovered: 0,
           products_optimized: 0,
           content_generated: 0,
-          posts_published: 0
+          posts_published: 0,
+          active_sources: 0
         });
         setLastUpdate(new Date());
         return;
@@ -154,12 +156,22 @@ export default function Dashboard() {
 
       const postsCount = posts?.length || 0;
 
+      // Get REAL active traffic sources count across all campaigns
+      const { data: activeSources } = await supabase
+        .from('traffic_sources')
+        .select('id')
+        .in('campaign_id', campaignIds)
+        .eq('status', 'active');
+
+      const activeSourcesCount = activeSources?.length || 0;
+
       // Update stats with REAL numbers from database
       setStats({
         products_discovered: productsCount,
         products_optimized: optimizedCount,
         content_generated: contentCount,
-        posts_published: postsCount
+        posts_published: postsCount,
+        active_sources: activeSourcesCount
       });
       
       setLastUpdate(new Date());
