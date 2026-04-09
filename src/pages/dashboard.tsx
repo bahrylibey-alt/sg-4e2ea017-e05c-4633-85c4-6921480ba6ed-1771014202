@@ -279,9 +279,9 @@ export default function Dashboard() {
 
         case 'trend_scanner':
           if ('scanTrendingProducts' in smartProductDiscovery) {
-            result = await smartProductDiscovery.scanTrendingProducts('tech', 'amazon');
+            result = await (smartProductDiscovery as any).scanTrendingProducts('tech', 'amazon');
           } else if ('saveTrendingProducts' in smartProductDiscovery) {
-            result = await smartProductDiscovery.saveTrendingProducts([{
+            result = await (smartProductDiscovery as any).saveTrendingProducts([{
               productName: 'Trending Product',
               asin: 'B0TEST123',
               category: 'tech',
