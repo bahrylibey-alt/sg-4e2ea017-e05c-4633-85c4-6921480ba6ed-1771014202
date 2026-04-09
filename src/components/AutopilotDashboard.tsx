@@ -5,159 +5,179 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw } from "lucide-react";
-import { aiOptimizationEngine } from "@/services/aiOptimizationEngine";
-import { trafficAutomationService } from "@/services/trafficAutomationService";
-import { conversionOptimizationService } from "@/services/conversionOptimizationService";
-import { campaignService } from "@/services/campaignService";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface AutopilotStatus {
   active: boolean;
+  products: number;
+  optimized: number;
+  content: number;
+  posts: number;
+  clicks: number;
   revenue: number;
-  conversions: number;
-  roi: number;
-  traffic: number;
-  optimization: number;
 }
 
 export function AutopilotDashboard() {
+  const { toast } = useToast();
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [status, setStatus] = useState<AutopilotStatus>({
     active: false,
-    revenue: 0,
-    conversions: 0,
-    roi: 0,
-    traffic: 0,
-    optimization: 0
+    products: 0,
+    optimized: 0,
+    content: 0,
+    posts: 0,
+    clicks: 0,
+    revenue: 0
   });
-  const [recommendations, setRecommendations] = useState<string[]>([]);
 
-  // Load the first available campaign on mount
   useEffect(() => {
-    loadActiveCampaign();
+    loadAutopilotStatus();
+    const interval = setInterval(loadAutopilotStatus, 5000); // Update every 5s
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (autopilotEnabled && activeCampaignId) {
-      loadAutopilotStatus();
-      const interval = setInterval(loadAutopilotStatus, 30000); // Update every 30s
-      return () => clearInterval(interval);
-    }
-  }, [autopilotEnabled, activeCampaignId]);
-
-  const loadActiveCampaign = async () => {
-    try {
-      const campaigns = await campaignService.listCampaigns();
-      if (campaigns.length > 0) {
-        setActiveCampaignId(campaigns[0].id);
-      }
-    } catch (err) {
-      console.error("Failed to load campaigns:", err);
-    }
-  };
-
   const loadAutopilotStatus = async () => {
-    if (!activeCampaignId) return;
-
     try {
-      const trafficResult = await trafficAutomationService.launchAutomatedTraffic({
-        campaignId: activeCampaignId,
-        budget: 1000,
-        sources: ["Google Ads", "Facebook Ads", "Email Marketing", "SEO Traffic"]
-      });
-      const optimizationResult = await aiOptimizationEngine.runFullOptimization(activeCampaignId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // Calculate estimated metrics based on sources created
-      const estimatedReach = trafficResult.sources.length * 1000;
+      // Check if autopilot is enabled
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const isEnabled = settings?.autopilot_enabled || false;
+      setAutopilotEnabled(isEnabled);
+
+      // Load REAL stats from database
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user.id);
+
+      if (!campaigns || campaigns.length === 0) {
+        setStatus({
+          active: isEnabled,
+          products: 0,
+          optimized: 0,
+          content: 0,
+          posts: 0,
+          clicks: 0,
+          revenue: 0
+        });
+        return;
+      }
+
+      const campaignIds = campaigns.map(c => c.id);
+
+      // Get real product count from affiliate_links
+      const { data: links } = await supabase
+        .from('affiliate_links')
+        .select('id, clicks, conversions, revenue')
+        .in('campaign_id', campaignIds);
+
+      const productsCount = links?.length || 0;
+      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+      const totalRevenue = links?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0;
+
+      // Get real content count from generated_content
+      const { data: content } = await supabase
+        .from('generated_content')
+        .select('id')
+        .in('campaign_id', campaignIds);
+
+      const contentCount = content?.length || 0;
+
+      // Get real posts count from posted_content
+      const { data: posts } = await supabase
+        .from('posted_content')
+        .select('id')
+        .in('campaign_id', campaignIds)
+        .not('posted_at', 'is', null);
+
+      const postsCount = posts?.length || 0;
+
+      // Calculate optimization score (products with descriptions, images, etc.)
+      const { data: optimizedLinks } = await supabase
+        .from('affiliate_links')
+        .select('id')
+        .in('campaign_id', campaignIds)
+        .not('product_name', 'is', null)
+        .not('url', 'is', null);
+
+      const optimizedCount = optimizedLinks?.length || 0;
 
       setStatus({
-        active: true,
-        revenue: (estimatedReach * 0.05 * 50) || 0,
-        conversions: (estimatedReach * 0.05) || 0,
-        roi: optimizationResult.revenueIncrease || 0,
-        traffic: estimatedReach || 0,
-        optimization: optimizationResult.optimizations || 0
+        active: isEnabled,
+        products: productsCount,
+        optimized: optimizedCount,
+        content: contentCount,
+        posts: postsCount,
+        clicks: totalClicks,
+        revenue: Math.round(totalRevenue * 100) / 100
       });
 
-      if (optimizationResult.recommendations) {
-        setRecommendations(optimizationResult.recommendations.slice(0, 5));
-      }
     } catch (err) {
       console.error("Failed to load autopilot status:", err);
     }
   };
 
   const toggleAutopilot = async () => {
-    if (!activeCampaignId) {
-      alert("Please create a campaign first to use autopilot features.");
-      return;
-    }
-
     setLoading(true);
     try {
-      const newState = !autopilotEnabled;
-      setAutopilotEnabled(newState);
-      
-      if (newState) {
-        await Promise.all([
-          trafficAutomationService.launchAutomatedTraffic({
-            campaignId: activeCampaignId,
-            budget: 1000,
-            sources: ["Google Ads", "Facebook Ads", "Email Marketing", "SEO Traffic"]
-          }),
-          aiOptimizationEngine.runFullOptimization(activeCampaignId),
-          conversionOptimizationService.analyzeAndOptimize(activeCampaignId)
-        ]);
-        await loadAutopilotStatus();
-      } else {
-        setStatus({
-          active: false,
-          revenue: 0,
-          conversions: 0,
-          roi: 0,
-          traffic: 0,
-          optimization: 0
-        });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Please sign in to use autopilot", variant: "destructive" });
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error("Failed to toggle autopilot:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const forceOptimization = async () => {
-    if (!activeCampaignId) return;
+      const newState = !autopilotEnabled;
+      
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: newState,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+      
+      if (dbError) throw dbError;
 
-    setLoading(true);
-    try {
-      await aiOptimizationEngine.runFullOptimization(activeCampaignId);
+      setAutopilotEnabled(newState);
+      localStorage.setItem('autopilot_active', newState ? 'true' : 'false');
+
+      // Call edge function
+      try {
+        await supabase.functions.invoke('autopilot-engine', {
+          body: { 
+            action: newState ? 'start' : 'stop',
+            user_id: user.id 
+          }
+        });
+      } catch (fnError) {
+        console.error("Edge function error (non-fatal):", fnError);
+      }
+      
+      toast({
+        title: newState ? "🚀 Autopilot Launched!" : "🛑 Autopilot Stopped",
+        description: newState 
+          ? "Engine running globally in the background." 
+          : "Engine paused."
+      });
+      
       await loadAutopilotStatus();
-    } catch (err) {
-      console.error("Failed to force optimization:", err);
+    } catch (error: any) {
+      toast({ title: `Error: ${error.message}`, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
-
-  if (!activeCampaignId) {
-    return (
-      <div className="space-y-6">
-        <Card className="border-2 border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Zap className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Campaigns Available</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              Create your first campaign to enable AI Autopilot and automated traffic generation.
-            </p>
-            <Button className="mt-4">Create Campaign</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -185,11 +205,11 @@ export function AutopilotDashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={forceOptimization}
+                  onClick={loadAutopilotStatus}
                   disabled={loading}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                  Force Optimize
+                  Refresh
                 </Button>
               )}
             </div>
@@ -201,28 +221,38 @@ export function AutopilotDashboard() {
               <div className="flex items-center gap-2 text-sm">
                 <Activity className="h-4 w-4 text-green-500 animate-pulse" />
                 <span className="text-green-500 font-semibold">System Active</span>
-                <span className="text-muted-foreground">• Monitoring and optimizing 24/7</span>
+                <span className="text-muted-foreground">• Real-time data from database</span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Traffic Generated</div>
-                  <div className="text-2xl font-bold">{status.traffic.toLocaleString()}</div>
-                  <div className="text-xs text-green-500">+12% from yesterday</div>
+                  <div className="text-sm text-muted-foreground">Products Found</div>
+                  <div className="text-2xl font-bold">{status.products}</div>
+                  <div className="text-xs text-muted-foreground">From affiliate_links table</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Optimized</div>
+                  <div className="text-2xl font-bold">{status.optimized}</div>
+                  <div className="text-xs text-muted-foreground">Complete product data</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Content Generated</div>
+                  <div className="text-2xl font-bold">{status.content}</div>
+                  <div className="text-xs text-muted-foreground">From generated_content</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Posts Published</div>
+                  <div className="text-2xl font-bold">{status.posts}</div>
+                  <div className="text-xs text-muted-foreground">From posted_content</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Total Clicks</div>
+                  <div className="text-2xl font-bold">{status.clicks}</div>
+                  <div className="text-xs text-muted-foreground">Real click tracking</div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Revenue</div>
-                  <div className="text-2xl font-bold">${status.revenue.toLocaleString()}</div>
-                  <div className="text-xs text-green-500">+8% from yesterday</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Conversions</div>
-                  <div className="text-2xl font-bold">{status.conversions}</div>
-                  <div className="text-xs text-green-500">+15% from yesterday</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">ROI</div>
-                  <div className="text-2xl font-bold">{status.roi}%</div>
-                  <div className="text-xs text-green-500">+{status.optimization}% optimized</div>
+                  <div className="text-2xl font-bold">${status.revenue.toFixed(2)}</div>
+                  <div className="text-xs text-muted-foreground">From conversions</div>
                 </div>
               </div>
             </div>
@@ -246,36 +276,6 @@ export function AutopilotDashboard() {
         </CardContent>
       </Card>
 
-      {/* Active Optimizations */}
-      {autopilotEnabled && recommendations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Active AI Optimizations
-            </CardTitle>
-            <CardDescription>Real-time improvements being applied</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recommendations.map((rec, idx) => (
-                <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm">{rec}</p>
-                  </div>
-                  <Badge variant="secondary" className="flex-shrink-0">
-                    Active
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* System Performance */}
       {autopilotEnabled && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -283,21 +283,19 @@ export function AutopilotDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Traffic Quality
+                Discovery Rate
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Bot Detection</span>
-                  <span className="font-semibold text-green-500">98%</span>
+                  <span>Products Found</span>
+                  <span className="font-semibold">{status.products}</span>
                 </div>
-                <Progress value={98} className="h-2" />
-                <div className="flex items-center justify-between text-sm">
-                  <span>Real Users</span>
-                  <span className="font-semibold text-green-500">96%</span>
+                <Progress value={Math.min(100, (status.products / 10) * 100)} className="h-2" />
+                <div className="text-xs text-muted-foreground">
+                  {status.products < 10 ? 'Discovering more...' : 'Target reached'}
                 </div>
-                <Progress value={96} className="h-2" />
               </div>
             </CardContent>
           </Card>
@@ -306,21 +304,19 @@ export function AutopilotDashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />
-                Budget Efficiency
+                Revenue Tracking
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Cost Per Click</span>
-                  <span className="font-semibold">$0.32</span>
+                  <span>Total Revenue</span>
+                  <span className="font-semibold">${status.revenue.toFixed(2)}</span>
                 </div>
-                <Progress value={75} className="h-2" />
-                <div className="flex items-center justify-between text-sm">
-                  <span>Cost Per Conversion</span>
-                  <span className="font-semibold">$12.45</span>
+                <Progress value={Math.min(100, (status.revenue / 100) * 100)} className="h-2" />
+                <div className="text-xs text-muted-foreground">
+                  From {status.clicks} total clicks
                 </div>
-                <Progress value={82} className="h-2" />
               </div>
             </CardContent>
           </Card>
@@ -335,12 +331,17 @@ export function AutopilotDashboard() {
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Overall Score</span>
-                  <span className="font-semibold text-green-500">{status.optimization}%</span>
+                  <span>Optimization Rate</span>
+                  <span className="font-semibold">
+                    {status.products > 0 ? Math.round((status.optimized / status.products) * 100) : 0}%
+                  </span>
                 </div>
-                <Progress value={status.optimization} className="h-2" />
-                <div className="text-xs text-muted-foreground mt-2">
-                  System is learning and improving continuously
+                <Progress 
+                  value={status.products > 0 ? (status.optimized / status.products) * 100 : 0} 
+                  className="h-2" 
+                />
+                <div className="text-xs text-muted-foreground">
+                  {status.optimized} of {status.products} optimized
                 </div>
               </div>
             </CardContent>
