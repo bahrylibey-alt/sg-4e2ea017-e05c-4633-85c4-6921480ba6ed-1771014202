@@ -8,12 +8,20 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export function AutopilotRunner() {
   useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    let isActive = true; // Flag to prevent execution after unmount
+    
     const executeAutopilotCycle = async () => {
+      if (!isActive) {
+        console.log('🛑 AutopilotRunner: Execution cancelled (component unmounted)');
+        return;
+      }
+
       try {
         console.log('🔄 AutopilotRunner: Starting cycle check...');
         
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (!user || !isActive) {
           console.log('⏸️ AutopilotRunner: No user authenticated, skipping cycle');
           return;
         }
@@ -24,6 +32,8 @@ export function AutopilotRunner() {
           .select('autopilot_enabled')
           .eq('user_id', user.id)
           .maybeSingle();
+
+        if (!isActive) return; // Check again after async operation
 
         console.log('🔍 AutopilotRunner: Settings check:', { 
           autopilot_enabled: settings?.autopilot_enabled,
@@ -44,18 +54,19 @@ export function AutopilotRunner() {
           .eq('user_id', user.id)
           .limit(1);
 
+        if (!isActive) return; // Check again after async operation
+
         console.log('📋 AutopilotRunner: Campaign query result:', { 
           campaigns_count: campaigns?.length || 0,
           campaign_error: campaignError,
-          campaigns: campaigns
+          first_campaign_id: campaigns?.[0]?.id
         });
 
-        const campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
+        let campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
 
         if (!campaignId) {
           console.warn('⚠️ AutopilotRunner: No campaign found, creating default campaign...');
           
-          // Auto-create campaign if missing
           const { data: newCampaign, error: createError } = await supabase
             .from('campaigns')
             .insert({
@@ -67,11 +78,14 @@ export function AutopilotRunner() {
             .select('id')
             .single();
 
+          if (!isActive) return;
+
           if (createError) {
             console.error('❌ AutopilotRunner: Failed to create campaign:', createError);
             return;
           }
 
+          campaignId = newCampaign?.id;
           console.log('✅ AutopilotRunner: Created default campaign:', newCampaign);
         }
 
@@ -90,6 +104,8 @@ export function AutopilotRunner() {
           }
         });
 
+        if (!isActive) return; // Check again after async operation
+
         if (error) {
           console.error('❌ AutopilotRunner: Edge function error:', error);
         } else if (data?.success) {
@@ -101,9 +117,10 @@ export function AutopilotRunner() {
             trending_discovered: data.trending_discovered
           });
         } else {
-          console.warn('⚠️ AutopilotRunner: Edge function returned unsuccessful:', data);
+          console.warn('⚠️ AutopilotRunner: Edge function returned:', data);
         }
       } catch (error) {
+        if (!isActive) return;
         console.error('❌ AutopilotRunner: Unexpected error:', error);
       }
     };
@@ -113,13 +130,15 @@ export function AutopilotRunner() {
     executeAutopilotCycle();
 
     // Then execute every 60 seconds
-    const intervalId = setInterval(() => {
+    intervalId = setInterval(() => {
+      if (!isActive) return;
       console.log('⏰ AutopilotRunner: 60-second interval triggered');
       executeAutopilotCycle();
-    }, 60000); // 60 seconds
+    }, 60000);
 
     return () => {
       console.log('🛑 AutopilotRunner: Component unmounting, stopping background service');
+      isActive = false; // Prevent any in-flight operations from continuing
       if (intervalId) clearInterval(intervalId);
     };
   }, []);
