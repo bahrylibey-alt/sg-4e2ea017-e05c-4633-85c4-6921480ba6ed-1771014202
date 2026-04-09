@@ -100,33 +100,33 @@ export default function Dashboard() {
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
 
-      // Get ALL real counts directly from database
-      const { data: productCount } = await supabase
+      // Get ALL real counts directly from database - FIX: Use proper count queries
+      const { count: productCount } = await supabase
         .from('affiliate_links')
-        .select('id', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true });
 
-      const { data: optimizedCount } = await supabase
+      const { count: optimizedCount } = await supabase
         .from('affiliate_links')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .not('product_name', 'is', null);
 
-      const { data: contentCount } = await supabase
+      const { count: contentCount } = await supabase
         .from('generated_content')
-        .select('id', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true });
 
-      const { data: postsCount } = await supabase
+      const { count: postsCount } = await supabase
         .from('posted_content')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .not('posted_at', 'is', null);
 
-      const { data: sourcesCount } = await supabase
+      const { count: sourcesCount } = await supabase
         .from('traffic_sources')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
 
-      const { data: clicksCount } = await supabase
+      const { count: clicksCount } = await supabase
         .from('click_events')
-        .select('id', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true });
 
       const { data: revenueData } = await supabase
         .from('commissions')
@@ -135,12 +135,12 @@ export default function Dashboard() {
       const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
 
       setStats({
-        products_discovered: productCount?.length || 0,
-        products_optimized: optimizedCount?.length || 0,
-        content_generated: contentCount?.length || 0,
-        posts_published: postsCount?.length || 0,
-        active_sources: sourcesCount?.length || 0,
-        total_clicks: clicksCount?.length || 0,
+        products_discovered: productCount || 0,
+        products_optimized: optimizedCount || 0,
+        content_generated: contentCount || 0,
+        posts_published: postsCount || 0,
+        active_sources: sourcesCount || 0,
+        total_clicks: clicksCount || 0,
         total_revenue: totalRevenue
       });
       

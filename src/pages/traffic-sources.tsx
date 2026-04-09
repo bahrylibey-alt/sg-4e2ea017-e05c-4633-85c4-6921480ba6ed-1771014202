@@ -204,49 +204,51 @@ export default function TrafficSourcesPage() {
       if (currentCampaignId) {
         setCampaignId(currentCampaignId);
         
-        // 2. Load active traffic sources from ALL user campaigns
+        // 2. Load active traffic sources from ALL user campaigns - FIX: Use correct column name
         const { data: sources } = await supabase
           .from('traffic_sources')
-          .select('source_name')
+          .select('name')
           .in('campaign_id', allCampaignIds)
           .eq('status', 'active');
 
         if (sources) {
-          setActiveSources(sources.map(s => s.source_name));
+          setActiveSources(sources.map(s => s.name));
         }
       }
 
-      // 3. Load real stats from traffic_events table
-      const { data: events } = await supabase
+      // 3. Load real stats - FIX: Use proper count queries
+      const { count: pageviewCount } = await supabase
         .from('traffic_events')
-        .select('event_type, user_id')
-        .eq('user_id', user.id);
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('event_type', 'pageview');
 
-      if (events) {
-        const pageviews = events.filter(e => e.event_type === 'pageview').length;
-        const clicks = events.filter(e => e.event_type === 'click').length;
-        const conversions = events.filter(e => e.event_type === 'conversion').length;
+      const { count: clickCount } = await supabase
+        .from('click_events')
+        .select('*', { count: 'exact', head: true });
 
-        // Get REAL revenue from affiliate_links table
-        let totalRevenue = 0;
-        if (allCampaignIds.length > 0) {
-          const { data: links } = await supabase
-            .from('affiliate_links')
-            .select('revenue')
-            .in('campaign_id', allCampaignIds);
+      const { count: conversionCount } = await supabase
+        .from('commissions')
+        .select('*', { count: 'exact', head: true });
 
-          if (links) {
-            totalRevenue = links.reduce((sum, link) => sum + (link.revenue || 0), 0);
-          }
-        }
+      // Get REAL revenue from commissions table
+      const { data: commissionData } = await supabase
+        .from('commissions')
+        .select('amount');
 
-        setStats({
-          total_visitors: pageviews,
-          active_sources: activeSources.length,
-          total_revenue: Math.round(totalRevenue * 100) / 100,
-          conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
-        });
-      }
+      const totalRevenue = commissionData?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+
+      const { count: activeSourcesCount } = await supabase
+        .from('traffic_sources')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      setStats({
+        total_visitors: pageviewCount || 0,
+        active_sources: activeSourcesCount || 0,
+        total_revenue: Math.round(totalRevenue * 100) / 100,
+        conversion_rate: pageviewCount && pageviewCount > 0 ? ((conversionCount || 0) / pageviewCount) * 100 : 0
+      });
     } catch (error) {
       console.error("Error loading traffic stats:", error);
     }

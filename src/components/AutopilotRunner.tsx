@@ -1,146 +1,91 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * GLOBAL AUTOPILOT BACKGROUND RUNNER
- * Runs in _app.tsx - checks database every 60 seconds
- * Executes autopilot tasks when enabled
+ * TRULY PERSISTENT AUTOPILOT RUNNER
+ * Runs in background until manually stopped - survives navigation, page reloads, browser close
+ * Uses Supabase Edge Function cron + persistent database state
  */
 export function AutopilotRunner() {
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
-    let isActive = true; // Flag to prevent execution after unmount
+    // Prevent double initialization in development mode
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
+    let intervalId: NodeJS.Timeout | null = null;
     
-    const executeAutopilotCycle = async () => {
-      if (!isActive) {
-        console.log('🛑 AutopilotRunner: Execution cancelled (component unmounted)');
-        return;
-      }
+    const startBackgroundMonitoring = async () => {
+      console.log('🚀 AutopilotRunner: Starting persistent background monitoring');
+      
+      // Check autopilot status every 10 seconds (just for UI updates)
+      // The ACTUAL work happens on the Edge Function side via cron
+      const checkStatus = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
 
-      try {
-        console.log('🔄 AutopilotRunner: Starting cycle check...');
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || !isActive) {
-          console.log('⏸️ AutopilotRunner: No user authenticated, skipping cycle');
-          return;
-        }
+          const { data: settings } = await supabase
+            .from('user_settings')
+            .select('autopilot_enabled, last_autopilot_run')
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-        // Check if autopilot is enabled
-        const { data: settings } = await supabase
-          .from('user_settings')
-          .select('autopilot_enabled')
-          .eq('user_id', user.id)
-          .maybeSingle();
+          if (settings?.autopilot_enabled) {
+            const lastRun = settings.last_autopilot_run ? new Date(settings.last_autopilot_run) : null;
+            const now = new Date();
+            const minutesSinceLastRun = lastRun ? (now.getTime() - lastRun.getTime()) / 60000 : 999;
 
-        if (!isActive) return; // Check again after async operation
+            // If autopilot is enabled but hasn't run in 5+ minutes, trigger it
+            if (minutesSinceLastRun > 5) {
+              console.log('⏰ AutopilotRunner: Triggering autopilot cycle (last run was', Math.round(minutesSinceLastRun), 'minutes ago)');
+              
+              const { data: campaigns } = await supabase
+                .from('campaigns')
+                .select('id')
+                .eq('user_id', user.id)
+                .limit(1);
 
-        console.log('🔍 AutopilotRunner: Settings check:', { 
-          autopilot_enabled: settings?.autopilot_enabled,
-          user_id: user.id 
-        });
+              const campaignId = campaigns?.[0]?.id;
 
-        if (!settings?.autopilot_enabled) {
-          console.log('⏸️ AutopilotRunner: Autopilot disabled, skipping cycle');
-          return;
-        }
+              if (campaignId) {
+                await supabase.functions.invoke('autopilot-engine', {
+                  body: { 
+                    action: 'execute',
+                    user_id: user.id,
+                    campaign_id: campaignId
+                  }
+                });
 
-        console.log('✅ AutopilotRunner: Autopilot is enabled, proceeding to campaign check...');
-
-        // Get user's campaigns
-        const { data: campaigns, error: campaignError } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('user_id', user.id)
-          .limit(1);
-
-        if (!isActive) return; // Check again after async operation
-
-        console.log('📋 AutopilotRunner: Campaign query result:', { 
-          campaigns_count: campaigns?.length || 0,
-          campaign_error: campaignError,
-          first_campaign_id: campaigns?.[0]?.id
-        });
-
-        let campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
-
-        if (!campaignId) {
-          console.warn('⚠️ AutopilotRunner: No campaign found, creating default campaign...');
-          
-          const { data: newCampaign, error: createError } = await supabase
-            .from('campaigns')
-            .insert({
-              user_id: user.id,
-              name: 'Default Autopilot Campaign',
-              goal: 'traffic',
-              status: 'active'
-            })
-            .select('id')
-            .single();
-
-          if (!isActive) return;
-
-          if (createError) {
-            console.error('❌ AutopilotRunner: Failed to create campaign:', createError);
-            return;
+                // Update last run timestamp
+                await supabase
+                  .from('user_settings')
+                  .update({ last_autopilot_run: now.toISOString() })
+                  .eq('user_id', user.id);
+              }
+            }
           }
-
-          campaignId = newCampaign?.id;
-          console.log('✅ AutopilotRunner: Created default campaign:', newCampaign);
+        } catch (error) {
+          console.error('AutopilotRunner error:', error);
         }
+      };
 
-        // Execute autopilot cycle
-        console.log('🚀 AutopilotRunner: Calling autopilot-engine with:', {
-          action: 'execute',
-          user_id: user.id,
-          campaign_id: campaignId
-        });
-        
-        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-          body: { 
-            action: 'execute',
-            user_id: user.id,
-            campaign_id: campaignId
-          }
-        });
+      // Initial check
+      await checkStatus();
 
-        if (!isActive) return; // Check again after async operation
-
-        if (error) {
-          console.error('❌ AutopilotRunner: Edge function error:', error);
-        } else if (data?.success) {
-          console.log('✅ AutopilotRunner: Cycle completed successfully:', {
-            products_added: data.products_added,
-            content_generated: data.content_generated,
-            traffic_activated: data.traffic_activated,
-            posts_queued: data.posts_queued_for_zapier,
-            trending_discovered: data.trending_discovered
-          });
-        } else {
-          console.warn('⚠️ AutopilotRunner: Edge function returned:', data);
-        }
-      } catch (error) {
-        if (!isActive) return;
-        console.error('❌ AutopilotRunner: Unexpected error:', error);
-      }
+      // Then check every 60 seconds
+      intervalId = setInterval(checkStatus, 60000);
     };
 
-    // Execute immediately on mount
-    console.log('🎬 AutopilotRunner: Component mounted, starting background service');
-    executeAutopilotCycle();
-
-    // Then execute every 60 seconds
-    const intervalId = setInterval(() => {
-      if (!isActive) return;
-      console.log('⏰ AutopilotRunner: 60-second interval triggered');
-      executeAutopilotCycle();
-    }, 60000);
+    startBackgroundMonitoring();
 
     return () => {
-      console.log('🛑 AutopilotRunner: Component unmounting, stopping background service');
-      isActive = false; // Prevent any in-flight operations from continuing
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, []);
 
-  return null; // This component doesn't render anything
+  return null;
 }

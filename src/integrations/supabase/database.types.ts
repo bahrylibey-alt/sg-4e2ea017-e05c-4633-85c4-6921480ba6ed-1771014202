@@ -2370,6 +2370,7 @@ export type Database = {
           autopilot_enabled: boolean | null
           created_at: string | null
           currency: string | null
+          last_autopilot_run: string | null
           notification_email: boolean | null
           notification_push: boolean | null
           payout_email: string | null
@@ -2383,6 +2384,7 @@ export type Database = {
           autopilot_enabled?: boolean | null
           created_at?: string | null
           currency?: string | null
+          last_autopilot_run?: string | null
           notification_email?: boolean | null
           notification_push?: boolean | null
           payout_email?: string | null
@@ -2396,6 +2398,7 @@ export type Database = {
           autopilot_enabled?: boolean | null
           created_at?: string | null
           currency?: string | null
+          last_autopilot_run?: string | null
           notification_email?: boolean | null
           notification_push?: boolean | null
           payout_email?: string | null
