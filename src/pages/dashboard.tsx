@@ -61,6 +61,7 @@ export default function Dashboard() {
   });
   const [magicToolLoading, setMagicToolLoading] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autopilotLogs, setAutopilotLogs] = useState<Array<{ timestamp: Date; message: string; type: 'success' | 'info' | 'error' }>>([]);
 
   const toggleConnection = (platformName: string) => {
     setConnectedPlatforms(prev => ({
@@ -82,8 +83,32 @@ export default function Dashboard() {
 
     loadAutopilotStatus();
     const interval = setInterval(loadAutopilotStatus, 5000);
-    return () => clearInterval(interval);
+    
+    // Monitor autopilot activity from localStorage
+    const logInterval = setInterval(() => {
+      const lastRun = localStorage.getItem('autopilot_last_run');
+      const lastRunTime = lastRun ? new Date(lastRun) : null;
+      
+      if (lastRunTime) {
+        const secondsAgo = Math.floor((Date.now() - lastRunTime.getTime()) / 1000);
+        if (secondsAgo < 120) { // Within last 2 minutes
+          addAutopilotLog('Autopilot cycle completed', 'success');
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(logInterval);
+    };
   }, []);
+
+  const addAutopilotLog = (message: string, type: 'success' | 'info' | 'error') => {
+    setAutopilotLogs(prev => [
+      { timestamp: new Date(), message, type },
+      ...prev.slice(0, 4) // Keep only last 5 logs
+    ]);
+  };
 
   const loadAutopilotStatus = async () => {
     try {
@@ -560,6 +585,25 @@ export default function Dashboard() {
                       {stats.total_clicks > 0 ? 'Online' : 'No Data'}
                     </Badge>
                   </div>
+
+                  {/* Autopilot Activity Log */}
+                  {autopilotLogs.length > 0 && (
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="text-xs font-semibold text-muted-foreground mb-2">Recent Activity</h4>
+                      <div className="space-y-2">
+                        {autopilotLogs.map((log, idx) => (
+                          <div key={idx} className="flex items-start gap-2 text-xs">
+                            <span className="text-muted-foreground shrink-0">
+                              {log.timestamp.toLocaleTimeString()}
+                            </span>
+                            <span className={log.type === 'success' ? 'text-green-600' : log.type === 'error' ? 'text-red-600' : 'text-blue-600'}>
+                              {log.message}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

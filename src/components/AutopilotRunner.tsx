@@ -70,8 +70,17 @@ export function AutopilotRunner() {
 
         if (error) {
           console.error('❌ AutopilotRunner: Edge Function error:', error);
+          // Store error in localStorage for UI to display
+          localStorage.setItem('autopilot_last_error', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            error: error.message
+          }));
         } else {
           console.log('✅ AutopilotRunner: Cycle completed successfully:', data);
+          
+          // Store success timestamp in localStorage for UI to display
+          localStorage.setItem('autopilot_last_run', new Date().toISOString());
+          localStorage.removeItem('autopilot_last_error');
           
           // Update last_autopilot_run in database
           await supabase

@@ -464,6 +464,33 @@ export type Database = {
           },
         ]
       }
+      autopilot_cron_log: {
+        Row: {
+          error: string | null
+          execution_time: string | null
+          id: string
+          results: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          error?: string | null
+          execution_time?: string | null
+          id?: string
+          results?: Json | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          error?: string | null
+          execution_time?: string | null
+          id?: string
+          results?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       autopilot_tasks: {
         Row: {
           campaign_id: string | null
