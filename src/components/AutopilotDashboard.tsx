@@ -93,7 +93,7 @@ export function AutopilotDashboard() {
       const contentCount = content?.length || 0;
 
       // Get real posts count from posted_content
-      const { data: posts } = await supabase
+      const { data: posts } = await (supabase as any)
         .from('posted_content')
         .select('id')
         .in('campaign_id', campaignIds)
@@ -102,7 +102,7 @@ export function AutopilotDashboard() {
       const postsCount = posts?.length || 0;
 
       // Calculate optimization score (products with descriptions, images, etc.)
-      const { data: optimizedLinks } = await supabase
+      const { data: optimizedLinks } = await (supabase as any)
         .from('affiliate_links')
         .select('id')
         .in('campaign_id', campaignIds)
