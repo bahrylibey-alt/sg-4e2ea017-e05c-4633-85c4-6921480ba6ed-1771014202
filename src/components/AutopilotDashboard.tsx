@@ -33,8 +33,6 @@ export function AutopilotDashboard() {
   });
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
     const loadStats = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -93,14 +91,13 @@ export function AutopilotDashboard() {
 
         const optimizedCount = optimizedLinks?.length || 0;
 
-        setStats({
+        setStatus(prev => ({
+          ...prev,
           products: productsCount,
           optimized: optimizedCount,
           content: contentCount,
-          posts: postsCount,
-          clicks: 15,
-          revenue: 37.50
-        });
+          posts: postsCount
+        }));
 
         console.log('✅ AutopilotDashboard: Stats updated:', {
           products: productsCount,
@@ -116,7 +113,7 @@ export function AutopilotDashboard() {
     loadStats();
 
     // Refresh every 3 seconds for visible updates
-    interval = setInterval(() => {
+    const interval = setInterval(() => {
       console.log('🔄 AutopilotDashboard: Auto-refresh triggered');
       loadStats();
     }, 3000);
