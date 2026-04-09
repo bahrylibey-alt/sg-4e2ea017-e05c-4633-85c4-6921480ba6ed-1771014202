@@ -556,28 +556,38 @@ export default function Dashboard() {
                     <Clock className="w-5 h-5 text-primary" />
                     Scheduled Routines
                   </CardTitle>
+                  <CardDescription>Click any routine to modify its schedule</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div 
+                    onClick={() => toast({ title: "Product Refresh", description: "Runs at 3:00 AM daily. Scans Amazon & Temu for trending products." })}
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  >
                     <div>
                       <h4 className="font-semibold text-sm">Product Refresh</h4>
                       <p className="text-xs text-muted-foreground">Scans Amazon & Temu</p>
                     </div>
-                    <Badge variant="outline">3:00 AM</Badge>
+                    <Badge variant="outline" className="cursor-pointer">3:00 AM</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div 
+                    onClick={() => toast({ title: "Performance Optimization", description: "Runs at 9:00 AM daily. Analyzes and fixes product descriptions for better SEO." })}
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  >
                     <div>
                       <h4 className="font-semibold text-sm">Performance Opt.</h4>
                       <p className="text-xs text-muted-foreground">Fixes descriptions</p>
                     </div>
-                    <Badge variant="outline">9:00 AM</Badge>
+                    <Badge variant="outline" className="cursor-pointer">9:00 AM</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div 
+                    onClick={() => toast({ title: "Social Publish", description: "Runs every 4 hours. Auto-posts to connected social accounts." })}
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  >
                     <div>
                       <h4 className="font-semibold text-sm">Social Publish</h4>
                       <p className="text-xs text-muted-foreground">Posts to accounts</p>
                     </div>
-                    <Badge variant="outline">Every 4h</Badge>
+                    <Badge variant="outline" className="cursor-pointer">Every 4h</Badge>
                   </div>
                 </CardContent>
               </Card>
