@@ -320,12 +320,12 @@ async function queueContentForPosting(supabaseAdmin: any, campaignId: string, us
     .select('id, product_name, cloaked_url, network')
     .eq('campaign_id', campaignId)
     .eq('status', 'active')
-    .limit(3);
+    .limit(5);
 
   if (!products || products.length === 0) return 0;
 
   let queuedCount = 0;
-  const platforms = ['pinterest', 'facebook', 'twitter'];
+  const platforms = ['pinterest', 'facebook', 'twitter', 'instagram'];
 
   for (const platform of platforms) {
     const product = products[Math.floor(Math.random() * products.length)];
@@ -341,7 +341,6 @@ Get yours here: ${product.cloaked_url}
       .insert({
         user_id: userId,
         link_id: product.id,
-        product_id: product.id,
         platform: platform,
         post_type: 'image',
         caption: caption,
