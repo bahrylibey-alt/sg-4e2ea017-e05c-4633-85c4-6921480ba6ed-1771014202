@@ -207,12 +207,12 @@ export default function TrafficSourcesPage() {
         // 2. Load active traffic sources from ALL user campaigns - FIX: Use correct column name
         const { data: sources } = await supabase
           .from('traffic_sources')
-          .select('name')
+          .select('source_name')
           .in('campaign_id', allCampaignIds)
           .eq('status', 'active');
 
         if (sources) {
-          setActiveSources(sources.map(s => s.name));
+          setActiveSources(sources.map(s => s.source_name));
         }
       }
 
