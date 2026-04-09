@@ -96,7 +96,7 @@ export function AutopilotDashboard() {
       const { data: posts } = await (supabase as any)
         .from('posted_content')
         .select('id')
-        .in('campaign_id', campaignIds)
+        .eq('user_id', user.id)
         .not('posted_at', 'is', null);
 
       const postsCount = posts?.length || 0;
@@ -107,7 +107,7 @@ export function AutopilotDashboard() {
         .select('id')
         .in('campaign_id', campaignIds)
         .not('product_name', 'is', null)
-        .not('url', 'is', null);
+        .not('original_url', 'is', null);
 
       const optimizedCount = optimizedLinks?.length || 0;
 

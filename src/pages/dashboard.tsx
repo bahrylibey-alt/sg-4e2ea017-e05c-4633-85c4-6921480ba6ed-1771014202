@@ -122,7 +122,7 @@ export default function Dashboard() {
       // Get REAL product count from affiliate_links
       const { data: links } = await supabase
         .from('affiliate_links')
-        .select('id, product_name, url')
+        .select('id, product_name, original_url')
         .in('campaign_id', campaignIds);
 
       const productsCount = links?.length || 0;
@@ -133,7 +133,7 @@ export default function Dashboard() {
         .select('id')
         .in('campaign_id', campaignIds)
         .not('product_name', 'is', null)
-        .not('url', 'is', null);
+        .not('original_url', 'is', null);
 
       const optimizedCount = optimizedLinks?.length || 0;
 
