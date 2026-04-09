@@ -471,7 +471,7 @@ export default function Dashboard() {
                     <div className="space-y-3 bg-background p-4 rounded-lg border">
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground font-medium">Runs globally in the background</p>
+                        <p className="text-sm text-foreground font-medium">Runs on Supabase servers 24/7</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -479,7 +479,11 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground font-medium">Survives page reloads</p>
+                        <p className="text-sm text-foreground font-medium">Independent of page navigation</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                        <p className="text-sm text-foreground font-medium">Executes workflow every 2 minutes when enabled</p>
                       </div>
                     </div>
                   </div>
