@@ -176,21 +176,31 @@ export default function HomePage() {
           return;
         }
 
-        // Call the REAL autopilot engine to do the work
+        // Trigger the autopilot system
         const { data: result } = await supabase.functions.invoke('autopilot-engine', {
           body: { 
-            action: 'launch',
-            user_id: user.id,
-            campaign_id: campaignId
+            action: 'start',
+            user_id: user.id 
           }
         });
 
-        console.log("Autopilot launch result:", result);
+        if (result?.success) {
+          toast({
+            title: "🚀 Autopilot Activated!",
+            description: `System launched: ${result.initial_work?.products_added || 0} products, ${result.initial_work?.content_generated || 0} content pieces ready`
+          });
+        }
 
-        toast({
-          title: "✅ Autopilot Launched!",
-          description: "System is running 24/7. Products, content, and traffic being generated automatically."
-        });
+        // After 30 seconds, execute next cycle
+        setTimeout(async () => {
+          await supabase.functions.invoke('autopilot-engine', {
+            body: { 
+              action: 'execute',
+              user_id: user.id,
+              campaign_id: result?.campaign_id
+            }
+          });
+        }, 30000);
       } else {
         // STOP: Call edge function to stop background execution
         await supabase.functions.invoke('autopilot-engine', {
