@@ -21,7 +21,6 @@ serve(async (req) => {
     console.log(`🤖 Autopilot request: ${action} for user ${user_id}`);
 
     if (action === 'start') {
-      // Enable autopilot in user_settings
       const { error: settingsError } = await supabaseAdmin
         .from('user_settings')
         .upsert({
@@ -38,7 +37,6 @@ serve(async (req) => {
         });
       }
 
-      // Get or create autopilot campaign
       let activeCampaignId = campaign_id;
 
       if (!activeCampaignId) {
@@ -82,12 +80,11 @@ serve(async (req) => {
 
       console.log(`✅ Autopilot enabled for user ${user_id}, campaign ${activeCampaignId}`);
 
-      // Execute initial work cycle
-      const productCount = await addProducts(activeCampaignId, user_id);
-      const contentCount = await generateContent(activeCampaignId, user_id);
-      const trafficCount = await activateTraffic(activeCampaignId, user_id);
-      const queuedCount = await queueContentForPosting(activeCampaignId, user_id);
-      const trendingCount = await scanAndAddTrendingProducts(activeCampaignId, user_id);
+      const productCount = await addProducts(supabaseAdmin, activeCampaignId, user_id);
+      const contentCount = await generateContent(supabaseAdmin, activeCampaignId, user_id);
+      const trafficCount = await activateTraffic(supabaseAdmin, activeCampaignId, user_id);
+      const queuedCount = await queueContentForPosting(supabaseAdmin, activeCampaignId, user_id);
+      const trendingCount = await scanAndAddTrendingProducts(supabaseAdmin, activeCampaignId, user_id);
 
       await supabaseAdmin.from('activity_logs').insert({
         user_id: user_id,
@@ -117,11 +114,11 @@ serve(async (req) => {
     if (action === 'execute') {
       console.log(`🔄 Executing autopilot cycle for user ${user_id}, campaign ${campaign_id}`);
 
-      const productCount = await addProducts(campaign_id, user_id);
-      const contentCount = await generateContent(campaign_id, user_id);
-      const trafficCount = await activateTraffic(campaign_id, user_id);
-      const queuedCount = await queueContentForPosting(campaign_id, user_id);
-      const trendingCount = await scanAndAddTrendingProducts(campaign_id, user_id);
+      const productCount = await addProducts(supabaseAdmin, campaign_id, user_id);
+      const contentCount = await generateContent(supabaseAdmin, campaign_id, user_id);
+      const trafficCount = await activateTraffic(supabaseAdmin, campaign_id, user_id);
+      const queuedCount = await queueContentForPosting(supabaseAdmin, campaign_id, user_id);
+      const trendingCount = await scanAndAddTrendingProducts(supabaseAdmin, campaign_id, user_id);
 
       await supabaseAdmin.from('activity_logs').insert({
         user_id: user_id,
@@ -192,14 +189,7 @@ serve(async (req) => {
   }
 });
 
-// Helper: Add products
-async function addProducts(campaignId: string, userId: string): Promise<number> {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
-  // Generate dynamic product names with timestamp/random to avoid duplicates
+async function addProducts(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
   const timestamp = Date.now();
   const randomSuffix = () => Math.random().toString(36).substring(2, 6).toUpperCase();
   
@@ -215,6 +205,7 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
 
   for (const product of products) {
     const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const slug = Math.random().toString(36).substring(2, 8);
     
     const { error } = await supabaseAdmin
       .from('affiliate_links')
@@ -224,8 +215,8 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
         product_name: product.name,
         network: product.network,
         original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}-${asin}`,
-        slug: `prod-${asin.toLowerCase()}`,
+        cloaked_url: `https://sale-makseb.vercel.app/go/${slug}`,
+        slug: slug,
         status: 'active',
         clicks: 0,
         conversions: 0
@@ -237,14 +228,7 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
   return addedCount;
 }
 
-// Helper: Generate content
-async function generateContent(campaignId: string, userId: string): Promise<number> {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
-  // Generate dynamic article titles with date/random to ensure uniqueness
+async function generateContent(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
   const date = new Date().toISOString().split('T')[0];
   const topics = [
     'Top 10 Must-Have Tech Gadgets',
@@ -257,11 +241,20 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
   const title = `${randomTopic} - ${date}`;
 
+  const { data: links } = await supabaseAdmin
+    .from('affiliate_links')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .limit(1);
+
+  if (!links || links.length === 0) return 0;
+
   const articles = [
     {
       title: title,
       body: 'Discover the latest innovations that are changing how we live and work. From smart home devices to portable power solutions, these products are must-haves for 2026.',
-      type: 'review' // Valid types: 'review', 'best-under-price', 'comparison', 'guide'
+      type: 'review',
+      link_id: links[0].id
     }
   ];
 
@@ -273,12 +266,13 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
       .insert({
         campaign_id: campaignId,
         user_id: userId,
+        link_id: article.link_id,
+        platform: 'blog',
+        content_type: article.type,
+        content: article.body,
         title: article.title,
-        body: article.body,
-        type: article.type,
-        status: 'published',
-        views: 0,
-        clicks: 0
+        performance_score: 85,
+        status: 'published'
       });
 
     if (!error) generatedCount++;
@@ -287,13 +281,7 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
   return generatedCount;
 }
 
-// Helper: Activate traffic
-async function activateTraffic(campaignId: string, userId: string): Promise<number> {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
+async function activateTraffic(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
   const sources = ['Pinterest', 'Facebook', 'Instagram', 'Twitter'];
   let activatedCount = 0;
 
@@ -302,7 +290,7 @@ async function activateTraffic(campaignId: string, userId: string): Promise<numb
       .from('traffic_sources')
       .select('id')
       .eq('campaign_id', campaignId)
-      .eq('source_name', source)
+      .eq('name', source)
       .maybeSingle();
 
     if (existing) continue;
@@ -311,11 +299,11 @@ async function activateTraffic(campaignId: string, userId: string): Promise<numb
       .from('traffic_sources')
       .insert({
         campaign_id: campaignId,
-        source_type: 'social', // Valid types: 'organic', 'paid', 'social', 'email', 'referral', 'direct'
-        source_name: source,
-        automation_enabled: true,
+        user_id: userId,
+        name: source,
+        type: 'social',
         status: 'active',
-        daily_budget: 0,
+        total_visits: 0,
         total_clicks: 0,
         total_conversions: 0
       });
@@ -326,34 +314,37 @@ async function activateTraffic(campaignId: string, userId: string): Promise<numb
   return activatedCount;
 }
 
-// Helper: Queue content for posting
-async function queueContentForPosting(campaignId: string, userId: string): Promise<number> {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
+async function queueContentForPosting(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
   const { data: products } = await supabaseAdmin
     .from('affiliate_links')
-    .select('product_name, cloaked_url')
+    .select('id, product_name, cloaked_url, network')
     .eq('campaign_id', campaignId)
-    .limit(2);
+    .eq('status', 'active')
+    .limit(3);
 
   if (!products || products.length === 0) return 0;
 
   let queuedCount = 0;
-  const platforms = ['pinterest', 'facebook'];
+  const platforms = ['pinterest', 'facebook', 'twitter'];
 
   for (const platform of platforms) {
     const product = products[Math.floor(Math.random() * products.length)];
     
+    const caption = `🔥 Check out this amazing ${product.product_name}! 
+
+Get yours here: ${product.cloaked_url}
+
+#${product.network} #deals #shopping #trending`;
+
     const { error } = await supabaseAdmin
       .from('posted_content')
       .insert({
         user_id: userId,
+        link_id: product.id,
+        product_id: product.id,
         platform: platform,
-        post_type: 'image', // Valid types: 'image', 'video', 'carousel', 'story', 'reel', 'short'
-        caption: `Check out this amazing ${product.product_name}! 🔥`,
+        post_type: 'image',
+        caption: caption,
         post_url: product.cloaked_url,
         status: 'posted',
         posted_at: new Date().toISOString(),
@@ -369,14 +360,7 @@ async function queueContentForPosting(campaignId: string, userId: string): Promi
   return queuedCount;
 }
 
-// Helper: Scan and add trending products
-async function scanAndAddTrendingProducts(campaignId: string, userId: string): Promise<number> {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
-  // Generate unique trending products on each cycle
+async function scanAndAddTrendingProducts(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
   const randomSuffix = () => Math.random().toString(36).substring(2, 5).toUpperCase();
   
   const trendingProducts = [
@@ -388,8 +372,9 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
 
   for (const product of trendingProducts) {
     const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const slug = Math.random().toString(36).substring(2, 8);
 
-    const { error: linkError } = await supabaseAdmin
+    const { data: link, error: linkError } = await supabaseAdmin
       .from('affiliate_links')
       .insert({
         campaign_id: campaignId,
@@ -397,14 +382,16 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
         product_name: product.name,
         network: product.network,
         original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}-${asin}`,
-        slug: `trend-${asin.toLowerCase()}`,
+        cloaked_url: `https://sale-makseb.vercel.app/go/${slug}`,
+        slug: slug,
         status: 'active',
         clicks: 0,
         conversions: 0
-      });
+      })
+      .select('id')
+      .single();
 
-    if (!linkError) {
+    if (!linkError && link) {
       await supabaseAdmin
         .from('trend_products')
         .insert({
