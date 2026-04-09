@@ -5,6 +5,9 @@ import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -12,13 +15,11 @@ import {
   Facebook, 
   Youtube, 
   Instagram, 
-  Twitter, 
-  Linkedin,
+  Twitter,
   Settings,
-  RefreshCw,
   X,
   Check,
-  AlertCircle
+  Plus
 } from "lucide-react";
 
 interface Integration {
@@ -29,7 +30,11 @@ interface Integration {
   category: string;
   status: "available" | "connected";
   connected_at?: string;
-  last_sync?: string;
+  credentials?: {
+    access_token?: string;
+    page_id?: string;
+    account_id?: string;
+  };
 }
 
 const AVAILABLE_INTEGRATIONS: Integration[] = [
@@ -40,8 +45,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     icon: Zap,
     category: "automation",
     status: "connected",
-    connected_at: "2026-04-08T16:00:00Z",
-    last_sync: new Date().toISOString()
+    connected_at: "2026-04-08T16:00:00Z"
   },
   {
     id: "facebook",
@@ -85,9 +89,12 @@ export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>(AVAILABLE_INTEGRATIONS);
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [connectDialog, setConnectDialog] = useState<{ open: boolean; integration?: Integration }>({ open: false });
+  const [credentials, setCredentials] = useState({ pageId: "", accessToken: "" });
 
   useEffect(() => {
     loadUser();
+    loadConnections();
   }, []);
 
   const loadUser = async () => {
@@ -99,6 +106,39 @@ export default function IntegrationsPage() {
     setUserId(user.id);
   };
 
+  const loadConnections = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: connections } = await supabase
+        .from('social_connections')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (connections && connections.length > 0) {
+        setIntegrations(integrations.map(i => {
+          const conn = connections.find(c => c.platform === i.id);
+          if (conn) {
+            return {
+              ...i,
+              status: "connected" as const,
+              connected_at: conn.connected_at,
+              credentials: {
+                access_token: conn.access_token,
+                page_id: conn.page_id || undefined,
+                account_id: conn.account_id || undefined
+              }
+            };
+          }
+          return i;
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to load connections:", error);
+    }
+  };
+
   const getConnectedCount = () => {
     return integrations.filter(i => i.status === "connected" && i.id !== "zapier").length;
   };
@@ -107,26 +147,61 @@ export default function IntegrationsPage() {
     return getConnectedCount() < MAX_CONNECTIONS;
   };
 
-  const handleConnect = async (integrationId: string) => {
-    if (!canConnect() && integrationId !== "zapier") {
+  const openConnectDialog = (integration: Integration) => {
+    setConnectDialog({ open: true, integration });
+    setCredentials({ pageId: "", accessToken: "" });
+  };
+
+  const handleConnect = async () => {
+    if (!connectDialog.integration || !userId) return;
+
+    try {
+      setIsLoading(true);
+
+      // Save to database
+      const { error } = await supabase
+        .from('social_connections')
+        .upsert({
+          user_id: userId,
+          platform: connectDialog.integration.id,
+          access_token: credentials.accessToken,
+          page_id: credentials.pageId,
+          status: 'active',
+          connected_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      // Update local state
+      setIntegrations(integrations.map(i => 
+        i.id === connectDialog.integration?.id 
+          ? { 
+              ...i, 
+              status: "connected" as const, 
+              connected_at: new Date().toISOString(),
+              credentials: {
+                access_token: credentials.accessToken,
+                page_id: credentials.pageId
+              }
+            }
+          : i
+      ));
+
       toast({
-        title: "Connection Limit Reached",
-        description: `You can connect up to ${MAX_CONNECTIONS} social media apps.`,
+        title: "✅ Connected!",
+        description: `${connectDialog.integration.name} is now active`
+      });
+
+      setConnectDialog({ open: false });
+    } catch (error: any) {
+      toast({
+        title: "Connection Failed",
+        description: error.message,
         variant: "destructive"
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    setIntegrations(integrations.map(i => 
-      i.id === integrationId 
-        ? { ...i, status: "connected" as const, connected_at: new Date().toISOString(), last_sync: new Date().toISOString() }
-        : i
-    ));
-
-    toast({
-      title: `✅ Connected!`,
-      description: `${integrations.find(i => i.id === integrationId)?.name} is now active`
-    });
   };
 
   const handleDisconnect = async (integrationId: string) => {
@@ -139,21 +214,85 @@ export default function IntegrationsPage() {
       return;
     }
 
-    setIntegrations(integrations.map(i => 
-      i.id === integrationId 
-        ? { ...i, status: "available" as const, connected_at: undefined, last_sync: undefined }
-        : i
-    ));
+    if (!userId) return;
 
-    toast({
-      title: "Disconnected",
-      description: `${integrations.find(i => i.id === integrationId)?.name} has been disconnected`
-    });
+    try {
+      setIsLoading(true);
+
+      const { error } = await supabase
+        .from('social_connections')
+        .delete()
+        .eq('user_id', userId)
+        .eq('platform', integrationId);
+
+      if (error) throw error;
+
+      setIntegrations(integrations.map(i => 
+        i.id === integrationId 
+          ? { ...i, status: "available" as const, connected_at: undefined, credentials: undefined }
+          : i
+      ));
+
+      toast({
+        title: "Disconnected",
+        description: `${integrations.find(i => i.id === integrationId)?.name} has been disconnected`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Disconnect Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Never";
     return new Date(dateString).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const getInstructions = (platform: string) => {
+    const instructions: Record<string, { steps: string[]; note: string }> = {
+      facebook: {
+        steps: [
+          "Go to Facebook Business Settings",
+          "Navigate to System Users → Add",
+          "Generate Access Token with pages_manage_posts permission",
+          "Copy Page ID from your Facebook Page settings"
+        ],
+        note: "Access tokens expire - you'll need to regenerate periodically"
+      },
+      instagram: {
+        steps: [
+          "Connect your Instagram Business Account to Facebook",
+          "Use the same Facebook access token",
+          "Get your Instagram Business Account ID from Facebook Graph API"
+        ],
+        note: "Requires Instagram Business or Creator account"
+      },
+      youtube: {
+        steps: [
+          "Go to Google Cloud Console",
+          "Create OAuth 2.0 credentials",
+          "Enable YouTube Data API v3",
+          "Copy Client ID and Secret"
+        ],
+        note: "Community posts require YouTube Partner Program"
+      },
+      twitter: {
+        steps: [
+          "Go to Twitter Developer Portal",
+          "Create a new app",
+          "Generate OAuth 2.0 Bearer Token",
+          "Enable Read and Write permissions"
+        ],
+        note: "Free tier limited to 1,500 tweets/month"
+      }
+    };
+
+    return instructions[platform] || { steps: [], note: "" };
   };
 
   return (
@@ -267,9 +406,10 @@ export default function IntegrationsPage() {
                           ) : (
                             <Button
                               className="flex-1"
-                              onClick={() => handleConnect(integration.id)}
-                              disabled={isLoading}
+                              onClick={() => openConnectDialog(integration)}
+                              disabled={isLoading || !canConnect()}
                             >
+                              <Plus className="w-4 h-4 mr-2" />
                               Connect
                             </Button>
                           )}
@@ -282,6 +422,68 @@ export default function IntegrationsPage() {
           </div>
         </main>
       </div>
+
+      <Dialog open={connectDialog.open} onOpenChange={(open) => setConnectDialog({ open })}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Connect {connectDialog.integration?.name}</DialogTitle>
+            <DialogDescription>
+              Enter your credentials to enable auto-posting
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pageId">Page/Account ID</Label>
+                <Input
+                  id="pageId"
+                  placeholder="Enter your page or account ID"
+                  value={credentials.pageId}
+                  onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accessToken">Access Token</Label>
+                <Input
+                  id="accessToken"
+                  type="password"
+                  placeholder="Enter your access token"
+                  value={credentials.accessToken}
+                  onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {connectDialog.integration && (
+              <div className="bg-muted p-4 rounded-lg space-y-3">
+                <p className="font-semibold text-sm">Setup Instructions:</p>
+                <ol className="list-decimal list-inside space-y-1.5 text-sm text-muted-foreground">
+                  {getInstructions(connectDialog.integration.id).steps.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ol>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-3">
+                  ⚠️ {getInstructions(connectDialog.integration.id).note}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConnectDialog({ open: false })}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConnect} 
+              disabled={!credentials.pageId || !credentials.accessToken || isLoading}
+            >
+              {isLoading ? "Connecting..." : "Connect"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
