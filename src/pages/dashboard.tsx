@@ -90,6 +90,8 @@ export default function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      console.log('🔄 Dashboard: Loading autopilot status...');
+
       // Load autopilot status
       const { data: settings } = await supabase
         .from('user_settings')
@@ -99,8 +101,9 @@ export default function Dashboard() {
 
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
+      console.log('⚙️ Autopilot enabled:', isEnabled);
 
-      // Get ALL real counts directly from database - FIX: Use proper count queries
+      // Get ALL real counts directly from database
       const { count: productCount } = await supabase
         .from('affiliate_links')
         .select('*', { count: 'exact', head: true });
@@ -134,7 +137,7 @@ export default function Dashboard() {
 
       const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
 
-      setStats({
+      const newStats = {
         products_discovered: productCount || 0,
         products_optimized: optimizedCount || 0,
         content_generated: contentCount || 0,
@@ -142,11 +145,14 @@ export default function Dashboard() {
         active_sources: sourcesCount || 0,
         total_clicks: clicksCount || 0,
         total_revenue: totalRevenue
-      });
+      };
+
+      console.log('📊 Dashboard stats loaded:', newStats);
       
+      setStats(newStats);
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('Error loading autopilot status:', error);
+      console.error('❌ Error loading autopilot status:', error);
     }
   };
 

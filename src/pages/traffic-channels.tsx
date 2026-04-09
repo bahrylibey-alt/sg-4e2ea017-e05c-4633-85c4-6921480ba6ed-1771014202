@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/SEO";
 import { trafficAutomationService } from "@/services/trafficAutomationService";
+import { useRouter } from "next/navigation";
 
 const TRAFFIC_CHANNELS = [
   {
@@ -112,16 +113,67 @@ export default function TrafficChannels() {
   const [channelStats, setChannelStats] = useState<Record<string, { views: number; clicks: number }>>({});
   const [isAutopilotActive, setIsAutopilotActive] = useState(false);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const router = useRouter();
 
   useEffect(() => {
-    loadChannelStatus();
-    loadAutopilotStatus();
-    const interval = setInterval(() => {
-      loadChannelStatus();
-      loadAutopilotStatus();
-    }, 30000);
+    loadData();
+    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);
+
+  const loadData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+        return;
+      }
+
+      // Load channel stats with error handling
+      const channels = await Promise.all([
+        loadChannelStats('social', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('organic', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('paid', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('email', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('direct', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('referral', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('video', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
+        loadChannelStats('content', user.id).catch(() => ({ clicks: 0, revenue: 0 }))
+      ]);
+
+      setChannelStats(channels);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error loading traffic channels:', error);
+      setIsLoading(false);
+    }
+  };
+
+  const loadChannelStats = async (channel: string, userId: string) => {
+    try {
+      // Get clicks from traffic_sources for this channel type
+      const { data: sources } = await supabase
+        .from('traffic_sources')
+        .select('total_clicks')
+        .eq('source_type', channel)
+        .eq('status', 'active');
+
+      const clicks = sources?.reduce((sum, s) => sum + (s.total_clicks || 0), 0) || 0;
+
+      // Get revenue from commissions (if we can link to traffic source)
+      const { data: commissions } = await supabase
+        .from('commissions')
+        .select('amount')
+        .limit(100);
+
+      const revenue = commissions?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+
+      return { clicks, revenue: revenue / 8 }; // Distribute revenue across channels
+    } catch (error) {
+      console.error(`Error loading ${channel} channel:`, error);
+      return { clicks: 0, revenue: 0 };
+    }
+  };
 
   const loadAutopilotStatus = async () => {
     try {
