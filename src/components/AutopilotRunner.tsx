@@ -35,22 +35,52 @@ export function AutopilotRunner() {
           return;
         }
 
+        console.log('✅ AutopilotRunner: Autopilot is enabled, proceeding to campaign check...');
+
         // Get user's campaigns
-        const { data: campaigns } = await supabase
+        const { data: campaigns, error: campaignError } = await supabase
           .from('campaigns')
           .select('id')
           .eq('user_id', user.id)
           .limit(1);
 
-        const campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
-
-        console.log('📋 AutopilotRunner: Campaign check:', { 
-          campaign_id: campaignId,
-          campaigns_count: campaigns?.length || 0 
+        console.log('📋 AutopilotRunner: Campaign query result:', { 
+          campaigns_count: campaigns?.length || 0,
+          campaign_error: campaignError,
+          campaigns: campaigns
         });
 
+        const campaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
+
+        if (!campaignId) {
+          console.warn('⚠️ AutopilotRunner: No campaign found, creating default campaign...');
+          
+          // Auto-create campaign if missing
+          const { data: newCampaign, error: createError } = await supabase
+            .from('campaigns')
+            .insert({
+              user_id: user.id,
+              name: 'Default Autopilot Campaign',
+              goal: 'traffic',
+              status: 'active'
+            })
+            .select('id')
+            .single();
+
+          if (createError) {
+            console.error('❌ AutopilotRunner: Failed to create campaign:', createError);
+            return;
+          }
+
+          console.log('✅ AutopilotRunner: Created default campaign:', newCampaign);
+        }
+
         // Execute autopilot cycle
-        console.log('🚀 AutopilotRunner: Calling autopilot-engine...');
+        console.log('🚀 AutopilotRunner: Calling autopilot-engine with:', {
+          action: 'execute',
+          user_id: user.id,
+          campaign_id: campaignId
+        });
         
         const { data, error } = await supabase.functions.invoke('autopilot-engine', {
           body: { 
