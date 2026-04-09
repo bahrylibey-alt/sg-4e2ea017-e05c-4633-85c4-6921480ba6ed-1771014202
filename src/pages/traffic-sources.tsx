@@ -245,8 +245,8 @@ export default function TrafficSourcesPage() {
 
         setStats({
           total_visitors: pageviews,
-          active_sources: activeSources.length, // use length from state
-          total_revenue: Math.round(totalRevenue * 100) / 100, // Real revenue from database
+          active_sources: activeSources.length, // use activeSources state which is loaded from database
+          total_revenue: Math.round(totalRevenue * 100) / 100,
           conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
         });
       }
