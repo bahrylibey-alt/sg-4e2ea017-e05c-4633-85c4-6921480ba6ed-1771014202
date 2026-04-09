@@ -344,6 +344,83 @@ export default function Dashboard() {
     }
   };
 
+  const toggleAutomation = async () => {
+    if (!userId) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to use autopilot",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newStatus = !automationActive;
+
+    // Update database
+    const { error: dbError } = await supabase
+      .from('user_settings')
+      .upsert({
+        user_id: userId,
+        autopilot_enabled: newStatus,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+    if (dbError) {
+      toast({
+        title: "Error",
+        description: "Failed to update autopilot status",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setAutomationActive(newStatus);
+
+    if (newStatus) {
+      // Starting autopilot
+      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+        body: { 
+          action: 'start',
+          user_id: userId
+        }
+      });
+
+      if (error) {
+        console.error('Autopilot start error:', error);
+        toast({
+          title: "Autopilot Error",
+          description: error.message || "Failed to start autopilot",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "🚀 Autopilot Activated!",
+        description: "System is now running 24/7"
+      });
+
+      await loadAutopilotStatus();
+    } else {
+      // Stopping autopilot
+      const { error } = await supabase.functions.invoke('autopilot-engine', {
+        body: { 
+          action: 'stop',
+          user_id: userId
+        }
+      });
+
+      if (error) {
+        console.error('Autopilot stop error:', error);
+      }
+
+      toast({
+        title: "⏸️ Autopilot Stopped",
+        description: "Automation has been paused"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <SEO title="Dashboard - AffiliatePro" />
