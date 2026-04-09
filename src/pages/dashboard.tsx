@@ -30,7 +30,8 @@ import {
   Eye,
   RefreshCw,
   Search,
-  Globe
+  Globe,
+  DollarSign
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -49,15 +50,17 @@ export default function Dashboard() {
     products_optimized: 0,
     content_generated: 0,
     posts_published: 0,
-    active_sources: 0
+    active_sources: 0,
+    total_clicks: 0,
+    total_revenue: 0
   });
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  // States for other tabs to make the UI feel alive
   const [activeTab, setActiveTab] = useState("autopilot");
   const [connectedPlatforms, setConnectedPlatforms] = useState<Record<string, boolean>>({
     'Facebook Page': true
   });
   const [magicToolLoading, setMagicToolLoading] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const toggleConnection = (platformName: string) => {
     setConnectedPlatforms(prev => ({
@@ -70,18 +73,15 @@ export default function Dashboard() {
     });
   };
 
-  // Global persistence listener
   useEffect(() => {
     setIsMounted(true);
-    // Check local storage immediately for snappy UI
     const localState = localStorage.getItem('autopilot_active');
     if (localState === 'true') {
       setAutomationActive(true);
     }
 
     loadAutopilotStatus();
-    // Poll the database frequently to catch background updates from AutopilotRunner
-    const interval = setInterval(loadAutopilotStatus, 3000);
+    const interval = setInterval(loadAutopilotStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -90,7 +90,7 @@ export default function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load autopilot status from database
+      // Load autopilot status
       const { data: settings } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
@@ -100,84 +100,61 @@ export default function Dashboard() {
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
 
-      // Load campaigns for this user
-      const { data: campaigns } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', user.id);
-
-      if (!campaigns || campaigns.length === 0) {
-        // No campaigns yet - all stats are 0
-        setStats({
-          products_discovered: 0,
-          products_optimized: 0,
-          content_generated: 0,
-          posts_published: 0,
-          active_sources: 0
-        });
-        setLastUpdate(new Date());
-        return;
-      }
-
-      const campaignIds = campaigns.map(c => c.id);
-
-      // Get REAL product count from affiliate_links
-      const { data: links } = await supabase
+      // Get ALL real counts directly from database
+      const { data: productCount } = await supabase
         .from('affiliate_links')
-        .select('id, product_name, original_url')
-        .in('campaign_id', campaignIds);
+        .select('id', { count: 'exact', head: true });
 
-      const productsCount = links?.length || 0;
-
-      // Get REAL optimized count (products with complete data)
-      const { data: optimizedLinks } = await (supabase as any)
+      const { data: optimizedCount } = await supabase
         .from('affiliate_links')
-        .select('id')
-        .in('campaign_id', campaignIds)
-        .not('product_name', 'is', null)
-        .not('original_url', 'is', null);
+        .select('id', { count: 'exact', head: true })
+        .not('product_name', 'is', null);
 
-      const optimizedCount = optimizedLinks?.length || 0;
-
-      // Get REAL content count from generated_content
-      const { data: content } = await supabase
+      const { data: contentCount } = await supabase
         .from('generated_content')
-        .select('id')
-        .in('campaign_id', campaignIds);
+        .select('id', { count: 'exact', head: true });
 
-      const contentCount = content?.length || 0;
-
-      // Get REAL posts count from posted_content (only published posts)
-      const { data: posts } = await (supabase as any)
+      const { data: postsCount } = await supabase
         .from('posted_content')
-        .select('id')
-        .eq('user_id', user.id)
+        .select('id', { count: 'exact', head: true })
         .not('posted_at', 'is', null);
 
-      const postsCount = posts?.length || 0;
-
-      // Get REAL active traffic sources count across all campaigns
-      const { data: activeSources } = await supabase
+      const { data: sourcesCount } = await supabase
         .from('traffic_sources')
-        .select('id')
-        .in('campaign_id', campaignIds)
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'active');
 
-      const activeSourcesCount = activeSources?.length || 0;
+      const { data: clicksCount } = await supabase
+        .from('click_events')
+        .select('id', { count: 'exact', head: true });
 
-      // Update stats with REAL numbers from database
+      const { data: revenueData } = await supabase
+        .from('commissions')
+        .select('amount');
+
+      const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
+
       setStats({
-        products_discovered: productsCount,
-        products_optimized: optimizedCount,
-        content_generated: contentCount,
-        posts_published: postsCount,
-        active_sources: activeSourcesCount
+        products_discovered: productCount?.length || 0,
+        products_optimized: optimizedCount?.length || 0,
+        content_generated: contentCount?.length || 0,
+        posts_published: postsCount?.length || 0,
+        active_sources: sourcesCount?.length || 0,
+        total_clicks: clicksCount?.length || 0,
+        total_revenue: totalRevenue
       });
       
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Error loading autopilot status:', error);
     }
+  };
+
+  const manualRefresh = async () => {
+    setIsRefreshing(true);
+    await loadAutopilotStatus();
+    toast({ title: "✅ Data Refreshed", description: "All stats updated from database" });
+    setTimeout(() => setIsRefreshing(false), 1000);
   };
 
   const toggleAutopilot = async () => {
@@ -192,7 +169,6 @@ export default function Dashboard() {
 
       const newStatus = !automationActive;
       
-      // 1. Save to database (single source of truth)
       const { error: dbError } = await supabase
         .from('user_settings')
         .upsert({
@@ -206,11 +182,9 @@ export default function Dashboard() {
         throw dbError;
       }
 
-      // 2. Update local state
       setAutomationActive(newStatus);
       localStorage.setItem('autopilot_active', newStatus ? 'true' : 'false');
 
-      // 3. Call edge function
       try {
         await supabase.functions.invoke('autopilot-engine', {
           body: { 
@@ -252,7 +226,6 @@ export default function Dashboard() {
 
       switch (toolType) {
         case 'viral_predictor':
-          // Get a random product to analyze
           const { data: products } = await supabase
             .from('affiliate_links')
             .select('product_name')
@@ -262,8 +235,8 @@ export default function Dashboard() {
           if (products) {
             result = await magicTools.predictViralScore(
               products.product_name || 'Product',
-              25, // Default price since column doesn't exist
-              'general' // Default category
+              25,
+              'general'
             );
           }
           break;
@@ -286,7 +259,7 @@ export default function Dashboard() {
           if (prod) {
             result = await magicTools.generateContentStrategy(
               prod.product_name || 'Product',
-              25, // Default price
+              25,
               'tiktok'
             );
           }
@@ -306,7 +279,6 @@ export default function Dashboard() {
 
         case 'trend_scanner':
           if ('scanTrendingProducts' in smartProductDiscovery) {
-            // @ts-expect-error: dynamic method checking for optional service methods
             result = await smartProductDiscovery.scanTrendingProducts('tech', 'amazon');
           } else if ('saveTrendingProducts' in smartProductDiscovery) {
             result = await smartProductDiscovery.saveTrendingProducts([{
@@ -327,7 +299,6 @@ export default function Dashboard() {
           break;
       }
 
-      // Save execution to database
       await supabase.from('magic_tools').upsert({
         user_id: user.id,
         tool_name: toolName,
@@ -356,85 +327,6 @@ export default function Dashboard() {
     }
   };
 
-  const toggleAutomation = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to use autopilot",
-        variant: "destructive"
-      });
-      return;
-    }
-    const userId = user.id;
-
-    const newStatus = !automationActive;
-
-    // Update database
-    const { error: dbError } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: userId,
-        autopilot_enabled: newStatus,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' });
-
-    if (dbError) {
-      toast({
-        title: "Error",
-        description: "Failed to update autopilot status",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setAutomationActive(newStatus);
-
-    if (newStatus) {
-      // Starting autopilot
-      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { 
-          action: 'start',
-          user_id: userId
-        }
-      });
-
-      if (error) {
-        console.error('Autopilot start error:', error);
-        toast({
-          title: "Autopilot Error",
-          description: error.message || "Failed to start autopilot",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "🚀 Autopilot Activated!",
-        description: "System is now running 24/7"
-      });
-
-      await loadAutopilotStatus();
-    } else {
-      // Stopping autopilot
-      const { error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { 
-          action: 'stop',
-          user_id: userId
-        }
-      });
-
-      if (error) {
-        console.error('Autopilot stop error:', error);
-      }
-
-      toast({
-        title: "⏸️ Autopilot Stopped",
-        description: "Automation has been paused"
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <SEO title="Dashboard - AffiliatePro" />
@@ -446,8 +338,12 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Command Center
             </h1>
-            <p className="text-muted-foreground">Manage your entire AI affiliate empire from one place.</p>
+            <p className="text-muted-foreground">Real-time affiliate automation dashboard</p>
           </div>
+          <Button onClick={manualRefresh} disabled={isRefreshing} variant="outline" size="sm">
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -474,9 +370,7 @@ export default function Dashboard() {
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 1: AUTOPILOT (The Main Hub) */}
           <TabsContent value="autopilot" className="space-y-6 animate-in fade-in-50 duration-300">
-            {/* AUTOPILOT CONTROL CARD */}
             <Card className={`border-2 transition-all duration-500 shadow-lg ${automationActive ? 'border-green-500/50 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20' : 'border-primary/20 bg-gradient-to-r from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20'}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -489,16 +383,15 @@ export default function Dashboard() {
                   </Badge>
                 </div>
                 <CardDescription className="text-base">
-                  Your automated affiliate system runs at the application root level. It will never stop when you navigate pages.
+                  Live statistics from your database - updates every 5 seconds
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-8">
-                  {/* Left: Stats */}
                   <div className="space-y-4">
                     <h3 className="font-semibold flex items-center gap-2 text-lg">
                       <TrendingUp className="w-5 h-5 text-primary" />
-                      Live Statistics (Auto-Updating)
+                      Real-Time Performance
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-background/80 p-4 rounded-xl border shadow-sm">
@@ -518,13 +411,35 @@ export default function Dashboard() {
                         <div className="text-sm font-medium text-muted-foreground mt-1">Posts Published</div>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+
+                    {/* NEW: Traffic & Revenue Row */}
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div className="bg-background/80 p-4 rounded-xl border shadow-sm">
+                        <div className="text-3xl font-bold text-orange-600">{stats.total_clicks}</div>
+                        <div className="text-sm font-medium text-muted-foreground mt-1">Total Clicks</div>
+                      </div>
+                      <div className="bg-background/80 p-4 rounded-xl border shadow-sm">
+                        <div className="text-3xl font-bold text-emerald-600">${stats.total_revenue.toFixed(2)}</div>
+                        <div className="text-sm font-medium text-muted-foreground mt-1">Revenue</div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 pt-2">
                       <RefreshCw className="w-3 h-3" />
                       Last synced: {isMounted ? lastUpdate.toLocaleTimeString() : '...'}
                     </p>
+
+                    {/* ALERT: No Clicks Warning */}
+                    {stats.total_clicks === 0 && stats.posts_published > 0 && (
+                      <Alert className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
+                        <AlertCircle className="w-4 h-4 text-yellow-600" />
+                        <AlertDescription className="text-sm">
+                          <strong>Traffic Issue Detected:</strong> You have {stats.posts_published} posts but 0 clicks. Check your traffic tracking setup.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
 
-                  {/* Right: Controls */}
                   <div className="flex flex-col justify-center gap-6 bg-background/40 p-6 rounded-xl border">
                     <Button 
                       size="lg" 
@@ -548,7 +463,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground font-medium">100% safe to navigate away from this page</p>
+                        <p className="text-sm text-foreground font-medium">Works even when you close the browser</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -560,7 +475,6 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Scheduled Automations Overview */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -568,38 +482,29 @@ export default function Dashboard() {
                     <Clock className="w-5 h-5 text-primary" />
                     Scheduled Routines
                   </CardTitle>
-                  <CardDescription>Click any routine to modify its schedule</CardDescription>
+                  <CardDescription>Automated tasks running in background</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div 
-                    onClick={() => toast({ title: "Product Refresh", description: "Runs at 3:00 AM daily. Scans Amazon & Temu for trending products." })}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                  >
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div>
                       <h4 className="font-semibold text-sm">Product Refresh</h4>
                       <p className="text-xs text-muted-foreground">Scans Amazon & Temu</p>
                     </div>
-                    <Badge variant="outline" className="cursor-pointer">3:00 AM</Badge>
+                    <Badge variant="outline">3:00 AM</Badge>
                   </div>
-                  <div 
-                    onClick={() => toast({ title: "Performance Optimization", description: "Runs at 9:00 AM daily. Analyzes and fixes product descriptions for better SEO." })}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                  >
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div>
                       <h4 className="font-semibold text-sm">Performance Opt.</h4>
                       <p className="text-xs text-muted-foreground">Fixes descriptions</p>
                     </div>
-                    <Badge variant="outline" className="cursor-pointer">9:00 AM</Badge>
+                    <Badge variant="outline">9:00 AM</Badge>
                   </div>
-                  <div 
-                    onClick={() => toast({ title: "Social Publish", description: "Runs every 4 hours. Auto-posts to connected social accounts." })}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                  >
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div>
                       <h4 className="font-semibold text-sm">Social Publish</h4>
                       <p className="text-xs text-muted-foreground">Posts to accounts</p>
                     </div>
-                    <Badge variant="outline" className="cursor-pointer">Every 4h</Badge>
+                    <Badge variant="outline">Every 4h</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -608,30 +513,42 @@ export default function Dashboard() {
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary" />
-                    Top Priority Actions
+                    System Health
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
-                    <AlertCircle className="w-4 h-4 text-blue-600" />
-                    <AlertDescription className="text-sm">
-                      <strong>Ab Roller Wheel</strong> has 0 clicks in 30 days. AI recommends rewriting the description.
-                    </AlertDescription>
-                    <Button size="sm" variant="outline" className="mt-2 w-full">Optimize Now</Button>
-                  </Alert>
-                  <Alert className="bg-purple-50 dark:bg-purple-950/20 border-purple-200">
-                    <AlertCircle className="w-4 h-4 text-purple-600" />
-                    <AlertDescription className="text-sm">
-                      <strong>Yoga Mat</strong> is trending globally. AI recommends posting to TikTok.
-                    </AlertDescription>
-                    <Button size="sm" variant="outline" className="mt-2 w-full">Auto-Post</Button>
-                  </Alert>
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium">Product Discovery</span>
+                    </div>
+                    <Badge variant="outline" className="bg-green-100 text-green-700">Online</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium">Content Generator</span>
+                    </div>
+                    <Badge variant="outline" className="bg-green-100 text-green-700">Online</Badge>
+                  </div>
+                  <div className={`flex items-center justify-between p-3 rounded-lg border ${stats.total_clicks > 0 ? 'bg-green-50 dark:bg-green-950/20 border-green-200' : 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200'}`}>
+                    <div className="flex items-center gap-2">
+                      {stats.total_clicks > 0 ? (
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-yellow-600" />
+                      )}
+                      <span className="text-sm font-medium">Traffic Tracking</span>
+                    </div>
+                    <Badge variant="outline" className={stats.total_clicks > 0 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
+                      {stats.total_clicks > 0 ? 'Online' : 'No Data'}
+                    </Badge>
+                  </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* TAB 2: SOCIAL CONNECT */}
           <TabsContent value="social" className="space-y-6 animate-in fade-in-50 duration-300">
             <Card>
               <CardHeader>
@@ -685,7 +602,6 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          {/* TAB 3: MAGIC TOOLS */}
           <TabsContent value="magic" className="space-y-6 animate-in fade-in-50 duration-300">
             <Card>
               <CardHeader>
@@ -693,7 +609,7 @@ export default function Dashboard() {
                   <Sparkles className="w-6 h-6 text-pink-600" />
                   Magic Tools
                 </CardTitle>
-                <CardDescription>7 revolutionary AI tools never built before. Click any tool to launch it.</CardDescription>
+                <CardDescription>7 revolutionary AI tools. Click any tool to launch it.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -731,7 +647,7 @@ export default function Dashboard() {
                            </div>
                            <h4 className="text-lg font-semibold mb-2">Ready to Initialize</h4>
                            <p className="text-sm text-muted-foreground mb-6 max-w-[80%]">
-                             This tool connects directly to your autopilot engine. Run it now to analyze your current active campaigns.
+                             This tool connects directly to your autopilot engine.
                            </p>
                            <Button 
                              size="lg"
@@ -760,7 +676,6 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          {/* TAB: TRAFFIC HUB */}
           <TabsContent value="traffic" className="space-y-6 animate-in fade-in-50 duration-300">
             <Card>
               <CardHeader>
@@ -778,7 +693,7 @@ export default function Dashboard() {
                         <Globe className="w-7 h-7" />
                       </div>
                       <h3 className="text-xl font-bold mb-2">Free Traffic Sources</h3>
-                      <p className="text-muted-foreground">Access the 9 untapped traffic strategies that bring highly targeted buyers for free.</p>
+                      <p className="text-muted-foreground">Access 9 untapped traffic strategies that bring targeted buyers for free.</p>
                       <Button variant="link" className="px-0 mt-4 text-green-600 font-semibold group-hover:text-green-700">
                         Open Traffic Sources →
                       </Button>
@@ -791,7 +706,7 @@ export default function Dashboard() {
                         <TrendingUp className="w-7 h-7" />
                       </div>
                       <h3 className="text-xl font-bold mb-2">Traffic Channels</h3>
-                      <p className="text-muted-foreground">Manage your 8 primary traffic distribution channels and track channel-specific ROI.</p>
+                      <p className="text-muted-foreground">Manage your 8 primary traffic distribution channels and track ROI.</p>
                       <Button variant="link" className="px-0 mt-4 text-blue-600 font-semibold group-hover:text-blue-700">
                         Open Traffic Channels →
                       </Button>
@@ -802,7 +717,6 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          {/* TAB 4: ADMIN TOOLS */}
           <TabsContent value="admin" className="space-y-6 animate-in fade-in-50 duration-300">
             <Card>
               <CardHeader>
@@ -810,7 +724,7 @@ export default function Dashboard() {
                   <Settings className="w-6 h-6 text-gray-600" />
                   Admin Tools Console
                 </CardTitle>
-                <CardDescription>Direct access to backend configuration and optimization tools.</CardDescription>
+                <CardDescription>Backend configuration and optimization tools.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
@@ -841,8 +755,8 @@ export default function Dashboard() {
                         </DialogHeader>
                         <div className="py-8 text-center text-muted-foreground bg-muted/10 rounded-lg border mt-4">
                           <Settings className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                          <p className="max-w-[250px] mx-auto text-sm">These settings are currently managed automatically by your AI Autopilot to ensure optimal performance.</p>
-                          <Button className="mt-6" variant="outline" onClick={() => toast({ title: "Settings Verified", description: "AI is maintaining optimal configuration." })}>Verify Config Health</Button>
+                          <p className="max-w-[250px] mx-auto text-sm">These settings are managed automatically by your AI Autopilot.</p>
+                          <Button className="mt-6" variant="outline" onClick={() => toast({ title: "Settings Verified", description: "AI is maintaining optimal configuration." })}>Verify Config</Button>
                         </div>
                       </DialogContent>
                     </Dialog>
