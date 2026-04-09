@@ -204,11 +204,11 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
   const randomSuffix = () => Math.random().toString(36).substring(2, 6).toUpperCase();
   
   const products = [
-    { name: `Smart Watch Pro ${randomSuffix()}`, network: 'amazon', price: '89.99', category: 'tech' },
-    { name: `Wireless Earbuds ${randomSuffix()}`, network: 'amazon', price: '49.99', category: 'tech' },
-    { name: `LED Desk Lamp ${randomSuffix()}`, network: 'temu', price: '19.99', category: 'home' },
-    { name: `Yoga Mat Premium ${randomSuffix()}`, network: 'amazon', price: '34.99', category: 'fitness' },
-    { name: `Phone Stand ${randomSuffix()}`, network: 'temu', price: '12.99', category: 'tech' }
+    { name: `Smart Watch Pro ${randomSuffix()}`, network: 'amazon' },
+    { name: `Wireless Earbuds ${randomSuffix()}`, network: 'amazon' },
+    { name: `LED Desk Lamp ${randomSuffix()}`, network: 'temu' },
+    { name: `Yoga Mat Premium ${randomSuffix()}`, network: 'amazon' },
+    { name: `Phone Stand ${randomSuffix()}`, network: 'temu' }
   ];
 
   let addedCount = 0;
@@ -222,11 +222,10 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
         campaign_id: campaignId,
         user_id: userId,
         product_name: product.name,
-        category: product.category,
-        price: product.price,
         network: product.network,
         original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}`,
+        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}-${asin}`,
+        slug: `prod-${asin.toLowerCase()}`,
         status: 'active',
         clicks: 0,
         conversions: 0
@@ -262,7 +261,7 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
     {
       title: title,
       body: 'Discover the latest innovations that are changing how we live and work. From smart home devices to portable power solutions, these products are must-haves for 2026.',
-      type: 'article'
+      type: 'review' // Valid types: 'review', 'best-under-price', 'comparison', 'guide'
     }
   ];
 
@@ -312,13 +311,13 @@ async function activateTraffic(campaignId: string, userId: string): Promise<numb
       .from('traffic_sources')
       .insert({
         campaign_id: campaignId,
-        user_id: userId,
+        source_type: 'social', // Valid types: 'organic', 'paid', 'social', 'email', 'referral', 'direct'
         source_name: source,
         automation_enabled: true,
         status: 'active',
         daily_budget: 0,
-        clicks: 0,
-        conversions: 0
+        total_clicks: 0,
+        total_conversions: 0
       });
 
     if (!error) activatedCount++;
@@ -353,9 +352,9 @@ async function queueContentForPosting(campaignId: string, userId: string): Promi
       .insert({
         user_id: userId,
         platform: platform,
-        content_type: platform === 'pinterest' ? 'pin' : 'post',
+        post_type: 'image', // Valid types: 'image', 'video', 'carousel', 'story', 'reel', 'short'
         caption: `Check out this amazing ${product.product_name}! 🔥`,
-        link_url: product.cloaked_url,
+        post_url: product.cloaked_url,
         status: 'published',
         posted_at: new Date().toISOString(),
         likes: 0,
@@ -396,11 +395,10 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
         campaign_id: campaignId,
         user_id: userId,
         product_name: product.name,
-        category: product.category,
-        price: product.price.toString(),
         network: product.network,
         original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}`,
+        cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}-${asin}`,
+        slug: `trend-${asin.toLowerCase()}`,
         status: 'active',
         clicks: 0,
         conversions: 0
@@ -412,13 +410,12 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
         .insert({
           product_name: product.name,
           asin: asin,
-          network: product.network,
+          category: product.category,
+          current_price: product.price,
           trend_score: product.trend_score,
           search_volume: Math.floor(Math.random() * 50000) + 10000,
           velocity: Math.floor(Math.random() * 100),
           competition_score: Math.floor(Math.random() * 50) + 30,
-          category: product.category,
-          current_price: product.price,
           profit_margin: 25,
           trending_platforms: ['amazon', 'tiktok'],
           status: 'active',
