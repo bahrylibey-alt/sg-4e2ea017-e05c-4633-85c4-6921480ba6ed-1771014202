@@ -152,6 +152,7 @@ export default function TrafficSourcesPage() {
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [activeSources, setActiveSources] = useState<string[]>([]);
   const [stats, setStats] = useState({
     total_visitors: 0,
     active_sources: 0,
@@ -171,6 +172,17 @@ export default function TrafficSourcesPage() {
     }
     setUserId(user.id);
 
+    // Load active traffic sources from database
+    const { data: sources } = await supabase
+      .from('traffic_sources')
+      .select('source_name')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+
+    if (sources) {
+      setActiveSources(sources.map(s => s.source_name));
+    }
+
     // Load real stats from traffic_events table
     const { data: events } = await supabase
       .from('traffic_events')
@@ -184,7 +196,7 @@ export default function TrafficSourcesPage() {
 
       setStats({
         total_visitors: pageviews,
-        active_sources: 3, // Based on connected integrations
+        active_sources: sources?.length || 0,
         total_revenue: 37.50,
         conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
       });
@@ -195,20 +207,84 @@ export default function TrafficSourcesPage() {
     if (!userId) return;
 
     const source = TRAFFIC_SOURCES.find(s => s.id === sourceId);
-    
-    toast({
-      title: `🚀 ${source?.name} Activated!`,
-      description: "Traffic source is now active. Check the setup guide in your email."
-    });
+    if (!source) return;
 
-    // Track activation in database
-    await supabase.from('activity_logs').insert({
-      user_id: userId,
-      action: 'traffic_source_activated',
-      status: 'success',
-      details: `Activated: ${source?.name}`,
-      metadata: { source_id: sourceId, source_name: source?.name }
-    });
+    try {
+      // Save to database
+      const { error } = await supabase
+        .from('traffic_sources')
+        .upsert({
+          user_id: userId,
+          source_name: source.name,
+          platform: source.id,
+          status: 'active',
+          automation_enabled: true,
+          last_posted_at: new Date().toISOString()
+        }, { onConflict: 'user_id,source_name' });
+
+      if (error) throw error;
+
+      // Update local state
+      setActiveSources([...activeSources, source.name]);
+      setStats(prev => ({ ...prev, active_sources: prev.active_sources + 1 }));
+
+      toast({
+        title: `🚀 ${source.name} Activated!`,
+        description: "Traffic source is now active and ready to generate visitors."
+      });
+
+      // Track activation in activity log
+      await supabase.from('activity_logs').insert({
+        user_id: userId,
+        action: 'traffic_source_activated',
+        status: 'success',
+        details: `Activated: ${source.name}`,
+        metadata: { source_id: sourceId, source_name: source.name }
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Activation Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const deactivateSource = async (sourceId: string) => {
+    if (!userId) return;
+
+    const source = TRAFFIC_SOURCES.find(s => s.id === sourceId);
+    if (!source) return;
+
+    try {
+      const { error } = await supabase
+        .from('traffic_sources')
+        .update({ 
+          status: 'paused',
+          automation_enabled: false 
+        })
+        .eq('user_id', userId)
+        .eq('source_name', source.name);
+
+      if (error) throw error;
+
+      // Update local state
+      setActiveSources(activeSources.filter(s => s !== source.name));
+      setStats(prev => ({ ...prev, active_sources: Math.max(0, prev.active_sources - 1) }));
+
+      toast({
+        title: `⏸️ ${source.name} Paused`,
+        description: "Traffic source has been paused."
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Deactivation Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -320,44 +396,67 @@ export default function TrafficSourcesPage() {
 
           {/* Traffic Sources Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filterSources(activeTab).map((source) => (
-              <Card key={source.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="text-4xl">{source.icon}</div>
-                    <Badge variant="outline" className={getDifficultyColor(source.difficulty)}>
-                      {source.difficulty}
-                    </Badge>
-                  </div>
-                  <CardTitle className="text-xl">{source.name}</CardTitle>
-                  <CardDescription className="line-clamp-2">{source.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Potential Traffic:</span>
-                      <span className="font-semibold text-primary">{source.potential_visitors}</span>
+            {filterSources(activeTab).map((source) => {
+              const isActive = activeSources.includes(source.name);
+              
+              return (
+                <Card key={source.id} className={`hover:shadow-lg transition-shadow ${isActive ? 'ring-2 ring-green-500' : ''}`}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="text-4xl">{source.icon}</div>
+                        {isActive && (
+                          <div className="flex items-center gap-1 text-green-600 text-sm font-semibold">
+                            <CheckCircle className="w-4 h-4" />
+                            Active
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant="outline" className={getDifficultyColor(source.difficulty)}>
+                        {source.difficulty}
+                      </Badge>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Setup Time:</span>
-                      <span className="font-semibold">{source.setup_time}</span>
+                    <CardTitle className="text-xl">{source.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">{source.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Potential Traffic:</span>
+                        <span className="font-semibold text-primary">{source.potential_visitors}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Setup Time:</span>
+                        <span className="font-semibold">{source.setup_time}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cost:</span>
+                        <span className="font-semibold text-green-600">{source.cost}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Cost:</span>
-                      <span className="font-semibold text-green-600">{source.cost}</span>
-                    </div>
-                  </div>
 
-                  <Button 
-                    className="w-full" 
-                    onClick={() => activateSource(source.id)}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Activate Source
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                    {isActive ? (
+                      <Button 
+                        className="w-full" 
+                        variant="outline"
+                        onClick={() => deactivateSource(source.id)}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                        Active - Click to Pause
+                      </Button>
+                    ) : (
+                      <Button 
+                        className="w-full" 
+                        onClick={() => activateSource(source.id)}
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Activate Source
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* CTA Section */}
