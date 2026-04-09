@@ -8,8 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export function AutopilotRunner() {
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    
     const executeAutopilotCycle = async () => {
       try {
         console.log('🔄 AutopilotRunner: Starting cycle check...');
@@ -85,7 +83,7 @@ export function AutopilotRunner() {
     executeAutopilotCycle();
 
     // Then execute every 60 seconds
-    intervalId = setInterval(() => {
+    const intervalId = setInterval(() => {
       console.log('⏰ AutopilotRunner: 60-second interval triggered');
       executeAutopilotCycle();
     }, 60000); // 60 seconds
