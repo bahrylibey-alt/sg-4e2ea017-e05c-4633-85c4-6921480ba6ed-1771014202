@@ -19,5 +19,17 @@
     }
   ],
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "functions": {
+    "src/pages/api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/autopilot",
+      "schedule": "*/2 * * * *"
+    }
+  ]
 }
