@@ -355,7 +355,7 @@ async function queueContentForPosting(campaignId: string, userId: string): Promi
         post_type: 'image', // Valid types: 'image', 'video', 'carousel', 'story', 'reel', 'short'
         caption: `Check out this amazing ${product.product_name}! 🔥`,
         post_url: product.cloaked_url,
-        status: 'pending',
+        status: 'posted',
         posted_at: new Date().toISOString(),
         likes: 0,
         comments: 0,
