@@ -98,7 +98,7 @@ export const magicTools = {
       const { data: histData } = await supabase
         .from('posted_content')
         .select('likes, comments, shares, clicks')
-        .ilike('content', `%${productName.split(' ')[0]}%`)
+        .ilike('caption', `%${productName.split(' ')[0]}%`)
         .limit(20);
 
       if (histData && histData.length > 0) {
