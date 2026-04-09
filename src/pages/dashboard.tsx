@@ -99,36 +99,68 @@ export default function Dashboard() {
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
 
-      // Load REAL stats from database
+      // Load campaigns for this user
       const { data: campaigns } = await supabase
         .from('campaigns')
         .select('id')
-        .eq('user_id', user.id)
-        .eq('is_autopilot', true);
+        .eq('user_id', user.id);
 
-      if (campaigns && campaigns.length > 0) {
-        const campaignIds = campaigns.map(c => c.id);
-
-        // Get real product count
-        const { data: links } = await supabase
-          .from('affiliate_links')
-          .select('id, clicks, revenue')
-          .in('campaign_id', campaignIds);
-
-        // Get real article count
-        const { data: articles } = await supabase
-          .from('generated_content')
-          .select('id, views, clicks')
-          .in('campaign_id', campaignIds);
-
-        // Update stats with REAL numbers from database
+      if (!campaigns || campaigns.length === 0) {
+        // No campaigns yet - all stats are 0
         setStats({
-          products_discovered: links?.length || 0,
-          products_optimized: Math.floor((links?.length || 0) * 0.85), // 85% optimization rate
-          content_generated: articles?.length || 0,
-          posts_published: articles?.length || 0
+          products_discovered: 0,
+          products_optimized: 0,
+          content_generated: 0,
+          posts_published: 0
         });
+        setLastUpdate(new Date());
+        return;
       }
+
+      const campaignIds = campaigns.map(c => c.id);
+
+      // Get REAL product count from affiliate_links
+      const { data: links } = await supabase
+        .from('affiliate_links')
+        .select('id, product_name, url')
+        .in('campaign_id', campaignIds);
+
+      const productsCount = links?.length || 0;
+
+      // Get REAL optimized count (products with complete data)
+      const { data: optimizedLinks } = await (supabase as any)
+        .from('affiliate_links')
+        .select('id')
+        .in('campaign_id', campaignIds)
+        .not('product_name', 'is', null)
+        .not('url', 'is', null);
+
+      const optimizedCount = optimizedLinks?.length || 0;
+
+      // Get REAL content count from generated_content
+      const { data: content } = await supabase
+        .from('generated_content')
+        .select('id')
+        .in('campaign_id', campaignIds);
+
+      const contentCount = content?.length || 0;
+
+      // Get REAL posts count from posted_content (only published posts)
+      const { data: posts } = await (supabase as any)
+        .from('posted_content')
+        .select('id')
+        .in('campaign_id', campaignIds)
+        .not('posted_at', 'is', null);
+
+      const postsCount = posts?.length || 0;
+
+      // Update stats with REAL numbers from database
+      setStats({
+        products_discovered: productsCount,
+        products_optimized: optimizedCount,
+        content_generated: contentCount,
+        posts_published: postsCount
+      });
       
       setLastUpdate(new Date());
     } catch (error) {
