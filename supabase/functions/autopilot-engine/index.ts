@@ -199,26 +199,23 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  // Generate dynamic product names with timestamp/random to avoid duplicates
+  const timestamp = Date.now();
+  const randomSuffix = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+  
   const products = [
-    { name: 'Wireless Charging Pad', network: 'amazon', price: '29.99', category: 'tech' },
-    { name: 'Resistance Bands Set', network: 'amazon', price: '24.99', category: 'fitness' },
-    { name: 'LED Desk Lamp', network: 'temu', price: '19.99', category: 'home' },
-    { name: 'Yoga Mat Premium', network: 'amazon', price: '34.99', category: 'fitness' },
-    { name: 'Phone Stand Adjustable', network: 'temu', price: '12.99', category: 'tech' }
+    { name: `Smart Watch Pro ${randomSuffix()}`, network: 'amazon', price: '89.99', category: 'tech' },
+    { name: `Wireless Earbuds ${randomSuffix()}`, network: 'amazon', price: '49.99', category: 'tech' },
+    { name: `LED Desk Lamp ${randomSuffix()}`, network: 'temu', price: '19.99', category: 'home' },
+    { name: `Yoga Mat Premium ${randomSuffix()}`, network: 'amazon', price: '34.99', category: 'fitness' },
+    { name: `Phone Stand ${randomSuffix()}`, network: 'temu', price: '12.99', category: 'tech' }
   ];
 
   let addedCount = 0;
 
   for (const product of products) {
-    const { data: existing } = await supabaseAdmin
-      .from('affiliate_links')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('product_name', product.name)
-      .maybeSingle();
-
-    if (existing) continue;
-
+    const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    
     const { error } = await supabaseAdmin
       .from('affiliate_links')
       .insert({
@@ -228,7 +225,7 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
         category: product.category,
         price: product.price,
         network: product.network,
-        original_url: `https://www.amazon.com/dp/B0${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+        original_url: `https://www.amazon.com/dp/${asin}`,
         cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}`,
         status: 'active',
         clicks: 0,
@@ -248,10 +245,23 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  // Generate dynamic article titles with date/random to ensure uniqueness
+  const date = new Date().toISOString().split('T')[0];
+  const topics = [
+    'Top 10 Must-Have Tech Gadgets',
+    'Best Home Office Setup Ideas',
+    'Ultimate Fitness Equipment Guide',
+    'Smart Home Devices Worth Buying',
+    'Budget-Friendly Tech Accessories'
+  ];
+  
+  const randomTopic = topics[Math.floor(Math.random() * topics.length)];
+  const title = `${randomTopic} - ${date}`;
+
   const articles = [
     {
-      title: 'Top 10 Must-Have Tech Gadgets 2026',
-      body: 'Discover the latest tech innovations that are changing how we live and work. From smart home devices to portable power solutions, these products are must-haves.',
+      title: title,
+      body: 'Discover the latest innovations that are changing how we live and work. From smart home devices to portable power solutions, these products are must-haves for 2026.',
       type: 'article'
     }
   ];
@@ -259,15 +269,6 @@ async function generateContent(campaignId: string, userId: string): Promise<numb
   let generatedCount = 0;
 
   for (const article of articles) {
-    const { data: existing } = await supabaseAdmin
-      .from('generated_content')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('title', article.title)
-      .maybeSingle();
-
-    if (existing) continue;
-
     const { error } = await supabaseAdmin
       .from('generated_content')
       .insert({
@@ -376,23 +377,17 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  // Generate unique trending products on each cycle
+  const randomSuffix = () => Math.random().toString(36).substring(2, 5).toUpperCase();
+  
   const trendingProducts = [
-    { name: 'Wireless Earbuds Pro 2026', network: 'amazon', price: 45, trend_score: 87, category: 'tech' },
-    { name: 'Smart LED Strip Lights', network: 'amazon', price: 28, trend_score: 82, category: 'home' }
+    { name: `Wireless Earbuds Pro ${randomSuffix()}`, network: 'amazon', price: 45, trend_score: 87, category: 'tech' },
+    { name: `Smart LED Strip ${randomSuffix()}`, network: 'amazon', price: 28, trend_score: 82, category: 'home' }
   ];
 
   let addedCount = 0;
 
   for (const product of trendingProducts) {
-    const { data: existing } = await supabaseAdmin
-      .from('affiliate_links')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('product_name', product.name)
-      .maybeSingle();
-
-    if (existing) continue;
-
     const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
 
     const { error: linkError } = await supabaseAdmin
