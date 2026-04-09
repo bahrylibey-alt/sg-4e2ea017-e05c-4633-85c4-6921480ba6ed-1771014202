@@ -224,10 +224,29 @@ export default function TrafficSourcesPage() {
         const clicks = events.filter(e => e.event_type === 'click').length;
         const conversions = events.filter(e => e.event_type === 'conversion').length;
 
+        // Get REAL revenue from affiliate_links table
+        const { data: campaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('user_id', user.id);
+
+        let totalRevenue = 0;
+        if (campaigns && campaigns.length > 0) {
+          const campaignIds = campaigns.map(c => c.id);
+          const { data: links } = await supabase
+            .from('affiliate_links')
+            .select('revenue')
+            .in('campaign_id', campaignIds);
+
+          if (links) {
+            totalRevenue = links.reduce((sum, link) => sum + (link.revenue || 0), 0);
+          }
+        }
+
         setStats({
           total_visitors: pageviews,
-          active_sources: activeSources.length, // use length instead
-          total_revenue: 37.50,
+          active_sources: sources?.length || 0,
+          total_revenue: Math.round(totalRevenue * 100) / 100, // Real revenue from database
           conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
         });
       }
