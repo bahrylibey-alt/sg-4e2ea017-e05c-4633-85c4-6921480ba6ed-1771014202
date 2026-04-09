@@ -151,6 +151,7 @@ export default function TrafficSourcesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [activeSources, setActiveSources] = useState<string[]>([]);
   const [stats, setStats] = useState({
@@ -172,60 +173,94 @@ export default function TrafficSourcesPage() {
     }
     setUserId(user.id);
 
-    // Load active traffic sources from database
-    const { data: sources } = await supabase
-      .from('traffic_sources')
-      .select('source_name')
-      .eq('user_id', user.id)
-      .eq('status', 'active');
+    try {
+      // 1. Get or create a default campaign for this user
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
 
-    if (sources) {
-      setActiveSources(sources.map(s => s.source_name));
-    }
+      let currentCampaignId = campaigns && campaigns.length > 0 ? campaigns[0].id : null;
 
-    // Load real stats from traffic_events table
-    const { data: events } = await supabase
-      .from('traffic_events')
-      .select('event_type, user_id')
-      .eq('user_id', user.id);
+      if (!currentCampaignId) {
+        const { data: newCampaign } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: user.id,
+            name: 'Default Traffic Campaign',
+            goal: 'traffic',
+            status: 'active'
+          })
+          .select('id')
+          .single();
+          
+        if (newCampaign) currentCampaignId = newCampaign.id;
+      }
 
-    if (events) {
-      const pageviews = events.filter(e => e.event_type === 'pageview').length;
-      const clicks = events.filter(e => e.event_type === 'click').length;
-      const conversions = events.filter(e => e.event_type === 'conversion').length;
+      if (currentCampaignId) {
+        setCampaignId(currentCampaignId);
+        
+        // 2. Load active traffic sources linked to this campaign
+        const { data: sources } = await supabase
+          .from('traffic_sources')
+          .select('source_name')
+          .eq('campaign_id', currentCampaignId)
+          .eq('status', 'active');
 
-      setStats({
-        total_visitors: pageviews,
-        active_sources: sources?.length || 0,
-        total_revenue: 37.50,
-        conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
-      });
+        if (sources) {
+          setActiveSources(sources.map(s => s.source_name));
+        }
+      }
+
+      // 3. Load real stats from traffic_events table
+      const { data: events } = await supabase
+        .from('traffic_events')
+        .select('event_type, user_id')
+        .eq('user_id', user.id);
+
+      if (events) {
+        const pageviews = events.filter(e => e.event_type === 'pageview').length;
+        const clicks = events.filter(e => e.event_type === 'click').length;
+        const conversions = events.filter(e => e.event_type === 'conversion').length;
+
+        setStats({
+          total_visitors: pageviews,
+          active_sources: activeSources.length, // use length instead
+          total_revenue: 37.50,
+          conversion_rate: pageviews > 0 ? (conversions / pageviews) * 100 : 0
+        });
+      }
+    } catch (error) {
+      console.error("Error loading traffic stats:", error);
     }
   };
 
   const activateSource = async (sourceId: string) => {
-    if (!userId) return;
+    if (!userId || !campaignId) {
+      toast({ title: "Setup Required", description: "Campaign initialization pending", variant: "destructive" });
+      return;
+    }
 
     const source = TRAFFIC_SOURCES.find(s => s.id === sourceId);
     if (!source) return;
 
     try {
-      // Save to database
+      // Save to database using campaign_id
       const { error } = await supabase
         .from('traffic_sources')
         .upsert({
-          user_id: userId,
+          campaign_id: campaignId,
+          source_type: 'social', // Maps to allowed values constraint
           source_name: source.name,
-          platform: source.id,
           status: 'active',
-          automation_enabled: true,
-          last_posted_at: new Date().toISOString()
-        }, { onConflict: 'user_id,source_name' });
+          automation_enabled: true
+        }, { onConflict: 'campaign_id,source_name' });
 
       if (error) throw error;
 
       // Update local state
-      setActiveSources([...activeSources, source.name]);
+      setActiveSources(prev => [...prev, source.name]);
       setStats(prev => ({ ...prev, active_sources: prev.active_sources + 1 }));
 
       toast({
@@ -252,7 +287,7 @@ export default function TrafficSourcesPage() {
   };
 
   const deactivateSource = async (sourceId: string) => {
-    if (!userId) return;
+    if (!campaignId) return;
 
     const source = TRAFFIC_SOURCES.find(s => s.id === sourceId);
     if (!source) return;
@@ -264,13 +299,13 @@ export default function TrafficSourcesPage() {
           status: 'paused',
           automation_enabled: false 
         })
-        .eq('user_id', userId)
+        .eq('campaign_id', campaignId)
         .eq('source_name', source.name);
 
       if (error) throw error;
 
       // Update local state
-      setActiveSources(activeSources.filter(s => s !== source.name));
+      setActiveSources(prev => prev.filter(s => s !== source.name));
       setStats(prev => ({ ...prev, active_sources: Math.max(0, prev.active_sources - 1) }));
 
       toast({
