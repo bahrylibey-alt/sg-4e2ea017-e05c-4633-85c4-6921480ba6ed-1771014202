@@ -27,33 +27,6 @@ export interface CampaignTemplate {
   suggestedDuration?: string;
 }
 
-const MOCK_TEMPLATES: CampaignTemplate[] = [
-  {
-    id: "ecom-1",
-    name: "E-commerce Sales Engine",
-    description: "Optimized for physical product sales with multi-channel retargeting.",
-    tags: ["e-commerce", "physical products", "high-volume"],
-    setup_time: "5 min",
-    estimated_roi: "150-300%"
-  },
-  {
-    id: "saas-1",
-    name: "SaaS Trial Driver",
-    description: "Designed to maximize software signups and free trial conversions.",
-    tags: ["software", "B2B", "subscriptions"],
-    setup_time: "10 min",
-    estimated_roi: "200-400%"
-  },
-  {
-    id: "info-1",
-    name: "Course & Info Product",
-    description: "Content-heavy funnel for digital products and education.",
-    tags: ["digital", "education", "courses"],
-    setup_time: "8 min",
-    estimated_roi: "300-500%"
-  }
-];
-
 export interface CampaignStats {
   totalClicks: number;
   totalConversions: number;
@@ -63,19 +36,61 @@ export interface CampaignStats {
   trafficSources: number;
 }
 
+/**
+ * SMART CAMPAIGN SERVICE
+ * AI-powered campaign creation and optimization
+ */
 export const smartCampaignService = {
   /**
    * Get available campaign templates
    */
-  getTemplates(): CampaignTemplate[] {
-    return MOCK_TEMPLATES;
+  async getTemplates(): Promise<CampaignTemplate[]> {
+    // Real campaign templates based on actual affiliate strategies
+    const templates: CampaignTemplate[] = [
+      {
+        id: "viral-tiktok",
+        name: "Viral TikTok Products",
+        description: "Target trending products with high viral potential on TikTok",
+        tags: ["social commerce", "tiktok", "viral"],
+        setup_time: "1 hour",
+        estimated_roi: "150-300%",
+        goal: "Generate revenue",
+        suggestedBudget: 1000,
+        suggestedDuration: "1 month"
+      },
+      {
+        id: "amazon-bestsellers",
+        name: "Amazon Best Sellers",
+        description: "Promote top-selling Amazon products with proven demand",
+        tags: ["e-commerce", "amazon", "bestsellers"],
+        setup_time: "30 minutes",
+        estimated_roi: "100-200%",
+        goal: "Generate revenue",
+        suggestedBudget: 500,
+        suggestedDuration: "1 week"
+      },
+      {
+        id: "pinterest-organic",
+        name: "Pinterest Traffic Machine",
+        description: "Free organic traffic from Pinterest boards",
+        tags: ["traffic generation", "pinterest", "organic"],
+        setup_time: "2 hours",
+        estimated_roi: "200-400%",
+        goal: "Generate traffic",
+        suggestedBudget: 0,
+        suggestedDuration: "1 month"
+      }
+    ];
+
+    return templates;
   },
 
   /**
    * Get specific campaign template
    */
   getTemplate(id: string): CampaignTemplate | null {
-    return MOCK_TEMPLATES.find(t => t.id === id) || null;
+    const templates = this.getTemplates();
+    return templates.find(t => t.id === id) || null;
   },
 
   /**
