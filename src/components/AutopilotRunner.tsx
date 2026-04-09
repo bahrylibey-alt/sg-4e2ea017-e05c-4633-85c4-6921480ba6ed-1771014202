@@ -1,117 +1,68 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * AutopilotRunner - Global background process manager
+ * AutopilotRunner - Status Display Component
  * 
- * This component runs at the application root level and manages
- * the autopilot system through database state checking.
+ * This component ONLY displays autopilot status from the database.
+ * It does NOT execute the autopilot - that runs server-side via Vercel Cron.
  * 
- * Key Features:
- * - Checks database every 2 minutes for autopilot status
- * - Triggers Edge Function if autopilot is enabled
- * - Works independently of page navigation
- * - Persists across browser sessions
+ * Autopilot execution happens in:
+ * - /api/cron/autopilot (Vercel Cron - every 2 minutes)
+ * 
+ * This component simply monitors the database and updates localStorage
+ * so the UI can show current status.
  */
 export function AutopilotRunner() {
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isRunningRef = useRef(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
 
   useEffect(() => {
-    console.log('🤖 AutopilotRunner: Initializing global autopilot monitor...');
+    if (isMonitoring) return;
 
-    const checkAndRunAutopilot = async () => {
-      // Prevent concurrent executions
-      if (isRunningRef.current) {
-        console.log('⏭️ AutopilotRunner: Skipping - already running');
-        return;
-      }
+    console.log('📊 AutopilotRunner: Monitoring autopilot status (display only)...');
+    setIsMonitoring(true);
 
+    const checkAutopilotStatus = async () => {
       try {
-        isRunningRef.current = true;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-        // Get current user
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
-        if (authError || !user) {
-          console.log('⚠️ AutopilotRunner: No authenticated user, skipping cycle');
-          isRunningRef.current = false;
-          return;
-        }
-
-        // Check if autopilot is enabled in database (SINGLE SOURCE OF TRUTH)
-        const { data: settings, error: settingsError } = await supabase
+        // Check database for autopilot status
+        const { data: settings } = await supabase
           .from('user_settings')
           .select('autopilot_enabled, last_autopilot_run')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (settingsError) {
-          console.error('❌ AutopilotRunner: Error fetching settings:', settingsError);
-          isRunningRef.current = false;
-          return;
-        }
-
-        if (!settings?.autopilot_enabled) {
-          console.log('⏸️ AutopilotRunner: Autopilot disabled, skipping cycle');
-          isRunningRef.current = false;
-          return;
-        }
-
-        console.log('🚀 AutopilotRunner: Autopilot enabled - triggering Edge Function...');
-
-        // Call the Edge Function to execute autopilot workflow
-        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-          body: { 
-            action: 'run_cycle',
-            user_id: user.id 
+        if (settings) {
+          // Update localStorage for UI display
+          localStorage.setItem('autopilot_active', settings.autopilot_enabled ? 'true' : 'false');
+          
+          if (settings.last_autopilot_run) {
+            localStorage.setItem('autopilot_last_run', settings.last_autopilot_run);
           }
-        });
 
-        if (error) {
-          console.error('❌ AutopilotRunner: Edge Function error:', error);
-          // Store error in localStorage for UI to display
-          localStorage.setItem('autopilot_last_error', JSON.stringify({
-            timestamp: new Date().toISOString(),
-            error: error.message
-          }));
-        } else {
-          console.log('✅ AutopilotRunner: Cycle completed successfully:', data);
-          
-          // Store success timestamp in localStorage for UI to display
-          localStorage.setItem('autopilot_last_run', new Date().toISOString());
-          localStorage.removeItem('autopilot_last_error');
-          
-          // Update last_autopilot_run in database
-          await supabase
-            .from('user_settings')
-            .update({ last_autopilot_run: new Date().toISOString() })
-            .eq('user_id', user.id);
+          console.log('📊 Autopilot Status:', {
+            enabled: settings.autopilot_enabled,
+            last_run: settings.last_autopilot_run
+          });
         }
-
       } catch (error) {
-        console.error('❌ AutopilotRunner: Unexpected error:', error);
-      } finally {
-        isRunningRef.current = false;
+        console.error('❌ AutopilotRunner: Error checking status:', error);
       }
     };
 
-    // Run immediately on mount
-    checkAndRunAutopilot();
+    // Check status immediately on mount
+    checkAutopilotStatus();
 
-    // Then run every 2 minutes (120000ms)
-    intervalRef.current = setInterval(checkAndRunAutopilot, 120000);
+    // Then check every 10 seconds to update UI
+    const statusInterval = setInterval(checkAutopilotStatus, 10000);
 
-    console.log('✅ AutopilotRunner: Global monitor started (checks every 2 minutes)');
-
-    // Cleanup on unmount
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        console.log('🛑 AutopilotRunner: Global monitor stopped');
-      }
+      clearInterval(statusInterval);
+      setIsMonitoring(false);
     };
-  }, []); // Empty dependency array - runs once on app mount
+  }, [isMonitoring]);
 
   // This component doesn't render anything
   return null;

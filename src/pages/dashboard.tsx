@@ -206,6 +206,7 @@ export default function Dashboard() {
 
       const newStatus = !automationActive;
       
+      // ONLY update database - Vercel Cron will handle execution
       const { error: dbError } = await supabase
         .from('user_settings')
         .upsert({
@@ -222,22 +223,11 @@ export default function Dashboard() {
       setAutomationActive(newStatus);
       localStorage.setItem('autopilot_active', newStatus ? 'true' : 'false');
 
-      try {
-        await supabase.functions.invoke('autopilot-engine', {
-          body: { 
-            action: newStatus ? 'start' : 'stop',
-            user_id: user.id 
-          }
-        });
-      } catch (fnError) {
-        console.error("Edge function error (non-fatal):", fnError);
-      }
-      
       toast({
-        title: newStatus ? "🚀 Autopilot Launched!" : "🛑 Autopilot Stopped",
+        title: newStatus ? "🚀 Autopilot Enabled!" : "🛑 Autopilot Disabled",
         description: newStatus 
-          ? "Engine running globally in the background." 
-          : "Engine paused."
+          ? "Vercel Cron will execute workflow every 2 minutes on the server." 
+          : "Server-side execution stopped."
       });
       
       await loadAutopilotStatus();
@@ -496,7 +486,11 @@ export default function Dashboard() {
                     <div className="space-y-3 bg-background p-4 rounded-lg border">
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground font-medium">Runs on Supabase servers 24/7</p>
+                        <p className="text-sm text-foreground font-medium">Runs on Vercel servers via Cron Job</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                        <p className="text-sm text-foreground font-medium">Executes every 2 minutes (120 seconds)</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -508,7 +502,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground font-medium">Executes workflow every 2 minutes when enabled</p>
+                        <p className="text-sm text-foreground font-medium">Only stops when you click "STOP AUTOPILOT"</p>
                       </div>
                     </div>
                   </div>
