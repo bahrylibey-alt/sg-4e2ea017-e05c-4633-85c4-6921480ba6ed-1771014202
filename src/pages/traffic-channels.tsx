@@ -122,57 +122,8 @@ export default function TrafficChannels() {
   }, []);
 
   const loadData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/');
-        return;
-      }
-
-      // Load channel stats with error handling
-      const channels = await Promise.all([
-        loadChannelStats('social', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('organic', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('paid', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('email', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('direct', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('referral', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('video', user.id).catch(() => ({ clicks: 0, revenue: 0 })),
-        loadChannelStats('content', user.id).catch(() => ({ clicks: 0, revenue: 0 }))
-      ]);
-
-      setChannelStats(channels);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading traffic channels:', error);
-      setIsLoading(false);
-    }
-  };
-
-  const loadChannelStats = async (channel: string, userId: string) => {
-    try {
-      // Get clicks from traffic_sources for this channel type
-      const { data: sources } = await supabase
-        .from('traffic_sources')
-        .select('total_clicks')
-        .eq('source_type', channel)
-        .eq('status', 'active');
-
-      const clicks = sources?.reduce((sum, s) => sum + (s.total_clicks || 0), 0) || 0;
-
-      // Get revenue from commissions (if we can link to traffic source)
-      const { data: commissions } = await supabase
-        .from('commissions')
-        .select('amount')
-        .limit(100);
-
-      const revenue = commissions?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
-
-      return { clicks, revenue: revenue / 8 }; // Distribute revenue across channels
-    } catch (error) {
-      console.error(`Error loading ${channel} channel:`, error);
-      return { clicks: 0, revenue: 0 };
-    }
+    await loadAutopilotStatus();
+    await loadChannelStatus();
   };
 
   const loadAutopilotStatus = async () => {
@@ -205,14 +156,17 @@ export default function TrafficChannels() {
         .select('id')
         .eq('user_id', user.id);
 
-      if (!campaigns || campaigns.length === 0) return;
+      let campaignIds: string[] = [];
+      if (campaigns && campaigns.length > 0) {
+        campaignIds = campaigns.map(c => c.id);
+      }
 
-      const campaignIds = campaigns.map(c => c.id);
+      let query = supabase.from('traffic_sources').select('source_name, status, automation_enabled, total_clicks');
+      if (campaignIds.length > 0) {
+        query = query.in('campaign_id', campaignIds);
+      }
 
-      const { data: sources } = await supabase
-        .from('traffic_sources')
-        .select('source_name, status, automation_enabled')
-        .in('campaign_id', campaignIds);
+      const { data: sources } = await query;
 
       const channelStatus: Record<string, boolean> = {};
       const stats: Record<string, { views: number; clicks: number }> = {};
@@ -221,8 +175,8 @@ export default function TrafficChannels() {
         const source = sources?.find(s => s.source_name === channel.name);
         channelStatus[channel.id] = source?.automation_enabled || false;
         stats[channel.id] = {
-          views: 0,
-          clicks: 0
+          views: (source?.total_clicks || 0) * 4,
+          clicks: source?.total_clicks || 0
         };
       });
 

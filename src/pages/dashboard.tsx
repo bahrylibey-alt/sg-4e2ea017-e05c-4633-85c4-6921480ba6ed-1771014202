@@ -103,33 +103,39 @@ export default function Dashboard() {
       setAutomationActive(isEnabled);
       console.log('⚙️ Autopilot enabled:', isEnabled);
 
-      // Get ALL real counts directly from database
+      // Get ALL real counts directly from database using GET with limit(1) instead of HEAD
       const { count: productCount } = await supabase
         .from('affiliate_links')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact' })
+        .limit(1);
 
       const { count: optimizedCount } = await supabase
         .from('affiliate_links')
-        .select('*', { count: 'exact', head: true })
-        .not('product_name', 'is', null);
+        .select('id', { count: 'exact' })
+        .not('product_name', 'is', null)
+        .limit(1);
 
       const { count: contentCount } = await supabase
         .from('generated_content')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact' })
+        .limit(1);
 
       const { count: postsCount } = await supabase
         .from('posted_content')
-        .select('*', { count: 'exact', head: true })
-        .not('posted_at', 'is', null);
+        .select('id', { count: 'exact' })
+        .not('posted_at', 'is', null)
+        .limit(1);
 
       const { count: sourcesCount } = await supabase
         .from('traffic_sources')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
+        .select('id', { count: 'exact' })
+        .eq('status', 'active')
+        .limit(1);
 
       const { count: clicksCount } = await supabase
         .from('click_events')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact' })
+        .limit(1);
 
       const { data: revenueData } = await supabase
         .from('commissions')
