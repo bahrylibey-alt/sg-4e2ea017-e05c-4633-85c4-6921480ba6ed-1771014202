@@ -112,7 +112,7 @@ export default function IntegrationsPage() {
       if (!user) return;
 
       const { data: connections } = await supabase
-        .from('social_connections')
+        .from('social_media_accounts')
         .select('*')
         .eq('user_id', user.id);
 
@@ -123,10 +123,10 @@ export default function IntegrationsPage() {
             return {
               ...i,
               status: "connected" as const,
-              connected_at: conn.connected_at,
+              connected_at: conn.created_at,
               credentials: {
                 access_token: conn.access_token,
-                page_id: conn.page_id || undefined,
+                page_id: conn.account_id || undefined,
                 account_id: conn.account_id || undefined
               }
             };
@@ -160,15 +160,14 @@ export default function IntegrationsPage() {
 
       // Save to database
       const { error } = await supabase
-        .from('social_connections')
+        .from('social_media_accounts')
         .upsert({
           user_id: userId,
           platform: connectDialog.integration.id,
           access_token: credentials.accessToken,
-          page_id: credentials.pageId,
-          status: 'active',
-          connected_at: new Date().toISOString()
-        });
+          account_id: credentials.pageId,
+          is_active: true
+        }, { onConflict: 'user_id,platform,account_id' });
 
       if (error) throw error;
 
@@ -220,7 +219,7 @@ export default function IntegrationsPage() {
       setIsLoading(true);
 
       const { error } = await supabase
-        .from('social_connections')
+        .from('social_media_accounts')
         .delete()
         .eq('user_id', userId)
         .eq('platform', integrationId);
