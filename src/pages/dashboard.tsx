@@ -149,7 +149,7 @@ export default function Dashboard() {
       const { data: posts } = await (supabase as any)
         .from('posted_content')
         .select('id')
-        .in('campaign_id', campaignIds)
+        .eq('user_id', user.id)
         .not('posted_at', 'is', null);
 
       const postsCount = posts?.length || 0;
