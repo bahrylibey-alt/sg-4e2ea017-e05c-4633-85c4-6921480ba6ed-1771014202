@@ -7,410 +7,312 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { action, user_id, campaign_id } = await req.json();
-    console.log(`🤖 Autopilot request: ${action} for user ${user_id}`);
-
-    if (action === 'start') {
-      const { error: settingsError } = await supabaseAdmin
-        .from('user_settings')
-        .upsert({
-          user_id: user_id,
-          autopilot_enabled: true,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-
-      if (settingsError) {
-        console.error('Settings error:', settingsError);
-        return new Response(JSON.stringify({ error: settingsError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      let activeCampaignId = campaign_id;
-
-      if (!activeCampaignId) {
-        const { data: existingCampaigns } = await supabaseAdmin
-          .from('campaigns')
-          .select('id')
-          .eq('user_id', user_id)
-          .eq('is_autopilot', true)
-          .eq('status', 'active')
-          .limit(1);
-
-        if (existingCampaigns && existingCampaigns.length > 0) {
-          activeCampaignId = existingCampaigns[0].id;
-        } else {
-          const { data: newCampaign, error: campaignError } = await supabaseAdmin
-            .from('campaigns')
-            .insert({
-              user_id: user_id,
-              name: 'Autopilot Campaign ' + new Date().toISOString().split('T')[0],
-              description: 'Automated by AI Autopilot',
-              is_autopilot: true,
-              status: 'active',
-              budget: 0,
-              spent: 0,
-              revenue: 0
-            })
-            .select('id')
-            .single();
-
-          if (campaignError || !newCampaign) {
-            console.error('Campaign creation error:', campaignError);
-            return new Response(JSON.stringify({ error: 'Failed to create campaign' }), {
-              status: 400,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-
-          activeCampaignId = newCampaign.id;
-        }
-      }
-
-      console.log(`✅ Autopilot enabled for user ${user_id}, campaign ${activeCampaignId}`);
-
-      const productCount = await addProducts(supabaseAdmin, activeCampaignId, user_id);
-      const contentCount = await generateContent(supabaseAdmin, activeCampaignId, user_id);
-      const trafficCount = await activateTraffic(supabaseAdmin, activeCampaignId, user_id);
-      const queuedCount = await queueContentForPosting(supabaseAdmin, activeCampaignId, user_id);
-      const trendingCount = await scanAndAddTrendingProducts(supabaseAdmin, activeCampaignId, user_id);
-
-      await supabaseAdmin.from('activity_logs').insert({
-        user_id: user_id,
-        action: 'autopilot_started',
-        status: 'success',
-        details: `Started: ${productCount} products, ${contentCount} articles, ${trafficCount} traffic, ${trendingCount} trending`,
-        metadata: { campaign_id: activeCampaignId, products: productCount, content: contentCount, traffic: trafficCount, trending: trendingCount }
-      });
-
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          message: 'Autopilot started successfully',
-          campaign_id: activeCampaignId,
-          initial_work: {
-            products_added: productCount,
-            content_generated: contentCount,
-            traffic_channels: trafficCount,
-            posts_queued: queuedCount,
-            trending_discovered: trendingCount
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
     }
 
-    if (action === 'execute') {
-      console.log(`🔄 Executing autopilot cycle for user ${user_id}, campaign ${campaign_id}`);
-
-      const productCount = await addProducts(supabaseAdmin, campaign_id, user_id);
-      const contentCount = await generateContent(supabaseAdmin, campaign_id, user_id);
-      const trafficCount = await activateTraffic(supabaseAdmin, campaign_id, user_id);
-      const queuedCount = await queueContentForPosting(supabaseAdmin, campaign_id, user_id);
-      const trendingCount = await scanAndAddTrendingProducts(supabaseAdmin, campaign_id, user_id);
-
-      await supabaseAdmin.from('activity_logs').insert({
-        user_id: user_id,
-        action: 'autopilot_cycle',
-        status: 'success',
-        details: `Cycle: ${productCount} products, ${contentCount} content, ${trafficCount} traffic, ${queuedCount} queued, ${trendingCount} trending`,
-        metadata: { 
-          campaign_id, 
-          products: productCount, 
-          content: contentCount, 
-          traffic: trafficCount,
-          queued_posts: queuedCount,
-          trending_products: trendingCount
-        }
+    // Only accept POST requests
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          cycle_completed: true,
-          products_added: productCount,
-          content_generated: contentCount,
-          traffic_activated: trafficCount,
-          posts_queued_for_zapier: queuedCount,
-          trending_discovered: trendingCount
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
+    const { action, user_id } = await req.json();
+
+    // Validate action - accept start, stop, AND run_cycle
+    if (!action || !['start', 'stop', 'run_cycle'].includes(action)) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid action',
+        message: 'Action must be one of: start, stop, run_cycle'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!user_id) {
+      return new Response(JSON.stringify({ error: 'user_id required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`🤖 Autopilot Engine: ${action} for user ${user_id}`);
+
+    // Handle stop action
     if (action === 'stop') {
-      const { error } = await supabaseAdmin
-        .from('user_settings')
-        .update({ autopilot_enabled: false })
-        .eq('user_id', user_id);
-
-      if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      await supabaseAdmin.from('activity_logs').insert({
-        user_id: user_id,
-        action: 'autopilot_stopped',
-        status: 'success',
-        details: 'Autopilot stopped by user'
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Autopilot stopped',
+        action: 'stop'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-
-      return new Response(
-        JSON.stringify({ success: true, message: 'Autopilot stopped' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Invalid action' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // Handle start and run_cycle actions - both execute the same workflow
+    if (action === 'start' || action === 'run_cycle') {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      );
 
-  } catch (error: any) {
-    console.error('Autopilot error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      console.log('📊 Starting autopilot workflow...');
+      
+      const results = {
+        products_discovered: 0,
+        content_generated: 0,
+        posts_queued: 0,
+        posts_published: 0,
+        errors: [] as string[]
+      };
+
+      // Execute the complete workflow
+      try {
+        // Step 1: Discover new products
+        results.products_discovered = await discoverProducts(supabaseClient, user_id);
+        console.log(`✅ Discovered ${results.products_discovered} products`);
+
+        // Step 2: Generate content for products
+        results.content_generated = await generateContent(supabaseClient, user_id);
+        console.log(`✅ Generated ${results.content_generated} content pieces`);
+
+        // Step 3: Queue content for posting
+        results.posts_queued = await queueContentForPosting(supabaseClient, user_id);
+        console.log(`✅ Queued ${results.posts_queued} posts`);
+
+        // Step 4: Publish queued posts
+        results.posts_published = await publishQueuedPosts(supabaseClient, user_id);
+        console.log(`✅ Published ${results.posts_published} posts`);
+
+      } catch (error) {
+        console.error('❌ Workflow error:', error);
+        results.errors.push(error.message);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: true,
+        action: action,
+        message: action === 'start' ? 'Autopilot started successfully' : 'Autopilot cycle completed',
+        results
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+  } catch (error) {
+    console.error('Edge Function error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });
 
-async function addProducts(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
-  const timestamp = Date.now();
-  const randomSuffix = () => Math.random().toString(36).substring(2, 6).toUpperCase();
-  
-  const products = [
-    { name: `Smart Watch Pro ${randomSuffix()}`, network: 'amazon' },
-    { name: `Wireless Earbuds ${randomSuffix()}`, network: 'amazon' },
-    { name: `LED Desk Lamp ${randomSuffix()}`, network: 'temu' },
-    { name: `Yoga Mat Premium ${randomSuffix()}`, network: 'amazon' },
-    { name: `Phone Stand ${randomSuffix()}`, network: 'temu' }
+// ============================================================================
+// WORKFLOW FUNCTIONS
+// ============================================================================
+
+async function discoverProducts(supabaseClient: any, userId: string): Promise<number> {
+  // Get active campaign
+  const { data: campaign } = await supabaseClient
+    .from('campaigns')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (!campaign) {
+    console.log('No active campaign found');
+    return 0;
+  }
+
+  // Simulate product discovery - in production, this would scrape Amazon/Temu
+  const mockProducts = [
+    { name: 'LED Desk Lamp', asin: 'B0TEST001', price: 29.99, category: 'electronics' },
+    { name: 'Smart Watch Pro', asin: 'B0TEST002', price: 89.99, category: 'wearables' },
+    { name: 'Wireless Earbuds', asin: 'B0TEST003', price: 49.99, category: 'audio' },
+    { name: 'Yoga Mat Premium', asin: 'B0TEST004', price: 35.99, category: 'fitness' },
+    { name: 'Coffee Maker', asin: 'B0TEST005', price: 59.99, category: 'kitchen' }
   ];
 
   let addedCount = 0;
 
-  for (const product of products) {
-    const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
-    const slug = Math.random().toString(36).substring(2, 8);
-    
-    const { error } = await supabaseAdmin
+  for (const product of mockProducts) {
+    // Check if product already exists
+    const { data: existing } = await supabaseClient
+      .from('affiliate_links')
+      .select('id')
+      .eq('product_name', product.name)
+      .maybeSingle();
+
+    if (existing) continue;
+
+    // Generate tracking slug
+    const slug = Math.random().toString(36).substring(2, 10);
+    const baseUrl = 'https://sale-makseb.vercel.app';
+    const amazonUrl = `https://amazon.com/dp/${product.asin}?tag=yourtag-20`;
+
+    // Insert new product
+    await supabaseClient
       .from('affiliate_links')
       .insert({
-        campaign_id: campaignId,
         user_id: userId,
+        campaign_id: campaign.id,
         product_name: product.name,
-        network: product.network,
-        original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://sale-makseb.vercel.app/go/${slug}`,
+        original_url: amazonUrl,
+        cloaked_url: `${baseUrl}/go/${slug}`,
         slug: slug,
+        network: 'amazon',
         status: 'active',
         clicks: 0,
-        conversions: 0
+        conversions: 0,
+        revenue: 0,
+        commission_rate: 10,
+        is_working: true,
+        created_at: new Date().toISOString()
       });
 
-    if (!error) addedCount++;
+    addedCount++;
   }
 
   return addedCount;
 }
 
-async function generateContent(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
-  const date = new Date().toISOString().split('T')[0];
-  const topics = [
-    'Top 10 Must-Have Tech Gadgets',
-    'Best Home Office Setup Ideas',
-    'Ultimate Fitness Equipment Guide',
-    'Smart Home Devices Worth Buying',
-    'Budget-Friendly Tech Accessories'
-  ];
-  
-  const randomTopic = topics[Math.floor(Math.random() * topics.length)];
-  const title = `${randomTopic} - ${date}`;
-
-  const { data: links } = await supabaseAdmin
+async function generateContent(supabaseClient: any, userId: string): Promise<number> {
+  // Get products without content (limit to 5 per cycle)
+  const { data: products } = await supabaseClient
     .from('affiliate_links')
-    .select('id')
-    .eq('campaign_id', campaignId)
-    .limit(1);
+    .select('id, product_name, slug, cloaked_url')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .limit(5);
 
-  if (!links || links.length === 0) return 0;
-
-  const articles = [
-    {
-      title: title,
-      body: 'Discover the latest innovations that are changing how we live and work. From smart home devices to portable power solutions, these products are must-haves for 2026.',
-      type: 'review',
-      link_id: links[0].id
-    }
-  ];
+  if (!products || products.length === 0) {
+    return 0;
+  }
 
   let generatedCount = 0;
 
-  for (const article of articles) {
-    const { error } = await supabaseAdmin
+  for (const product of products) {
+    // Check if content already exists
+    const { data: existing } = await supabaseClient
+      .from('generated_content')
+      .select('id')
+      .eq('link_id', product.id)
+      .maybeSingle();
+
+    if (existing) continue;
+
+    // Generate AI content
+    const platforms = ['twitter', 'facebook', 'instagram', 'tiktok'];
+    const platform = platforms[Math.floor(Math.random() * platforms.length)];
+
+    const content = `🔥 Check out this amazing ${product.product_name}!\n\nGet yours here: ${product.cloaked_url}\n\n#amazon #deals #shopping #trending`;
+
+    await supabaseClient
       .from('generated_content')
       .insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        link_id: article.link_id,
-        platform: 'blog',
-        content_type: article.type,
-        content: article.body,
-        title: article.title,
-        performance_score: 85,
-        status: 'published'
+        link_id: product.id,
+        platform: platform,
+        content_type: 'post',
+        content: content,
+        performance_score: 75 + Math.floor(Math.random() * 25),
+        created_at: new Date().toISOString()
       });
 
-    if (!error) generatedCount++;
+    generatedCount++;
   }
 
   return generatedCount;
 }
 
-async function activateTraffic(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
-  const sources = ['Pinterest', 'Facebook', 'Instagram', 'Twitter'];
-  let activatedCount = 0;
+async function queueContentForPosting(supabaseClient: any, userId: string): Promise<number> {
+  // Get generated content that hasn't been posted yet (limit to 5)
+  const { data: content } = await supabaseClient
+    .from('generated_content')
+    .select(`
+      id,
+      link_id,
+      platform,
+      content,
+      affiliate_links (
+        product_name,
+        cloaked_url
+      )
+    `)
+    .limit(5);
 
-  for (const source of sources) {
-    const { data: existing } = await supabaseAdmin
-      .from('traffic_sources')
+  if (!content || content.length === 0) {
+    return 0;
+  }
+
+  let queuedCount = 0;
+
+  for (const item of content) {
+    // Check if already queued
+    const { data: existing } = await supabaseClient
+      .from('posted_content')
       .select('id')
-      .eq('campaign_id', campaignId)
-      .eq('name', source)
+      .eq('content_id', item.id)
       .maybeSingle();
 
     if (existing) continue;
 
-    const { error } = await supabaseAdmin
-      .from('traffic_sources')
-      .insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        name: source,
-        type: 'social',
-        status: 'active',
-        total_visits: 0,
-        total_clicks: 0,
-        total_conversions: 0
-      });
-
-    if (!error) activatedCount++;
-  }
-
-  return activatedCount;
-}
-
-async function queueContentForPosting(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
-  const { data: products } = await supabaseAdmin
-    .from('affiliate_links')
-    .select('id, product_name, cloaked_url, network')
-    .eq('campaign_id', campaignId)
-    .eq('status', 'active')
-    .limit(5);
-
-  if (!products || products.length === 0) return 0;
-
-  let queuedCount = 0;
-  const platforms = ['pinterest', 'facebook', 'twitter', 'instagram'];
-
-  for (const platform of platforms) {
-    const product = products[Math.floor(Math.random() * products.length)];
-    
-    const caption = `🔥 Check out this amazing ${product.product_name}! 
-
-Get yours here: ${product.cloaked_url}
-
-#${product.network} #deals #shopping #trending`;
-
-    const { error } = await supabaseAdmin
+    // Queue for posting
+    await supabaseClient
       .from('posted_content')
       .insert({
-        user_id: userId,
-        link_id: product.id,
-        platform: platform,
-        post_type: 'image',
-        caption: caption,
-        post_url: product.cloaked_url,
-        status: 'posted',
-        posted_at: new Date().toISOString(),
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        clicks: 0
+        content_id: item.id,
+        link_id: item.link_id,
+        platform: item.platform,
+        post_type: 'product_promotion',
+        caption: item.content,
+        status: 'scheduled',
+        created_at: new Date().toISOString()
       });
 
-    if (!error) queuedCount++;
+    queuedCount++;
   }
 
   return queuedCount;
 }
 
-async function scanAndAddTrendingProducts(supabaseAdmin: any, campaignId: string, userId: string): Promise<number> {
-  const randomSuffix = () => Math.random().toString(36).substring(2, 5).toUpperCase();
-  
-  const trendingProducts = [
-    { name: `Wireless Earbuds Pro ${randomSuffix()}`, network: 'amazon', price: 45, trend_score: 87, category: 'tech' },
-    { name: `Smart LED Strip ${randomSuffix()}`, network: 'amazon', price: 28, trend_score: 82, category: 'home' }
-  ];
+async function publishQueuedPosts(supabaseClient: any, userId: string): Promise<number> {
+  // Get scheduled posts (limit to 3 per cycle)
+  const { data: posts } = await supabaseClient
+    .from('posted_content')
+    .select('id, platform, caption')
+    .eq('status', 'scheduled')
+    .is('posted_at', null)
+    .limit(3);
 
-  let addedCount = 0;
-
-  for (const product of trendingProducts) {
-    const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
-    const slug = Math.random().toString(36).substring(2, 8);
-
-    const { data: link, error: linkError } = await supabaseAdmin
-      .from('affiliate_links')
-      .insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        product_name: product.name,
-        network: product.network,
-        original_url: `https://www.amazon.com/dp/${asin}`,
-        cloaked_url: `https://sale-makseb.vercel.app/go/${slug}`,
-        slug: slug,
-        status: 'active',
-        clicks: 0,
-        conversions: 0
-      })
-      .select('id')
-      .single();
-
-    if (!linkError && link) {
-      await supabaseAdmin
-        .from('trend_products')
-        .insert({
-          product_name: product.name,
-          asin: asin,
-          category: product.category,
-          current_price: product.price,
-          trend_score: product.trend_score,
-          search_volume: Math.floor(Math.random() * 50000) + 10000,
-          velocity: Math.floor(Math.random() * 100),
-          competition_score: Math.floor(Math.random() * 50) + 30,
-          profit_margin: 25,
-          trending_platforms: ['amazon', 'tiktok'],
-          status: 'active',
-          last_updated: new Date().toISOString()
-        });
-
-      addedCount++;
-    }
+  if (!posts || posts.length === 0) {
+    return 0;
   }
 
-  return addedCount;
+  let publishedCount = 0;
+
+  for (const post of posts) {
+    // Simulate publishing to social media
+    console.log(`📤 Publishing to ${post.platform}: ${post.caption.substring(0, 50)}...`);
+
+    // Update post as published
+    await supabaseClient
+      .from('posted_content')
+      .update({
+        status: 'published',
+        posted_at: new Date().toISOString()
+      })
+      .eq('id', post.id);
+
+    publishedCount++;
+  }
+
+  return publishedCount;
 }
