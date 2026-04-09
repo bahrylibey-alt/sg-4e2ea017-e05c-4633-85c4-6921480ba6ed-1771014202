@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export function AutopilotRunner() {
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
     let isActive = true; // Flag to prevent execution after unmount
     
     const executeAutopilotCycle = async () => {
@@ -130,7 +129,7 @@ export function AutopilotRunner() {
     executeAutopilotCycle();
 
     // Then execute every 60 seconds
-    intervalId = setInterval(() => {
+    const intervalId = setInterval(() => {
       if (!isActive) return;
       console.log('⏰ AutopilotRunner: 60-second interval triggered');
       executeAutopilotCycle();
@@ -139,7 +138,7 @@ export function AutopilotRunner() {
     return () => {
       console.log('🛑 AutopilotRunner: Component unmounting, stopping background service');
       isActive = false; // Prevent any in-flight operations from continuing
-      if (intervalId) clearInterval(intervalId);
+      clearInterval(intervalId);
     };
   }, []);
 
