@@ -345,7 +345,8 @@ export default function Dashboard() {
   };
 
   const toggleAutomation = async () => {
-    if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       toast({
         title: "Authentication Required",
         description: "Please sign in to use autopilot",
@@ -353,6 +354,7 @@ export default function Dashboard() {
       });
       return;
     }
+    const userId = user.id;
 
     const newStatus = !automationActive;
 
