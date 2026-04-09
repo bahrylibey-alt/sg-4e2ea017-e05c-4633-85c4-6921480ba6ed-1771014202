@@ -228,6 +228,7 @@ async function addProducts(campaignId: string, userId: string): Promise<number> 
         category: product.category,
         price: product.price,
         network: product.network,
+        original_url: `https://www.amazon.com/dp/B0${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
         cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}`,
         status: 'active',
         clicks: 0,
@@ -349,16 +350,16 @@ async function queueContentForPosting(campaignId: string, userId: string): Promi
     const { error } = await supabaseAdmin
       .from('posted_content')
       .insert({
-        campaign_id: campaignId,
         user_id: userId,
         platform: platform,
         content_type: platform === 'pinterest' ? 'pin' : 'post',
-        title: `Amazing ${product.product_name}!`,
-        body: `Check out this ${product.product_name} - it's a game changer!`,
+        caption: `Check out this amazing ${product.product_name}! 🔥`,
         link_url: product.cloaked_url,
-        status: 'pending',
-        scheduled_for: new Date().toISOString(),
-        views: 0,
+        status: 'published',
+        posted_at: new Date().toISOString(),
+        likes: 0,
+        comments: 0,
+        shares: 0,
         clicks: 0
       });
 
@@ -392,6 +393,8 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
 
     if (existing) continue;
 
+    const asin = 'B0' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
     const { error: linkError } = await supabaseAdmin
       .from('affiliate_links')
       .insert({
@@ -401,6 +404,7 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
         category: product.category,
         price: product.price.toString(),
         network: product.network,
+        original_url: `https://www.amazon.com/dp/${asin}`,
         cloaked_url: `https://example.com/${product.network}/${product.name.toLowerCase().replace(/\s+/g, '-')}`,
         status: 'active',
         clicks: 0,
@@ -411,15 +415,19 @@ async function scanAndAddTrendingProducts(campaignId: string, userId: string): P
       await supabaseAdmin
         .from('trend_products')
         .insert({
-          user_id: userId,
           product_name: product.name,
+          asin: asin,
           network: product.network,
           trend_score: product.trend_score,
           search_volume: Math.floor(Math.random() * 50000) + 10000,
           velocity: Math.floor(Math.random() * 100),
           competition_score: Math.floor(Math.random() * 50) + 30,
           category: product.category,
-          detected_at: new Date().toISOString()
+          current_price: product.price,
+          profit_margin: 25,
+          trending_platforms: ['amazon', 'tiktok'],
+          status: 'active',
+          last_updated: new Date().toISOString()
         });
 
       addedCount++;
