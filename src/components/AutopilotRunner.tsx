@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -15,35 +15,35 @@ import { supabase } from "@/integrations/supabase/client";
  * so the UI can show current status.
  */
 export function AutopilotRunner() {
-  const checkInProgress = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
   useEffect(() => {
-    console.log('📊 AutopilotRunner: Monitoring autopilot status (display only)...');
+    console.log('📊 AutopilotRunner: Starting status monitoring (read-only)...');
+    
+    let intervalId: NodeJS.Timeout | null = null;
+    let checkInProgress = false;
 
     const checkAutopilotStatus = async () => {
       // Prevent overlapping checks
-      if (checkInProgress.current) {
+      if (checkInProgress) {
         console.log('⏭️ AutopilotRunner: Check already in progress, skipping...');
         return;
       }
 
-      checkInProgress.current = true;
+      checkInProgress = true;
 
       try {
-        // Use a simpler auth check that doesn't require locks
+        // Use getSession() instead of getUser() to avoid Navigator lock
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('❌ AutopilotRunner: Session error:', sessionError);
-          checkInProgress.current = false;
+          checkInProgress = false;
           return;
         }
 
         const user = sessionData?.session?.user;
         if (!user) {
           console.log('ℹ️ AutopilotRunner: No user session');
-          checkInProgress.current = false;
+          checkInProgress = false;
           return;
         }
 
@@ -56,7 +56,7 @@ export function AutopilotRunner() {
 
         if (settingsError) {
           console.error('❌ AutopilotRunner: Settings error:', settingsError);
-          checkInProgress.current = false;
+          checkInProgress = false;
           return;
         }
 
@@ -76,22 +76,22 @@ export function AutopilotRunner() {
       } catch (error) {
         console.error('❌ AutopilotRunner: Error checking status:', error);
       } finally {
-        checkInProgress.current = false;
+        checkInProgress = false;
       }
     };
 
     // Check status immediately on mount
     checkAutopilotStatus();
 
-    // Then check every 60 seconds (not 10 - reduces lock conflicts)
-    intervalRef.current = setInterval(checkAutopilotStatus, 60000);
+    // Then check every 60 seconds (not too frequent to avoid conflicts)
+    intervalId = setInterval(checkAutopilotStatus, 60000);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
       }
-      checkInProgress.current = false;
+      checkInProgress = false;
     };
   }, []); // Empty dependency array - runs once on app mount
 
