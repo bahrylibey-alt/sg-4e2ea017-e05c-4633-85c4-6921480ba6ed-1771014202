@@ -524,6 +524,87 @@ export type Database = {
         }
         Relationships: []
       }
+      autopilot_decisions: {
+        Row: {
+          created_at: string | null
+          decision_type: string
+          entity_id: string
+          entity_type: string
+          id: string
+          metrics: Json | null
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          decision_type: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          metrics?: Json | null
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          decision_type?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          metrics?: Json | null
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      autopilot_queue: {
+        Row: {
+          autopilot_state: string
+          created_at: string | null
+          id: string
+          next_post_at: string | null
+          priority_score: number | null
+          product_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          autopilot_state?: string
+          created_at?: string | null
+          id?: string
+          next_post_at?: string | null
+          priority_score?: number | null
+          product_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          autopilot_state?: string
+          created_at?: string | null
+          id?: string
+          next_post_at?: string | null
+          priority_score?: number | null
+          product_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_queue_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_queue_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
+          },
+        ]
+      }
       autopilot_tasks: {
         Row: {
           campaign_id: string | null
@@ -978,6 +1059,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      content_dna: {
+        Row: {
+          created_at: string | null
+          cta_type: string | null
+          dna_hash: string
+          format_type: string | null
+          hook_type: string | null
+          id: string
+          performance_score: number | null
+          platform: string | null
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          cta_type?: string | null
+          dna_hash: string
+          format_type?: string | null
+          hook_type?: string | null
+          id?: string
+          performance_score?: number | null
+          platform?: string | null
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          cta_type?: string | null
+          dna_hash?: string
+          format_type?: string | null
+          hook_type?: string | null
+          id?: string
+          performance_score?: number | null
+          platform?: string | null
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
       }
       content_queue: {
         Row: {
@@ -1644,6 +1764,59 @@ export type Database = {
           },
         ]
       }
+      post_metrics_daily: {
+        Row: {
+          clicks: number | null
+          conversion_rate: number | null
+          conversions: number | null
+          created_at: string | null
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number | null
+          post_id: string
+          revenue: number | null
+          revenue_per_click: number | null
+          user_id: string
+        }
+        Insert: {
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          post_id: string
+          revenue?: number | null
+          revenue_per_click?: number | null
+          user_id: string
+        }
+        Update: {
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          post_id?: string
+          revenue?: number | null
+          revenue_per_click?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_metrics_daily_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posted_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posted_content: {
         Row: {
           autopilot_state: string | null
@@ -1916,6 +2089,66 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      product_metrics_daily: {
+        Row: {
+          clicks: number | null
+          conversion_rate: number | null
+          conversions: number | null
+          created_at: string | null
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number | null
+          product_id: string
+          revenue: number | null
+          revenue_per_click: number | null
+          user_id: string
+        }
+        Insert: {
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          product_id: string
+          revenue?: number | null
+          revenue_per_click?: number | null
+          user_id: string
+        }
+        Update: {
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          product_id?: string
+          revenue?: number | null
+          revenue_per_click?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_metrics_daily_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_metrics_daily_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
