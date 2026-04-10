@@ -46,8 +46,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (campaigns) {
-        const productCount = 3;
-        for (let i = 0; i < productCount; i++) {
+        for (let i = 0; i < 3; i++) {
           const { error: productError } = await supabase
             .from('affiliate_links')
             .insert({
@@ -57,7 +56,7 @@ serve(async (req) => {
               network: 'amazon',
               original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
               cloaked_url: `https://go.example.com/${Date.now()}${i}`,
-              commission_rate: 10.0,
+              commission_rate: 10,
               clicks: 0,
               conversions: 0,
               revenue: 0
@@ -71,10 +70,10 @@ serve(async (req) => {
         }
       }
     } catch (error: any) {
-      results.errors.push(`Products error: ${error.message}`);
+      results.errors.push(`Products: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - FIXED: Using 'draft' status
+    // 2. GENERATE CONTENT (2 per cycle) - FIXED: Use 'published' status
     try {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -85,8 +84,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (campaigns) {
-        const contentCount = 2;
-        for (let i = 0; i < contentCount; i++) {
+        for (let i = 0; i < 2; i++) {
           const { error: contentError } = await supabase
             .from('generated_content')
             .insert({
@@ -96,7 +94,7 @@ serve(async (req) => {
               body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
               type: 'review',
               category: 'product',
-              status: 'draft',
+              status: 'published',
               metadata: {}
             });
 
@@ -108,10 +106,10 @@ serve(async (req) => {
         }
       }
     } catch (error: any) {
-      results.errors.push(`Content error: ${error.message}`);
+      results.errors.push(`Content: ${error.message}`);
     }
 
-    // 3. SCORE POSTS (track performance)
+    // 3. SCORE POSTS
     try {
       const { data: posts } = await supabase
         .from('posted_content')
@@ -125,7 +123,7 @@ serve(async (req) => {
         results.decisions_applied = Math.min(5, posts.length);
       }
     } catch (error: any) {
-      results.errors.push(`Scoring error: ${error.message}`);
+      results.errors.push(`Scoring: ${error.message}`);
     }
 
     // 4. PUBLISH POSTS (2 per cycle)
@@ -138,9 +136,8 @@ serve(async (req) => {
 
       if (links && links.length > 0) {
         const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
-        const postCount = 2;
-
-        for (let i = 0; i < postCount; i++) {
+        
+        for (let i = 0; i < 2; i++) {
           const randomLink = links[Math.floor(Math.random() * links.length)];
           const randomPlatform = platforms[Math.floor(Math.random() * platforms.length)];
 
@@ -164,7 +161,7 @@ serve(async (req) => {
         }
       }
     } catch (error: any) {
-      results.errors.push(`Posts error: ${error.message}`);
+      results.errors.push(`Posts: ${error.message}`);
     }
 
     // Log execution
