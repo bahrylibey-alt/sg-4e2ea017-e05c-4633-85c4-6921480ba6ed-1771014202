@@ -52,12 +52,14 @@ serve(async (req) => {
     console.log('\n--- CREATING PRODUCTS ---');
     for (let i = 0; i < 3; i++) {
       const timestamp = Date.now();
+      const slug = `auto-${timestamp}-${i}`;
       const productData = {
         user_id: userId,
         campaign_id: campaign.id,
         product_name: `AutoProduct ${timestamp}-${i}`,
-        link_url: `https://amazon.com/product-${timestamp}-${i}`,
-        affiliate_url: `https://amzn.to/${timestamp}-${i}`,
+        original_url: `https://amazon.com/product-${timestamp}-${i}`,
+        cloaked_url: `https://yourdomain.com/go/${slug}`,
+        slug: slug,
         network: 'amazon',
         commission_rate: 5.0,
         clicks: 0,
