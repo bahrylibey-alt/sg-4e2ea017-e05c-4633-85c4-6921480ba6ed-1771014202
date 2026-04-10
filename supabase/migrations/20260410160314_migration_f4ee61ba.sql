@@ -1,0 +1,12 @@
+-- Add performance tracking columns to posted_content
+ALTER TABLE posted_content
+ADD COLUMN IF NOT EXISTS impressions INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS clicks INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS conversions INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS revenue DECIMAL(10,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS ctr DECIMAL(5,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS conversion_rate DECIMAL(5,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS revenue_per_click DECIMAL(10,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS performance_score DECIMAL(5,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS autopilot_state TEXT DEFAULT 'testing' CHECK (autopilot_state IN ('testing', 'scaling', 'cooldown', 'killed')),
+ADD COLUMN IF NOT EXISTS priority_score DECIMAL(5,2) DEFAULT 0;

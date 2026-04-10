@@ -1396,8 +1396,12 @@ export type Database = {
           conversion_rate: number | null
           conversions: number | null
           created_at: string | null
+          cta_type: string | null
           ctr: number | null
           description: string | null
+          dna_hash: string | null
+          format_type: string | null
+          hook_type: string | null
           id: string
           impressions: number | null
           performance_score: number | null
@@ -1419,8 +1423,12 @@ export type Database = {
           conversion_rate?: number | null
           conversions?: number | null
           created_at?: string | null
+          cta_type?: string | null
           ctr?: number | null
           description?: string | null
+          dna_hash?: string | null
+          format_type?: string | null
+          hook_type?: string | null
           id?: string
           impressions?: number | null
           performance_score?: number | null
@@ -1442,8 +1450,12 @@ export type Database = {
           conversion_rate?: number | null
           conversions?: number | null
           created_at?: string | null
+          cta_type?: string | null
           ctr?: number | null
           description?: string | null
+          dna_hash?: string | null
+          format_type?: string | null
+          hook_type?: string | null
           id?: string
           impressions?: number | null
           performance_score?: number | null
@@ -1842,6 +1854,7 @@ export type Database = {
           posted_at: string | null
           priority_score: number | null
           product_id: string | null
+          revenue: number | null
           revenue_generated: number | null
           revenue_per_click: number | null
           scheduled_for: string | null
@@ -1874,6 +1887,7 @@ export type Database = {
           posted_at?: string | null
           priority_score?: number | null
           product_id?: string | null
+          revenue?: number | null
           revenue_generated?: number | null
           revenue_per_click?: number | null
           scheduled_for?: string | null
@@ -1906,6 +1920,7 @@ export type Database = {
           posted_at?: string | null
           priority_score?: number | null
           product_id?: string | null
+          revenue?: number | null
           revenue_generated?: number | null
           revenue_per_click?: number | null
           scheduled_for?: string | null
