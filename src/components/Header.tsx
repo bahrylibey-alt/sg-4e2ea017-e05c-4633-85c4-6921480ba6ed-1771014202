@@ -1,81 +1,200 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Zap, Settings, Home, LayoutDashboard, Plug, Menu } from "lucide-react";
-import { ThemeSwitch } from "./ThemeSwitch";
+import { ThemeSwitch } from "@/components/ThemeSwitch";
+import { AuthModal } from "@/components/AuthModal";
+import { supabase } from "@/integrations/supabase/client";
+import { Menu, X, Zap, Activity } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export function Header() {
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isActive = (path: string) => router.pathname === path;
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
 
-  const navLinks = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/integrations", label: "Integrations", icon: Plug },
-    { href: "/settings", label: "Settings", icon: Settings }
+  useEffect(() => {
+    checkUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        checkAutopilotStatus(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    if (session?.user) {
+      checkAutopilotStatus(session.user.id);
+    }
+  };
+
+  const checkAutopilotStatus = async (userId: string) => {
+    const { data } = await supabase
+      .from('user_settings')
+      .select('autopilot_enabled')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    setAutopilotEnabled(data?.autopilot_enabled || false);
+    
+    // Check every 5 seconds for status changes
+    const interval = setInterval(async () => {
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
+        .eq('user_id', userId)
+        .maybeSingle();
+      setAutopilotEnabled(settings?.autopilot_enabled || false);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setAutopilotEnabled(false);
+    router.push('/');
+  };
+
+  const navItems = [
+    { href: "/", label: "Home" },
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/settings", label: "Settings" },
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <Zap className="w-6 h-6 text-primary" />
-          <span className="font-bold text-xl">AffiliatePro</span>
-        </Link>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 font-bold text-xl">
+            <Zap className="h-6 w-6 text-primary" />
+            <span className="bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              AffiliatePro
+            </span>
+          </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => (
-            <Link 
-              key={link.href}
-              href={link.href} 
-              className={`text-sm font-medium transition-colors flex items-center gap-2 ${
-                isActive(link.href) 
-                  ? 'text-primary' 
-                  : 'text-muted-foreground hover:text-primary'
-              }`}
-            >
-              <link.icon className="w-4 h-4" />
-              {link.label}
-            </Link>
-          ))}
-          <ThemeSwitch />
-        </nav>
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-6">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`text-sm font-medium transition-colors hover:text-primary ${
+                  router.pathname === item.href ? 'text-primary' : 'text-muted-foreground'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
-        {/* Mobile Menu */}
-        <div className="md:hidden flex items-center gap-2">
-          <ThemeSwitch />
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="w-5 h-5" />
+          {/* Right Side Actions */}
+          <div className="flex items-center gap-4">
+            {/* Autopilot Status Indicator */}
+            {user && (
+              <Link href="/dashboard?tab=autopilot">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all cursor-pointer hover:scale-105 ${
+                  autopilotEnabled 
+                    ? 'bg-green-50 dark:bg-green-950 border-green-500' 
+                    : 'bg-red-50 dark:bg-red-950 border-red-500'
+                }`}>
+                  <div className={`h-3 w-3 rounded-full ${autopilotEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                  <Activity className={`h-4 w-4 ${autopilotEnabled ? 'text-green-600' : 'text-red-600'}`} />
+                  <span className={`text-sm font-bold ${autopilotEnabled ? 'text-green-600' : 'text-red-600'}`}>
+                    {autopilotEnabled ? 'RUNNING' : 'STOPPED'}
+                  </span>
+                </div>
+              </Link>
+            )}
+
+            <ThemeSwitch />
+
+            {user ? (
+              <>
+                <Button variant="outline" size="sm" onClick={handleSignOut} className="hidden md:flex">
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" onClick={() => setShowAuthModal(true)} className="hidden md:flex">
+                Sign In
               </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-64">
-              <div className="flex flex-col gap-4 mt-8">
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                      isActive(link.href)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    <link.icon className="w-5 h-5" />
-                    <span className="font-medium">{link.label}</span>
-                  </Link>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
+            )}
+
+            {/* Mobile Menu */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild className="md:hidden">
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <div className="flex flex-col gap-4 mt-8">
+                  {/* Autopilot Status in Mobile */}
+                  {user && (
+                    <Link href="/dashboard?tab=autopilot" onClick={() => setMobileMenuOpen(false)}>
+                      <div className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                        autopilotEnabled 
+                          ? 'bg-green-50 dark:bg-green-950 border-green-500' 
+                          : 'bg-red-50 dark:bg-red-950 border-red-500'
+                      }`}>
+                        <div className={`h-3 w-3 rounded-full ${autopilotEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                        <Activity className={`h-5 w-5 ${autopilotEnabled ? 'text-green-600' : 'text-red-600'}`} />
+                        <span className={`text-base font-bold ${autopilotEnabled ? 'text-green-600' : 'text-red-600'}`}>
+                          {autopilotEnabled ? 'RUNNING' : 'STOPPED'}
+                        </span>
+                      </div>
+                    </Link>
+                  )}
+
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`text-lg font-medium transition-colors hover:text-primary ${
+                        router.pathname === item.href ? 'text-primary' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+
+                  {user ? (
+                    <Button variant="outline" onClick={() => { handleSignOut(); setMobileMenuOpen(false); }}>
+                      Sign Out
+                    </Button>
+                  ) : (
+                    <Button onClick={() => { setShowAuthModal(true); setMobileMenuOpen(false); }}>
+                      Sign In
+                    </Button>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
+
+      {showAuthModal && (
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => setShowAuthModal(false)} 
+        />
+      )}
     </header>
   );
 }
