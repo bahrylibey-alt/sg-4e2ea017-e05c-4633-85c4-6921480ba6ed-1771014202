@@ -19,75 +19,30 @@ export function Header() {
   ];
 
   return (
-    <header className="fixed top-0 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b z-50">
-      <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-            <Zap className="w-6 h-6 text-primary" />
-            <span className="bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              AffiliatePro
-            </span>
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b">
+      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
+          <Zap className="w-6 h-6 text-primary" />
+          <span className="font-bold text-xl">AffiliatePro</span>
+        </Link>
+        <nav className="hidden md:flex items-center gap-6">
+          <Link href="/dashboard" className="text-sm hover:text-primary transition-colors">
+            Dashboard
           </Link>
-          
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              return (
-                <Link key={link.href} href={link.href}>
-                  <Button variant={isActive(link.href) ? "default" : "ghost"} size="sm">
-                    <Icon className="w-4 h-4 mr-2" />
-                    {link.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <ThemeSwitch />
-          
-          {/* Mobile Menu Button */}
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon">
-                <Menu className="w-5 h-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-64">
-              <div className="flex flex-col gap-4 mt-8">
-                <div className="flex items-center gap-2 mb-4 px-4">
-                  <Zap className="w-6 h-6 text-primary" />
-                  <span className="font-bold text-lg bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                    AffiliatePro
-                  </span>
-                </div>
-                
-                {navLinks.map((link) => {
-                  const Icon = link.icon;
-                  return (
-                    <Link 
-                      key={link.href} 
-                      href={link.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      <Button 
-                        variant={isActive(link.href) ? "default" : "ghost"} 
-                        className="w-full justify-start"
-                        size="lg"
-                      >
-                        <Icon className="w-5 h-5 mr-3" />
-                        {link.label}
-                      </Button>
-                    </Link>
-                  );
-                })}
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </nav>
+          <Link href="/content-manager" className="text-sm hover:text-primary transition-colors">
+            Content
+          </Link>
+          <Link href="/traffic-sources" className="text-sm hover:text-primary transition-colors">
+            Traffic
+          </Link>
+          <Link href="/integrations" className="text-sm hover:text-primary transition-colors">
+            Integrations
+          </Link>
+          <Link href="/settings" className="text-sm hover:text-primary transition-colors">
+            Settings
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }

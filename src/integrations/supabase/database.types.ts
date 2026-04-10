@@ -466,27 +466,33 @@ export type Database = {
       }
       autopilot_cron_log: {
         Row: {
+          created_at: string | null
           error: string | null
           execution_time: string | null
           id: string
           results: Json | null
           status: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
+          created_at?: string | null
           error?: string | null
           execution_time?: string | null
           id?: string
           results?: Json | null
           status: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
+          created_at?: string | null
           error?: string | null
           execution_time?: string | null
           id?: string
           results?: Json | null
           status?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
