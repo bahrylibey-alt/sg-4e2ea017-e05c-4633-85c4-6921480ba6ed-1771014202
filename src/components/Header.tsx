@@ -191,7 +191,7 @@ export function Header() {
 
       {showAuthModal && (
         <AuthModal 
-          isOpen={showAuthModal} 
+          open={showAuthModal} 
           onClose={() => setShowAuthModal(false)} 
         />
       )}
