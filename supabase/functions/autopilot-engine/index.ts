@@ -20,7 +20,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get active campaign (use maybeSingle to avoid "multiple rows" error)
+    // Get active campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('id, name')
@@ -56,6 +56,7 @@ serve(async (req) => {
         const productName = `Auto Product ${uniqueId}-${i}`;
         const slug = `prod-${uniqueId.toLowerCase()}-${i}`;
         
+        // Exact match to affiliate_links schema
         const { data, error } = await supabaseAdmin
           .from('affiliate_links')
           .insert({
@@ -64,20 +65,19 @@ serve(async (req) => {
             product_name: productName,
             slug: slug,
             original_url: `https://amazon.com/dp/${uniqueId}${i}`,
-            platform: 'amazon',
+            network: 'amazon', // Corrected from 'platform'
             status: 'active',
             clicks: 0,
             conversions: 0,
             revenue: 0,
-            commission_rate: 10,
-            is_promoted: true
+            commission_rate: 10
           })
           .select('id')
-          .single();
+          .maybeSingle(); // Corrected from .single()
 
         if (error) {
           console.error(`❌ Product ${i} error:`, error.message);
-        } else {
+        } else if (data) {
           productsCreated++;
           console.log(`✅ Product ${i} created:`, productName, data.id);
         }
@@ -101,23 +101,25 @@ serve(async (req) => {
           const product = lastProducts[i % lastProducts.length];
           const contentTitle = `Review: ${product.product_name}`;
           
+          // Exact match to generated_content schema
           const { data, error } = await supabaseAdmin
             .from('generated_content')
             .insert({
               user_id: user_id,
-              link_id: product.id,
+              campaign_id: campaign.id, // Added
               title: contentTitle,
-              content: `Auto-generated review for ${product.product_name}. Created at ${new Date().toISOString()}. This product offers great value and quality.`,
-              content_type: 'blog',
-              platform: 'facebook',
+              body: `Auto-generated review for ${product.product_name}. Created at ${new Date().toISOString()}. This product offers great value and quality.`, // Corrected from 'content'
+              description: `Review of ${product.product_name}`, // Added
+              type: 'blog', // Corrected from 'content_type'
+              category: 'review', // Corrected from 'platform'
               status: 'published'
             })
             .select('id')
-            .single();
+            .maybeSingle(); // Corrected from .single()
 
           if (error) {
             console.error(`❌ Content ${i} error:`, error.message);
-          } else {
+          } else if (data) {
             contentCreated++;
             console.log(`✅ Content ${i} created:`, contentTitle, data.id);
           }
@@ -144,6 +146,7 @@ serve(async (req) => {
           const platform = platforms[i % platforms.length];
           const link = lastLinks[i % lastLinks.length];
           
+          // Exact match to posted_content schema
           const { data, error } = await supabaseAdmin
             .from('posted_content')
             .insert({
@@ -156,11 +159,11 @@ serve(async (req) => {
               posted_at: new Date().toISOString()
             })
             .select('id')
-            .single();
+            .maybeSingle(); // Corrected from .single()
 
           if (error) {
             console.error(`❌ Post ${i} error:`, error.message);
-          } else {
+          } else if (data) {
             postsCreated++;
             console.log(`✅ Post ${i} created on ${platform}:`, data.id);
           }
