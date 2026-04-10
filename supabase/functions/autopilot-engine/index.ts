@@ -20,7 +20,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get active campaign
+    // Get active campaign - FIXED: use maybeSingle() instead of single()
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('id, name')
@@ -47,7 +47,7 @@ serve(async (req) => {
     let contentCreated = 0;
     let postsCreated = 0;
 
-    // CREATE 3 PRODUCTS
+    // CREATE 3 PRODUCTS - FIXED: removed category column
     console.log('📦 Creating products...');
     for (let i = 0; i < 3; i++) {
       try {
@@ -63,7 +63,6 @@ serve(async (req) => {
             product_name: productName,
             slug: slug,
             original_url: `https://amazon.com/dp/${uniqueId}${i}`,
-            category: 'Auto-Generated',
             platform: 'amazon',
             status: 'active',
             clicks: 0,
@@ -88,17 +87,17 @@ serve(async (req) => {
 
     // CREATE 2 CONTENT
     console.log('📝 Creating content...');
-    const lastProducts = await supabaseAdmin
+    const { data: lastProducts } = await supabaseAdmin
       .from('affiliate_links')
       .select('id, product_name')
       .eq('user_id', user_id)
       .order('created_at', { ascending: false })
       .limit(3);
 
-    if (lastProducts.data && lastProducts.data.length > 0) {
+    if (lastProducts && lastProducts.length > 0) {
       for (let i = 0; i < 2; i++) {
         try {
-          const product = lastProducts.data[i % lastProducts.data.length];
+          const product = lastProducts[i % lastProducts.length];
           const contentTitle = `Review: ${product.product_name}`;
           
           const { data, error } = await supabaseAdmin
@@ -127,22 +126,22 @@ serve(async (req) => {
       }
     }
 
-    // CREATE 2 POSTS
+    // CREATE 2 POSTS - FIXED: removed content_id, campaign_id columns
     console.log('📱 Creating posts...');
     const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
-    const lastLinks = await supabaseAdmin
+    const { data: lastLinks } = await supabaseAdmin
       .from('affiliate_links')
       .select('id, product_name')
       .eq('user_id', user_id)
       .order('created_at', { ascending: false })
       .limit(2);
 
-    if (lastLinks.data && lastLinks.data.length > 0) {
+    if (lastLinks && lastLinks.length > 0) {
       for (let i = 0; i < 2; i++) {
         try {
           const timestamp = Date.now();
           const platform = platforms[i % platforms.length];
-          const link = lastLinks.data[i % lastLinks.data.length];
+          const link = lastLinks[i % lastLinks.length];
           
           const { data, error } = await supabaseAdmin
             .from('posted_content')
