@@ -20,12 +20,14 @@ serve(async (req) => {
     console.log('=== AUTOPILOT START ===');
     console.log('User ID:', userId);
 
-    // Get active campaign
+    // Get most recent active campaign (handles multiple campaigns)
     const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
       .select('id, name')
       .eq('user_id', userId)
       .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (campaignError) {
