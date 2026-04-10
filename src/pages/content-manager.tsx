@@ -13,8 +13,6 @@ import {
   Edit, 
   Trash2, 
   Check, 
-  X, 
-  Eye,
   Calendar,
   Filter,
   RefreshCw,
@@ -28,14 +26,17 @@ import { SEO } from "@/components/SEO";
 interface GeneratedContent {
   id: string;
   user_id: string;
-  link_id: string | null;
-  content_type: string;
-  content_text: string;
-  platform: string | null;
+  campaign_id: string | null;
+  title: string;
+  body: string;
+  description: string | null;
+  type: string;
+  category: string | null;
   status: string;
-  generated_at: string;
-  hashtags: string[] | null;
-  media_urls: string[] | null;
+  views: number;
+  clicks: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function ContentManager() {
@@ -44,10 +45,10 @@ export default function ContentManager() {
   const [filteredContent, setFilteredContent] = useState<GeneratedContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingContent, setEditingContent] = useState<GeneratedContent | null>(null);
-  const [editedText, setEditedText] = useState("");
-  const [editedHashtags, setEditedHashtags] = useState("");
+  const [editedTitle, setEditedTitle] = useState("");
+  const [editedBody, setEditedBody] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export default function ContentManager() {
 
   useEffect(() => {
     filterContent();
-  }, [content, statusFilter, platformFilter, searchQuery]);
+  }, [content, statusFilter, typeFilter, searchQuery]);
 
   const loadContent = async () => {
     setLoading(true);
@@ -70,7 +71,7 @@ export default function ContentManager() {
       const { data, error } = await supabase
         .from('generated_content')
         .select('*')
-        .order('generated_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -92,16 +93,16 @@ export default function ContentManager() {
       filtered = filtered.filter(c => c.status === statusFilter);
     }
 
-    // Platform filter
-    if (platformFilter !== "all") {
-      filtered = filtered.filter(c => c.platform === platformFilter);
+    // Type filter
+    if (typeFilter !== "all") {
+      filtered = filtered.filter(c => c.type === typeFilter);
     }
 
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(c => 
-        c.content_text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.hashtags && c.hashtags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())))
+        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.body.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -110,24 +111,20 @@ export default function ContentManager() {
 
   const handleEdit = (item: GeneratedContent) => {
     setEditingContent(item);
-    setEditedText(item.content_text);
-    setEditedHashtags(item.hashtags ? item.hashtags.join(' ') : '');
+    setEditedTitle(item.title);
+    setEditedBody(item.body);
   };
 
   const handleSaveEdit = async () => {
     if (!editingContent) return;
 
     try {
-      const hashtags = editedHashtags
-        .split(' ')
-        .filter(tag => tag.trim())
-        .map(tag => tag.startsWith('#') ? tag : `#${tag}`);
-
       const { error } = await supabase
         .from('generated_content')
         .update({
-          content_text: editedText,
-          hashtags: hashtags
+          title: editedTitle,
+          body: editedBody,
+          updated_at: new Date().toISOString()
         })
         .eq('id', editingContent.id);
 
@@ -163,7 +160,7 @@ export default function ContentManager() {
     try {
       const { error } = await supabase
         .from('generated_content')
-        .update({ status: newStatus })
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', id);
 
       if (error) throw error;
@@ -177,15 +174,15 @@ export default function ContentManager() {
 
   const exportToCSV = () => {
     const csv = [
-      ['ID', 'Type', 'Platform', 'Status', 'Content', 'Hashtags', 'Generated At'],
+      ['ID', 'Type', 'Category', 'Status', 'Title', 'Body Preview', 'Created At'],
       ...filteredContent.map(c => [
         c.id,
-        c.content_type,
-        c.platform || 'N/A',
+        c.type,
+        c.category || 'N/A',
         c.status,
-        c.content_text.replace(/,/g, ';'),
-        (c.hashtags || []).join(' '),
-        new Date(c.generated_at).toLocaleString()
+        `"${c.title.replace(/"/g, '""')}"`,
+        `"${c.body.substring(0, 50).replace(/"/g, '""')}..."`,
+        new Date(c.created_at).toLocaleString()
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -254,25 +251,23 @@ export default function ContentManager() {
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="text-sm font-medium mb-2 block">Platform</label>
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                <label className="text-sm font-medium mb-2 block">Type</label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Platforms</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="tiktok">TikTok</SelectItem>
-                    <SelectItem value="twitter">Twitter</SelectItem>
-                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="review">Review</SelectItem>
+                    <SelectItem value="best-under-price">Best Under Price</SelectItem>
+                    <SelectItem value="comparison">Comparison</SelectItem>
+                    <SelectItem value="guide">Guide</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -280,7 +275,7 @@ export default function ContentManager() {
                 <Button 
                   onClick={() => {
                     setStatusFilter("all");
-                    setPlatformFilter("all");
+                    setTypeFilter("all");
                     setSearchQuery("");
                   }}
                   variant="outline"
@@ -305,9 +300,8 @@ export default function ContentManager() {
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Platform</TableHead>
+                    <TableHead>Title</TableHead>
                     <TableHead>Content Preview</TableHead>
-                    <TableHead>Hashtags</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Generated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -316,14 +310,14 @@ export default function ContentManager() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
                         <p className="text-muted-foreground">Loading content...</p>
                       </TableCell>
                     </TableRow>
                   ) : filteredContent.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <p className="text-muted-foreground">No content found. Try adjusting your filters.</p>
                       </TableCell>
                     </TableRow>
@@ -332,23 +326,13 @@ export default function ContentManager() {
                       <TableRow key={item.id}>
                         <TableCell className="font-mono text-xs">{item.id.substring(0, 8)}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{item.content_type}</Badge>
+                          <Badge variant="outline">{item.type}</Badge>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{item.platform || 'N/A'}</Badge>
+                        <TableCell className="max-w-xs font-medium truncate">
+                          {item.title}
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <p className="text-sm truncate">{item.content_text}</p>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {(item.hashtags || []).slice(0, 3).map((tag, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">{tag}</Badge>
-                            ))}
-                            {(item.hashtags || []).length > 3 && (
-                              <Badge variant="outline" className="text-xs">+{(item.hashtags || []).length - 3}</Badge>
-                            )}
-                          </div>
+                          <p className="text-sm truncate text-muted-foreground">{item.body}</p>
                         </TableCell>
                         <TableCell>
                           <Select
@@ -360,16 +344,15 @@ export default function ContentManager() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="draft">Draft</SelectItem>
-                              <SelectItem value="approved">Approved</SelectItem>
                               <SelectItem value="published">Published</SelectItem>
-                              <SelectItem value="rejected">Rejected</SelectItem>
+                              <SelectItem value="archived">Archived</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Calendar className="w-3 h-3" />
-                            {new Date(item.generated_at).toLocaleDateString()}
+                            {new Date(item.created_at).toLocaleDateString()}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -380,7 +363,7 @@ export default function ContentManager() {
                                   <Edit className="w-4 h-4" />
                                 </Button>
                               </DialogTrigger>
-                              <DialogContent className="max-w-2xl">
+                              <DialogContent className="max-w-3xl">
                                 <DialogHeader>
                                   <DialogTitle>Edit Content</DialogTitle>
                                   <DialogDescription>
@@ -389,26 +372,22 @@ export default function ContentManager() {
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                   <div>
+                                    <label className="text-sm font-medium mb-2 block">Title</label>
+                                    <Input
+                                      value={editedTitle}
+                                      onChange={(e) => setEditedTitle(e.target.value)}
+                                    />
+                                  </div>
+                                  <div>
                                     <label className="text-sm font-medium mb-2 block">Content Text</label>
                                     <Textarea
-                                      value={editedText}
-                                      onChange={(e) => setEditedText(e.target.value)}
-                                      rows={6}
+                                      value={editedBody}
+                                      onChange={(e) => setEditedBody(e.target.value)}
+                                      rows={12}
                                       className="resize-none"
                                     />
                                     <p className="text-xs text-muted-foreground mt-1">
-                                      {editedText.length} characters
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium mb-2 block">Hashtags</label>
-                                    <Input
-                                      value={editedHashtags}
-                                      onChange={(e) => setEditedHashtags(e.target.value)}
-                                      placeholder="#product #affiliate #marketing"
-                                    />
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Separate hashtags with spaces
+                                      {editedBody.length} characters
                                     </p>
                                   </div>
                                   <div className="flex justify-end gap-2 pt-4">
