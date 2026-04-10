@@ -6,9 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   Bot, 
@@ -75,7 +72,6 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    console.log('🎯 Dashboard: Component mounted, starting polling...');
     setIsMounted(true);
     
     const localState = localStorage.getItem('autopilot_active');
@@ -83,137 +79,87 @@ export default function Dashboard() {
       setAutomationActive(true);
     }
 
-    // Load immediately on mount
     loadAutopilotStatus();
     
-    // Set up polling interval
     const interval = setInterval(() => {
-      console.log('🔄 Dashboard: Polling autopilot status...');
       loadAutopilotStatus();
     }, 5000);
     
-    // Monitor autopilot activity from localStorage
     const logInterval = setInterval(() => {
       const lastRun = localStorage.getItem('autopilot_last_run');
       const lastRunTime = lastRun ? new Date(lastRun) : null;
       
       if (lastRunTime) {
         const secondsAgo = Math.floor((Date.now() - lastRunTime.getTime()) / 1000);
-        if (secondsAgo < 120) { // Within last 2 minutes
+        if (secondsAgo < 120) {
           addAutopilotLog('Autopilot cycle completed', 'success');
         }
       }
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
     return () => {
-      console.log('🛑 Dashboard: Component unmounting, clearing intervals...');
       clearInterval(interval);
       clearInterval(logInterval);
     };
-  }, []); // Empty deps = runs on mount/unmount only
+  }, []);
 
   const addAutopilotLog = (message: string, type: 'success' | 'info' | 'error') => {
     setAutopilotLogs(prev => [
       { timestamp: new Date(), message, type },
-      ...prev.slice(0, 4) // Keep only last 5 logs
+      ...prev.slice(0, 4)
     ]);
   };
 
   const loadAutopilotStatus = async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('❌ Dashboard: Auth error:', userError);
-        return;
-      }
-      if (!user) {
-        console.log('⏸️ Dashboard: No user logged in');
-        return;
-      }
+      if (userError || !user) return;
 
-      console.log('🔄 Dashboard: Loading autopilot status for user:', user.id);
-
-      // Load autopilot status
-      const { data: settings, error: settingsError } = await supabase
+      const { data: settings } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (settingsError) {
-        console.error('❌ Dashboard: Settings error:', settingsError);
-        return;
-      }
-
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
-      console.log('⚙️ Autopilot enabled:', isEnabled);
 
-      // Get ALL real counts directly from database using GET with limit(1) instead of HEAD
-      const { count: productCount, error: productError } = await supabase
+      const { count: productCount } = await supabase
         .from('affiliate_links')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      if (productError) {
-        console.error('❌ Product count error:', productError);
-      }
-
-      const { count: optimizedCount, error: optimizedError } = await supabase
+      const { count: optimizedCount } = await supabase
         .from('affiliate_links')
         .select('id', { count: 'exact' })
         .not('product_name', 'is', null)
         .limit(1);
 
-      if (optimizedError) {
-        console.error('❌ Optimized count error:', optimizedError);
-      }
-
-      const { count: contentCount, error: contentError } = await supabase
+      const { count: contentCount } = await supabase
         .from('generated_content')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      if (contentError) {
-        console.error('❌ Content count error:', contentError);
-      }
-
-      const { count: postsCount, error: postsError } = await supabase
+      const { count: postsCount } = await supabase
         .from('posted_content')
         .select('id', { count: 'exact' })
         .not('posted_at', 'is', null)
         .limit(1);
 
-      if (postsError) {
-        console.error('❌ Posts count error:', postsError);
-      }
-
-      const { count: sourcesCount, error: sourcesError } = await supabase
+      const { count: sourcesCount } = await supabase
         .from('traffic_sources')
         .select('id', { count: 'exact' })
         .eq('status', 'active')
         .limit(1);
 
-      if (sourcesError) {
-        console.error('❌ Sources count error:', sourcesError);
-      }
-
-      const { count: clicksCount, error: clicksError } = await supabase
+      const { count: clicksCount } = await supabase
         .from('click_events')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      if (clicksError) {
-        console.error('❌ Clicks count error:', clicksError);
-      }
-
-      const { data: revenueData, error: revenueError } = await supabase
+      const { data: revenueData } = await supabase
         .from('commissions')
         .select('amount');
-
-      if (revenueError) {
-        console.error('❌ Revenue error:', revenueError);
-      }
 
       const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
 
@@ -226,13 +172,11 @@ export default function Dashboard() {
         total_clicks: clicksCount || 0,
         total_revenue: totalRevenue
       };
-
-      console.log('📊 Dashboard stats loaded:', newStats);
       
       setStats(newStats);
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('❌ Error loading autopilot status:', error);
+      console.error('Error loading autopilot status:', error);
     }
   };
 
@@ -255,7 +199,6 @@ export default function Dashboard() {
 
       const newStatus = !automationActive;
       
-      // ONLY update database - Vercel Cron will handle execution
       const { error: dbError } = await supabase
         .from('user_settings')
         .upsert({
@@ -264,10 +207,7 @@ export default function Dashboard() {
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
       
-      if (dbError) {
-        console.error("Database error:", dbError);
-        throw dbError;
-      }
+      if (dbError) throw dbError;
 
       setAutomationActive(newStatus);
       localStorage.setItem('autopilot_active', newStatus ? 'true' : 'false');
@@ -422,7 +362,6 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* AUTOPILOT CONTROL - ALWAYS VISIBLE AT TOP */}
         <Card className={`border-2 transition-all duration-500 shadow-lg mb-6 ${automationActive ? 'border-green-500/50 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20' : 'border-primary/20 bg-gradient-to-r from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20'}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -526,7 +465,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* NEW: Traffic & Revenue Row */}
                     <div className="grid grid-cols-2 gap-4 pt-2">
                       <div className="bg-background/80 p-4 rounded-xl border shadow-sm">
                         <div className="text-3xl font-bold text-orange-600">{stats.total_clicks}</div>
@@ -543,7 +481,6 @@ export default function Dashboard() {
                       Last synced: {isMounted ? lastUpdate.toLocaleTimeString() : '...'}
                     </p>
 
-                    {/* ALERT: No Clicks Warning */}
                     {stats.total_clicks === 0 && stats.posts_published > 0 && (
                       <Alert className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200">
                         <AlertCircle className="w-4 h-4 text-yellow-600" />
@@ -667,7 +604,6 @@ export default function Dashboard() {
                     </Badge>
                   </div>
 
-                  {/* Autopilot Activity Log */}
                   {autopilotLogs.length > 0 && (
                     <div className="mt-4 pt-4 border-t">
                       <h4 className="text-xs font-semibold text-muted-foreground mb-2">Recent Activity</h4>
@@ -721,23 +657,6 @@ export default function Dashboard() {
                       )}
                     </div>
                   ))}
-                </div>
-
-                <div className="mt-8 border-t pt-6">
-                  <h3 className="font-semibold text-lg mb-4">Posting Schedule</h3>
-                  <div className="bg-muted/50 rounded-xl p-6 flex flex-col md:flex-row gap-6 items-center justify-between">
-                    <div className="space-y-4 w-full md:w-1/2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-base">Posts per day</Label>
-                        <Input type="number" defaultValue={2} className="w-20" />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-base">Use AI Viral Predictor</Label>
-                        <Switch defaultChecked />
-                      </div>
-                    </div>
-                    <Button size="lg" onClick={() => toast({ title: "Schedule saved!" })}>Save Schedule</Button>
-                  </div>
                 </div>
               </CardContent>
             </Card>
