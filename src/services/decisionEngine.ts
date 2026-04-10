@@ -70,7 +70,7 @@ export async function evaluatePost(postId: string, userId: string): Promise<Deci
         user_id: userId,
         entity_type: 'post',
         entity_id: postId,
-        action,
+        decision_type: action,
         reason,
         metrics: decision.metrics
       });
@@ -137,7 +137,7 @@ export async function evaluateProduct(productId: string, userId: string): Promis
         user_id: userId,
         entity_type: 'product',
         entity_id: productId,
-        action,
+        decision_type: action,
         reason,
         metrics: decision.metrics
       });
@@ -154,31 +154,25 @@ export async function evaluateProduct(productId: string, userId: string): Promis
  */
 export async function applyPostDecision(decision: Decision): Promise<boolean> {
   try {
+    const { data: post } = await supabase
+      .from('posted_content')
+      .select('priority_score')
+      .eq('id', decision.entity_id)
+      .single();
+      
+    const currentPriority = post?.priority_score || 0;
+
     if (decision.action === 'scale') {
-      // Increase posting priority
       await supabase
         .from('posted_content')
         .update({
           autopilot_state: 'scaling',
-          priority_score: supabase.raw('priority_score + 20')
+          priority_score: currentPriority + 20
         })
         .eq('id', decision.entity_id);
 
-      // Create more variants (add to queue)
-      await supabase
-        .from('autopilot_queue')
-        .insert({
-          user_id: decision.metrics.user_id,
-          action: 'create_variant',
-          entity_type: 'post',
-          entity_id: decision.entity_id,
-          priority: 90,
-          status: 'pending'
-        });
-
       return true;
     } else if (decision.action === 'kill') {
-      // Mark as killed
       await supabase
         .from('posted_content')
         .update({
@@ -189,12 +183,11 @@ export async function applyPostDecision(decision: Decision): Promise<boolean> {
 
       return true;
     } else if (decision.action === 'cooldown') {
-      // Reduce priority
       await supabase
         .from('posted_content')
         .update({
           autopilot_state: 'cooldown',
-          priority_score: supabase.raw('priority_score * 0.5')
+          priority_score: currentPriority * 0.5
         })
         .eq('id', decision.entity_id);
 
@@ -213,31 +206,26 @@ export async function applyPostDecision(decision: Decision): Promise<boolean> {
  */
 export async function applyProductDecision(decision: Decision): Promise<boolean> {
   try {
+    const { data: product } = await supabase
+      .from('affiliate_links')
+      .select('priority_score')
+      .eq('id', decision.entity_id)
+      .single();
+      
+    const currentPriority = product?.priority_score || 0;
+
     if (decision.action === 'scale') {
-      // Mark as scaling
       await supabase
         .from('affiliate_links')
         .update({
           autopilot_state: 'scaling',
           last_scaled_at: new Date().toISOString(),
-          priority_score: supabase.raw('priority_score + 30')
+          priority_score: currentPriority + 30
         })
         .eq('id', decision.entity_id);
 
-      // Add to high-priority content generation queue
-      await supabase
-        .from('autopilot_queue')
-        .insert({
-          action: 'generate_content',
-          entity_type: 'product',
-          entity_id: decision.entity_id,
-          priority: 95,
-          status: 'pending'
-        });
-
       return true;
     } else if (decision.action === 'kill') {
-      // Mark as killed
       await supabase
         .from('affiliate_links')
         .update({
@@ -250,12 +238,11 @@ export async function applyProductDecision(decision: Decision): Promise<boolean>
 
       return true;
     } else if (decision.action === 'cooldown') {
-      // Reduce activity
       await supabase
         .from('affiliate_links')
         .update({
           autopilot_state: 'cooldown',
-          priority_score: supabase.raw('priority_score * 0.5')
+          priority_score: currentPriority * 0.5
         })
         .eq('id', decision.entity_id);
 
@@ -288,8 +275,8 @@ export async function getAIRecommendation(userId: string): Promise<string[]> {
     const recommendations: string[] = [];
 
     // Count actions
-    const scales = decisions.filter(d => d.action === 'scale').length;
-    const kills = decisions.filter(d => d.action === 'kill').length;
+    const scales = decisions.filter(d => d.decision_type === 'scale').length;
+    const kills = decisions.filter(d => d.decision_type === 'kill').length;
 
     if (scales > 3) {
       recommendations.push(`🚀 ${scales} items are scaling now — generating more content for winners`);
@@ -300,7 +287,7 @@ export async function getAIRecommendation(userId: string): Promise<string[]> {
     }
 
     // Recent scale
-    const recentScale = decisions.find(d => d.action === 'scale');
+    const recentScale = decisions.find(d => d.decision_type === 'scale');
     if (recentScale) {
       recommendations.push(`✅ "${recentScale.reason}" — autopilot is optimizing`);
     }
