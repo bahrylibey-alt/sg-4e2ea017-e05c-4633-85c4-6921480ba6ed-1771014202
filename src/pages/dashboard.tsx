@@ -75,14 +75,22 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    console.log('🎯 Dashboard: Component mounted, starting polling...');
     setIsMounted(true);
+    
     const localState = localStorage.getItem('autopilot_active');
     if (localState === 'true') {
       setAutomationActive(true);
     }
 
+    // Load immediately on mount
     loadAutopilotStatus();
-    const interval = setInterval(loadAutopilotStatus, 5000);
+    
+    // Set up polling interval
+    const interval = setInterval(() => {
+      console.log('🔄 Dashboard: Polling autopilot status...');
+      loadAutopilotStatus();
+    }, 5000);
     
     // Monitor autopilot activity from localStorage
     const logInterval = setInterval(() => {
@@ -98,10 +106,11 @@ export default function Dashboard() {
     }, 30000); // Check every 30 seconds
 
     return () => {
+      console.log('🛑 Dashboard: Component unmounting, clearing intervals...');
       clearInterval(interval);
       clearInterval(logInterval);
     };
-  }, []);
+  }, []); // Empty deps = runs on mount/unmount only
 
   const addAutopilotLog = (message: string, type: 'success' | 'info' | 'error') => {
     setAutopilotLogs(prev => [
@@ -112,59 +121,99 @@ export default function Dashboard() {
 
   const loadAutopilotStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('❌ Dashboard: Auth error:', userError);
+        return;
+      }
+      if (!user) {
+        console.log('⏸️ Dashboard: No user logged in');
+        return;
+      }
 
-      console.log('🔄 Dashboard: Loading autopilot status...');
+      console.log('🔄 Dashboard: Loading autopilot status for user:', user.id);
 
       // Load autopilot status
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsError } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      if (settingsError) {
+        console.error('❌ Dashboard: Settings error:', settingsError);
+        return;
+      }
 
       const isEnabled = settings?.autopilot_enabled || false;
       setAutomationActive(isEnabled);
       console.log('⚙️ Autopilot enabled:', isEnabled);
 
       // Get ALL real counts directly from database using GET with limit(1) instead of HEAD
-      const { count: productCount } = await supabase
+      const { count: productCount, error: productError } = await supabase
         .from('affiliate_links')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      const { count: optimizedCount } = await supabase
+      if (productError) {
+        console.error('❌ Product count error:', productError);
+      }
+
+      const { count: optimizedCount, error: optimizedError } = await supabase
         .from('affiliate_links')
         .select('id', { count: 'exact' })
         .not('product_name', 'is', null)
         .limit(1);
 
-      const { count: contentCount } = await supabase
+      if (optimizedError) {
+        console.error('❌ Optimized count error:', optimizedError);
+      }
+
+      const { count: contentCount, error: contentError } = await supabase
         .from('generated_content')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      const { count: postsCount } = await supabase
+      if (contentError) {
+        console.error('❌ Content count error:', contentError);
+      }
+
+      const { count: postsCount, error: postsError } = await supabase
         .from('posted_content')
         .select('id', { count: 'exact' })
         .not('posted_at', 'is', null)
         .limit(1);
 
-      const { count: sourcesCount } = await supabase
+      if (postsError) {
+        console.error('❌ Posts count error:', postsError);
+      }
+
+      const { count: sourcesCount, error: sourcesError } = await supabase
         .from('traffic_sources')
         .select('id', { count: 'exact' })
         .eq('status', 'active')
         .limit(1);
 
-      const { count: clicksCount } = await supabase
+      if (sourcesError) {
+        console.error('❌ Sources count error:', sourcesError);
+      }
+
+      const { count: clicksCount, error: clicksError } = await supabase
         .from('click_events')
         .select('id', { count: 'exact' })
         .limit(1);
 
-      const { data: revenueData } = await supabase
+      if (clicksError) {
+        console.error('❌ Clicks count error:', clicksError);
+      }
+
+      const { data: revenueData, error: revenueError } = await supabase
         .from('commissions')
         .select('amount');
+
+      if (revenueError) {
+        console.error('❌ Revenue error:', revenueError);
+      }
 
       const totalRevenue = revenueData?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0;
 
