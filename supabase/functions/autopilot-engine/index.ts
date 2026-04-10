@@ -65,7 +65,7 @@ serve(async (req) => {
       results.errors.push(`Products error: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - FIXED STATUS VALUE
+    // 2. GENERATE CONTENT (2 per cycle) - FIXED STATUS TO 'published'
     try {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -85,7 +85,7 @@ serve(async (req) => {
             body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
             type: 'review',
             category: 'product',
-            status: 'draft', // FIXED: Using 'draft' instead of 'generated'
+            status: 'published', // FIXED: Using 'published' status
             metadata: {}
           };
 
@@ -115,10 +115,7 @@ serve(async (req) => {
 
       if (posts && posts.length > 0) {
         results.posts_scored = posts.length;
-
-        // Apply simple decision logic based on performance
-        const decisionsToMake = Math.min(5, posts.length);
-        results.decisions_applied = decisionsToMake;
+        results.decisions_applied = Math.min(5, posts.length);
       }
     } catch (error: any) {
       results.errors.push(`Scoring error: ${error.message}`);
