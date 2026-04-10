@@ -422,6 +422,44 @@ export default function Dashboard() {
           </Button>
         </div>
 
+        {/* AUTOPILOT CONTROL - ALWAYS VISIBLE AT TOP */}
+        <Card className={`border-2 transition-all duration-500 shadow-lg mb-6 ${automationActive ? 'border-green-500/50 bg-gradient-to-r from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20' : 'border-primary/20 bg-gradient-to-r from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20'}`}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-4 h-4 rounded-full shadow-sm ${automationActive ? 'bg-green-500 animate-pulse shadow-green-500/50' : 'bg-gray-400'}`} />
+                <CardTitle className="text-xl">AI Autopilot Control</CardTitle>
+              </div>
+              <Badge variant={automationActive ? "default" : "secondary"} className={`text-sm py-1 px-3 ${automationActive ? 'bg-green-500 hover:bg-green-600' : ''}`}>
+                {automationActive ? '🟢 ACTIVE' : '⚫ STOPPED'}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+            <Button 
+              size="lg" 
+              onClick={toggleAutopilot}
+              disabled={isLaunching}
+              className={`w-full sm:w-auto min-w-[200px] text-lg font-bold shadow-lg transition-all ${automationActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+            >
+              {isLaunching ? (
+                <><Clock className="w-5 h-5 mr-2 animate-spin" /> Processing...</>
+              ) : automationActive ? (
+                <><XCircle className="w-5 h-5 mr-2" /> STOP AUTOPILOT</>
+              ) : (
+                <><Zap className="w-5 h-5 mr-2" /> START AUTOPILOT</>
+              )}
+            </Button>
+            <div className="flex-1 text-sm text-muted-foreground">
+              {automationActive ? (
+                <p>✅ Running every 2 minutes | Last run: {isMounted ? Math.floor((Date.now() - lastUpdate.getTime()) / 60000) : '...'} min ago</p>
+              ) : (
+                <p>Click START to enable automatic product discovery, content generation, and posting.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full h-auto p-1 bg-muted/50">
             <TabsTrigger value="autopilot" className="py-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">
