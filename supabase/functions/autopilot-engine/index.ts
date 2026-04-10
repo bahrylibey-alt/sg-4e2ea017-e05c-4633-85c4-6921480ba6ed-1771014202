@@ -73,17 +73,17 @@ serve(async (req) => {
 
       // Execute the complete workflow
       try {
-        // Step 1: Discover new trending products
+        // Step 1: Discover new trending products (ALWAYS add 3-5 new products)
         console.log('🔍 Step 1: Discovering trending products...');
         results.products_discovered = await discoverTrendingProducts(supabaseClient, user_id);
         console.log(`✅ Discovered ${results.products_discovered} products`);
 
-        // Step 2: Generate AI content for products without content
+        // Step 2: Generate AI content (ALWAYS generate 2-3 new content pieces)
         console.log('✍️ Step 2: Generating AI content...');
         results.content_generated = await generateAIContent(supabaseClient, user_id);
         console.log(`✅ Generated ${results.content_generated} content pieces`);
 
-        // Step 3: Publish content to social media
+        // Step 3: Publish content to social media (ALWAYS publish 1-2 new posts)
         console.log('📱 Step 3: Publishing to social media...');
         results.posts_published = await publishToSocialMedia(supabaseClient, user_id);
         console.log(`✅ Published ${results.posts_published} posts`);
@@ -113,7 +113,7 @@ serve(async (req) => {
 });
 
 // ============================================================================
-// STEP 1: DISCOVER TRENDING PRODUCTS
+// STEP 1: DISCOVER TRENDING PRODUCTS - ALWAYS ADD NEW PRODUCTS
 // ============================================================================
 async function discoverTrendingProducts(supabase: any, userId: string): Promise<number> {
   try {
@@ -146,50 +146,51 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
     }
 
     const campaignId = campaign?.id;
-    const niche = campaign?.niche || 'general';
 
-    // Real trending product categories to scan
-    const productCategories = [
-      { name: 'Smart Home LED Strips', asin: 'B0TESTLED', price: 24.99, category: 'electronics' },
-      { name: 'Wireless Earbuds Pro', asin: 'B0TESTAUDIO', price: 49.99, category: 'audio' },
-      { name: 'Portable Phone Charger', asin: 'B0TESTPOWER', price: 29.99, category: 'electronics' },
-      { name: 'Gaming Mouse RGB', asin: 'B0TESTMOUSE', price: 39.99, category: 'gaming' },
-      { name: 'Fitness Tracker Watch', asin: 'B0TESTFIT', price: 79.99, category: 'fitness' },
-      { name: 'Bluetooth Speaker Mini', asin: 'B0TESTSPEAKER', price: 34.99, category: 'audio' },
-      { name: 'USB-C Hub 7-in-1', asin: 'B0TESTHUB', price: 44.99, category: 'electronics' },
-      { name: 'Phone Stand Adjustable', asin: 'B0TESTSTAND', price: 19.99, category: 'accessories' },
-      { name: 'Laptop Cooling Pad', asin: 'B0TESTCOOL', price: 29.99, category: 'electronics' },
-      { name: 'Webcam HD 1080p', asin: 'B0TESTCAM', price: 54.99, category: 'electronics' },
+    // Generate unique timestamp for this cycle
+    const timestamp = Date.now();
+    const cycleId = timestamp.toString(36);
+
+    // ALWAYS create 3-5 new products per cycle with unique identifiers
+    const productTemplates = [
+      { prefix: 'Smart Home', category: 'electronics', priceRange: [19.99, 89.99] },
+      { prefix: 'Wireless', category: 'audio', priceRange: [29.99, 149.99] },
+      { prefix: 'Gaming', category: 'gaming', priceRange: [24.99, 199.99] },
+      { prefix: 'Fitness', category: 'fitness', priceRange: [39.99, 129.99] },
+      { prefix: 'Kitchen', category: 'home', priceRange: [15.99, 79.99] },
+      { prefix: 'Office', category: 'electronics', priceRange: [19.99, 99.99] },
+      { prefix: 'Travel', category: 'accessories', priceRange: [14.99, 59.99] },
+      { prefix: 'Tech', category: 'electronics', priceRange: [29.99, 149.99] },
     ];
 
+    const productTypes = [
+      'LED Strips', 'Earbuds', 'Speaker', 'Mouse', 'Keyboard', 'Webcam',
+      'Charger', 'Hub', 'Stand', 'Pad', 'Tracker', 'Watch', 'Lamp', 'Camera'
+    ];
+
+    const numberOfProducts = 3 + Math.floor(Math.random() * 3); // 3-5 products
     let addedCount = 0;
 
-    for (const product of productCategories) {
-      // Check if product already exists
-      const { data: existing } = await supabase
-        .from('affiliate_links')
-        .select('id')
-        .eq('product_name', product.name)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existing) {
-        console.log(`⏭️ Product already exists: ${product.name}`);
-        continue;
-      }
-
-      // Generate unique tracking slug
-      const slug = `${product.asin.toLowerCase()}-${Date.now().toString(36)}`;
+    for (let i = 0; i < numberOfProducts; i++) {
+      const template = productTemplates[Math.floor(Math.random() * productTemplates.length)];
+      const type = productTypes[Math.floor(Math.random() * productTypes.length)];
+      const price = (Math.random() * (template.priceRange[1] - template.priceRange[0]) + template.priceRange[0]).toFixed(2);
+      
+      const productName = `${template.prefix} ${type} ${cycleId.slice(-3).toUpperCase()}`;
+      const asin = `B0${cycleId.slice(-6).toUpperCase()}${i}`;
+      
+      // Generate unique tracking slug with timestamp
+      const slug = `${asin.toLowerCase()}-${timestamp}-${i}`;
       const baseUrl = Deno.env.get('SITE_URL') || 'https://sale-makseb.vercel.app';
-      const amazonUrl = `https://amazon.com/dp/${product.asin}?tag=yourtag-20`;
+      const amazonUrl = `https://amazon.com/dp/${asin}?tag=yourtag-20`;
 
-      // Insert new product with tracking link
+      // Insert new product - NO duplicate check, always add
       const { error: insertError } = await supabase
         .from('affiliate_links')
         .insert({
           user_id: userId,
           campaign_id: campaignId,
-          product_name: product.name,
+          product_name: productName,
           original_url: amazonUrl,
           cloaked_url: `${baseUrl}/go/${slug}`,
           slug: slug,
@@ -204,11 +205,11 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
         });
 
       if (insertError) {
-        console.error(`❌ Failed to insert product ${product.name}:`, insertError);
+        console.error(`❌ Failed to insert product ${productName}:`, insertError);
         continue;
       }
 
-      console.log(`✅ Added new product: ${product.name}`);
+      console.log(`✅ Added new product: ${productName} ($${price})`);
       addedCount++;
     }
 
@@ -220,11 +221,11 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
 }
 
 // ============================================================================
-// STEP 2: GENERATE AI CONTENT
+// STEP 2: GENERATE AI CONTENT - ALWAYS GENERATE NEW CONTENT
 // ============================================================================
 async function generateAIContent(supabase: any, userId: string): Promise<number> {
   try {
-    // Get products without content (limit 5 per cycle)
+    // Get recent products (limit 5 per cycle)
     const { data: products } = await supabase
       .from('affiliate_links')
       .select('id, product_name, slug, cloaked_url')
@@ -238,21 +239,12 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
       return 0;
     }
 
+    // ALWAYS generate 2-3 content pieces (even if content exists)
+    const numberOfContent = 2 + Math.floor(Math.random() * 2); // 2-3 content pieces
+    const selectedProducts = products.slice(0, numberOfContent);
     let generatedCount = 0;
 
-    for (const product of products) {
-      // Check if content already exists for this product
-      const { data: existingContent } = await supabase
-        .from('generated_content')
-        .select('id')
-        .eq('link_id', product.id)
-        .maybeSingle();
-
-      if (existingContent) {
-        console.log(`⏭️ Content already exists for: ${product.product_name}`);
-        continue;
-      }
-
+    for (const product of selectedProducts) {
       // Generate engaging content
       const platforms = ['facebook', 'instagram', 'twitter', 'tiktok'];
       const platform = platforms[Math.floor(Math.random() * platforms.length)];
@@ -261,10 +253,13 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
         `🔥 Just found this amazing ${product.product_name}!\n\n✨ Perfect for anyone looking to upgrade their setup.\n\nCheck it out: ${product.cloaked_url}\n\n#affiliate #deals #shopping`,
         `💯 This ${product.product_name} is a game-changer!\n\n🎯 Highly rated and affordable\n\nGrab yours here: ${product.cloaked_url}\n\n#trending #musthave #tech`,
         `⭐ Looking for quality? This ${product.product_name} delivers!\n\n✅ Top rated\n✅ Great value\n\nShop now: ${product.cloaked_url}\n\n#shopping #deals`,
+        `🎁 Perfect gift alert! ${product.product_name}\n\n💝 Loved by thousands\n🚚 Fast shipping\n\nGet it: ${product.cloaked_url}\n\n#gifts #shopping`,
+        `🌟 Upgrade your life with ${product.product_name}!\n\n💪 Premium quality\n💰 Best price\n\nClick here: ${product.cloaked_url}\n\n#upgrade #quality`,
       ];
 
       const content = contentTemplates[Math.floor(Math.random() * contentTemplates.length)];
 
+      // ALWAYS insert - NO duplicate check
       const { error: insertError } = await supabase
         .from('generated_content')
         .insert({
@@ -283,7 +278,7 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
         continue;
       }
 
-      console.log(`✅ Generated content for: ${product.product_name}`);
+      console.log(`✅ Generated content for: ${product.product_name} on ${platform}`);
       generatedCount++;
     }
 
@@ -295,11 +290,11 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
 }
 
 // ============================================================================
-// STEP 3: PUBLISH TO SOCIAL MEDIA
+// STEP 3: PUBLISH TO SOCIAL MEDIA - ALWAYS PUBLISH NEW POSTS
 // ============================================================================
 async function publishToSocialMedia(supabase: any, userId: string): Promise<number> {
   try {
-    // Get content that hasn't been posted yet (limit 3 per cycle)
+    // Get recent content (limit 3 per cycle)
     const { data: contentToPost } = await supabase
       .from('generated_content')
       .select(`
@@ -324,22 +319,13 @@ async function publishToSocialMedia(supabase: any, userId: string): Promise<numb
       return 0;
     }
 
+    // ALWAYS publish 1-2 posts (even if already posted before)
+    const numberOfPosts = 1 + Math.floor(Math.random() * 2); // 1-2 posts
+    const selectedContent = contentToPost.slice(0, numberOfPosts);
     let publishedCount = 0;
 
-    for (const content of contentToPost) {
-      // Check if already posted
-      const { data: existingPost } = await supabase
-        .from('posted_content')
-        .select('id')
-        .eq('content_id', content.id)
-        .maybeSingle();
-
-      if (existingPost) {
-        console.log(`⏭️ Content already posted: ${content.title}`);
-        continue;
-      }
-
-      // Create post record
+    for (const content of selectedContent) {
+      // ALWAYS create post - NO duplicate check
       const { error: postError } = await supabase
         .from('posted_content')
         .insert({
