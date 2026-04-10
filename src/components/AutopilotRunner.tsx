@@ -1,53 +1,61 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * AutopilotRunner - Status Display Component (Read-Only)
+ * AutopilotRunner - Hybrid Autopilot System
  * 
- * This component ONLY displays autopilot status from the database.
- * It does NOT execute the autopilot - that runs server-side via Vercel Cron.
+ * TWO EXECUTION MODES:
  * 
- * Autopilot execution happens in:
- * - /api/cron/autopilot (Vercel Cron - every 2 minutes)
- * - /api/autopilot/trigger (can be called by external cron services)
+ * 1. BROWSER MODE (Development/Testing):
+ *    - Runs while dashboard is open
+ *    - Executes workflow every 2 minutes
+ *    - Stops when you navigate away or close tab
+ *    - Good for immediate testing and seeing results
  * 
- * This component simply monitors the database and updates localStorage
- * so the UI can show current status.
+ * 2. SERVER MODE (Production):
+ *    - Runs on Vercel servers via Cron Job
+ *    - Executes every 2 minutes 24/7
+ *    - Never stops (even when browser is closed)
+ *    - Requires deployment to Vercel
+ * 
+ * This component handles BOTH modes intelligently.
  */
 export function AutopilotRunner() {
-  useEffect(() => {
-    console.log('📊 AutopilotRunner: Starting status monitoring (read-only)...');
-    
-    let intervalId: NodeJS.Timeout | null = null;
-    let checkInProgress = false;
+  const [isRunning, setIsRunning] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const executionInProgress = useRef(false);
 
-    const checkAutopilotStatus = async () => {
-      // Prevent overlapping checks
-      if (checkInProgress) {
-        console.log('⏭️ AutopilotRunner: Check already in progress, skipping...');
+  useEffect(() => {
+    console.log('🤖 AutopilotRunner: Initializing hybrid autopilot system...');
+
+    let statusCheckInterval: NodeJS.Timeout | null = null;
+
+    const checkAndExecute = async () => {
+      // Prevent overlapping executions
+      if (executionInProgress.current) {
+        console.log('⏭️ AutopilotRunner: Execution in progress, skipping...');
         return;
       }
 
-      checkInProgress = true;
-
       try {
-        // Use getSession() instead of getUser() to avoid Navigator lock
+        executionInProgress.current = true;
+
+        // Check if user is logged in
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('❌ AutopilotRunner: Session error:', sessionError);
-          checkInProgress = false;
           return;
         }
 
         const user = sessionData?.session?.user;
         if (!user) {
-          console.log('ℹ️ AutopilotRunner: No user session');
-          checkInProgress = false;
+          console.log('⏸️ AutopilotRunner: No user session, skipping execution');
+          setIsRunning(false);
           return;
         }
 
-        // Check database for autopilot status
+        // Check if autopilot is enabled in database
         const { data: settings, error: settingsError } = await supabase
           .from('user_settings')
           .select('autopilot_enabled, last_autopilot_run')
@@ -56,42 +64,128 @@ export function AutopilotRunner() {
 
         if (settingsError) {
           console.error('❌ AutopilotRunner: Settings error:', settingsError);
-          checkInProgress = false;
           return;
         }
 
-        if (settings) {
-          // Update localStorage for UI display
-          localStorage.setItem('autopilot_active', settings.autopilot_enabled ? 'true' : 'false');
+        if (!settings || !settings.autopilot_enabled) {
+          console.log('⏸️ AutopilotRunner: Autopilot is disabled');
+          setIsRunning(false);
           
-          if (settings.last_autopilot_run) {
-            localStorage.setItem('autopilot_last_run', settings.last_autopilot_run);
+          // Update localStorage
+          localStorage.setItem('autopilot_active', 'false');
+          
+          // Clear execution interval if it exists
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
           }
-
-          console.log('📊 Autopilot Status:', {
-            enabled: settings.autopilot_enabled,
-            last_run: settings.last_autopilot_run
-          });
+          
+          return;
         }
+
+        console.log('✅ AutopilotRunner: Autopilot is enabled - checking execution mode...');
+        setIsRunning(true);
+        
+        // Update localStorage
+        localStorage.setItem('autopilot_active', 'true');
+        if (settings.last_autopilot_run) {
+          localStorage.setItem('autopilot_last_run', settings.last_autopilot_run);
+        }
+
+        // Check if we're in production (Vercel deployment)
+        const isProduction = typeof window !== 'undefined' && 
+          window.location.hostname !== 'localhost' && 
+          !window.location.hostname.includes('softgen');
+
+        if (isProduction) {
+          // PRODUCTION: Vercel Cron handles execution, we just monitor status
+          console.log('🌐 AutopilotRunner: Running in PRODUCTION mode - Vercel Cron handles execution');
+          return;
+        }
+
+        // DEVELOPMENT: Browser handles execution
+        console.log('💻 AutopilotRunner: Running in DEVELOPMENT mode - Browser handles execution');
+
+        // Check if enough time has passed since last run (2 minutes = 120 seconds)
+        const timeSinceLastRun = settings.last_autopilot_run 
+          ? (Date.now() - new Date(settings.last_autopilot_run).getTime()) / 1000
+          : 999999;
+
+        if (timeSinceLastRun < 120) {
+          console.log(`⏰ AutopilotRunner: Last run was ${Math.floor(timeSinceLastRun)}s ago, waiting...`);
+          return;
+        }
+
+        console.log('🚀 AutopilotRunner: Executing autopilot workflow...');
+
+        // Call the Edge Function to execute autopilot workflow
+        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+          body: { 
+            action: 'run_cycle',
+            user_id: user.id 
+          }
+        });
+
+        if (error) {
+          console.error('❌ AutopilotRunner: Edge Function error:', error);
+          localStorage.setItem('autopilot_last_error', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            error: error.message
+          }));
+        } else {
+          console.log('✅ AutopilotRunner: Workflow executed successfully:', data);
+          
+          // Store success timestamp
+          localStorage.setItem('autopilot_last_run', new Date().toISOString());
+          localStorage.removeItem('autopilot_last_error');
+          
+          // Update database
+          await supabase
+            .from('user_settings')
+            .update({ last_autopilot_run: new Date().toISOString() })
+            .eq('user_id', user.id);
+
+          // Log to autopilot_cron_log
+          await supabase
+            .from('autopilot_cron_log')
+            .insert({
+              user_id: user.id,
+              status: 'success',
+              results: data,
+              created_at: new Date().toISOString()
+            });
+
+          console.log('📊 AutopilotRunner: Database updated with execution results');
+        }
+
       } catch (error) {
-        console.error('❌ AutopilotRunner: Error checking status:', error);
+        console.error('❌ AutopilotRunner: Unexpected error:', error);
       } finally {
-        checkInProgress = false;
+        executionInProgress.current = false;
       }
     };
 
-    // Check status immediately on mount
-    checkAutopilotStatus();
+    // Start execution interval (runs every 30 seconds, checks if 2 minutes have passed)
+    intervalRef.current = setInterval(() => {
+      console.log('🔄 AutopilotRunner: Checking if execution is needed...');
+      checkAndExecute();
+    }, 30000); // Check every 30 seconds
 
-    // Then check every 60 seconds (not too frequent to avoid conflicts)
-    intervalId = setInterval(checkAutopilotStatus, 60000);
+    // Also check immediately on mount
+    checkAndExecute();
 
+    // Cleanup on unmount
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+      console.log('🛑 AutopilotRunner: Component unmounting, clearing interval...');
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      checkInProgress = false;
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+      }
+      executionInProgress.current = false;
     };
   }, []); // Empty dependency array - runs once on app mount
 
