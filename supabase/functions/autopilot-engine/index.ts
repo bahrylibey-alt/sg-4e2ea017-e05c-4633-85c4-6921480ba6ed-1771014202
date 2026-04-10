@@ -73,7 +73,7 @@ serve(async (req) => {
       results.errors.push(`Products: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - LET DATABASE USE DEFAULT STATUS
+    // 2. GENERATE CONTENT (2 per cycle) - NO STATUS COLUMN!
     try {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -94,7 +94,7 @@ serve(async (req) => {
               body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
               type: 'review',
               category: 'product'
-              // Removed status - let database use default value
+              // NO status - let database use default
             });
 
           if (contentError) {
