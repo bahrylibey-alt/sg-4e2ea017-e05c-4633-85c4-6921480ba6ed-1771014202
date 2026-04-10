@@ -59,12 +59,9 @@ export function AutopilotRunner() {
         console.log('✅ Autopilot enabled - running cycle...');
         setIsRunning(true);
 
-        // Execute autopilot cycle
+        // Execute autopilot cycle with correct payload format
         const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-          body: { 
-            action: 'run_cycle',
-            user_id: user.id 
-          }
+          body: { userId: user.id }
         });
 
         if (error) {
@@ -84,7 +81,7 @@ export function AutopilotRunner() {
             .insert({
               user_id: user.id,
               status: 'success',
-              results: data,
+              results: data?.results,
               created_at: new Date().toISOString()
             });
         }

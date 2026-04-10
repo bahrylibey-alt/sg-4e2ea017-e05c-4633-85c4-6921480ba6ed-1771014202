@@ -17,105 +17,139 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { userId } = await req.json();
-    console.log('Starting autopilot for user:', userId);
+    console.log('=== AUTOPILOT START ===');
+    console.log('User ID:', userId);
 
     // Get active campaign
-    const { data: campaign } = await supabase
+    const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
-      .select('id')
+      .select('id, campaign_name')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
+    if (campaignError) {
+      console.error('Campaign fetch error:', campaignError);
+      throw new Error(`Campaign error: ${campaignError.message}`);
+    }
+
     if (!campaign) {
+      console.error('No active campaign found');
       return new Response(
         JSON.stringify({ error: 'No active campaign found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
       );
     }
 
+    console.log('Campaign found:', campaign.campaign_name, '- ID:', campaign.id);
+
     let productsCreated = 0;
     let contentCreated = 0;
     let postsCreated = 0;
+    const errors: string[] = [];
 
     // 1. CREATE PRODUCTS (3 products)
-    console.log('Creating products...');
+    console.log('\n--- CREATING PRODUCTS ---');
     for (let i = 0; i < 3; i++) {
-      const productName = `AutoProduct ${Date.now()}-${i}`;
+      const timestamp = Date.now();
+      const productData = {
+        user_id: userId,
+        campaign_id: campaign.id,
+        product_name: `AutoProduct ${timestamp}-${i}`,
+        product_url: `https://amazon.com/product-${timestamp}-${i}`,
+        affiliate_url: `https://amzn.to/${timestamp}-${i}`,
+        network: 'amazon',
+        commission_rate: 5.0,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        status: 'active'
+      };
+
+      console.log(`Creating product ${i + 1}:`, productData.product_name);
+      
       const { data: product, error: productError } = await supabase
         .from('affiliate_links')
-        .insert({
-          user_id: userId,
-          campaign_id: campaign.id,
-          product_name: productName,
-          product_url: `https://amazon.com/product-${Date.now()}-${i}`,
-          affiliate_url: `https://amzn.to/${Date.now()}-${i}`,
-          network: 'amazon',
-          commission_rate: 5.0,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
-          status: 'active'
-        })
-        .select('id')
+        .insert(productData)
+        .select('id, product_name')
         .maybeSingle();
 
       if (productError) {
-        console.error('Product creation error:', productError);
+        console.error(`Product ${i + 1} error:`, productError);
+        errors.push(`Product ${i + 1}: ${productError.message}`);
       } else if (product) {
         productsCreated++;
-        console.log('Product created:', productName);
+        console.log(`✓ Product ${i + 1} created:`, product.product_name);
+      } else {
+        console.error(`Product ${i + 1} created but returned null`);
+        errors.push(`Product ${i + 1}: Returned null`);
       }
     }
 
     // 2. CREATE CONTENT (2 pieces)
-    console.log('Creating content...');
+    console.log('\n--- CREATING CONTENT ---');
     for (let i = 0; i < 2; i++) {
-      const title = `AutoContent ${Date.now()}-${i}`;
+      const timestamp = Date.now();
+      const contentData = {
+        user_id: userId,
+        campaign_id: campaign.id,
+        title: `AutoContent ${timestamp}-${i}`,
+        body: `This is auto-generated content body ${i + 1}. Created by autopilot engine at ${new Date().toISOString()}.`,
+        type: 'blog',
+        category: 'general',
+        status: 'approved'
+      };
+
+      console.log(`Creating content ${i + 1}:`, contentData.title);
+
       const { data: content, error: contentError } = await supabase
         .from('generated_content')
-        .insert({
-          user_id: userId,
-          campaign_id: campaign.id,
-          title: title,
-          body: `This is auto-generated content body ${i + 1}. Created by autopilot engine.`,
-          type: 'blog',
-          category: 'general',
-          status: 'approved'
-        })
-        .select('id')
+        .insert(contentData)
+        .select('id, title')
         .maybeSingle();
 
       if (contentError) {
-        console.error('Content creation error:', contentError);
+        console.error(`Content ${i + 1} error:`, contentError);
+        errors.push(`Content ${i + 1}: ${contentError.message}`);
       } else if (content) {
         contentCreated++;
-        console.log('Content created:', title);
+        console.log(`✓ Content ${i + 1} created:`, content.title);
+      } else {
+        console.error(`Content ${i + 1} created but returned null`);
+        errors.push(`Content ${i + 1}: Returned null`);
       }
     }
 
     // 3. CREATE POSTS (2 posts)
-    console.log('Creating posts...');
+    console.log('\n--- CREATING POSTS ---');
     for (let i = 0; i < 2; i++) {
-      const caption = `AutoPost ${Date.now()}-${i}`;
+      const timestamp = Date.now();
+      const postData = {
+        user_id: userId,
+        platform: i % 2 === 0 ? 'facebook' : 'instagram',
+        post_type: 'image',
+        caption: `AutoPost ${timestamp}-${i} - Check out this amazing product! #affiliate #automated`,
+        status: 'posted',
+        posted_at: new Date().toISOString()
+      };
+
+      console.log(`Creating post ${i + 1}:`, postData.caption.substring(0, 50));
+
       const { data: post, error: postError } = await supabase
         .from('posted_content')
-        .insert({
-          user_id: userId,
-          platform: i % 2 === 0 ? 'facebook' : 'instagram',
-          post_type: 'image',
-          caption: caption,
-          status: 'posted',
-          posted_at: new Date().toISOString()
-        })
-        .select('id')
+        .insert(postData)
+        .select('id, caption')
         .maybeSingle();
 
       if (postError) {
-        console.error('Post creation error:', postError);
+        console.error(`Post ${i + 1} error:`, postError);
+        errors.push(`Post ${i + 1}: ${postError.message}`);
       } else if (post) {
         postsCreated++;
-        console.log('Post created:', caption);
+        console.log(`✓ Post ${i + 1} created:`, post.caption.substring(0, 50));
+      } else {
+        console.error(`Post ${i + 1} created but returned null`);
+        errors.push(`Post ${i + 1}: Returned null`);
       }
     }
 
@@ -123,10 +157,12 @@ serve(async (req) => {
     const results = {
       products_discovered: productsCreated,
       content_generated: contentCreated,
-      posts_published: postsCreated
+      posts_published: postsCreated,
+      errors: errors.length > 0 ? errors : undefined
     };
 
-    console.log('Autopilot results:', results);
+    console.log('\n=== AUTOPILOT COMPLETE ===');
+    console.log('Results:', results);
 
     const { error: logError } = await supabase
       .from('autopilot_cron_log')
@@ -152,7 +188,8 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Fatal error:', error);
+    console.error('=== FATAL ERROR ===');
+    console.error(error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}

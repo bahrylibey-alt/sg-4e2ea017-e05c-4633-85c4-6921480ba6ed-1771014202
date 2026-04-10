@@ -57,28 +57,32 @@ export function AutopilotDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({ title: "Error", description: "Please log in first", variant: "destructive" });
+        setIsEnabled(false);
+        setIsRunning(false);
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { 
-          action: enabled ? 'start' : 'stop',
-          user_id: user.id
-        }
-      });
+      // Update user settings
+      const { error: settingsError } = await supabase
+        .from('user_settings')
+        .update({ autopilot_enabled: enabled })
+        .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (settingsError) {
+        console.error('Settings update error:', settingsError);
+      }
 
       toast({
         title: enabled ? "Autopilot Started" : "Autopilot Stopped",
-        description: data?.message || (enabled ? "Running in the background" : "System stopped"),
+        description: enabled ? "Running in the background every 30 seconds" : "System stopped",
       });
 
       if (enabled) {
-        await loadStats();
+        // Trigger first run immediately
+        handleRunNow();
       }
     } catch (error: any) {
-      console.error('Autopilot error:', error);
+      console.error('Autopilot toggle error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to toggle autopilot",
@@ -106,13 +110,13 @@ export function AutopilotDashboard() {
       });
 
       const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { 
-          action: 'run_cycle',
-          user_id: user.id
-        }
+        body: { userId: user.id }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Autopilot error:', error);
+        throw error;
+      }
 
       console.log('Autopilot cycle result:', data);
 
@@ -126,8 +130,8 @@ export function AutopilotDashboard() {
     } catch (error: any) {
       console.error('Run now error:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to run cycle",
+        title: "Autopilot Error",
+        description: error.message || "Failed to run cycle. Check console for details.",
         variant: "destructive"
       });
     } finally {
