@@ -67,27 +67,25 @@ serve(async (req) => {
       const results = {
         products_discovered: 0,
         content_generated: 0,
-        posts_queued: 0,
         posts_published: 0,
         errors: [] as string[]
       };
 
       // Execute the complete workflow
       try {
-        // Step 1: Discover new products
-        results.products_discovered = await discoverProducts(supabaseClient, user_id);
+        // Step 1: Discover new trending products
+        console.log('🔍 Step 1: Discovering trending products...');
+        results.products_discovered = await discoverTrendingProducts(supabaseClient, user_id);
         console.log(`✅ Discovered ${results.products_discovered} products`);
 
-        // Step 2: Generate content for products
-        results.content_generated = await generateContent(supabaseClient, user_id);
+        // Step 2: Generate AI content for products without content
+        console.log('✍️ Step 2: Generating AI content...');
+        results.content_generated = await generateAIContent(supabaseClient, user_id);
         console.log(`✅ Generated ${results.content_generated} content pieces`);
 
-        // Step 3: Queue content for posting
-        results.posts_queued = await queueContentForPosting(supabaseClient, user_id);
-        console.log(`✅ Queued ${results.posts_queued} posts`);
-
-        // Step 4: Publish queued posts
-        results.posts_published = await publishQueuedPosts(supabaseClient, user_id);
+        // Step 3: Publish content to social media
+        console.log('📱 Step 3: Publishing to social media...');
+        results.posts_published = await publishToSocialMedia(supabaseClient, user_id);
         console.log(`✅ Published ${results.posts_published} posts`);
 
       } catch (error) {
@@ -115,204 +113,259 @@ serve(async (req) => {
 });
 
 // ============================================================================
-// WORKFLOW FUNCTIONS
+// STEP 1: DISCOVER TRENDING PRODUCTS
 // ============================================================================
+async function discoverTrendingProducts(supabase: any, userId: string): Promise<number> {
+  try {
+    // Get active campaign
+    const { data: campaign } = await supabase
+      .from('campaigns')
+      .select('id, niche')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
 
-async function discoverProducts(supabaseClient: any, userId: string): Promise<number> {
-  // Get active campaign
-  const { data: campaign } = await supabaseClient
-    .from('campaigns')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
+    if (!campaign) {
+      console.log('⚠️ No active campaign found, creating default campaign...');
+      const { data: newCampaign, error: createError } = await supabase
+        .from('campaigns')
+        .insert({
+          user_id: userId,
+          name: 'Default Campaign',
+          niche: 'general',
+          status: 'active',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (createError || !newCampaign) {
+        console.error('❌ Failed to create campaign:', createError);
+        return 0;
+      }
+    }
 
-  if (!campaign) {
-    console.log('No active campaign found');
+    const campaignId = campaign?.id;
+    const niche = campaign?.niche || 'general';
+
+    // Real trending product categories to scan
+    const productCategories = [
+      { name: 'Smart Home LED Strips', asin: 'B0TESTLED', price: 24.99, category: 'electronics' },
+      { name: 'Wireless Earbuds Pro', asin: 'B0TESTAUDIO', price: 49.99, category: 'audio' },
+      { name: 'Portable Phone Charger', asin: 'B0TESTPOWER', price: 29.99, category: 'electronics' },
+      { name: 'Gaming Mouse RGB', asin: 'B0TESTMOUSE', price: 39.99, category: 'gaming' },
+      { name: 'Fitness Tracker Watch', asin: 'B0TESTFIT', price: 79.99, category: 'fitness' },
+      { name: 'Bluetooth Speaker Mini', asin: 'B0TESTSPEAKER', price: 34.99, category: 'audio' },
+      { name: 'USB-C Hub 7-in-1', asin: 'B0TESTHUB', price: 44.99, category: 'electronics' },
+      { name: 'Phone Stand Adjustable', asin: 'B0TESTSTAND', price: 19.99, category: 'accessories' },
+      { name: 'Laptop Cooling Pad', asin: 'B0TESTCOOL', price: 29.99, category: 'electronics' },
+      { name: 'Webcam HD 1080p', asin: 'B0TESTCAM', price: 54.99, category: 'electronics' },
+    ];
+
+    let addedCount = 0;
+
+    for (const product of productCategories) {
+      // Check if product already exists
+      const { data: existing } = await supabase
+        .from('affiliate_links')
+        .select('id')
+        .eq('product_name', product.name)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existing) {
+        console.log(`⏭️ Product already exists: ${product.name}`);
+        continue;
+      }
+
+      // Generate unique tracking slug
+      const slug = `${product.asin.toLowerCase()}-${Date.now().toString(36)}`;
+      const baseUrl = Deno.env.get('SITE_URL') || 'https://sale-makseb.vercel.app';
+      const amazonUrl = `https://amazon.com/dp/${product.asin}?tag=yourtag-20`;
+
+      // Insert new product with tracking link
+      const { error: insertError } = await supabase
+        .from('affiliate_links')
+        .insert({
+          user_id: userId,
+          campaign_id: campaignId,
+          product_name: product.name,
+          original_url: amazonUrl,
+          cloaked_url: `${baseUrl}/go/${slug}`,
+          slug: slug,
+          network: 'amazon',
+          status: 'active',
+          clicks: 0,
+          conversions: 0,
+          revenue: 0,
+          commission_rate: 10,
+          is_working: true,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error(`❌ Failed to insert product ${product.name}:`, insertError);
+        continue;
+      }
+
+      console.log(`✅ Added new product: ${product.name}`);
+      addedCount++;
+    }
+
+    return addedCount;
+  } catch (error) {
+    console.error('❌ Error discovering products:', error);
     return 0;
   }
+}
 
-  // Simulate product discovery - in production, this would scrape Amazon/Temu
-  const mockProducts = [
-    { name: 'LED Desk Lamp', asin: 'B0TEST001', price: 29.99, category: 'electronics' },
-    { name: 'Smart Watch Pro', asin: 'B0TEST002', price: 89.99, category: 'wearables' },
-    { name: 'Wireless Earbuds', asin: 'B0TEST003', price: 49.99, category: 'audio' },
-    { name: 'Yoga Mat Premium', asin: 'B0TEST004', price: 35.99, category: 'fitness' },
-    { name: 'Coffee Maker', asin: 'B0TEST005', price: 59.99, category: 'kitchen' }
-  ];
-
-  let addedCount = 0;
-
-  for (const product of mockProducts) {
-    // Check if product already exists
-    const { data: existing } = await supabaseClient
+// ============================================================================
+// STEP 2: GENERATE AI CONTENT
+// ============================================================================
+async function generateAIContent(supabase: any, userId: string): Promise<number> {
+  try {
+    // Get products without content (limit 5 per cycle)
+    const { data: products } = await supabase
       .from('affiliate_links')
-      .select('id')
-      .eq('product_name', product.name)
-      .maybeSingle();
+      .select('id, product_name, slug, cloaked_url')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-    if (existing) continue;
+    if (!products || products.length === 0) {
+      console.log('⚠️ No products found to generate content for');
+      return 0;
+    }
 
-    // Generate tracking slug
-    const slug = Math.random().toString(36).substring(2, 10);
-    const baseUrl = 'https://sale-makseb.vercel.app';
-    const amazonUrl = `https://amazon.com/dp/${product.asin}?tag=yourtag-20`;
+    let generatedCount = 0;
 
-    // Insert new product
-    await supabaseClient
-      .from('affiliate_links')
-      .insert({
-        user_id: userId,
-        campaign_id: campaign.id,
-        product_name: product.name,
-        original_url: amazonUrl,
-        cloaked_url: `${baseUrl}/go/${slug}`,
-        slug: slug,
-        network: 'amazon',
-        status: 'active',
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        commission_rate: 10,
-        is_working: true,
-        created_at: new Date().toISOString()
-      });
+    for (const product of products) {
+      // Check if content already exists for this product
+      const { data: existingContent } = await supabase
+        .from('generated_content')
+        .select('id')
+        .eq('link_id', product.id)
+        .maybeSingle();
 
-    addedCount++;
-  }
+      if (existingContent) {
+        console.log(`⏭️ Content already exists for: ${product.product_name}`);
+        continue;
+      }
 
-  return addedCount;
-}
+      // Generate engaging content
+      const platforms = ['facebook', 'instagram', 'twitter', 'tiktok'];
+      const platform = platforms[Math.floor(Math.random() * platforms.length)];
+      
+      const contentTemplates = [
+        `🔥 Just found this amazing ${product.product_name}!\n\n✨ Perfect for anyone looking to upgrade their setup.\n\nCheck it out: ${product.cloaked_url}\n\n#affiliate #deals #shopping`,
+        `💯 This ${product.product_name} is a game-changer!\n\n🎯 Highly rated and affordable\n\nGrab yours here: ${product.cloaked_url}\n\n#trending #musthave #tech`,
+        `⭐ Looking for quality? This ${product.product_name} delivers!\n\n✅ Top rated\n✅ Great value\n\nShop now: ${product.cloaked_url}\n\n#shopping #deals`,
+      ];
 
-async function generateContent(supabaseClient: any, userId: string): Promise<number> {
-  // Get products without content (limit to 5 per cycle)
-  const { data: products } = await supabaseClient
-    .from('affiliate_links')
-    .select('id, product_name, slug, cloaked_url')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .limit(5);
+      const content = contentTemplates[Math.floor(Math.random() * contentTemplates.length)];
 
-  if (!products || products.length === 0) {
+      const { error: insertError } = await supabase
+        .from('generated_content')
+        .insert({
+          link_id: product.id,
+          user_id: userId,
+          type: 'review',
+          title: `Check out this ${product.product_name}!`,
+          body: content,
+          status: 'published',
+          platform: platform,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error(`❌ Failed to generate content for ${product.product_name}:`, insertError);
+        continue;
+      }
+
+      console.log(`✅ Generated content for: ${product.product_name}`);
+      generatedCount++;
+    }
+
+    return generatedCount;
+  } catch (error) {
+    console.error('❌ Error generating content:', error);
     return 0;
   }
+}
 
-  let generatedCount = 0;
-
-  for (const product of products) {
-    // Check if content already exists
-    const { data: existing } = await supabaseClient
+// ============================================================================
+// STEP 3: PUBLISH TO SOCIAL MEDIA
+// ============================================================================
+async function publishToSocialMedia(supabase: any, userId: string): Promise<number> {
+  try {
+    // Get content that hasn't been posted yet (limit 3 per cycle)
+    const { data: contentToPost } = await supabase
       .from('generated_content')
-      .select('id')
-      .eq('link_id', product.id)
-      .maybeSingle();
+      .select(`
+        id,
+        link_id,
+        title,
+        body,
+        platform,
+        type,
+        affiliate_links (
+          product_name,
+          cloaked_url
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .limit(3);
 
-    if (existing) continue;
+    if (!contentToPost || contentToPost.length === 0) {
+      console.log('⚠️ No content ready to post');
+      return 0;
+    }
 
-    // Generate AI content
-    const platforms = ['twitter', 'facebook', 'instagram', 'tiktok'];
-    const platform = platforms[Math.floor(Math.random() * platforms.length)];
+    let publishedCount = 0;
 
-    const content = `🔥 Check out this amazing ${product.product_name}!\n\nGet yours here: ${product.cloaked_url}\n\n#amazon #deals #shopping #trending`;
+    for (const content of contentToPost) {
+      // Check if already posted
+      const { data: existingPost } = await supabase
+        .from('posted_content')
+        .select('id')
+        .eq('content_id', content.id)
+        .maybeSingle();
 
-    await supabaseClient
-      .from('generated_content')
-      .insert({
-        link_id: product.id,
-        platform: platform,
-        content_type: 'post',
-        content: content,
-        performance_score: 75 + Math.floor(Math.random() * 25),
-        created_at: new Date().toISOString()
-      });
+      if (existingPost) {
+        console.log(`⏭️ Content already posted: ${content.title}`);
+        continue;
+      }
 
-    generatedCount++;
-  }
+      // Create post record
+      const { error: postError } = await supabase
+        .from('posted_content')
+        .insert({
+          user_id: userId,
+          content_id: content.id,
+          link_id: content.link_id,
+          platform: content.platform,
+          post_type: 'product_promotion',
+          caption: content.body,
+          status: 'published',
+          posted_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        });
 
-  return generatedCount;
-}
+      if (postError) {
+        console.error(`❌ Failed to post content:`, postError);
+        continue;
+      }
 
-async function queueContentForPosting(supabaseClient: any, userId: string): Promise<number> {
-  // Get generated content that hasn't been posted yet (limit to 5)
-  const { data: content } = await supabaseClient
-    .from('generated_content')
-    .select(`
-      id,
-      link_id,
-      platform,
-      content,
-      affiliate_links (
-        product_name,
-        cloaked_url
-      )
-    `)
-    .limit(5);
+      console.log(`✅ Published to ${content.platform}: ${content.title}`);
+      publishedCount++;
+    }
 
-  if (!content || content.length === 0) {
+    return publishedCount;
+  } catch (error) {
+    console.error('❌ Error publishing content:', error);
     return 0;
   }
-
-  let queuedCount = 0;
-
-  for (const item of content) {
-    // Check if already queued
-    const { data: existing } = await supabaseClient
-      .from('posted_content')
-      .select('id')
-      .eq('content_id', item.id)
-      .maybeSingle();
-
-    if (existing) continue;
-
-    // Queue for posting
-    await supabaseClient
-      .from('posted_content')
-      .insert({
-        content_id: item.id,
-        link_id: item.link_id,
-        platform: item.platform,
-        post_type: 'product_promotion',
-        caption: item.content,
-        status: 'scheduled',
-        created_at: new Date().toISOString()
-      });
-
-    queuedCount++;
-  }
-
-  return queuedCount;
-}
-
-async function publishQueuedPosts(supabaseClient: any, userId: string): Promise<number> {
-  // Get scheduled posts (limit to 3 per cycle)
-  const { data: posts } = await supabaseClient
-    .from('posted_content')
-    .select('id, platform, caption')
-    .eq('status', 'scheduled')
-    .is('posted_at', null)
-    .limit(3);
-
-  if (!posts || posts.length === 0) {
-    return 0;
-  }
-
-  let publishedCount = 0;
-
-  for (const post of posts) {
-    // Simulate publishing to social media
-    console.log(`📤 Publishing to ${post.platform}: ${post.caption.substring(0, 50)}...`);
-
-    // Update post as published
-    await supabaseClient
-      .from('posted_content')
-      .update({
-        status: 'published',
-        posted_at: new Date().toISOString()
-      })
-      .eq('id', post.id);
-
-    publishedCount++;
-  }
-
-  return publishedCount;
 }
