@@ -13,7 +13,6 @@ serve(async (req) => {
       return new Response('ok', { headers: corsHeaders });
     }
 
-    // Only accept POST requests
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
@@ -23,7 +22,6 @@ serve(async (req) => {
 
     const { action, user_id } = await req.json();
 
-    // Validate action
     if (!action || !['start', 'stop', 'run_cycle'].includes(action)) {
       return new Response(JSON.stringify({ 
         error: 'Invalid action',
@@ -58,8 +56,7 @@ serve(async (req) => {
     if (action === 'start' || action === 'run_cycle') {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-        { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // Use service role key for admin access
       );
 
       console.log('📊 Starting autopilot workflow...');
@@ -73,19 +70,25 @@ serve(async (req) => {
 
       // Execute the complete workflow
       try {
-        // Step 1: Discover new trending products
+        // Step 1: Discover new trending products (ALWAYS ADD 3-5)
         console.log('🔍 Step 1: Discovering trending products...');
-        results.products_discovered = await discoverTrendingProducts(supabaseClient, user_id);
+        const productsResult = await discoverTrendingProducts(supabaseClient, user_id);
+        results.products_discovered = productsResult.count;
+        if (productsResult.error) results.errors.push(productsResult.error);
         console.log(`✅ Discovered ${results.products_discovered} products`);
 
-        // Step 2: Generate AI content
+        // Step 2: Generate AI content (ALWAYS GENERATE 2-3)
         console.log('✍️ Step 2: Generating AI content...');
-        results.content_generated = await generateAIContent(supabaseClient, user_id);
+        const contentResult = await generateAIContent(supabaseClient, user_id);
+        results.content_generated = contentResult.count;
+        if (contentResult.error) results.errors.push(contentResult.error);
         console.log(`✅ Generated ${results.content_generated} content pieces`);
 
-        // Step 3: Publish content to social media
+        // Step 3: Publish content to social media (ALWAYS PUBLISH 1-2)
         console.log('📱 Step 3: Publishing to social media...');
-        results.posts_published = await publishToSocialMedia(supabaseClient, user_id);
+        const postsResult = await publishToSocialMedia(supabaseClient, user_id);
+        results.posts_published = postsResult.count;
+        if (postsResult.error) results.errors.push(postsResult.error);
         console.log(`✅ Published ${results.posts_published} posts`);
 
       } catch (error) {
@@ -93,10 +96,21 @@ serve(async (req) => {
         results.errors.push(error.message);
       }
 
+      // Log to autopilot_cron_log
+      await supabaseClient
+        .from('autopilot_cron_log')
+        .insert({
+          user_id: user_id,
+          status: results.errors.length > 0 ? 'error' : 'success',
+          results: results,
+          error: results.errors.length > 0 ? results.errors.join(', ') : null,
+          created_at: new Date().toISOString()
+        });
+
       return new Response(JSON.stringify({ 
         success: true,
         action: action,
-        message: action === 'start' ? 'Autopilot started successfully' : 'Autopilot cycle completed',
+        message: `${results.products_discovered} products, ${results.content_generated} content, ${results.posts_published} posts created`,
         results
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -115,18 +129,25 @@ serve(async (req) => {
 // ============================================================================
 // STEP 1: DISCOVER TRENDING PRODUCTS - ALWAYS ADD 3-5 NEW PRODUCTS
 // ============================================================================
-async function discoverTrendingProducts(supabase: any, userId: string): Promise<number> {
+async function discoverTrendingProducts(supabase: any, userId: string): Promise<{count: number, error?: string}> {
   try {
+    console.log('📦 Getting or creating active campaign...');
+    
     // Get or create active campaign
-    let { data: campaign } = await supabase
+    let { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
       .select('id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
+    if (campaignError) {
+      console.error('❌ Campaign fetch error:', campaignError);
+      return { count: 0, error: campaignError.message };
+    }
+
     if (!campaign) {
-      console.log('⚠️ No active campaign found, creating default campaign...');
+      console.log('⚠️ No active campaign, creating...');
       const { data: newCampaign, error: createError } = await supabase
         .from('campaigns')
         .insert({
@@ -142,7 +163,7 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
       
       if (createError) {
         console.error('❌ Failed to create campaign:', createError);
-        return 0;
+        return { count: 0, error: createError.message };
       }
       campaign = newCampaign;
     }
@@ -169,6 +190,8 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
     ];
 
     const numberOfProducts = 3 + Math.floor(Math.random() * 3); // 3-5 products
+    console.log(`🎯 Creating ${numberOfProducts} new products...`);
+    
     let addedCount = 0;
 
     for (let i = 0; i < numberOfProducts; i++) {
@@ -182,8 +205,10 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
       const baseUrl = Deno.env.get('SITE_URL') || 'https://sale-makseb.vercel.app';
       const amazonUrl = `https://amazon.com/dp/${asin}?tag=yourtag-20`;
 
-      // Insert new product into affiliate_links
-      const { error: insertError } = await supabase
+      console.log(`➕ Inserting: ${productName}`);
+
+      // Insert new product
+      const { data: insertedLink, error: insertError } = await supabase
         .from('affiliate_links')
         .insert({
           user_id: userId,
@@ -200,44 +225,50 @@ async function discoverTrendingProducts(supabase: any, userId: string): Promise<
           commission_rate: 10,
           is_working: true,
           created_at: new Date().toISOString()
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) {
-        console.error(`❌ Failed to insert product ${productName}:`, insertError);
+        console.error(`❌ Failed to insert ${productName}:`, insertError);
         continue;
       }
 
-      console.log(`✅ Added: ${productName} ($${price}) - ${slug}`);
+      console.log(`✅ Added: ${productName} (${insertedLink.id})`);
       addedCount++;
     }
 
-    return addedCount;
+    console.log(`🎉 Total products added: ${addedCount}`);
+    return { count: addedCount };
   } catch (error) {
     console.error('❌ Error discovering products:', error);
-    return 0;
+    return { count: 0, error: error.message };
   }
 }
 
 // ============================================================================
 // STEP 2: GENERATE AI CONTENT - ALWAYS GENERATE 2-3 NEW PIECES
 // ============================================================================
-async function generateAIContent(supabase: any, userId: string): Promise<number> {
+async function generateAIContent(supabase: any, userId: string): Promise<{count: number, error?: string}> {
   try {
-    // Get campaign
-    const { data: campaign } = await supabase
+    console.log('📝 Getting active campaign...');
+    
+    const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
       .select('id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (!campaign) {
-      console.log('⚠️ No active campaign for content generation');
-      return 0;
+    if (campaignError || !campaign) {
+      console.error('❌ No active campaign for content');
+      return { count: 0, error: 'No active campaign' };
     }
 
+    console.log('📦 Getting recent products...');
+
     // Get recent products (limit 5)
-    const { data: products } = await supabase
+    const { data: products, error: productsError } = await supabase
       .from('affiliate_links')
       .select('id, product_name, cloaked_url')
       .eq('user_id', userId)
@@ -246,13 +277,17 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
       .order('created_at', { ascending: false })
       .limit(5);
 
-    if (!products || products.length === 0) {
-      console.log('⚠️ No products found for content generation');
-      return 0;
+    if (productsError || !products || products.length === 0) {
+      console.error('❌ No products found');
+      return { count: 0, error: 'No products available' };
     }
+
+    console.log(`✅ Found ${products.length} products`);
 
     const numberOfContent = 2 + Math.floor(Math.random() * 2); // 2-3 pieces
     const selectedProducts = products.slice(0, numberOfContent);
+    console.log(`🎯 Creating ${numberOfContent} content pieces...`);
+    
     let generatedCount = 0;
 
     for (const product of selectedProducts) {
@@ -264,8 +299,10 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
 
       const content = contentTemplates[Math.floor(Math.random() * contentTemplates.length)];
 
-      // Insert into generated_content table (correct schema - NO link_id)
-      const { error: insertError } = await supabase
+      console.log(`➕ Creating content for: ${product.product_name}`);
+
+      // Insert into generated_content
+      const { data: insertedContent, error: insertError } = await supabase
         .from('generated_content')
         .insert({
           user_id: userId,
@@ -275,44 +312,48 @@ async function generateAIContent(supabase: any, userId: string): Promise<number>
           type: 'review',
           status: 'published',
           created_at: new Date().toISOString()
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) {
         console.error(`❌ Failed to generate content:`, insertError);
         continue;
       }
 
-      console.log(`✅ Generated content for: ${product.product_name}`);
+      console.log(`✅ Generated content: ${insertedContent.id}`);
       generatedCount++;
     }
 
-    return generatedCount;
+    console.log(`🎉 Total content generated: ${generatedCount}`);
+    return { count: generatedCount };
   } catch (error) {
     console.error('❌ Error generating content:', error);
-    return 0;
+    return { count: 0, error: error.message };
   }
 }
 
 // ============================================================================
 // STEP 3: PUBLISH TO SOCIAL MEDIA - ALWAYS PUBLISH 1-2 POSTS
 // ============================================================================
-async function publishToSocialMedia(supabase: any, userId: string): Promise<number> {
+async function publishToSocialMedia(supabase: any, userId: string): Promise<{count: number, error?: string}> {
   try {
-    // Get campaign and recent products with links
-    const { data: campaign } = await supabase
+    console.log('📱 Getting campaign and products...');
+    
+    const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
       .select('id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
 
-    if (!campaign) {
-      console.log('⚠️ No active campaign for publishing');
-      return 0;
+    if (campaignError || !campaign) {
+      console.error('❌ No active campaign');
+      return { count: 0, error: 'No active campaign' };
     }
 
     // Get recent products
-    const { data: products } = await supabase
+    const { data: products, error: productsError } = await supabase
       .from('affiliate_links')
       .select('id, product_name, cloaked_url')
       .eq('user_id', userId)
@@ -321,13 +362,17 @@ async function publishToSocialMedia(supabase: any, userId: string): Promise<numb
       .order('created_at', { ascending: false })
       .limit(3);
 
-    if (!products || products.length === 0) {
-      console.log('⚠️ No products for publishing');
-      return 0;
+    if (productsError || !products || products.length === 0) {
+      console.error('❌ No products for publishing');
+      return { count: 0, error: 'No products available' };
     }
+
+    console.log(`✅ Found ${products.length} products`);
 
     const platforms = ['facebook', 'instagram', 'twitter', 'tiktok'];
     const numberOfPosts = 1 + Math.floor(Math.random() * 2); // 1-2 posts
+    console.log(`🎯 Creating ${numberOfPosts} posts...`);
+    
     let publishedCount = 0;
 
     for (let i = 0; i < numberOfPosts && i < products.length; i++) {
@@ -336,8 +381,10 @@ async function publishToSocialMedia(supabase: any, userId: string): Promise<numb
 
       const caption = `Check out this ${product.product_name}! 🔥\n\nClick here: ${product.cloaked_url}\n\n#affiliate #deals`;
 
-      // Insert into posted_content table (correct schema - NO content_id)
-      const { error: postError } = await supabase
+      console.log(`➕ Publishing to ${platform}: ${product.product_name}`);
+
+      // Insert into posted_content
+      const { data: insertedPost, error: postError } = await supabase
         .from('posted_content')
         .insert({
           user_id: userId,
@@ -348,20 +395,23 @@ async function publishToSocialMedia(supabase: any, userId: string): Promise<numb
           status: 'posted',
           posted_at: new Date().toISOString(),
           created_at: new Date().toISOString()
-        });
+        })
+        .select()
+        .single();
 
       if (postError) {
         console.error(`❌ Failed to post:`, postError);
         continue;
       }
 
-      console.log(`✅ Published to ${platform}: ${product.product_name}`);
+      console.log(`✅ Published post: ${insertedPost.id}`);
       publishedCount++;
     }
 
-    return publishedCount;
+    console.log(`🎉 Total posts published: ${publishedCount}`);
+    return { count: publishedCount };
   } catch (error) {
     console.error('❌ Error publishing content:', error);
-    return 0;
+    return { count: 0, error: error.message };
   }
 }
