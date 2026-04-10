@@ -37,35 +37,44 @@ serve(async (req) => {
 
     // 1. DISCOVER PRODUCTS (3 per cycle)
     try {
-      const productCount = 3;
-      for (let i = 0; i < productCount; i++) {
-        const productData = {
-          user_id: userId,
-          product_name: `AutoProduct ${Date.now()}-${i}`,
-          network: 'amazon',
-          original_url: `https://amazon.com/dp/TEST${Date.now()}${i}`,
-          cloaked_url: `https://go.example.com/${Date.now()}${i}`,
-          commission_rate: 10.0,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0
-        };
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
 
-        const { error: productError } = await supabase
-          .from('affiliate_links')
-          .insert(productData);
+      if (campaigns) {
+        const productCount = 3;
+        for (let i = 0; i < productCount; i++) {
+          const { error: productError } = await supabase
+            .from('affiliate_links')
+            .insert({
+              user_id: userId,
+              campaign_id: campaigns.id,
+              product_name: `AutoProduct ${Date.now()}-${i}`,
+              network: 'amazon',
+              original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
+              cloaked_url: `https://go.example.com/${Date.now()}${i}`,
+              commission_rate: 10.0,
+              clicks: 0,
+              conversions: 0,
+              revenue: 0
+            });
 
-        if (productError) {
-          results.errors.push(`Product ${i + 1}: ${productError.message}`);
-        } else {
-          results.products_discovered++;
+          if (productError) {
+            results.errors.push(`Product ${i + 1}: ${productError.message}`);
+          } else {
+            results.products_discovered++;
+          }
         }
       }
     } catch (error: any) {
       results.errors.push(`Products error: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - FIXED STATUS TO 'published'
+    // 2. GENERATE CONTENT (2 per cycle) - FIXED: Using 'draft' status
     try {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -78,20 +87,18 @@ serve(async (req) => {
       if (campaigns) {
         const contentCount = 2;
         for (let i = 0; i < contentCount; i++) {
-          const contentData = {
-            user_id: userId,
-            campaign_id: campaigns.id,
-            title: `Auto Content ${Date.now()}-${i}`,
-            body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
-            type: 'review',
-            category: 'product',
-            status: 'published', // FIXED: Using 'published' status
-            metadata: {}
-          };
-
           const { error: contentError } = await supabase
             .from('generated_content')
-            .insert(contentData);
+            .insert({
+              user_id: userId,
+              campaign_id: campaigns.id,
+              title: `Auto Content ${Date.now()}-${i}`,
+              body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
+              type: 'review',
+              category: 'product',
+              status: 'draft',
+              metadata: {}
+            });
 
           if (contentError) {
             results.errors.push(`Content ${i + 1}: ${contentError.message}`);
@@ -137,19 +144,17 @@ serve(async (req) => {
           const randomLink = links[Math.floor(Math.random() * links.length)];
           const randomPlatform = platforms[Math.floor(Math.random() * platforms.length)];
 
-          const postData = {
-            user_id: userId,
-            link_id: randomLink.id,
-            platform: randomPlatform,
-            post_type: 'image',
-            caption: `AutoPost ${Date.now()}-${i} - Check out this amazing product! #affiliate #automated`,
-            status: 'posted',
-            posted_at: new Date().toISOString()
-          };
-
           const { error: postError } = await supabase
             .from('posted_content')
-            .insert(postData);
+            .insert({
+              user_id: userId,
+              link_id: randomLink.id,
+              platform: randomPlatform,
+              post_type: 'image',
+              caption: `AutoPost ${Date.now()}-${i} - Check out this amazing product! #affiliate #automated`,
+              status: 'posted',
+              posted_at: new Date().toISOString()
+            });
 
           if (postError) {
             results.errors.push(`Post ${i + 1}: ${postError.message}`);
