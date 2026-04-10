@@ -25,23 +25,56 @@ export function Header() {
           <Zap className="w-6 h-6 text-primary" />
           <span className="font-bold text-xl">AffiliatePro</span>
         </Link>
+
+        {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-6">
-          <Link href="/dashboard" className="text-sm hover:text-primary transition-colors">
-            Dashboard
-          </Link>
-          <Link href="/content-manager" className="text-sm hover:text-primary transition-colors">
-            Content
-          </Link>
-          <Link href="/traffic-sources" className="text-sm hover:text-primary transition-colors">
-            Traffic
-          </Link>
-          <Link href="/integrations" className="text-sm hover:text-primary transition-colors">
-            Integrations
-          </Link>
-          <Link href="/settings" className="text-sm hover:text-primary transition-colors">
-            Settings
-          </Link>
+          {navLinks.map((link) => (
+            <Link 
+              key={link.href}
+              href={link.href} 
+              className={`text-sm font-medium transition-colors flex items-center gap-2 ${
+                isActive(link.href) 
+                  ? 'text-primary' 
+                  : 'text-muted-foreground hover:text-primary'
+              }`}
+            >
+              <link.icon className="w-4 h-4" />
+              {link.label}
+            </Link>
+          ))}
+          <ThemeSwitch />
         </nav>
+
+        {/* Mobile Menu */}
+        <div className="md:hidden flex items-center gap-2">
+          <ThemeSwitch />
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-64">
+              <div className="flex flex-col gap-4 mt-8">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      isActive(link.href)
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <link.icon className="w-5 h-5" />
+                    <span className="font-medium">{link.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
