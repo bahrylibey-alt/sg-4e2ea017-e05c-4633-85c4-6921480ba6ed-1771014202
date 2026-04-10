@@ -7,160 +7,321 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  console.log('🚀 Edge function invoked');
+  console.log('🚀 Autopilot Engine Started');
   
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
-    // Handle CORS preflight
-    if (req.method === 'OPTIONS') {
-      return new Response('ok', { headers: corsHeaders });
-    }
-
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
     const body = await req.json();
     const { action, user_id } = body;
     
-    console.log('📥 Request body:', { action, user_id });
+    console.log('📥 Request:', { action, user_id });
 
-    if (!action || !['start', 'stop', 'run_cycle'].includes(action)) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid action',
-        message: 'Action must be one of: start, stop, run_cycle'
-      }), {
+    if (!action || !user_id) {
+      return new Response(JSON.stringify({ error: 'Missing action or user_id' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    if (!user_id) {
-      return new Response(JSON.stringify({ error: 'user_id required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log(`🤖 Autopilot Engine: ${action} for user ${user_id}`);
-
-    // Handle stop action
     if (action === 'stop') {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Autopilot stopped',
-        action: 'stop'
-      }), {
+      return new Response(JSON.stringify({ success: true, message: 'Stopped' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Handle start and run_cycle actions
-    if (action === 'start' || action === 'run_cycle') {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL');
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      
-      console.log('🔑 Supabase URL:', supabaseUrl ? 'SET' : 'MISSING');
-      console.log('🔑 Service Role Key:', supabaseKey ? 'SET' : 'MISSING');
-      
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Supabase credentials missing');
-      }
+    // Initialize Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase credentials');
+    }
 
-      const supabaseClient = createClient(supabaseUrl, supabaseKey);
-      console.log('✅ Supabase client created');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase client initialized');
 
-      console.log('📊 Starting autopilot workflow...');
-      
-      const results = {
-        products_discovered: 0,
-        content_generated: 0,
-        posts_published: 0,
-        errors: [] as string[]
-      };
+    const results = {
+      products_discovered: 0,
+      content_generated: 0,
+      posts_published: 0,
+      errors: [] as string[]
+    };
 
-      // Execute the complete workflow
-      try {
-        // Step 1: Discover new trending products
-        console.log('🔍 Step 1: Starting product discovery...');
-        const productsResult = await discoverTrendingProducts(supabaseClient, user_id);
-        results.products_discovered = productsResult.count;
-        if (productsResult.error) {
-          console.error('❌ Product discovery error:', productsResult.error);
-          results.errors.push(productsResult.error);
-        } else {
-          console.log(`✅ Discovered ${results.products_discovered} products`);
-        }
+    // ========================================
+    // STEP 1: CREATE PRODUCTS
+    // ========================================
+    console.log('📦 STEP 1: Creating products...');
+    try {
+      // Get or create active campaign
+      const { data: campaigns, error: campaignError } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('status', 'active')
+        .limit(1);
 
-        // Step 2: Generate AI content
-        console.log('✍️ Step 2: Starting content generation...');
-        const contentResult = await generateAIContent(supabaseClient, user_id);
-        results.content_generated = contentResult.count;
-        if (contentResult.error) {
-          console.error('❌ Content generation error:', contentResult.error);
-          results.errors.push(contentResult.error);
-        } else {
-          console.log(`✅ Generated ${results.content_generated} content pieces`);
-        }
-
-        // Step 3: Publish content to social media
-        console.log('📱 Step 3: Starting social media publishing...');
-        const postsResult = await publishToSocialMedia(supabaseClient, user_id);
-        results.posts_published = postsResult.count;
-        if (postsResult.error) {
-          console.error('❌ Publishing error:', postsResult.error);
-          results.errors.push(postsResult.error);
-        } else {
-          console.log(`✅ Published ${results.posts_published} posts`);
-        }
-
-      } catch (error) {
-        console.error('❌ Workflow error:', error);
-        results.errors.push(error.message);
-      }
-
-      // Log to autopilot_cron_log
-      console.log('📝 Logging to autopilot_cron_log...');
-      const { error: logError } = await supabaseClient
-        .from('autopilot_cron_log')
-        .insert({
-          user_id: user_id,
-          status: results.errors.length > 0 ? 'error' : 'success',
-          results: {
-            action: action,
-            message: 'Autopilot cycle completed',
-            results: results,
-            success: true
-          },
-          error: results.errors.length > 0 ? results.errors.join(', ') : null,
-          created_at: new Date().toISOString()
-        });
-
-      if (logError) {
-        console.error('❌ Failed to log to autopilot_cron_log:', logError);
+      if (campaignError) {
+        console.error('❌ Campaign fetch error:', campaignError);
+        results.errors.push(`Campaign error: ${campaignError.message}`);
       } else {
-        console.log('✅ Logged to autopilot_cron_log');
+        let campaignId;
+        
+        if (!campaigns || campaigns.length === 0) {
+          console.log('⚠️ No campaign found, creating one...');
+          const { data: newCampaign, error: createError } = await supabase
+            .from('campaigns')
+            .insert({
+              user_id: user_id,
+              name: 'Autopilot Campaign',
+              goal: 'sales',
+              status: 'active',
+              is_autopilot: true
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error('❌ Campaign create error:', createError);
+            results.errors.push(`Campaign create error: ${createError.message}`);
+          } else {
+            campaignId = newCampaign.id;
+            console.log('✅ Campaign created:', campaignId);
+          }
+        } else {
+          campaignId = campaigns[0].id;
+          console.log('✅ Using campaign:', campaignId);
+        }
+
+        // Create 3 products
+        if (campaignId) {
+          const timestamp = Date.now();
+          const cycleId = timestamp.toString(36);
+          const baseUrl = Deno.env.get('SITE_URL') || 'https://sale-makseb.vercel.app';
+
+          for (let i = 0; i < 3; i++) {
+            const asin = `B0${cycleId.slice(-6).toUpperCase()}${i}`;
+            const slug = `${asin.toLowerCase()}-${timestamp}-${i}`;
+            const productName = `Auto Product ${cycleId.slice(-4).toUpperCase()}-${i}`;
+
+            console.log(`➕ Creating product ${i+1}/3: ${productName}`);
+
+            const { data: link, error: linkError } = await supabase
+              .from('affiliate_links')
+              .insert({
+                user_id: user_id,
+                campaign_id: campaignId,
+                product_name: productName,
+                original_url: `https://amazon.com/dp/${asin}?tag=yourtag-20`,
+                cloaked_url: `${baseUrl}/go/${slug}`,
+                slug: slug,
+                network: 'amazon',
+                status: 'active',
+                clicks: 0,
+                conversions: 0,
+                revenue: 0,
+                commission_rate: 10,
+                is_working: true
+              })
+              .select()
+              .single();
+
+            if (linkError) {
+              console.error(`❌ Product ${i+1} insert error:`, linkError);
+              results.errors.push(`Product ${i+1}: ${linkError.message}`);
+            } else {
+              console.log(`✅ Product ${i+1} created:`, link.id);
+              results.products_discovered++;
+            }
+          }
+        }
       }
-
-      const responseData = { 
-        success: true,
-        action: action,
-        message: `${results.products_discovered} products, ${results.content_generated} content, ${results.posts_published} posts created`,
-        results
-      };
-      
-      console.log('📤 Sending response:', responseData);
-
-      return new Response(JSON.stringify(responseData), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    } catch (error) {
+      console.error('❌ Products step error:', error);
+      results.errors.push(`Products: ${error.message}`);
     }
+
+    console.log(`📦 Products created: ${results.products_discovered}/3`);
+
+    // ========================================
+    // STEP 2: CREATE CONTENT
+    // ========================================
+    console.log('✍️ STEP 2: Creating content...');
+    try {
+      // Get campaign
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (campaigns && campaigns.length > 0) {
+        const campaignId = campaigns[0].id;
+
+        // Get recent products
+        const { data: products } = await supabase
+          .from('affiliate_links')
+          .select('id, product_name, cloaked_url')
+          .eq('user_id', user_id)
+          .eq('campaign_id', campaignId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (products && products.length > 0) {
+          // Create content for 2 products
+          for (let i = 0; i < Math.min(2, products.length); i++) {
+            const product = products[i];
+            const content = `🔥 Amazing ${product.product_name}!\n\n✨ Perfect for you.\n\nGet it: ${product.cloaked_url}`;
+
+            console.log(`➕ Creating content ${i+1}/2 for: ${product.product_name}`);
+
+            const { data: genContent, error: contentError } = await supabase
+              .from('generated_content')
+              .insert({
+                user_id: user_id,
+                campaign_id: campaignId,
+                title: `Review: ${product.product_name}`,
+                body: content,
+                type: 'review',
+                status: 'published'
+              })
+              .select()
+              .single();
+
+            if (contentError) {
+              console.error(`❌ Content ${i+1} insert error:`, contentError);
+              results.errors.push(`Content ${i+1}: ${contentError.message}`);
+            } else {
+              console.log(`✅ Content ${i+1} created:`, genContent.id);
+              results.content_generated++;
+            }
+          }
+        } else {
+          console.log('⚠️ No products found for content generation');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Content step error:', error);
+      results.errors.push(`Content: ${error.message}`);
+    }
+
+    console.log(`✍️ Content created: ${results.content_generated}/2`);
+
+    // ========================================
+    // STEP 3: CREATE POSTS
+    // ========================================
+    console.log('📱 STEP 3: Creating posts...');
+    try {
+      // Get campaign
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('status', 'active')
+        .limit(1);
+
+      if (campaigns && campaigns.length > 0) {
+        const campaignId = campaigns[0].id;
+
+        // Get recent products
+        const { data: products } = await supabase
+          .from('affiliate_links')
+          .select('id, product_name, cloaked_url')
+          .eq('user_id', user_id)
+          .eq('campaign_id', campaignId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        if (products && products.length > 0) {
+          const platforms = ['facebook', 'instagram', 'twitter'];
+
+          // Create 2 posts
+          for (let i = 0; i < Math.min(2, products.length); i++) {
+            const product = products[i];
+            const platform = platforms[i % platforms.length];
+            const caption = `Check out ${product.product_name}! 🔥\n\n${product.cloaked_url}\n\n#affiliate #deals`;
+
+            console.log(`➕ Creating post ${i+1}/2 on ${platform}: ${product.product_name}`);
+
+            const { data: post, error: postError } = await supabase
+              .from('posted_content')
+              .insert({
+                user_id: user_id,
+                campaign_id: campaignId,
+                platform: platform,
+                post_type: 'image',
+                caption: caption,
+                status: 'posted',
+                posted_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+
+            if (postError) {
+              console.error(`❌ Post ${i+1} insert error:`, postError);
+              results.errors.push(`Post ${i+1}: ${postError.message}`);
+            } else {
+              console.log(`✅ Post ${i+1} created:`, post.id);
+              results.posts_published++;
+            }
+          }
+        } else {
+          console.log('⚠️ No products found for posting');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Posts step error:', error);
+      results.errors.push(`Posts: ${error.message}`);
+    }
+
+    console.log(`📱 Posts created: ${results.posts_published}/2`);
+
+    // ========================================
+    // LOG RESULTS
+    // ========================================
+    console.log('📝 Logging to database...');
+    const { error: logError } = await supabase
+      .from('autopilot_cron_log')
+      .insert({
+        user_id: user_id,
+        status: results.errors.length > 0 ? 'error' : 'success',
+        results: {
+          action: action,
+          message: `Created: ${results.products_discovered} products, ${results.content_generated} content, ${results.posts_published} posts`,
+          results: results
+        },
+        error: results.errors.length > 0 ? results.errors.join('; ') : null
+      });
+
+    if (logError) {
+      console.error('❌ Failed to log:', logError);
+    } else {
+      console.log('✅ Logged to autopilot_cron_log');
+    }
+
+    // ========================================
+    // RETURN RESPONSE
+    // ========================================
+    const response = {
+      success: true,
+      action: action,
+      message: `Created: ${results.products_discovered} products, ${results.content_generated} content, ${results.posts_published} posts`,
+      results: results
+    };
+
+    console.log('📤 Response:', response);
+
+    return new Response(JSON.stringify(response), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    console.error('💥 Edge Function error:', error);
-    console.error('Error stack:', error.stack);
+    console.error('💥 Fatal error:', error);
     return new Response(JSON.stringify({ 
       error: error.message,
       stack: error.stack 
@@ -170,301 +331,3 @@ serve(async (req) => {
     });
   }
 });
-
-// ============================================================================
-// STEP 1: DISCOVER TRENDING PRODUCTS
-// ============================================================================
-async function discoverTrendingProducts(supabase: any, userId: string): Promise<{count: number, error?: string}> {
-  try {
-    console.log('📦 [PRODUCTS] Starting discovery for user:', userId);
-    
-    // Get or create active campaign
-    console.log('📦 [PRODUCTS] Fetching active campaign...');
-    const { data: campaigns, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    if (campaignError) {
-      console.error('❌ [PRODUCTS] Campaign fetch error:', campaignError);
-      return { count: 0, error: campaignError.message };
-    }
-
-    console.log('📦 [PRODUCTS] Campaigns found:', campaigns?.length || 0);
-
-    let campaignId;
-    if (!campaigns || campaigns.length === 0) {
-      console.log('⚠️ [PRODUCTS] No active campaign, creating...');
-      const { data: newCampaign, error: createError } = await supabase
-        .from('campaigns')
-        .insert({
-          user_id: userId,
-          name: 'Autopilot Campaign',
-          goal: 'sales',
-          status: 'active',
-          is_autopilot: true,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-      
-      if (createError) {
-        console.error('❌ [PRODUCTS] Failed to create campaign:', createError);
-        return { count: 0, error: createError.message };
-      }
-      campaignId = newCampaign.id;
-      console.log('✅ [PRODUCTS] Created campaign:', campaignId);
-    } else {
-      campaignId = campaigns[0].id;
-      console.log('✅ [PRODUCTS] Using existing campaign:', campaignId);
-    }
-
-    // Generate unique timestamp for this cycle
-    const timestamp = Date.now();
-    const cycleId = timestamp.toString(36);
-
-    const numberOfProducts = 3;
-    console.log(`🎯 [PRODUCTS] Creating ${numberOfProducts} new products...`);
-    
-    let addedCount = 0;
-
-    for (let i = 0; i < numberOfProducts; i++) {
-      const productName = `AutoProduct ${cycleId.slice(-4).toUpperCase()}-${i}`;
-      const asin = `B0${cycleId.slice(-6).toUpperCase()}${i}`;
-      const slug = `${asin.toLowerCase()}-${timestamp}-${i}`;
-      const baseUrl = Deno.env.get('SITE_URL') || 'https://sale-makseb.vercel.app';
-      const amazonUrl = `https://amazon.com/dp/${asin}?tag=yourtag-20`;
-
-      console.log(`➕ [PRODUCTS] Inserting product ${i+1}/${numberOfProducts}: ${productName}`);
-
-      const insertData = {
-        user_id: userId,
-        campaign_id: campaignId,
-        product_name: productName,
-        original_url: amazonUrl,
-        cloaked_url: `${baseUrl}/go/${slug}`,
-        slug: slug,
-        network: 'amazon',
-        status: 'active',
-        clicks: 0,
-        conversions: 0,
-        revenue: 0,
-        commission_rate: 10,
-        is_working: true,
-        created_at: new Date().toISOString()
-      };
-
-      console.log('📦 [PRODUCTS] Insert data:', insertData);
-
-      const { data: insertedLink, error: insertError } = await supabase
-        .from('affiliate_links')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error(`❌ [PRODUCTS] Failed to insert ${productName}:`, insertError);
-        console.error('Insert error details:', JSON.stringify(insertError));
-        continue;
-      }
-
-      console.log(`✅ [PRODUCTS] Added: ${productName} (ID: ${insertedLink?.id})`);
-      addedCount++;
-    }
-
-    console.log(`🎉 [PRODUCTS] Total products added: ${addedCount}`);
-    return { count: addedCount };
-  } catch (error) {
-    console.error('❌ [PRODUCTS] Error discovering products:', error);
-    console.error('Error details:', error.message, error.stack);
-    return { count: 0, error: error.message };
-  }
-}
-
-// ============================================================================
-// STEP 2: GENERATE AI CONTENT
-// ============================================================================
-async function generateAIContent(supabase: any, userId: string): Promise<{count: number, error?: string}> {
-  try {
-    console.log('📝 [CONTENT] Starting generation for user:', userId);
-    
-    console.log('📝 [CONTENT] Getting active campaign...');
-    const { data: campaigns, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    if (campaignError || !campaigns || campaigns.length === 0) {
-      console.error('❌ [CONTENT] No active campaign found');
-      return { count: 0, error: 'No active campaign' };
-    }
-
-    const campaignId = campaigns[0].id;
-    console.log('✅ [CONTENT] Using campaign:', campaignId);
-
-    console.log('📦 [CONTENT] Getting recent products...');
-    const { data: products, error: productsError } = await supabase
-      .from('affiliate_links')
-      .select('id, product_name, cloaked_url')
-      .eq('user_id', userId)
-      .eq('campaign_id', campaignId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (productsError) {
-      console.error('❌ [CONTENT] Products fetch error:', productsError);
-      return { count: 0, error: productsError.message };
-    }
-
-    if (!products || products.length === 0) {
-      console.error('❌ [CONTENT] No products found');
-      return { count: 0, error: 'No products available' };
-    }
-
-    console.log(`✅ [CONTENT] Found ${products.length} products`);
-
-    const numberOfContent = 2;
-    const selectedProducts = products.slice(0, numberOfContent);
-    console.log(`🎯 [CONTENT] Creating ${numberOfContent} content pieces...`);
-    
-    let generatedCount = 0;
-
-    for (const product of selectedProducts) {
-      const content = `🔥 Check out this amazing ${product.product_name}!\n\n✨ Perfect for your needs.\n\nGet it here: ${product.cloaked_url}`;
-
-      console.log(`➕ [CONTENT] Creating content for: ${product.product_name}`);
-
-      const insertData = {
-        user_id: userId,
-        campaign_id: campaignId,
-        title: `Review: ${product.product_name}`,
-        body: content,
-        type: 'review',
-        status: 'published',
-        created_at: new Date().toISOString()
-      };
-
-      console.log('📝 [CONTENT] Insert data:', insertData);
-
-      const { data: insertedContent, error: insertError } = await supabase
-        .from('generated_content')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error(`❌ [CONTENT] Failed to generate content:`, insertError);
-        console.error('Insert error details:', JSON.stringify(insertError));
-        continue;
-      }
-
-      console.log(`✅ [CONTENT] Generated content: ${insertedContent?.id}`);
-      generatedCount++;
-    }
-
-    console.log(`🎉 [CONTENT] Total content generated: ${generatedCount}`);
-    return { count: generatedCount };
-  } catch (error) {
-    console.error('❌ [CONTENT] Error generating content:', error);
-    console.error('Error details:', error.message, error.stack);
-    return { count: 0, error: error.message };
-  }
-}
-
-// ============================================================================
-// STEP 3: PUBLISH TO SOCIAL MEDIA
-// ============================================================================
-async function publishToSocialMedia(supabase: any, userId: string): Promise<{count: number, error?: string}> {
-  try {
-    console.log('📱 [POSTS] Starting publishing for user:', userId);
-    
-    console.log('📱 [POSTS] Getting campaign and products...');
-    const { data: campaigns, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    if (campaignError || !campaigns || campaigns.length === 0) {
-      console.error('❌ [POSTS] No active campaign');
-      return { count: 0, error: 'No active campaign' };
-    }
-
-    const campaignId = campaigns[0].id;
-    console.log('✅ [POSTS] Using campaign:', campaignId);
-
-    const { data: products, error: productsError } = await supabase
-      .from('affiliate_links')
-      .select('id, product_name, cloaked_url')
-      .eq('user_id', userId)
-      .eq('campaign_id', campaignId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    if (productsError) {
-      console.error('❌ [POSTS] Products fetch error:', productsError);
-      return { count: 0, error: productsError.message };
-    }
-
-    if (!products || products.length === 0) {
-      console.error('❌ [POSTS] No products for publishing');
-      return { count: 0, error: 'No products available' };
-    }
-
-    console.log(`✅ [POSTS] Found ${products.length} products`);
-
-    const platforms = ['facebook', 'instagram', 'twitter'];
-    const numberOfPosts = 2;
-    console.log(`🎯 [POSTS] Creating ${numberOfPosts} posts...`);
-    
-    let publishedCount = 0;
-
-    for (let i = 0; i < numberOfPosts && i < products.length; i++) {
-      const product = products[i];
-      const platform = platforms[i % platforms.length];
-
-      const caption = `Check out this ${product.product_name}! 🔥\n\nClick here: ${product.cloaked_url}\n\n#affiliate #deals`;
-
-      console.log(`➕ [POSTS] Publishing to ${platform}: ${product.product_name}`);
-
-      const insertData = {
-        user_id: userId,
-        campaign_id: campaignId,
-        platform: platform,
-        post_type: 'image',
-        caption: caption,
-        status: 'posted',
-        posted_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      };
-
-      console.log('📱 [POSTS] Insert data:', insertData);
-
-      const { data: insertedPost, error: postError } = await supabase
-        .from('posted_content')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (postError) {
-        console.error(`❌ [POSTS] Failed to post:`, postError);
-        console.error('Insert error details:', JSON.stringify(postError));
-        continue;
-      }
-
-      console.log(`✅ [POSTS] Published post: ${insertedPost?.id}`);
-      publishedCount++;
-    }
-
-    console.log(`🎉 [POSTS] Total posts published: ${publishedCount}`);
-    return { count: publishedCount };
-  } catch (error) {
-    console.error('❌ [POSTS] Error publishing content:', error);
-    console.error('Error details:', error.message, error.stack);
-    return { count: 0, error: error.message };
-  }
-}
