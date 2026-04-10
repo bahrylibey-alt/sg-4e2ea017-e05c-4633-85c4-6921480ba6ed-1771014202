@@ -13,50 +13,29 @@ serve(async (req) => {
 
   try {
     const { action, user_id } = await req.json();
-    
-    console.log('🤖 Autopilot Engine starting...', { action, user_id });
+    console.log('🤖 Autopilot starting...', { action, user_id });
 
-    // Create Supabase client with SERVICE ROLE (bypasses RLS)
+    // Create admin client with SERVICE ROLE
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get user's active campaign
+    // Get active campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('id, name')
       .eq('user_id', user_id)
       .eq('status', 'active')
-      .limit(1)
       .maybeSingle();
 
-    if (campaignError) {
-      console.error('❌ Campaign error:', campaignError);
-      throw new Error(`Campaign error: ${campaignError.message}`);
-    }
-
-    if (!campaign) {
-      console.log('⏸️ No active campaign found');
+    if (campaignError || !campaign) {
+      console.log('⏸️ No active campaign');
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          products_discovered: 0,
-          content_generated: 0,
-          posts_published: 0,
-          message: 'No active campaign'
-        }),
+        JSON.stringify({ success: true, products_discovered: 0, content_generated: 0, posts_published: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
       );
     }
-
-    console.log('✅ Found active campaign:', campaign.name);
 
     let productsCreated = 0;
     let contentCreated = 0;
@@ -64,21 +43,20 @@ serve(async (req) => {
 
     // 1. CREATE PRODUCTS (3 per cycle)
     console.log('📦 Creating products...');
-    try {
-      for (let i = 0; i < 3; i++) {
-        const timestamp = Date.now();
+    for (let i = 0; i < 3; i++) {
+      try {
         const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         const productName = `Auto Product ${randomId}-${i}`;
-        const slug = `${randomId.toLowerCase()}-${i}`;
+        const slug = `auto-${randomId.toLowerCase()}-${i}`;
         
-        const { data: product, error: productError } = await supabaseAdmin
+        const { error: productError } = await supabaseAdmin
           .from('affiliate_links')
           .insert({
             user_id: user_id,
             campaign_id: campaign.id,
             product_name: productName,
             slug: slug,
-            original_url: `https://example.com/product/${slug}`,
+            original_url: `https://amazon.com/dp/${randomId}`,
             short_url: `https://go.example.com/${slug}`,
             category: 'Auto-Generated',
             platform: 'amazon',
@@ -87,31 +65,27 @@ serve(async (req) => {
             conversions: 0,
             revenue: 0,
             commission_rate: 10,
-            is_promoted: true,
-            created_at: new Date().toISOString()
-          })
-          .select('id, product_name')
-          .single();
+            is_promoted: true
+          });
 
         if (productError) {
-          console.error(`❌ Product ${i} insert error:`, productError);
+          console.error(`❌ Product ${i} error:`, productError.message);
         } else {
           productsCreated++;
-          console.log(`✅ Product ${i} created:`, product.product_name);
+          console.log(`✅ Product ${i} created: ${productName}`);
         }
+      } catch (error) {
+        console.error(`❌ Product ${i} exception:`, error);
       }
-    } catch (error) {
-      console.error('❌ Products creation failed:', error);
     }
 
     // 2. CREATE CONTENT (2 per cycle)
     console.log('📝 Creating content...');
-    try {
-      for (let i = 0; i < 2; i++) {
-        const timestamp = Date.now();
+    for (let i = 0; i < 2; i++) {
+      try {
         const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         
-        // Get a random product for the content
+        // Get a random product
         const { data: randomProduct } = await supabaseAdmin
           .from('affiliate_links')
           .select('id, product_id, product_name')
@@ -119,57 +93,57 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
+        const contentTitle = randomProduct 
+          ? `Review: ${randomProduct.product_name}` 
+          : `AutoContent ${randomId}-${i}`;
+
         const contentData: any = {
           user_id: user_id,
-          title: randomProduct ? `Review: ${randomProduct.product_name}` : `AutoContent ${randomId}-${i}`,
-          content: `This is auto-generated content #${i} created at ${new Date().toISOString()}. ${randomProduct ? `Featuring ${randomProduct.product_name}.` : ''}`,
+          title: contentTitle,
+          content: `Auto-generated content #${i} created at ${new Date().toISOString()}. ${randomProduct ? `Featuring ${randomProduct.product_name}.` : ''}`,
           content_type: 'blog',
           platform: 'facebook',
-          status: 'published',
-          created_at: new Date().toISOString()
+          status: 'published'
         };
 
-        // Add link_id if available
-        if (randomProduct) {
+        if (randomProduct?.id) {
           contentData.link_id = randomProduct.id;
-          if (randomProduct.product_id) {
-            contentData.product_id = randomProduct.product_id;
-          }
+        }
+        if (randomProduct?.product_id) {
+          contentData.product_id = randomProduct.product_id;
         }
 
-        const { data: content, error: contentError } = await supabaseAdmin
+        const { error: contentError } = await supabaseAdmin
           .from('generated_content')
-          .insert(contentData)
-          .select('id, title')
-          .single();
+          .insert(contentData);
 
         if (contentError) {
-          console.error(`❌ Content ${i} insert error:`, contentError);
+          console.error(`❌ Content ${i} error:`, contentError.message);
         } else {
           contentCreated++;
-          console.log(`✅ Content ${i} created:`, content.title);
+          console.log(`✅ Content ${i} created: ${contentTitle}`);
         }
+      } catch (error) {
+        console.error(`❌ Content ${i} exception:`, error);
       }
-    } catch (error) {
-      console.error('❌ Content creation failed:', error);
     }
 
     // 3. CREATE POSTS (2 per cycle)
     console.log('📱 Creating posts...');
-    try {
-      // Get a random affiliate link for the post
-      const { data: randomLink } = await supabaseAdmin
-        .from('affiliate_links')
-        .select('id, product_id')
-        .eq('user_id', user_id)
-        .limit(1)
-        .maybeSingle();
-
-      for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 2; i++) {
+      try {
         const timestamp = Date.now();
         const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
         const platform = platforms[i % platforms.length];
         
+        // Get a random link
+        const { data: randomLink } = await supabaseAdmin
+          .from('affiliate_links')
+          .select('id, product_id')
+          .eq('user_id', user_id)
+          .limit(1)
+          .maybeSingle();
+
         const postData: any = {
           user_id: user_id,
           platform: platform,
@@ -179,29 +153,26 @@ serve(async (req) => {
           posted_at: new Date().toISOString()
         };
 
-        // Add link_id and product_id if available
-        if (randomLink) {
+        if (randomLink?.id) {
           postData.link_id = randomLink.id;
-          if (randomLink.product_id) {
-            postData.product_id = randomLink.product_id;
-          }
+        }
+        if (randomLink?.product_id) {
+          postData.product_id = randomLink.product_id;
         }
 
-        const { data: post, error: postError } = await supabaseAdmin
+        const { error: postError } = await supabaseAdmin
           .from('posted_content')
-          .insert(postData)
-          .select('id, platform')
-          .single();
+          .insert(postData);
 
         if (postError) {
-          console.error(`❌ Post ${i} insert error:`, postError);
+          console.error(`❌ Post ${i} error:`, postError.message);
         } else {
           postsCreated++;
-          console.log(`✅ Post ${i} created on ${platform}:`, post.id);
+          console.log(`✅ Post ${i} created on ${platform}`);
         }
+      } catch (error) {
+        console.error(`❌ Post ${i} exception:`, error);
       }
-    } catch (error) {
-      console.error('❌ Posts creation failed:', error);
     }
 
     const result = {
@@ -213,7 +184,7 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     };
 
-    console.log('🎉 Autopilot cycle complete:', result);
+    console.log('🎉 Cycle complete:', result);
 
     return new Response(
       JSON.stringify(result),
