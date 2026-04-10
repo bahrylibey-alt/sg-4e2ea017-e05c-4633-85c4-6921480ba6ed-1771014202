@@ -20,12 +20,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get active campaign - FIXED: use maybeSingle() instead of single()
+    // Get active campaign (use maybeSingle to avoid "multiple rows" error)
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('id, name')
       .eq('user_id', user_id)
       .eq('status', 'active')
+      .limit(1)
       .maybeSingle();
 
     if (campaignError) {
@@ -47,7 +48,7 @@ serve(async (req) => {
     let contentCreated = 0;
     let postsCreated = 0;
 
-    // CREATE 3 PRODUCTS - FIXED: removed category column
+    // CREATE 3 PRODUCTS
     console.log('📦 Creating products...');
     for (let i = 0; i < 3; i++) {
       try {
@@ -126,7 +127,7 @@ serve(async (req) => {
       }
     }
 
-    // CREATE 2 POSTS - FIXED: removed content_id, campaign_id columns
+    // CREATE 2 POSTS
     console.log('📱 Creating posts...');
     const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
     const { data: lastLinks } = await supabaseAdmin
