@@ -12,8 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { action, user_id } = await req.json();
-    console.log('🤖 Autopilot Engine Starting', { action, user_id, timestamp: new Date().toISOString() });
+    const { user_id } = await req.json();
+    console.log('🤖 Autopilot Engine Starting', { user_id, timestamp: new Date().toISOString() });
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -21,12 +21,17 @@ serve(async (req) => {
     );
 
     // Get active campaign
-    const { data: campaign } = await supabaseAdmin
+    const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .select('id, name')
       .eq('user_id', user_id)
       .eq('status', 'active')
       .maybeSingle();
+
+    if (campaignError) {
+      console.error('❌ Campaign fetch error:', campaignError);
+      throw campaignError;
+    }
 
     if (!campaign) {
       console.log('⏸️ No active campaign found');
@@ -46,9 +51,9 @@ serve(async (req) => {
     console.log('📦 Creating products...');
     for (let i = 0; i < 3; i++) {
       try {
-        const timestamp = Date.now();
-        const productName = `Product-${timestamp}-${i}`;
-        const slug = `prod-${timestamp}-${i}`;
+        const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const productName = `Auto Product ${uniqueId}-${i}`;
+        const slug = `prod-${uniqueId.toLowerCase()}-${i}`;
         
         const { data, error } = await supabaseAdmin
           .from('affiliate_links')
@@ -57,8 +62,7 @@ serve(async (req) => {
             campaign_id: campaign.id,
             product_name: productName,
             slug: slug,
-            original_url: `https://amazon.com/dp/${timestamp}${i}`,
-            short_url: `https://go.example.com/${slug}`,
+            original_url: `https://amazon.com/dp/${uniqueId}${i}`,
             category: 'Auto-Generated',
             platform: 'amazon',
             status: 'active',
@@ -84,64 +88,85 @@ serve(async (req) => {
 
     // CREATE 2 CONTENT
     console.log('📝 Creating content...');
-    for (let i = 0; i < 2; i++) {
-      try {
-        const timestamp = Date.now();
-        const contentTitle = `Content-${timestamp}-${i}`;
-        
-        const { data, error } = await supabaseAdmin
-          .from('generated_content')
-          .insert({
-            user_id: user_id,
-            title: contentTitle,
-            content: `Auto-generated content created at ${new Date().toISOString()}. This is real content #${i}.`,
-            content_type: 'blog',
-            platform: 'facebook',
-            status: 'published'
-          })
-          .select('id')
-          .single();
+    const lastProducts = await supabaseAdmin
+      .from('affiliate_links')
+      .select('id, product_name')
+      .eq('user_id', user_id)
+      .order('created_at', { ascending: false })
+      .limit(3);
 
-        if (error) {
-          console.error(`❌ Content ${i} error:`, error.message);
-        } else {
-          contentCreated++;
-          console.log(`✅ Content ${i} created:`, contentTitle, data.id);
+    if (lastProducts.data && lastProducts.data.length > 0) {
+      for (let i = 0; i < 2; i++) {
+        try {
+          const product = lastProducts.data[i % lastProducts.data.length];
+          const contentTitle = `Review: ${product.product_name}`;
+          
+          const { data, error } = await supabaseAdmin
+            .from('generated_content')
+            .insert({
+              user_id: user_id,
+              link_id: product.id,
+              title: contentTitle,
+              content: `Auto-generated review for ${product.product_name}. Created at ${new Date().toISOString()}. This product offers great value and quality.`,
+              content_type: 'blog',
+              platform: 'facebook',
+              status: 'published'
+            })
+            .select('id')
+            .single();
+
+          if (error) {
+            console.error(`❌ Content ${i} error:`, error.message);
+          } else {
+            contentCreated++;
+            console.log(`✅ Content ${i} created:`, contentTitle, data.id);
+          }
+        } catch (error) {
+          console.error(`❌ Content ${i} exception:`, error);
         }
-      } catch (error) {
-        console.error(`❌ Content ${i} exception:`, error);
       }
     }
 
     // CREATE 2 POSTS
     console.log('📱 Creating posts...');
     const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
-    for (let i = 0; i < 2; i++) {
-      try {
-        const timestamp = Date.now();
-        const platform = platforms[i % platforms.length];
-        
-        const { data, error } = await supabaseAdmin
-          .from('posted_content')
-          .insert({
-            user_id: user_id,
-            platform: platform,
-            post_type: 'image',
-            caption: `AutoPost-${timestamp}-${i} - Check out this amazing product! #affiliate`,
-            status: 'posted',
-            posted_at: new Date().toISOString()
-          })
-          .select('id')
-          .single();
+    const lastLinks = await supabaseAdmin
+      .from('affiliate_links')
+      .select('id, product_name')
+      .eq('user_id', user_id)
+      .order('created_at', { ascending: false })
+      .limit(2);
 
-        if (error) {
-          console.error(`❌ Post ${i} error:`, error.message);
-        } else {
-          postsCreated++;
-          console.log(`✅ Post ${i} created on ${platform}:`, data.id);
+    if (lastLinks.data && lastLinks.data.length > 0) {
+      for (let i = 0; i < 2; i++) {
+        try {
+          const timestamp = Date.now();
+          const platform = platforms[i % platforms.length];
+          const link = lastLinks.data[i % lastLinks.data.length];
+          
+          const { data, error } = await supabaseAdmin
+            .from('posted_content')
+            .insert({
+              user_id: user_id,
+              link_id: link.id,
+              platform: platform,
+              post_type: 'image',
+              caption: `AutoPost ${timestamp}-${i} - Check out this amazing product! #affiliate #automated`,
+              status: 'posted',
+              posted_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+
+          if (error) {
+            console.error(`❌ Post ${i} error:`, error.message);
+          } else {
+            postsCreated++;
+            console.log(`✅ Post ${i} created on ${platform}:`, data.id);
+          }
+        } catch (error) {
+          console.error(`❌ Post ${i} exception:`, error);
         }
-      } catch (error) {
-        console.error(`❌ Post ${i} exception:`, error);
       }
     }
 
