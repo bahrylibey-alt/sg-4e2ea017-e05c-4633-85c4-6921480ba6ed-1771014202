@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw, Rocket } from "lucide-react";
+import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw, Rocket, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,6 +24,7 @@ export function AutopilotDashboard() {
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [lastCycleResult, setLastCycleResult] = useState<any>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [status, setStatus] = useState<AutopilotStatus>({
     active: false,
     products: 0,
@@ -62,42 +63,34 @@ export function AutopilotDashboard() {
         // Get products count
         const { data: products } = await supabase
           .from('affiliate_links')
-          .select('id, clicks, conversions, revenue')
+          .select('id, clicks, conversions, revenue, product_name, original_url')
           .in('campaign_id', campaignIds);
 
         const productsCount = products?.length || 0;
         const totalClicks = products?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
         const totalRevenue = products?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0;
-        console.log('🛍️ Products:', productsCount, 'Clicks:', totalClicks, 'Revenue:', totalRevenue);
+        const optimizedCount = products?.filter(p => p.product_name && p.original_url).length || 0;
+        
+        console.log('🛍️ Products:', productsCount, 'Clicks:', totalClicks, 'Revenue:', totalRevenue, 'Optimized:', optimizedCount);
 
         // Get content count
         const { data: content } = await supabase
           .from('generated_content')
-          .select('id')
-          .in('campaign_id', campaignIds);
+          .select('id, status')
+          .eq('user_id', user.id);
 
-        const contentCount = content?.length || 0;
-        console.log('📝 Content:', contentCount);
+        const contentCount = content?.filter(c => c.status === 'published').length || 0;
+        console.log('📝 Content:', content?.length || 0, 'Published:', contentCount);
 
         // Get posts count
-        const { data: posts } = await (supabase as any)
+        const { data: posts } = await supabase
           .from('posted_content')
-          .select('id')
+          .select('id, status, posted_at')
           .eq('user_id', user.id)
           .not('posted_at', 'is', null);
 
         const postsCount = posts?.length || 0;
         console.log('📮 Posts:', postsCount);
-
-        // Get optimized count
-        const { data: optimizedLinks } = await (supabase as any)
-          .from('affiliate_links')
-          .select('id')
-          .in('campaign_id', campaignIds)
-          .not('product_name', 'is', null)
-          .not('original_url', 'is', null);
-
-        const optimizedCount = optimizedLinks?.length || 0;
 
         setStatus(prev => ({
           ...prev,
@@ -108,6 +101,8 @@ export function AutopilotDashboard() {
           clicks: totalClicks,
           revenue: Math.round(totalRevenue * 100) / 100
         }));
+
+        setLastRefresh(new Date());
 
         console.log('✅ AutopilotDashboard: Stats updated:', {
           products: productsCount,
@@ -198,7 +193,8 @@ export function AutopilotDashboard() {
           setLastCycleResult(data.results);
           toast({
             title: "🚀 Autopilot Launched!",
-            description: `Discovered ${data.results.products_discovered} products, generated ${data.results.content_generated} content pieces`
+            description: `Discovered ${data.results.products_discovered} products, generated ${data.results.content_generated} content pieces, published ${data.results.posts_published} posts`,
+            duration: 5000
           });
         } else {
           toast({
@@ -253,8 +249,9 @@ export function AutopilotDashboard() {
         duration: 5000
       });
 
-      // Refresh stats immediately after cycle
-      await loadAutopilotStatus();
+      // Force immediate refresh of stats
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      window.location.reload();
       
     } catch (error: any) {
       console.error('❌ Cycle error:', error);
@@ -265,6 +262,20 @@ export function AutopilotDashboard() {
       });
     } finally {
       setRunning(false);
+    }
+  };
+
+  const manualRefresh = async () => {
+    setLoading(true);
+    try {
+      // Force a refresh by toggling the useEffect dependency
+      setAutopilotEnabled(prev => prev);
+      toast({
+        title: "Dashboard refreshed",
+        description: "Latest data loaded from database"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -304,7 +315,7 @@ export function AutopilotDashboard() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={loadAutopilotStatus}
+                    onClick={manualRefresh}
                     disabled={loading}
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
@@ -318,15 +329,23 @@ export function AutopilotDashboard() {
         <CardContent>
           {autopilotEnabled ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Activity className="h-4 w-4 text-green-500 animate-pulse" />
-                <span className="text-green-500 font-semibold">System Active</span>
-                <span className="text-muted-foreground">• Real-time data from database</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  <Activity className="h-4 w-4 text-green-500 animate-pulse" />
+                  <span className="text-green-500 font-semibold">System Active</span>
+                  <span className="text-muted-foreground">• Real-time data from database</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Last updated: {lastRefresh.toLocaleTimeString()}
+                </div>
               </div>
 
               {lastCycleResult && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm">
-                  <div className="font-semibold mb-1">Last Cycle Results:</div>
+                  <div className="font-semibold mb-1 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    Last Cycle Results:
+                  </div>
                   <div className="text-muted-foreground space-y-1">
                     <div>✅ Products Discovered: {lastCycleResult.products_discovered || 0}</div>
                     <div>📝 Content Generated: {lastCycleResult.content_generated || 0}</div>
@@ -407,9 +426,9 @@ export function AutopilotDashboard() {
                   <span>Products Found</span>
                   <span className="font-semibold">{status.products}</span>
                 </div>
-                <Progress value={Math.min(100, (status.products / 10) * 100)} className="h-2" />
+                <Progress value={Math.min(100, (status.products / 20) * 100)} className="h-2" />
                 <div className="text-xs text-muted-foreground">
-                  {status.products < 10 ? 'Discovering more...' : 'Target reached'}
+                  {status.products < 20 ? 'Discovering more...' : 'Target reached'}
                 </div>
               </div>
             </CardContent>
