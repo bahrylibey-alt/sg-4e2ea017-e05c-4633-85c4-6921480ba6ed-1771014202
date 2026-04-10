@@ -159,6 +159,7 @@ export type Database = {
       }
       affiliate_links: {
         Row: {
+          autopilot_state: string | null
           campaign_id: string | null
           check_failures: number | null
           click_count: number | null
@@ -167,16 +168,24 @@ export type Database = {
           commission_earned: number | null
           commission_rate: number | null
           conversion_count: number | null
+          conversion_rate: number | null
           conversions: number | null
           created_at: string | null
+          ctr: number | null
           id: string
+          impressions: number | null
           is_working: boolean | null
           last_checked_at: string | null
+          last_killed_at: string | null
+          last_scaled_at: string | null
           network: string | null
           original_url: string
+          performance_score: number | null
+          priority_score: number | null
           product_id: string | null
           product_name: string | null
           revenue: number | null
+          revenue_per_click: number | null
           short_code: string | null
           slug: string
           status: string | null
@@ -184,6 +193,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          autopilot_state?: string | null
           campaign_id?: string | null
           check_failures?: number | null
           click_count?: number | null
@@ -192,16 +202,24 @@ export type Database = {
           commission_earned?: number | null
           commission_rate?: number | null
           conversion_count?: number | null
+          conversion_rate?: number | null
           conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           id?: string
+          impressions?: number | null
           is_working?: boolean | null
           last_checked_at?: string | null
+          last_killed_at?: string | null
+          last_scaled_at?: string | null
           network?: string | null
           original_url: string
+          performance_score?: number | null
+          priority_score?: number | null
           product_id?: string | null
           product_name?: string | null
           revenue?: number | null
+          revenue_per_click?: number | null
           short_code?: string | null
           slug: string
           status?: string | null
@@ -209,6 +227,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          autopilot_state?: string | null
           campaign_id?: string | null
           check_failures?: number | null
           click_count?: number | null
@@ -217,16 +236,24 @@ export type Database = {
           commission_earned?: number | null
           commission_rate?: number | null
           conversion_count?: number | null
+          conversion_rate?: number | null
           conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           id?: string
+          impressions?: number | null
           is_working?: boolean | null
           last_checked_at?: string | null
+          last_killed_at?: string | null
+          last_scaled_at?: string | null
           network?: string | null
           original_url?: string
+          performance_score?: number | null
+          priority_score?: number | null
           product_id?: string | null
           product_name?: string | null
           revenue?: number | null
+          revenue_per_click?: number | null
           short_code?: string | null
           slug?: string
           status?: string | null
@@ -1241,13 +1268,21 @@ export type Database = {
       }
       generated_content: {
         Row: {
+          autopilot_state: string | null
           body: string
           campaign_id: string | null
           category: string | null
           clicks: number | null
+          conversion_rate: number | null
+          conversions: number | null
           created_at: string | null
+          ctr: number | null
           description: string | null
           id: string
+          impressions: number | null
+          performance_score: number | null
+          priority_score: number | null
+          revenue: number | null
           status: string
           title: string
           type: string
@@ -1256,13 +1291,21 @@ export type Database = {
           views: number | null
         }
         Insert: {
+          autopilot_state?: string | null
           body: string
           campaign_id?: string | null
           category?: string | null
           clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           description?: string | null
           id?: string
+          impressions?: number | null
+          performance_score?: number | null
+          priority_score?: number | null
+          revenue?: number | null
           status?: string
           title: string
           type: string
@@ -1271,13 +1314,21 @@ export type Database = {
           views?: number | null
         }
         Update: {
+          autopilot_state?: string | null
           body?: string
           campaign_id?: string | null
           category?: string | null
           clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           description?: string | null
           id?: string
+          impressions?: number | null
+          performance_score?: number | null
+          priority_score?: number | null
+          revenue?: number | null
           status?: string
           title?: string
           type?: string
@@ -1595,23 +1646,31 @@ export type Database = {
       }
       posted_content: {
         Row: {
+          autopilot_state: string | null
           caption: string | null
           clicks: number | null
           comments: number | null
+          conversion_rate: number | null
+          conversions: number | null
           created_at: string | null
+          ctr: number | null
           engagement_data: Json | null
           hashtags: string[] | null
           id: string
+          impressions: number | null
           likes: number | null
           link_id: string | null
           media_urls: string[] | null
+          performance_score: number | null
           platform: string
           platform_post_id: string | null
           post_type: string | null
           post_url: string | null
           posted_at: string | null
+          priority_score: number | null
           product_id: string | null
           revenue_generated: number | null
+          revenue_per_click: number | null
           scheduled_for: string | null
           shares: number | null
           social_account_id: string | null
@@ -1619,23 +1678,31 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          autopilot_state?: string | null
           caption?: string | null
           clicks?: number | null
           comments?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           engagement_data?: Json | null
           hashtags?: string[] | null
           id?: string
+          impressions?: number | null
           likes?: number | null
           link_id?: string | null
           media_urls?: string[] | null
+          performance_score?: number | null
           platform: string
           platform_post_id?: string | null
           post_type?: string | null
           post_url?: string | null
           posted_at?: string | null
+          priority_score?: number | null
           product_id?: string | null
           revenue_generated?: number | null
+          revenue_per_click?: number | null
           scheduled_for?: string | null
           shares?: number | null
           social_account_id?: string | null
@@ -1643,23 +1710,31 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          autopilot_state?: string | null
           caption?: string | null
           clicks?: number | null
           comments?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
           created_at?: string | null
+          ctr?: number | null
           engagement_data?: Json | null
           hashtags?: string[] | null
           id?: string
+          impressions?: number | null
           likes?: number | null
           link_id?: string | null
           media_urls?: string[] | null
+          performance_score?: number | null
           platform?: string
           platform_post_id?: string | null
           post_type?: string | null
           post_url?: string | null
           posted_at?: string | null
+          priority_score?: number | null
           product_id?: string | null
           revenue_generated?: number | null
+          revenue_per_click?: number | null
           scheduled_for?: string | null
           shares?: number | null
           social_account_id?: string | null
