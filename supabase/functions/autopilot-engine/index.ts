@@ -30,19 +30,19 @@ serve(async (req) => {
       .maybeSingle();
 
     if (campaignError) {
-      console.error('❌ Campaign fetch error:', campaignError);
+      console.error('❌ Campaign error:', campaignError);
       throw campaignError;
     }
 
     if (!campaign) {
-      console.log('⏸️ No active campaign found');
+      console.log('⏸️ No active campaign');
       return new Response(
         JSON.stringify({ success: true, products_discovered: 0, content_generated: 0, posts_published: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
       );
     }
 
-    console.log('✅ Active campaign found:', campaign.name);
+    console.log('✅ Campaign found:', campaign.name);
 
     let productsCreated = 0;
     let contentCreated = 0;
@@ -56,7 +56,6 @@ serve(async (req) => {
         const productName = `Auto Product ${uniqueId}-${i}`;
         const slug = `prod-${uniqueId.toLowerCase()}-${i}`;
         
-        // Exact match to affiliate_links schema
         const { data, error } = await supabaseAdmin
           .from('affiliate_links')
           .insert({
@@ -65,7 +64,7 @@ serve(async (req) => {
             product_name: productName,
             slug: slug,
             original_url: `https://amazon.com/dp/${uniqueId}${i}`,
-            network: 'amazon', // Corrected from 'platform'
+            network: 'amazon',
             status: 'active',
             clicks: 0,
             conversions: 0,
@@ -73,11 +72,11 @@ serve(async (req) => {
             commission_rate: 10
           })
           .select('id')
-          .maybeSingle(); // Corrected from .single()
+          .single();
 
         if (error) {
           console.error(`❌ Product ${i} error:`, error.message);
-        } else if (data) {
+        } else {
           productsCreated++;
           console.log(`✅ Product ${i} created:`, productName, data.id);
         }
@@ -88,50 +87,41 @@ serve(async (req) => {
 
     // CREATE 2 CONTENT
     console.log('📝 Creating content...');
-    const { data: lastProducts } = await supabaseAdmin
-      .from('affiliate_links')
-      .select('id, product_name')
-      .eq('user_id', user_id)
-      .order('created_at', { ascending: false })
-      .limit(3);
+    for (let i = 0; i < 2; i++) {
+      try {
+        const uniqueId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const contentTitle = `Auto Content ${uniqueId}-${i}`;
+        
+        const { data, error } = await supabaseAdmin
+          .from('generated_content')
+          .insert({
+            user_id: user_id,
+            campaign_id: campaign.id,
+            title: contentTitle,
+            body: `Auto-generated content body. Created at ${new Date().toISOString()}. This is promotional content.`,
+            description: `Auto content description ${i}`,
+            type: 'blog',
+            category: 'promotional',
+            status: 'published',
+            views: 0,
+            clicks: 0
+          })
+          .select('id')
+          .single();
 
-    if (lastProducts && lastProducts.length > 0) {
-      for (let i = 0; i < 2; i++) {
-        try {
-          const product = lastProducts[i % lastProducts.length];
-          const contentTitle = `Review: ${product.product_name}`;
-          
-          // Exact match to generated_content schema
-          const { data, error } = await supabaseAdmin
-            .from('generated_content')
-            .insert({
-              user_id: user_id,
-              campaign_id: campaign.id, // Added
-              title: contentTitle,
-              body: `Auto-generated review for ${product.product_name}. Created at ${new Date().toISOString()}. This product offers great value and quality.`, // Corrected from 'content'
-              description: `Review of ${product.product_name}`, // Added
-              type: 'blog', // Corrected from 'content_type'
-              category: 'review', // Corrected from 'platform'
-              status: 'published'
-            })
-            .select('id')
-            .maybeSingle(); // Corrected from .single()
-
-          if (error) {
-            console.error(`❌ Content ${i} error:`, error.message);
-          } else if (data) {
-            contentCreated++;
-            console.log(`✅ Content ${i} created:`, contentTitle, data.id);
-          }
-        } catch (error) {
-          console.error(`❌ Content ${i} exception:`, error);
+        if (error) {
+          console.error(`❌ Content ${i} error:`, error.message);
+        } else {
+          contentCreated++;
+          console.log(`✅ Content ${i} created:`, contentTitle, data.id);
         }
+      } catch (error) {
+        console.error(`❌ Content ${i} exception:`, error);
       }
     }
 
     // CREATE 2 POSTS
     console.log('📱 Creating posts...');
-    const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
     const { data: lastLinks } = await supabaseAdmin
       .from('affiliate_links')
       .select('id, product_name')
@@ -140,13 +130,14 @@ serve(async (req) => {
       .limit(2);
 
     if (lastLinks && lastLinks.length > 0) {
+      const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
+      
       for (let i = 0; i < 2; i++) {
         try {
           const timestamp = Date.now();
           const platform = platforms[i % platforms.length];
           const link = lastLinks[i % lastLinks.length];
           
-          // Exact match to posted_content schema
           const { data, error } = await supabaseAdmin
             .from('posted_content')
             .insert({
@@ -156,14 +147,19 @@ serve(async (req) => {
               post_type: 'image',
               caption: `AutoPost ${timestamp}-${i} - Check out this amazing product! #affiliate #automated`,
               status: 'posted',
-              posted_at: new Date().toISOString()
+              posted_at: new Date().toISOString(),
+              likes: 0,
+              comments: 0,
+              shares: 0,
+              clicks: 0,
+              revenue_generated: 0
             })
             .select('id')
-            .maybeSingle(); // Corrected from .single()
+            .single();
 
           if (error) {
             console.error(`❌ Post ${i} error:`, error.message);
-          } else if (data) {
+          } else {
             postsCreated++;
             console.log(`✅ Post ${i} created on ${platform}:`, data.id);
           }
@@ -182,7 +178,7 @@ serve(async (req) => {
       timestamp: new Date().toISOString()
     };
 
-    console.log('🎉 Autopilot Cycle Complete:', result);
+    console.log('🎉 Autopilot Complete:', result);
 
     return new Response(
       JSON.stringify(result),
@@ -190,7 +186,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Autopilot Engine Error:', error);
+    console.error('❌ Autopilot Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
