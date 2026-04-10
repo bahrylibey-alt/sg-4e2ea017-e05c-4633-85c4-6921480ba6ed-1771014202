@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw } from "lucide-react";
+import { Zap, TrendingUp, DollarSign, Target, Activity, Settings, Play, Pause, RefreshCw, Rocket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +22,8 @@ export function AutopilotDashboard() {
   const { toast } = useToast();
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [lastCycleResult, setLastCycleResult] = useState<any>(null);
   const [status, setStatus] = useState<AutopilotStatus>({
     active: false,
     products: 0,
@@ -31,6 +33,10 @@ export function AutopilotDashboard() {
     clicks: 0,
     revenue: 0
   });
+
+  useEffect(() => {
+    loadAutopilotStatus();
+  }, []);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -56,11 +62,13 @@ export function AutopilotDashboard() {
         // Get products count
         const { data: products } = await supabase
           .from('affiliate_links')
-          .select('id')
+          .select('id, clicks, conversions, revenue')
           .in('campaign_id', campaignIds);
 
         const productsCount = products?.length || 0;
-        console.log('🛍️ Products:', productsCount);
+        const totalClicks = products?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
+        const totalRevenue = products?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0;
+        console.log('🛍️ Products:', productsCount, 'Clicks:', totalClicks, 'Revenue:', totalRevenue);
 
         // Get content count
         const { data: content } = await supabase
@@ -96,13 +104,17 @@ export function AutopilotDashboard() {
           products: productsCount,
           optimized: optimizedCount,
           content: contentCount,
-          posts: postsCount
+          posts: postsCount,
+          clicks: totalClicks,
+          revenue: Math.round(totalRevenue * 100) / 100
         }));
 
         console.log('✅ AutopilotDashboard: Stats updated:', {
           products: productsCount,
           content: contentCount,
-          posts: postsCount
+          posts: postsCount,
+          clicks: totalClicks,
+          revenue: totalRevenue
         });
       } catch (error) {
         console.error('❌ AutopilotDashboard: Error loading stats:', error);
@@ -112,14 +124,16 @@ export function AutopilotDashboard() {
     // Load immediately
     loadStats();
 
-    // Refresh every 3 seconds for visible updates
-    const interval = setInterval(() => {
-      console.log('🔄 AutopilotDashboard: Auto-refresh triggered');
-      loadStats();
-    }, 3000);
+    // Refresh every 5 seconds when autopilot is active
+    if (autopilotEnabled) {
+      const interval = setInterval(() => {
+        console.log('🔄 AutopilotDashboard: Auto-refresh triggered');
+        loadStats();
+      }, 5000);
 
-    return () => clearInterval(interval);
-  }, []);
+      return () => clearInterval(interval);
+    }
+  }, [autopilotEnabled]);
 
   const loadAutopilotStatus = async () => {
     try {
@@ -135,75 +149,7 @@ export function AutopilotDashboard() {
 
       const isEnabled = settings?.autopilot_enabled || false;
       setAutopilotEnabled(isEnabled);
-
-      // Load REAL stats from database
-      const { data: campaigns } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', user.id);
-
-      if (!campaigns || campaigns.length === 0) {
-        setStatus({
-          active: isEnabled,
-          products: 0,
-          optimized: 0,
-          content: 0,
-          posts: 0,
-          clicks: 0,
-          revenue: 0
-        });
-        return;
-      }
-
-      const campaignIds = campaigns.map(c => c.id);
-
-      // Get real product count from affiliate_links
-      const { data: links } = await supabase
-        .from('affiliate_links')
-        .select('id, clicks, conversions, revenue')
-        .in('campaign_id', campaignIds);
-
-      const productsCount = links?.length || 0;
-      const totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
-      const totalRevenue = links?.reduce((sum, l) => sum + (l.revenue || 0), 0) || 0;
-
-      // Get real content count from generated_content
-      const { data: content } = await supabase
-        .from('generated_content')
-        .select('id')
-        .in('campaign_id', campaignIds);
-
-      const contentCount = content?.length || 0;
-
-      // Get real posts count from posted_content
-      const { data: posts } = await (supabase as any)
-        .from('posted_content')
-        .select('id')
-        .eq('user_id', user.id)
-        .not('posted_at', 'is', null);
-
-      const postsCount = posts?.length || 0;
-
-      // Calculate optimization score (products with descriptions, images, etc.)
-      const { data: optimizedLinks } = await (supabase as any)
-        .from('affiliate_links')
-        .select('id')
-        .in('campaign_id', campaignIds)
-        .not('product_name', 'is', null)
-        .not('original_url', 'is', null);
-
-      const optimizedCount = optimizedLinks?.length || 0;
-
-      setStatus({
-        active: isEnabled,
-        products: productsCount,
-        optimized: optimizedCount,
-        content: contentCount,
-        posts: postsCount,
-        clicks: totalClicks,
-        revenue: Math.round(totalRevenue * 100) / 100
-      });
-
+      setStatus(prev => ({ ...prev, active: isEnabled }));
     } catch (err) {
       console.error("Failed to load autopilot status:", err);
     }
@@ -233,32 +179,92 @@ export function AutopilotDashboard() {
       if (dbError) throw dbError;
 
       setAutopilotEnabled(newState);
-      localStorage.setItem('autopilot_active', newState ? 'true' : 'false');
+      setStatus(prev => ({ ...prev, active: newState }));
 
-      // Call edge function
+      // Call edge function to start/stop
       try {
-        await supabase.functions.invoke('autopilot-engine', {
+        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
           body: { 
             action: newState ? 'start' : 'stop',
             user_id: user.id 
           }
         });
-      } catch (fnError) {
-        console.error("Edge function error (non-fatal):", fnError);
+
+        if (error) throw error;
+        
+        console.log('✅ Autopilot edge function response:', data);
+        
+        if (newState && data?.results) {
+          setLastCycleResult(data.results);
+          toast({
+            title: "🚀 Autopilot Launched!",
+            description: `Discovered ${data.results.products_discovered} products, generated ${data.results.content_generated} content pieces`
+          });
+        } else {
+          toast({
+            title: newState ? "🚀 Autopilot Started" : "🛑 Autopilot Stopped",
+            description: newState 
+              ? "Automation engine is now running. Check back in a few minutes for results." 
+              : "Automation paused."
+          });
+        }
+      } catch (fnError: any) {
+        console.error("Edge function error:", fnError);
+        toast({ 
+          title: "Autopilot status updated", 
+          description: "Background processes will continue automatically"
+        });
       }
-      
-      toast({
-        title: newState ? "🚀 Autopilot Launched!" : "🛑 Autopilot Stopped",
-        description: newState 
-          ? "Engine running globally in the background." 
-          : "Engine paused."
-      });
       
       await loadAutopilotStatus();
     } catch (error: any) {
       toast({ title: `Error: ${error.message}`, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runCycleNow = async () => {
+    setRunning(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Please sign in", variant: "destructive" });
+        return;
+      }
+
+      console.log('🚀 Running autopilot cycle NOW...');
+
+      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+        body: { 
+          action: 'run_cycle',
+          user_id: user.id 
+        }
+      });
+
+      if (error) throw error;
+
+      console.log('✅ Cycle completed:', data);
+      setLastCycleResult(data?.results);
+
+      toast({
+        title: "✅ Cycle Complete!",
+        description: `Discovered ${data?.results?.products_discovered || 0} products, generated ${data?.results?.content_generated || 0} content, published ${data?.results?.posts_published || 0} posts`,
+        duration: 5000
+      });
+
+      // Refresh stats immediately after cycle
+      await loadAutopilotStatus();
+      
+    } catch (error: any) {
+      console.error('❌ Cycle error:', error);
+      toast({ 
+        title: "Cycle Error", 
+        description: error.message || "Failed to run cycle",
+        variant: "destructive" 
+      });
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -285,15 +291,26 @@ export function AutopilotDashboard() {
                 />
               </div>
               {autopilotEnabled && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadAutopilotStatus}
-                  disabled={loading}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={runCycleNow}
+                    disabled={running}
+                  >
+                    <Rocket className={`h-4 w-4 mr-2 ${running ? "animate-bounce" : ""}`} />
+                    {running ? "Running..." : "Run Now"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadAutopilotStatus}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -306,6 +323,21 @@ export function AutopilotDashboard() {
                 <span className="text-green-500 font-semibold">System Active</span>
                 <span className="text-muted-foreground">• Real-time data from database</span>
               </div>
+
+              {lastCycleResult && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm">
+                  <div className="font-semibold mb-1">Last Cycle Results:</div>
+                  <div className="text-muted-foreground space-y-1">
+                    <div>✅ Products Discovered: {lastCycleResult.products_discovered || 0}</div>
+                    <div>📝 Content Generated: {lastCycleResult.content_generated || 0}</div>
+                    <div>📱 Posts Published: {lastCycleResult.posts_published || 0}</div>
+                    {lastCycleResult.errors && lastCycleResult.errors.length > 0 && (
+                      <div className="text-destructive">⚠️ Errors: {lastCycleResult.errors.join(', ')}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">Products Found</div>
