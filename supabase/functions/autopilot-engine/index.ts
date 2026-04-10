@@ -47,12 +47,16 @@ serve(async (req) => {
 
       if (campaigns) {
         for (let i = 0; i < 3; i++) {
+          const productName = `AutoProduct ${Date.now()}-${i}`;
+          const slug = productName.toLowerCase().replace(/\s+/g, '-');
+
           const { error: productError } = await supabase
             .from('affiliate_links')
             .insert({
               user_id: userId,
               campaign_id: campaigns.id,
-              product_name: `AutoProduct ${Date.now()}-${i}`,
+              product_name: productName,
+              slug: slug,
               network: 'amazon',
               original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
               cloaked_url: `https://go.example.com/${Date.now()}${i}`,
@@ -73,7 +77,7 @@ serve(async (req) => {
       results.errors.push(`Products: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - NO STATUS COLUMN!
+    // 2. GENERATE CONTENT (2 per cycle) - NO STATUS (use database default)
     try {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -94,7 +98,6 @@ serve(async (req) => {
               body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
               type: 'review',
               category: 'product'
-              // NO status - let database use default
             });
 
           if (contentError) {
@@ -161,6 +164,16 @@ serve(async (req) => {
       }
     } catch (error: any) {
       results.errors.push(`Posts: ${error.message}`);
+    }
+
+    // 5. UPDATE last_autopilot_run timestamp
+    try {
+      await supabase
+        .from('user_settings')
+        .update({ last_autopilot_run: new Date().toISOString() })
+        .eq('user_id', userId);
+    } catch (error: any) {
+      results.errors.push(`Timestamp update: ${error.message}`);
     }
 
     // Log execution
