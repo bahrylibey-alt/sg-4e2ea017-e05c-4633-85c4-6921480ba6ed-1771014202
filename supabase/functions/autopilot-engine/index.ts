@@ -56,7 +56,7 @@ serve(async (req) => {
         user_id: userId,
         campaign_id: campaign.id,
         product_name: `AutoProduct ${timestamp}-${i}`,
-        product_url: `https://amazon.com/product-${timestamp}-${i}`,
+        link_url: `https://amazon.com/product-${timestamp}-${i}`,
         affiliate_url: `https://amzn.to/${timestamp}-${i}`,
         network: 'amazon',
         commission_rate: 5.0,
