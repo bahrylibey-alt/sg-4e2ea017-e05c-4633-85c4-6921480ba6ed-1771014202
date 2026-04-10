@@ -23,7 +23,7 @@ serve(async (req) => {
     // Get active campaign
     const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
-      .select('id, campaign_name')
+      .select('id, name')
       .eq('user_id', userId)
       .eq('status', 'active')
       .maybeSingle();
@@ -33,15 +33,38 @@ serve(async (req) => {
       throw new Error(`Campaign error: ${campaignError.message}`);
     }
 
-    if (!campaign) {
-      console.error('No active campaign found');
-      return new Response(
-        JSON.stringify({ error: 'No active campaign found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
-      );
-    }
+    // Auto-create campaign if none exists
+    let campaignId: string;
+    let campaignName: string;
 
-    console.log('Campaign found:', campaign.campaign_name, '- ID:', campaign.id);
+    if (!campaign) {
+      console.log('No active campaign - creating default campaign...');
+      const { data: newCampaign, error: createError } = await supabase
+        .from('campaigns')
+        .insert({
+          user_id: userId,
+          name: 'Autopilot Campaign',
+          goal: 'sales',
+          status: 'active',
+          is_autopilot: true,
+          type: 'autopilot'
+        })
+        .select('id, name')
+        .single();
+
+      if (createError) {
+        console.error('Campaign creation error:', createError);
+        throw new Error(`Failed to create campaign: ${createError.message}`);
+      }
+
+      campaignId = newCampaign.id;
+      campaignName = newCampaign.name;
+      console.log('✓ Created campaign:', campaignName, '- ID:', campaignId);
+    } else {
+      campaignId = campaign.id;
+      campaignName = campaign.name;
+      console.log('Campaign found:', campaignName, '- ID:', campaignId);
+    }
 
     let productsCreated = 0;
     let contentCreated = 0;
@@ -55,7 +78,7 @@ serve(async (req) => {
       const slug = `auto-${timestamp}-${i}`;
       const productData = {
         user_id: userId,
-        campaign_id: campaign.id,
+        campaign_id: campaignId,
         product_name: `AutoProduct ${timestamp}-${i}`,
         original_url: `https://amazon.com/product-${timestamp}-${i}`,
         cloaked_url: `https://yourdomain.com/go/${slug}`,
@@ -94,7 +117,7 @@ serve(async (req) => {
       const timestamp = Date.now();
       const contentData = {
         user_id: userId,
-        campaign_id: campaign.id,
+        campaign_id: campaignId,
         title: `AutoContent ${timestamp}-${i}`,
         body: `This is auto-generated content body ${i + 1}. Created by autopilot engine at ${new Date().toISOString()}.`,
         type: 'blog',
