@@ -605,6 +605,33 @@ export type Database = {
           },
         ]
       }
+      autopilot_safety_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          reason: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          reason: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       autopilot_tasks: {
         Row: {
           campaign_id: string | null
@@ -915,7 +942,9 @@ export type Database = {
       }
       click_events: {
         Row: {
+          click_id: string | null
           clicked_at: string | null
+          content_id: string | null
           converted: boolean | null
           country: string | null
           device_type: string | null
@@ -924,12 +953,15 @@ export type Database = {
           ip_address: string | null
           is_bot: boolean | null
           link_id: string
+          platform: string | null
           referrer: string | null
           user_agent: string | null
           user_id: string | null
         }
         Insert: {
+          click_id?: string | null
           clicked_at?: string | null
+          content_id?: string | null
           converted?: boolean | null
           country?: string | null
           device_type?: string | null
@@ -938,12 +970,15 @@ export type Database = {
           ip_address?: string | null
           is_bot?: boolean | null
           link_id: string
+          platform?: string | null
           referrer?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
         Update: {
+          click_id?: string | null
           clicked_at?: string | null
+          content_id?: string | null
           converted?: boolean | null
           country?: string | null
           device_type?: string | null
@@ -952,6 +987,7 @@ export type Database = {
           ip_address?: string | null
           is_bot?: boolean | null
           link_id?: string
+          platform?: string | null
           referrer?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -1099,6 +1135,51 @@ export type Database = {
         }
         Relationships: []
       }
+      content_performance: {
+        Row: {
+          clarity_score: number | null
+          content_id: string | null
+          created_at: string | null
+          curiosity_score: number | null
+          emotion_score: number | null
+          hook_score: number | null
+          humanization_applied: boolean | null
+          id: string
+          platform_optimized: boolean | null
+          status: string | null
+          user_id: string | null
+          views_24h: number | null
+        }
+        Insert: {
+          clarity_score?: number | null
+          content_id?: string | null
+          created_at?: string | null
+          curiosity_score?: number | null
+          emotion_score?: number | null
+          hook_score?: number | null
+          humanization_applied?: boolean | null
+          id?: string
+          platform_optimized?: boolean | null
+          status?: string | null
+          user_id?: string | null
+          views_24h?: number | null
+        }
+        Update: {
+          clarity_score?: number | null
+          content_id?: string | null
+          created_at?: string | null
+          curiosity_score?: number | null
+          emotion_score?: number | null
+          hook_score?: number | null
+          humanization_applied?: boolean | null
+          id?: string
+          platform_optimized?: boolean | null
+          status?: string | null
+          user_id?: string | null
+          views_24h?: number | null
+        }
+        Relationships: []
+      }
       content_queue: {
         Row: {
           campaign_id: string | null
@@ -1179,6 +1260,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      conversion_events: {
+        Row: {
+          click_id: string | null
+          content_id: string | null
+          created_at: string | null
+          id: string
+          revenue: number
+          source: string
+          user_id: string | null
+          verified: boolean | null
+          webhook_data: Json | null
+        }
+        Insert: {
+          click_id?: string | null
+          content_id?: string | null
+          created_at?: string | null
+          id?: string
+          revenue?: number
+          source: string
+          user_id?: string | null
+          verified?: boolean | null
+          webhook_data?: Json | null
+        }
+        Update: {
+          click_id?: string | null
+          content_id?: string | null
+          created_at?: string | null
+          id?: string
+          revenue?: number
+          source?: string
+          user_id?: string | null
+          verified?: boolean | null
+          webhook_data?: Json | null
+        }
+        Relationships: []
       }
       email_sequences: {
         Row: {
@@ -2560,6 +2677,45 @@ export type Database = {
           },
         ]
       }
+      system_state: {
+        Row: {
+          last_post_at: string | null
+          last_traffic_check: string | null
+          posts_today: number | null
+          state: string | null
+          total_clicks: number | null
+          total_verified_conversions: number | null
+          total_verified_revenue: number | null
+          total_views: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          last_post_at?: string | null
+          last_traffic_check?: string | null
+          posts_today?: number | null
+          state?: string | null
+          total_clicks?: number | null
+          total_verified_conversions?: number | null
+          total_verified_revenue?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          last_post_at?: string | null
+          last_traffic_check?: string | null
+          posts_today?: number | null
+          state?: string | null
+          total_clicks?: number | null
+          total_verified_conversions?: number | null
+          total_verified_revenue?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       traffic_events: {
         Row: {
           country: string | null
@@ -2773,6 +2929,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      view_events: {
+        Row: {
+          content_id: string | null
+          created_at: string | null
+          id: string
+          platform: string
+          tracked_at: string | null
+          user_id: string | null
+          views: number | null
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string | null
+          id?: string
+          platform: string
+          tracked_at?: string | null
+          user_id?: string | null
+          views?: number | null
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string | null
+          id?: string
+          platform?: string
+          tracked_at?: string | null
+          user_id?: string | null
+          views?: number | null
+        }
+        Relationships: []
       }
     }
     Views: {

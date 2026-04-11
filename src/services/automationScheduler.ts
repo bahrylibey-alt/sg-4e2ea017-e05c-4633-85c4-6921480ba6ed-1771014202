@@ -267,13 +267,13 @@ export const automationScheduler = {
       const systemState = await getSystemState(task.user_id);
 
       // Safety: Check daily post limit
-      const { data: todayPosts } = await supabase
+      const { count } = await supabase
         .from("posted_content")
-        .select("id", { count: 'exact', head: true })
+        .select("*", { count: 'exact', head: true })
         .eq("user_id", task.user_id)
         .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString());
 
-      const postsToday = todayPosts || 0;
+      const postsToday = count || 0;
       const MAX_POSTS_PER_DAY = 20;
 
       if (postsToday >= MAX_POSTS_PER_DAY) {
