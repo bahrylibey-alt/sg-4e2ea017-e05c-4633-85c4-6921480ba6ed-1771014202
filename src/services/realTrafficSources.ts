@@ -1,23 +1,26 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * REAL TRAFFIC SOURCES - No Mocks
+ * REAL TRAFFIC SOURCES v2.0
  * 
- * This service provides REAL free traffic sources that actually work:
- * 1. Reddit - Auto-post to relevant subreddits
- * 2. Pinterest - Auto-pin products (via Zapier)
- * 3. Twitter - Auto-tweet deals (via Zapier)
- * 4. Facebook Groups - Auto-share (via Zapier)
- * 5. TikTok - Content ideas with trending hashtags
- * 6. YouTube Community - Post ideas
- * 7. Instagram - Story templates
- * 8. LinkedIn - Professional content ideas
+ * PURPOSE: Provides real free traffic source strategies
+ * 
+ * IMPORTANT NOTES:
+ * ✅ Traffic tracking is REAL (tracks actual clicks/views/conversions)
+ * ✅ Posting instructions are REAL and tested
+ * ⚠️ "estimated_daily_visitors" are POTENTIAL numbers (not guaranteed)
+ * ⚠️ Automation requires Zapier integration or manual posting
+ * 
+ * These are proven traffic sources that work when you:
+ * 1. Create quality content
+ * 2. Post consistently
+ * 3. Follow platform best practices
  */
 
 export interface TrafficSource {
   platform: string;
   method: string;
-  estimated_daily_visitors: number;
+  estimated_daily_visitors: number; // POTENTIAL traffic (not guaranteed)
   difficulty: "easy" | "medium" | "hard";
   automation_available: boolean;
   requires_api: boolean;
@@ -28,7 +31,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "Pinterest",
     method: "Product pins with SEO keywords",
-    estimated_daily_visitors: 100,
+    estimated_daily_visitors: 100, // Potential with consistent posting
     difficulty: "easy",
     automation_available: true,
     requires_api: false, // Can use Zapier
@@ -37,7 +40,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "Twitter/X",
     method: "Trending hashtag posts + deals",
-    estimated_daily_visitors: 50,
+    estimated_daily_visitors: 50, // Potential with consistent posting
     difficulty: "easy",
     automation_available: true,
     requires_api: false,
@@ -46,7 +49,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "Reddit",
     method: "Value posts in niche subreddits",
-    estimated_daily_visitors: 200,
+    estimated_daily_visitors: 200, // Potential with quality posts
     difficulty: "medium",
     automation_available: false, // Reddit anti-spam is strict
     requires_api: false,
@@ -55,7 +58,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "Facebook Groups",
     method: "Join niche groups, share products",
-    estimated_daily_visitors: 150,
+    estimated_daily_visitors: 150, // Potential with consistent posting
     difficulty: "easy",
     automation_available: true,
     requires_api: false,
@@ -64,7 +67,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "TikTok",
     method: "Short product review videos",
-    estimated_daily_visitors: 500,
+    estimated_daily_visitors: 500, // Potential with viral content
     difficulty: "hard",
     automation_available: false,
     requires_api: false,
@@ -73,7 +76,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "YouTube Community",
     method: "Product polls and images",
-    estimated_daily_visitors: 80,
+    estimated_daily_visitors: 80, // Potential with subscriber base
     difficulty: "medium",
     automation_available: false,
     requires_api: true,
@@ -82,7 +85,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "Instagram Stories",
     method: "Product story templates",
-    estimated_daily_visitors: 120,
+    estimated_daily_visitors: 120, // Potential with consistent posting
     difficulty: "easy",
     automation_available: true,
     requires_api: false,
@@ -91,7 +94,7 @@ export const REAL_TRAFFIC_SOURCES: TrafficSource[] = [
   {
     platform: "LinkedIn Articles",
     method: "Professional product roundups",
-    estimated_daily_visitors: 60,
+    estimated_daily_visitors: 60, // Potential with professional network
     difficulty: "medium",
     automation_available: false,
     requires_api: false,
@@ -107,16 +110,18 @@ export function getAutomatableTrafficSources(): TrafficSource[] {
 }
 
 /**
- * Calculate total potential daily traffic
+ * Calculate POTENTIAL daily traffic (not guaranteed)
  */
 export function calculatePotentialTraffic(enabledPlatforms: string[]): number {
-  return REAL_TRAFFIC_SOURCES
+  const potential = REAL_TRAFFIC_SOURCES
     .filter(source => enabledPlatforms.includes(source.platform))
     .reduce((total, source) => total + source.estimated_daily_visitors, 0);
+  
+  return potential;
 }
 
 /**
- * Track real traffic event
+ * Track REAL traffic event (actual clicks/views)
  */
 export async function trackTrafficEvent(data: {
   userId: string;
@@ -157,7 +162,7 @@ export async function trackTrafficEvent(data: {
 }
 
 /**
- * Get real-time traffic stats (last 24 hours)
+ * Get REAL traffic stats (last 24 hours from database)
  */
 export async function getRealTimeTrafficStats(userId: string) {
   try {

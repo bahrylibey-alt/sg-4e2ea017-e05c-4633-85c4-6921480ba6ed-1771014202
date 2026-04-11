@@ -1,26 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * FREE TRAFFIC ENGINE AUDIT
+ * FREE TRAFFIC CONTENT GENERATOR v2.0
  * 
- * CURRENT STATUS: ⚠️ MOCK/SIMULATED DATA ONLY
+ * PURPOSE: Generates content for free traffic sources
  * 
- * What's NOT Real:
- * - Social media posting (no actual API calls)
- * - SEO optimization (no real Google indexing)
- * - Email campaigns (no real email sending)
- * - Content distribution (no actual publishing)
+ * IMPORTANT - WHAT THIS DOES:
+ * ✅ Generates content drafts for social media
+ * ✅ Queues content for posting
+ * ✅ Tracks content in database
+ * ✅ Provides posting templates
  * 
- * What IS Real:
- * - Database logging
- * - Link tracking
- * - Analytics storage
+ * WHAT THIS DOES NOT DO:
+ * ❌ Does not automatically post to social media (requires Zapier or manual posting)
+ * ❌ Does not generate real traffic automatically
+ * ❌ Does not send emails automatically
  * 
- * TO MAKE REAL:
- * 1. Integrate real social media APIs (Twitter, Facebook, LinkedIn)
- * 2. Connect to email service (SendGrid, Mailgun, AWS SES)
- * 3. Implement real SEO submission (Google Search Console API)
- * 4. Add real content publishing (Medium API, WordPress API)
+ * TO GET REAL TRAFFIC:
+ * 1. Use the generated content
+ * 2. Connect Zapier to auto-post
+ * 3. Or manually copy/paste to platforms
  */
 
 export interface TrafficSource {
@@ -84,11 +83,12 @@ export const freeTrafficEngine = {
   ],
 
   /**
-   * Activate free traffic sources for a campaign (REAL system)
+   * Generate content for free traffic sources
+   * Returns content that is READY TO POST (not automatically posted)
    */
   async activateFreeTraffic(campaignId: string, channels?: string[], campaignData?: any) {
     try {
-      console.log("🌐 Activating FREE traffic sources (REAL SYSTEM)...");
+      console.log("📝 Generating content for FREE traffic sources...");
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
@@ -117,7 +117,8 @@ export const freeTrafficEngine = {
           success: false,
           activated: 0,
           sources: [],
-          estimatedReach: 0
+          contentGenerated: 0,
+          note: "Campaign not found"
         };
       }
 
@@ -126,7 +127,7 @@ export const freeTrafficEngine = {
         ? this.FREE_SOURCES.filter(s => channels.includes(s.name) || channels.some(c => s.platforms.includes(c)))
         : this.FREE_SOURCES;
 
-      console.log(`🚀 Activating ${sourcesToActivate.length} free traffic sources`);
+      console.log(`📝 Generating content for ${sourcesToActivate.length} free traffic sources`);
 
       // Update campaign status
       await supabase
@@ -137,12 +138,10 @@ export const freeTrafficEngine = {
         })
         .eq("id", campaignId);
 
-      // Generate initial content queue
-      await this.generateInitialContent(campaignId, user.id, sourcesToActivate);
+      // Generate content queue (ready for posting)
+      const contentCount = await this.generateInitialContent(campaignId, user.id, sourcesToActivate);
 
-      const totalReach = sourcesToActivate.reduce((sum, s) => sum + s.potentialReach, 0);
-
-      console.log("✅ Free traffic sources activated - Content queued for posting");
+      console.log("✅ Content generated and queued - Ready for posting via Zapier or manually");
 
       return {
         success: true,
@@ -150,27 +149,29 @@ export const freeTrafficEngine = {
         sources: sourcesToActivate.map(s => ({
           name: s.name,
           platform: s.platforms[0],
-          reach: s.potentialReach
+          potentialReach: s.potentialReach
         })),
-        estimatedReach: totalReach
+        contentGenerated: contentCount,
+        note: "Content is ready - Connect Zapier or post manually to get real traffic"
       };
 
     } catch (err) {
-      console.error("Free traffic activation error:", err);
+      console.error("Content generation error:", err);
       return {
         success: false,
         activated: 0,
         sources: [],
-        estimatedReach: 0,
-        error: err instanceof Error ? err.message : "Activation failed"
+        contentGenerated: 0,
+        error: err instanceof Error ? err.message : "Content generation failed"
       };
     }
   },
 
   /**
-   * Generate content for free traffic sources (REAL content queue)
+   * Generate content drafts for posting
+   * Returns number of content pieces generated
    */
-  async generateInitialContent(campaignId: string, userId: string, sources: typeof this.FREE_SOURCES) {
+  async generateInitialContent(campaignId: string, userId: string, sources: typeof this.FREE_SOURCES): Promise<number> {
     try {
       const { data: campaign } = await supabase
         .from("campaigns")
@@ -178,7 +179,7 @@ export const freeTrafficEngine = {
         .eq("id", campaignId)
         .single();
 
-      if (!campaign) return;
+      if (!campaign) return 0;
 
       // Get affiliate links for this campaign
       const { data: links } = await supabase
@@ -192,38 +193,43 @@ export const freeTrafficEngine = {
       const linkUrl = links?.cloaked_url || "your-link";
       const productName = links?.product_name || campaign.name;
 
-      const contentPieces = [];
+      let contentCreated = 0;
 
       for (const source of sources) {
         const content = this.generateContentForPlatform(source.name, campaign, linkUrl, productName);
         
-        contentPieces.push({
-          campaign_id: campaignId,
+        await supabase.from("posted_content").insert({
           user_id: userId,
-          content_type: this.getContentType(source.type),
-          content: content.text,
+          link_id: links?.id,
           platform: source.platforms[0],
-          status: "ready",
+          caption: content.text,
+          status: 'draft', // Changed to draft - not automatically posted
           scheduled_for: new Date(Date.now() + Math.random() * 3600000).toISOString()
         });
+
+        contentCreated++;
       }
 
-      // Log traffic generation
+      // Log content generation (not traffic generation)
       await supabase
         .from("activity_logs")
         .insert({
           user_id: userId,
-          action: 'free_traffic_generated',
-          details: 'Free traffic generation completed',
+          action: 'content_generated_for_traffic',
+          details: `${contentCreated} content pieces generated and ready for posting`,
           metadata: {
             campaign_id: campaignId,
-            traffic_sources: sources.length
+            content_count: contentCreated,
+            note: "Content is drafted - requires manual posting or Zapier integration"
           },
           status: 'success'
         });
 
+      return contentCreated;
+
     } catch (err) {
       console.error("Content generation error:", err);
+      return 0;
     }
   },
 
@@ -269,7 +275,7 @@ export const freeTrafficEngine = {
   },
 
   /**
-   * Get REAL traffic statistics from database
+   * Get REAL traffic statistics from database (actual clicks/views)
    */
   async getTrafficStats(campaignId?: string) {
     try {
