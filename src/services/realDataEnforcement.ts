@@ -34,7 +34,8 @@ export async function trackClick(params: {
       click_id: params.clickId,
       user_id: user.id,
       ip_address: params.ipAddress,
-      user_agent: params.userAgent
+      user_agent: params.userAgent,
+      link_id: params.contentId // Link ID is required by the schema
     });
 
     // Update system state
