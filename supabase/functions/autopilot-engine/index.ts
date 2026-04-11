@@ -32,8 +32,30 @@ serve(async (req) => {
       posts_published: 0,
       posts_scored: 0,
       decisions_applied: 0,
+      webhooks_sent: 0,
       errors: [] as string[]
     };
+
+    // ====================================================
+    // 0. GET ZAPIER WEBHOOK URL
+    // ====================================================
+    let zapierWebhookUrl: string | null = null;
+    try {
+      const { data: integration } = await supabase
+        .from('integrations')
+        .select('config')
+        .eq('user_id', userId)
+        .eq('provider', 'zapier')
+        .eq('status', 'connected')
+        .maybeSingle();
+
+      if (integration?.config && typeof integration.config === 'object' && 'webhook_url' in integration.config) {
+        zapierWebhookUrl = (integration.config as any).webhook_url;
+        console.log('✅ Zapier webhook URL found:', zapierWebhookUrl);
+      }
+    } catch (error: any) {
+      console.log('⚠️ No Zapier integration found:', error.message);
+    }
 
     // ====================================================
     // 1. ENSURE CAMPAIGN EXISTS (auto-create if needed)
@@ -99,9 +121,9 @@ serve(async (req) => {
 
           // Calculate performance score (0-100)
           let performanceScore = 0;
-          performanceScore += Math.min(ctr * 10, 40); // CTR worth up to 40 points
-          performanceScore += Math.min(conversionRate * 20, 40); // Conversion rate worth up to 40 points
-          performanceScore += Math.min(revenuePerClick * 2, 20); // Revenue per click worth up to 20 points
+          performanceScore += Math.min(ctr * 10, 40);
+          performanceScore += Math.min(conversionRate * 20, 40);
+          performanceScore += Math.min(revenuePerClick * 2, 20);
 
           // Determine autopilot state
           let autopilotState = 'testing';
@@ -220,12 +242,12 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 5. PUBLISH POSTS (PRIORITY QUEUE)
+    // 5. PUBLISH POSTS (PRIORITY QUEUE) + SEND TO ZAPIER
     // ====================================================
     try {
       const { data: links } = await supabase
         .from('affiliate_links')
-        .select('id, autopilot_state, priority_score')
+        .select('id, slug, product_name, cloaked_url, autopilot_state, priority_score')
         .eq('user_id', userId)
         .order('priority_score', { ascending: false })
         .limit(10);
@@ -236,15 +258,16 @@ serve(async (req) => {
         for (let i = 0; i < 2; i++) {
           const randomLink = links[Math.floor(Math.random() * links.length)];
           const randomPlatform = platforms[Math.floor(Math.random() * platforms.length)];
+          const caption = `AutoPost ${Date.now()}-${i} - Check out ${randomLink.product_name}! #affiliate #automated`;
 
-          const { error: postError } = await supabase
+          const { data: newPost, error: postError } = await supabase
             .from('posted_content')
             .insert({
               user_id: userId,
               link_id: randomLink.id,
               platform: randomPlatform,
               post_type: 'image',
-              caption: `AutoPost ${Date.now()}-${i} - Check out this product! #affiliate #automated`,
+              caption: caption,
               status: 'posted',
               posted_at: new Date().toISOString(),
               impressions: 100,
@@ -254,10 +277,45 @@ serve(async (req) => {
               autopilot_state: 'testing',
               performance_score: 0,
               priority_score: 50
-            });
+            })
+            .select()
+            .single();
 
-          if (!postError) {
+          if (!postError && newPost) {
             results.posts_published++;
+
+            // SEND WEBHOOK TO ZAPIER
+            if (zapierWebhookUrl && zapierWebhookUrl.includes('hooks.zapier.com')) {
+              try {
+                const webhookData = {
+                  event: 'post.created',
+                  data: {
+                    id: newPost.id,
+                    platform: randomPlatform,
+                    caption: caption,
+                    link_url: `https://yourdomain.com/go/${randomLink.slug}`,
+                    product_name: randomLink.product_name,
+                    created_at: new Date().toISOString()
+                  },
+                  timestamp: new Date().toISOString()
+                };
+
+                const webhookResponse = await fetch(zapierWebhookUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(webhookData)
+                });
+
+                if (webhookResponse.ok) {
+                  results.webhooks_sent++;
+                  console.log('✅ Webhook sent to Zapier for post:', newPost.id);
+                } else {
+                  console.error('❌ Webhook failed:', webhookResponse.status);
+                }
+              } catch (webhookError: any) {
+                console.error('❌ Webhook error:', webhookError.message);
+              }
+            }
           }
         }
       }
