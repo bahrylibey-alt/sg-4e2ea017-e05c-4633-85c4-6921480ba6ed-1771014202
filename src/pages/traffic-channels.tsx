@@ -24,7 +24,8 @@ import {
   Linkedin,
   MessageSquare,
   Share2,
-  Mail
+  Mail,
+  BarChart3
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -107,10 +108,20 @@ const TRAFFIC_CHANNELS = [
   }
 ];
 
+interface ChannelAnalytics {
+  platform: string;
+  views: number;
+  clicks: number;
+  conversions: number;
+  conversionRate: number;
+  revenue: number;
+}
+
 export default function TrafficChannels() {
   const { toast } = useToast();
   const [activeChannels, setActiveChannels] = useState<Record<string, boolean>>({});
   const [channelStats, setChannelStats] = useState<Record<string, { views: number; clicks: number }>>({});
+  const [channelAnalytics, setChannelAnalytics] = useState<ChannelAnalytics[]>([]);
   const [isAutopilotActive, setIsAutopilotActive] = useState(false);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const router = useRouter();
@@ -124,6 +135,7 @@ export default function TrafficChannels() {
   const loadData = async () => {
     await loadAutopilotStatus();
     await loadChannelStatus();
+    await loadChannelAnalytics();
   };
 
   const loadAutopilotStatus = async () => {
@@ -184,6 +196,58 @@ export default function TrafficChannels() {
       setChannelStats(stats);
     } catch (error) {
       console.error('Error loading channel status:', error);
+    }
+  };
+
+  const loadChannelAnalytics = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get real data from posted_content table
+      const { data: posts } = await supabase
+        .from('posted_content')
+        .select('platform, impressions, clicks, conversions, revenue')
+        .eq('user_id', user.id)
+        .eq('status', 'posted');
+
+      if (!posts || posts.length === 0) {
+        setChannelAnalytics([]);
+        return;
+      }
+
+      // Aggregate by platform
+      const platformData: Record<string, ChannelAnalytics> = {};
+
+      posts.forEach(post => {
+        const platform = post.platform || 'unknown';
+        
+        if (!platformData[platform]) {
+          platformData[platform] = {
+            platform,
+            views: 0,
+            clicks: 0,
+            conversions: 0,
+            conversionRate: 0,
+            revenue: 0
+          };
+        }
+
+        platformData[platform].views += post.impressions || 0;
+        platformData[platform].clicks += post.clicks || 0;
+        platformData[platform].conversions += post.conversions || 0;
+        platformData[platform].revenue += Number(post.revenue) || 0;
+      });
+
+      // Calculate conversion rates
+      const analytics = Object.values(platformData).map(data => ({
+        ...data,
+        conversionRate: data.clicks > 0 ? (data.conversions / data.clicks) * 100 : 0
+      }));
+
+      setChannelAnalytics(analytics.sort((a, b) => b.conversionRate - a.conversionRate));
+    } catch (error) {
+      console.error('Error loading channel analytics:', error);
     }
   };
 
@@ -305,6 +369,61 @@ export default function TrafficChannels() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Conversion Rate Analytics */}
+        {channelAnalytics.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Channel Performance Analytics
+              </CardTitle>
+              <CardDescription>Real conversion rates from your posted content</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {channelAnalytics.map((analytics) => (
+                  <div key={analytics.platform} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize">{analytics.platform}</Badge>
+                        <span className="text-sm font-medium">
+                          {analytics.conversionRate.toFixed(2)}% Conversion Rate
+                        </span>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        ${analytics.revenue.toFixed(2)} revenue
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 mb-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Views</div>
+                        <div className="text-lg font-semibold text-blue-600">{analytics.views.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Clicks</div>
+                        <div className="text-lg font-semibold text-green-600">{analytics.clicks.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Conversions</div>
+                        <div className="text-lg font-semibold text-purple-600">{analytics.conversions}</div>
+                      </div>
+                    </div>
+
+                    {/* Visual progress bar for conversion rate */}
+                    <div className="mt-2">
+                      <Progress 
+                        value={Math.min(analytics.conversionRate * 20, 100)} 
+                        className="h-2"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Traffic Channels Grid */}
         <div className="grid md:grid-cols-2 gap-6">
