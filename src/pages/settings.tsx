@@ -76,6 +76,8 @@ export default function Settings() {
         .upsert({
           user_id: user.id,
           provider: "zapier",
+          provider_name: "Zapier",
+          category: "automation",
           status: zapierEnabled ? "connected" : "disconnected",
           config: {
             webhook_url: zapierWebhookUrl
