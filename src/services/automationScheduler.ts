@@ -1,12 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { getSystemState, trackViews, trackClick } from "./realDataEnforcement";
+import { 
+  generateHooks, 
+  generateFinalPost,
+  storeContentDNA,
+  getWinningPatterns,
+  evaluatePostPerformance,
+  executeViralLoop,
+  isPostingSafe,
+  updatePostingHistory,
+  shouldScale,
+  executeScaling,
+  getRandomPostingDelay
+} from "./contentIntelligence";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 
 /**
- * AUTOMATION SCHEDULER v3.0 - REAL DATA ENFORCEMENT
- * Zero tolerance for fake signals
+ * AUTOMATION SCHEDULER v4.0 - VIRAL ENGINE INTEGRATION
+ * Pattern learning + behavioral mimicry + viral loops
  */
 
 export const automationScheduler = {
@@ -23,7 +36,7 @@ export const automationScheduler = {
     }
 
     try {
-      console.log("🚀 Starting Automation Scheduler v2.0 (REAL SYSTEM)...");
+      console.log("🚀 Starting Automation Scheduler v4.0 (VIRAL ENGINE)...");
       
       // Verify campaign exists if provided
       if (campaignId) {
@@ -51,7 +64,7 @@ export const automationScheduler = {
         await this.executePendingTasks(campaignId);
       }, 5 * 60 * 1000);
 
-      console.log("✅ Automation Scheduler started - Running every 5 minutes");
+      console.log("✅ Viral Engine started - Running every 5 minutes");
       return true;
     } catch (error) {
       console.error("❌ Failed to start scheduler:", error);
@@ -69,7 +82,7 @@ export const automationScheduler = {
       this.intervalId = null;
     }
     this.isRunning = false;
-    console.log("⏹️ Automation Scheduler stopped");
+    console.log("⏹️ Viral Engine stopped");
   },
 
   /**
@@ -81,7 +94,7 @@ export const automationScheduler = {
     failed: number;
   }> {
     try {
-      console.log("🔄 Executing pending tasks...");
+      console.log("🔄 Executing pending tasks with viral intelligence...");
 
       // Get all pending tasks sorted by priority
       let query = supabase
@@ -150,7 +163,6 @@ export const automationScheduler = {
         .eq("id", task.id);
 
       let success = false;
-      const metrics: Record<string, number> = {};
 
       // Execute based on task type - ALL REAL (no more random generation)
       switch (task.task_type) {
@@ -159,7 +171,7 @@ export const automationScheduler = {
           break;
 
         case "content_creation":
-          success = await this.scheduleContent(task);
+          success = await this.scheduleViralContent(task);
           break;
 
         case "link_optimization":
@@ -256,12 +268,19 @@ export const automationScheduler = {
   },
 
   /**
-   * SCHEDULE CONTENT - Queue real social media posts with intelligence filter
+   * VIRAL CONTENT SCHEDULER - Uses viral engine
    */
-  async scheduleContent(task: AutopilotTask): Promise<boolean> {
+  async scheduleViralContent(task: AutopilotTask): Promise<boolean> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
+
+      // Check posting safety (anti-suppression)
+      const safetyCheck = isPostingSafe();
+      if (!safetyCheck.safe) {
+        console.log(`⚠️ Posting not safe: ${safetyCheck.reason}`);
+        return false;
+      }
 
       // Get system state
       const systemState = await getSystemState(task.user_id);
@@ -304,13 +323,22 @@ export const automationScheduler = {
         return false;
       }
 
-      // Use content intelligence to generate quality hooks
-      const { generateHooks, generateFinalPost } = await import("./contentIntelligence");
+      // Determine platform based on system state
+      const platform = systemState.state === 'NO_TRAFFIC' ? 'pinterest' : 'tiktok';
 
+      // Execute viral loop to check for winners
+      const viralLoopResult = await executeViralLoop({
+        platform: platform as 'tiktok' | 'pinterest' | 'instagram',
+        productName: links.product_name || "Product",
+        niche: "Kitchen Gadgets"
+      });
+
+      // Generate viral hooks
       const hooks = await generateHooks({
         productName: links.product_name || "Product",
         niche: "Kitchen Gadgets",
-        benefit: "healthy cooking"
+        benefit: "healthy cooking",
+        platform: platform as 'tiktok' | 'pinterest' | 'instagram'
       });
 
       if (hooks.length === 0 || hooks[0].total_score < 40) {
@@ -319,8 +347,8 @@ export const automationScheduler = {
       }
 
       const bestHook = hooks[0];
-      const platform = systemState.state === 'NO_TRAFFIC' ? 'pinterest' : 'tiktok';
 
+      // Generate final post with viral optimization
       const finalPost = await generateFinalPost({
         hook: bestHook,
         productName: links.product_name || "Product",
@@ -328,11 +356,12 @@ export const automationScheduler = {
         platform: platform as 'tiktok' | 'pinterest' | 'instagram'
       });
 
-      const scheduledTime = new Date();
-      scheduledTime.setHours(scheduledTime.getHours() + 2);
+      // Random delay for human behavior
+      const delay = getRandomPostingDelay();
+      const scheduledTime = new Date(Date.now() + delay);
 
       // Create posted content entry
-      await supabase
+      const { data: newPost } = await supabase
         .from("posted_content")
         .insert({
           user_id: user.id,
@@ -341,28 +370,37 @@ export const automationScheduler = {
           caption: finalPost,
           status: 'scheduled',
           scheduled_for: scheduledTime.toISOString()
-        });
+        })
+        .select()
+        .single();
 
-      // Log automation task
-      await supabase
-        .from("activity_logs")
-        .insert({
-          user_id: task.user_id,
-          action: 'content_scheduled',
-          details: `Content scheduled for ${platform} with hook score ${bestHook.total_score}`,
-          metadata: {
-            campaign_id: task.campaign_id,
-            task_type: task.task_type,
-            hook_score: bestHook.total_score,
-            platform
-          },
-          status: 'success'
-        });
+      if (newPost) {
+        // Update posting history for anti-suppression
+        updatePostingHistory(bestHook.text, 'viral');
 
-      console.log(`✅ Quality content scheduled for ${platform} (hook score: ${bestHook.total_score})`);
+        // Log automation task
+        await supabase
+          .from("activity_logs")
+          .insert({
+            user_id: task.user_id,
+            action: 'viral_content_scheduled',
+            details: `Viral content scheduled for ${platform} with hook score ${bestHook.total_score}`,
+            metadata: {
+              campaign_id: task.campaign_id,
+              task_type: task.task_type,
+              hook_score: bestHook.total_score,
+              platform,
+              viral_loop_action: viralLoopResult.action
+            },
+            status: 'success'
+          });
+
+        console.log(`✅ Viral content scheduled for ${platform} (score: ${bestHook.total_score}, delay: ${Math.round(delay / 60000)}min)`);
+      }
+
       return true;
     } catch (error) {
-      console.error("Error scheduling content:", error);
+      console.error("Error scheduling viral content:", error);
       return false;
     }
   },
@@ -379,6 +417,47 @@ export const automationScheduler = {
 
   async monitorPerformance(task: AutopilotTask): Promise<boolean> {
     try {
+      // Get recent posts and evaluate performance
+      const { data: recentPosts } = await supabase
+        .from("posted_content")
+        .select("*")
+        .eq("user_id", task.user_id)
+        .eq("status", "posted")
+        .gte("posted_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(10);
+
+      if (recentPosts && recentPosts.length > 0) {
+        for (const post of recentPosts) {
+          const postedAt = new Date(post.posted_at);
+          const hoursElapsed = (Date.now() - postedAt.getTime()) / (1000 * 60 * 60);
+          
+          const action = await evaluatePostPerformance({
+            contentId: post.id,
+            views: post.impressions || 0,
+            hoursElapsed
+          });
+
+          if (action === 'duplicate') {
+            // Signal to scale this content
+            await executeScaling({
+              contentId: post.id,
+              platform: post.platform,
+              hookType: 'winner'
+            });
+          } else if (action === 'kill') {
+            // Store DNA as DEAD to blacklist pattern
+            await storeContentDNA({
+              contentId: post.id,
+              hookType: 'failed',
+              format: 'standard',
+              platform: post.platform,
+              views: post.impressions || 0,
+              clicks: post.clicks || 0
+            });
+          }
+        }
+      }
+
       console.log("✅ Performance monitoring complete");
       return true;
     } catch (error) {
