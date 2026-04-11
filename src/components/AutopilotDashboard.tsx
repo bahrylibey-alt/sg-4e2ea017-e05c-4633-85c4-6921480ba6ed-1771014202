@@ -6,12 +6,23 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Activity, TrendingUp, FileText, Share2, Play, Loader2, Zap, Target } from "lucide-react";
+import { RefreshCw, Activity, TrendingUp, FileText, Share2, Play, Loader2, Zap, Target, AlertCircle } from "lucide-react";
 
 export function AutopilotDashboard() {
   const { toast } = useToast();
   const [isEnabled, setIsEnabled] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [systemState, setSystemState] = useState<{
+    state: string;
+    total_views: number;
+    total_clicks: number;
+    total_verified_revenue: number;
+  }>({
+    state: 'NO_TRAFFIC',
+    total_views: 0,
+    total_clicks: 0,
+    total_verified_revenue: 0
+  });
   const [stats, setStats] = useState({
     products: 0,
     content: 0,
@@ -23,9 +34,37 @@ export function AutopilotDashboard() {
   useEffect(() => {
     loadAutopilotStatus();
     loadStats();
-    const interval = setInterval(loadStats, 5000);
+    loadSystemState();
+    const interval = setInterval(() => {
+      loadStats();
+      loadSystemState();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadSystemState = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: state } = await supabase
+        .from('system_state')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (state) {
+        setSystemState({
+          state: state.state || 'NO_TRAFFIC',
+          total_views: state.total_views || 0,
+          total_clicks: state.total_clicks || 0,
+          total_verified_revenue: Number(state.total_verified_revenue) || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error loading system state:', error);
+    }
+  };
 
   const loadAutopilotStatus = async () => {
     try {
@@ -145,6 +184,7 @@ export function AutopilotDashboard() {
       });
 
       await loadStats();
+      await loadSystemState();
     } catch (error: any) {
       console.error('Run now error:', error);
       toast({
@@ -157,8 +197,48 @@ export function AutopilotDashboard() {
     }
   };
 
+  const getStateColor = (state: string) => {
+    switch (state) {
+      case 'NO_TRAFFIC': return 'bg-yellow-500';
+      case 'LOW_SIGNAL': return 'bg-orange-500';
+      case 'TESTING': return 'bg-blue-500';
+      case 'SCALING': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStateMessage = (state: string) => {
+    switch (state) {
+      case 'NO_TRAFFIC': return '⚠️ No traffic yet — optimizing reach';
+      case 'LOW_SIGNAL': return '📊 Low signal — collecting data';
+      case 'TESTING': return '🧪 Testing content performance';
+      case 'SCALING': return '🚀 Scaling winners';
+      default: return 'Initializing...';
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* System State Alert */}
+      <Card className="border-2 border-primary/20">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`h-3 w-3 rounded-full ${getStateColor(systemState.state)} animate-pulse`} />
+              <div>
+                <p className="font-semibold text-lg">{getStateMessage(systemState.state)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {systemState.total_views} views · {systemState.total_clicks} clicks · ${systemState.total_verified_revenue.toFixed(2)} verified revenue
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-base px-4 py-2">
+              {systemState.state}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-2 border-primary/20">
         <CardHeader>
           <div className="flex items-center justify-between">

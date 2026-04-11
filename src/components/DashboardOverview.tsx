@@ -22,13 +22,13 @@ interface DashboardStats {
   totalRevenue: number;
   totalClicks: number;
   totalConversions: number;
+  totalViews: number;
   activeCampaigns: number;
   activeLinks: number;
   contentGenerated: number;
   postsPublished: number;
   totalProducts: number;
-  revenueChange: number;
-  clicksChange: number;
+  systemState: string;
 }
 
 export function DashboardOverview() {
@@ -39,13 +39,13 @@ export function DashboardOverview() {
     totalRevenue: 0,
     totalClicks: 0,
     totalConversions: 0,
+    totalViews: 0,
     activeCampaigns: 0,
     activeLinks: 0,
     contentGenerated: 0,
     postsPublished: 0,
     totalProducts: 0,
-    revenueChange: 0,
-    clicksChange: 0,
+    systemState: 'NO_TRAFFIC'
   });
 
   const loadStats = async () => {
@@ -57,12 +57,25 @@ export function DashboardOverview() {
         return;
       }
 
-      console.log('📊 DashboardOverview: Loading stats for user:', user.id);
+      console.log('📊 DashboardOverview: Loading REAL stats for user:', user.id);
+
+      // Get system state (REAL DATA ONLY)
+      const { data: systemState } = await supabase
+        .from('system_state')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const realViews = systemState?.total_views || 0;
+      const realClicks = systemState?.total_clicks || 0;
+      const realRevenue = Number(systemState?.total_verified_revenue) || 0;
+      const realConversions = systemState?.total_verified_conversions || 0;
+      const currentState = systemState?.state || 'NO_TRAFFIC';
 
       // Get all campaigns
       const { data: campaigns, error: campaignsError } = await supabase
         .from('campaigns')
-        .select('id, status, revenue, spent')
+        .select('id, status')
         .eq('user_id', user.id);
 
       if (campaignsError) {
@@ -71,25 +84,21 @@ export function DashboardOverview() {
       }
 
       const activeCampaignsCount = campaigns?.filter(c => c.status === 'active').length || 0;
-      const totalRevenue = campaigns?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
       
       console.log('📈 Campaigns:', {
         total: campaigns?.length || 0,
-        active: activeCampaignsCount,
-        revenue: totalRevenue
+        active: activeCampaignsCount
       });
 
       // Get affiliate links
       const campaignIds = campaigns?.map(c => c.id) || [];
-      let totalClicks = 0;
-      let totalConversions = 0;
       let activeLinksCount = 0;
       let totalProductsCount = 0;
 
       if (campaignIds.length > 0) {
         const { data: links, error: linksError } = await supabase
           .from('affiliate_links')
-          .select('id, status, clicks, conversions, revenue')
+          .select('id, status')
           .in('campaign_id', campaignIds);
 
         if (linksError) {
@@ -97,14 +106,10 @@ export function DashboardOverview() {
         } else {
           activeLinksCount = links?.filter(l => l.status === 'active').length || 0;
           totalProductsCount = links?.length || 0;
-          totalClicks = links?.reduce((sum, l) => sum + (l.clicks || 0), 0) || 0;
-          totalConversions = links?.reduce((sum, l) => sum + (l.conversions || 0), 0) || 0;
           
           console.log('🔗 Links:', {
             total: totalProductsCount,
-            active: activeLinksCount,
-            clicks: totalClicks,
-            conversions: totalConversions
+            active: activeLinksCount
           });
         }
       }
@@ -136,30 +141,25 @@ export function DashboardOverview() {
         published: posts?.filter(p => p.status === 'posted').length || 0
       });
 
-      // Calculate changes (mock for now)
-      const revenueChange = totalRevenue > 0 ? 12.5 : 0;
-      const clicksChange = totalClicks > 0 ? 8.3 : 0;
-
       setStats({
-        totalRevenue: Math.round(totalRevenue * 100) / 100,
-        totalClicks,
-        totalConversions,
+        totalRevenue: Math.round(realRevenue * 100) / 100,
+        totalClicks: realClicks,
+        totalConversions: realConversions,
+        totalViews: realViews,
         activeCampaigns: activeCampaignsCount,
         activeLinks: activeLinksCount,
         contentGenerated: contentCount,
         postsPublished: postsCount,
         totalProducts: totalProductsCount,
-        revenueChange,
-        clicksChange,
+        systemState: currentState
       });
 
-      console.log('✅ Dashboard stats loaded:', {
-        revenue: totalRevenue,
-        clicks: totalClicks,
-        campaigns: activeCampaignsCount,
-        products: totalProductsCount,
-        content: contentCount,
-        posts: postsCount
+      console.log('✅ Dashboard stats loaded (REAL DATA):', {
+        revenue: realRevenue,
+        clicks: realClicks,
+        views: realViews,
+        conversions: realConversions,
+        state: currentState
       });
 
     } catch (error: any) {
@@ -180,7 +180,7 @@ export function DashboardOverview() {
     await loadStats();
     toast({
       title: "Dashboard refreshed",
-      description: "Latest data loaded from database"
+      description: "Latest verified data loaded"
     });
   };
 
@@ -213,7 +213,7 @@ export function DashboardOverview() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Overview of your affiliate marketing performance</p>
+          <p className="text-muted-foreground">Real verified performance data only</p>
         </div>
         <Button
           variant="outline"
@@ -226,50 +226,87 @@ export function DashboardOverview() {
         </Button>
       </div>
 
+      {/* Truth Mode Banner */}
+      {stats.systemState === 'NO_TRAFFIC' && (
+        <Card className="border-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <div>
+                <p className="font-semibold text-yellow-900 dark:text-yellow-100">
+                  No Traffic Detected
+                </p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  System is focusing on reach optimization. Revenue will show $0 until verified conversions arrive.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Revenue */}
+        {/* Total Revenue - VERIFIED ONLY */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Verified Revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.revenueChange > 0 && (
-                <span className="text-green-600">
-                  +{stats.revenueChange}% from last month
-                </span>
+              {stats.totalRevenue === 0 ? (
+                <span className="text-yellow-600">Awaiting verified conversions</span>
+              ) : (
+                <span className="text-green-600">From webhook/API only</span>
               )}
-              {stats.revenueChange === 0 && "No revenue yet"}
             </p>
           </CardContent>
         </Card>
 
-        {/* Total Clicks */}
+        {/* Total Views - REAL ONLY */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+            <CardTitle className="text-sm font-medium">Real Views</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalViews.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.totalViews < 100 ? (
+                <span className="text-yellow-600">Need 100+ for decisions</span>
+              ) : (
+                <span className="text-green-600">Sufficient data</span>
+              )}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Total Clicks - REAL ONLY */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Real Clicks</CardTitle>
             <MousePointerClick className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.clicksChange > 0 && (
+              {stats.totalClicks < 10 ? (
+                <span className="text-yellow-600">Need 10+ for decisions</span>
+              ) : (
                 <span className="text-green-600">
-                  +{stats.clicksChange}% from last month
+                  {((stats.totalClicks / Math.max(stats.totalViews, 1)) * 100).toFixed(2)}% CTR
                 </span>
               )}
-              {stats.clicksChange === 0 && "Track your traffic"}
             </p>
           </CardContent>
         </Card>
 
-        {/* Conversions */}
+        {/* Conversions - VERIFIED ONLY */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conversions</CardTitle>
+            <CardTitle className="text-sm font-medium">Verified Conversions</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -279,20 +316,6 @@ export function DashboardOverview() {
                 ? `${((stats.totalConversions / stats.totalClicks) * 100).toFixed(2)}% conversion rate`
                 : "No conversions yet"
               }
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Active Campaigns */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeCampaigns}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.activeLinks} active affiliate links
             </p>
           </CardContent>
         </Card>
@@ -329,7 +352,7 @@ export function DashboardOverview() {
               className="mt-2" 
             />
             <p className="text-xs text-muted-foreground mt-2">
-              AI-generated reviews & posts
+              Quality-scored content
             </p>
           </CardContent>
         </Card>
@@ -346,7 +369,7 @@ export function DashboardOverview() {
               className="mt-2" 
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Auto-posted to social media
+              Max 20/day limit
             </p>
           </CardContent>
         </Card>
@@ -355,44 +378,39 @@ export function DashboardOverview() {
       {/* Quick Status */}
       <Card>
         <CardHeader>
-          <CardTitle>System Status</CardTitle>
-          <CardDescription>Real-time sync with database</CardDescription>
+          <CardTitle>System Status - Truth Mode</CardTitle>
+          <CardDescription>Only verified real data displayed</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">Database Connected</span>
+              <span className="text-sm font-medium">Real Data Enforcement</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">Auto-refresh Active</span>
+              <span className="text-sm font-medium">Safety Controls Active</span>
             </div>
             <div className="flex items-center gap-2">
-              {stats.activeCampaigns > 0 ? (
+              {stats.systemState === 'SCALING' ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium">Campaigns Running</span>
+                  <span className="text-sm font-medium">System Scaling</span>
+                </>
+              ) : stats.systemState === 'TESTING' ? (
+                <>
+                  <Activity className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium">System Testing</span>
                 </>
               ) : (
                 <>
                   <AlertCircle className="h-4 w-4 text-yellow-500" />
-                  <span className="text-sm font-medium">No Active Campaigns</span>
+                  <span className="text-sm font-medium">{stats.systemState.replace('_', ' ')}</span>
                 </>
               )}
             </div>
             <div className="flex items-center gap-2">
-              {stats.totalProducts > 0 ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium">Products Loaded</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4 text-yellow-500" />
-                  <span className="text-sm font-medium">No Products Yet</span>
-                </>
-              )}
+              <Badge variant="outline">{stats.systemState}</Badge>
             </div>
           </div>
         </CardContent>

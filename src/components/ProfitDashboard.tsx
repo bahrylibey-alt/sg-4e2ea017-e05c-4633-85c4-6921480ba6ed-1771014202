@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { TrendingUp, DollarSign, MousePointerClick, Target, Award, BarChart3 } from "lucide-react";
+import { TrendingUp, DollarSign, MousePointerClick, Target, Award, BarChart3, AlertCircle } from "lucide-react";
 
 interface ProfitMetrics {
   total_revenue: number;
   total_clicks: number;
   total_conversions: number;
+  total_views: number;
   avg_ctr: number;
   avg_conversion_rate: number;
   best_platform: string;
@@ -29,6 +30,7 @@ export function ProfitDashboard() {
     total_revenue: 0,
     total_clicks: 0,
     total_conversions: 0,
+    total_views: 0,
     avg_ctr: 0,
     avg_conversion_rate: 0,
     best_platform: 'N/A',
@@ -48,6 +50,18 @@ export function ProfitDashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get REAL system state
+      const { data: systemState } = await supabase
+        .from('system_state')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const realViews = systemState?.total_views || 0;
+      const realClicks = systemState?.total_clicks || 0;
+      const realRevenue = Number(systemState?.total_verified_revenue) || 0;
+      const realConversions = systemState?.total_verified_conversions || 0;
+
       // Get post metrics
       const { data: posts } = await supabase
         .from('posted_content')
@@ -61,53 +75,67 @@ export function ProfitDashboard() {
         .select('*')
         .eq('user_id', user.id);
 
-      if (!posts || !products) return;
+      if (!posts || !products) {
+        setMetrics({
+          total_revenue: realRevenue,
+          total_clicks: realClicks,
+          total_conversions: realConversions,
+          total_views: realViews,
+          avg_ctr: realViews > 0 ? (realClicks / realViews) * 100 : 0,
+          avg_conversion_rate: realClicks > 0 ? (realConversions / realClicks) * 100 : 0,
+          best_platform: 'N/A',
+          best_product: { name: 'N/A', revenue: 0 },
+          top_posts: []
+        });
+        setLoading(false);
+        return;
+      }
 
-      // Calculate totals
-      const total_revenue = posts.reduce((sum, p) => sum + (p.revenue || 0), 0);
-      const total_clicks = posts.reduce((sum, p) => sum + (p.clicks || 0), 0);
-      const total_conversions = posts.reduce((sum, p) => sum + (p.conversions || 0), 0);
-      const total_impressions = posts.reduce((sum, p) => sum + (p.impressions || 0), 0);
+      const avg_ctr = realViews > 0 ? (realClicks / realViews) * 100 : 0;
+      const avg_conversion_rate = realClicks > 0 ? (realConversions / realClicks) * 100 : 0;
 
-      const avg_ctr = total_impressions > 0 ? (total_clicks / total_impressions) * 100 : 0;
-      const avg_conversion_rate = total_clicks > 0 ? (total_conversions / total_clicks) * 100 : 0;
-
-      // Find best platform
-      const platformRevenue: Record<string, number> = {};
+      // Find best platform (from posts with views)
+      const platformViews: Record<string, number> = {};
       posts.forEach(p => {
         const platform = p.platform || 'unknown';
-        platformRevenue[platform] = (platformRevenue[platform] || 0) + (p.revenue || 0);
+        platformViews[platform] = (platformViews[platform] || 0) + (p.impressions || 0);
       });
-      const best_platform = Object.entries(platformRevenue)
+      const best_platform = Object.entries(platformViews)
         .sort(([, a], [, b]) => b - a)[0]?.[0] || 'N/A';
 
-      // Find best product
-      const productRevenue: Record<string, { name: string; revenue: number }> = {};
+      // Find best product (by actual clicks, not fake revenue)
+      const productClicks: Record<string, { name: string; clicks: number }> = {};
       products.forEach(p => {
-        productRevenue[p.id] = {
+        productClicks[p.id] = {
           name: p.product_name || 'Unknown',
-          revenue: p.revenue || 0
+          clicks: p.clicks || 0
         };
       });
-      const best_product = Object.values(productRevenue)
-        .sort((a, b) => b.revenue - a.revenue)[0] || { name: 'N/A', revenue: 0 };
+      const bestProductData = Object.values(productClicks)
+        .sort((a, b) => b.clicks - a.clicks)[0] || { name: 'N/A', clicks: 0 };
+      
+      const best_product = { 
+        name: bestProductData.name, 
+        revenue: 0 // Will show 0 until verified conversion
+      };
 
-      // Get top 5 posts
+      // Get top 5 posts by real clicks
       const top_posts = posts
-        .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+        .sort((a, b) => (b.clicks || 0) - (a.clicks || 0))
         .slice(0, 5)
         .map(p => ({
           id: p.id,
           caption: p.caption || '',
-          revenue: p.revenue || 0,
+          revenue: 0, // ZERO until verified
           ctr: p.ctr || 0,
           platform: p.platform || 'unknown'
         }));
 
       setMetrics({
-        total_revenue,
-        total_clicks,
-        total_conversions,
+        total_revenue: realRevenue,
+        total_clicks: realClicks,
+        total_conversions: realConversions,
+        total_views: realViews,
         avg_ctr,
         avg_conversion_rate,
         best_platform,
@@ -122,18 +150,37 @@ export function ProfitDashboard() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center p-8">Loading profit data...</div>;
+    return <div className="flex items-center justify-center p-8">Loading verified data...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {/* Total Revenue */}
+      {/* Truth Mode Alert */}
+      {metrics.total_revenue === 0 && (
+        <Card className="border-2 border-blue-500/50 bg-blue-50 dark:bg-blue-950">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-100">
+                  Truth Mode Active
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Revenue shows $0 until verified conversions arrive via webhook or API. No fake signals.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Revenue - VERIFIED ONLY */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-green-600" />
-              Total Revenue
+              Verified Revenue
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -141,7 +188,25 @@ export function ProfitDashboard() {
               ${metrics.total_revenue.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
-              From {metrics.total_conversions} conversions
+              {metrics.total_conversions > 0 ? `From ${metrics.total_conversions} verified conversions` : 'Awaiting verified conversions'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Real Views */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+              Real Views
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-600">
+              {metrics.total_views.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tracked in view_events table
             </p>
           </CardContent>
         </Card>
@@ -150,16 +215,16 @@ export function ProfitDashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <MousePointerClick className="h-4 w-4 text-blue-600" />
+              <MousePointerClick className="h-4 w-4 text-violet-600" />
               Average CTR
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">
+            <div className="text-3xl font-bold text-violet-600">
               {metrics.avg_ctr.toFixed(2)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              {metrics.total_clicks} total clicks
+              {metrics.total_clicks} real clicks
             </p>
           </CardContent>
         </Card>
@@ -168,16 +233,16 @@ export function ProfitDashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Target className="h-4 w-4 text-violet-600" />
+              <Target className="h-4 w-4 text-pink-600" />
               Conversion Rate
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-violet-600">
+            <div className="text-3xl font-bold text-pink-600">
               {metrics.avg_conversion_rate.toFixed(2)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              {metrics.total_conversions} conversions
+              {metrics.total_conversions} verified conversions
             </p>
           </CardContent>
         </Card>
@@ -191,7 +256,7 @@ export function ProfitDashboard() {
               <BarChart3 className="h-5 w-5 text-pink-600" />
               Best Performing Platform
             </CardTitle>
-            <CardDescription>Highest revenue source</CardDescription>
+            <CardDescription>Highest view count</CardDescription>
           </CardHeader>
           <CardContent>
             <Badge variant="default" className="text-lg px-4 py-2 bg-pink-600">
@@ -207,13 +272,13 @@ export function ProfitDashboard() {
               <Award className="h-5 w-5 text-amber-600" />
               Top Product
             </CardTitle>
-            <CardDescription>Best revenue generator</CardDescription>
+            <CardDescription>Most clicked product</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               <div className="font-semibold text-lg">{metrics.best_product.name}</div>
-              <div className="text-2xl font-bold text-amber-600">
-                ${metrics.best_product.revenue.toFixed(2)}
+              <div className="text-sm text-muted-foreground">
+                Revenue awaiting verification
               </div>
             </div>
           </CardContent>
@@ -225,9 +290,9 @@ export function ProfitDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-violet-600" />
-            Top Performing Posts
+            Top Performing Posts (by clicks)
           </CardTitle>
-          <CardDescription>Highest revenue posts</CardDescription>
+          <CardDescription>Real click data only</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -250,6 +315,7 @@ export function ProfitDashboard() {
                     <div className="font-bold text-green-600">
                       ${post.revenue.toFixed(2)}
                     </div>
+                    <p className="text-xs text-muted-foreground">Awaiting verification</p>
                   </div>
                 </div>
               ))
