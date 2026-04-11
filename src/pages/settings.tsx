@@ -118,34 +118,28 @@ export default function Settings() {
         return;
       }
 
-      // Send test webhook
-      const testData = {
-        event: "test.connection",
-        data: {
-          message: "Test webhook from your affiliate app",
-          timestamp: new Date().toISOString(),
-          test: true
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      const response = await fetch(zapierWebhookUrl, {
+      // Call our API route to test the webhook (avoids CORS issues)
+      const response = await fetch("/api/zapier/test-webhook", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(testData),
+        body: JSON.stringify({
+          webhookUrl: zapierWebhookUrl
+        }),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (result.success) {
         toast({
           title: "✅ Connection Successful!",
-          description: "Test webhook sent to Zapier. Check your Zap history.",
+          description: "Test webhook sent to Zapier. Check your Zap history to see it arrive.",
         });
       } else {
         toast({
           title: "⚠️ Connection Failed",
-          description: `Webhook returned status: ${response.status}`,
+          description: result.error || "Failed to reach Zapier webhook",
           variant: "destructive",
         });
       }
