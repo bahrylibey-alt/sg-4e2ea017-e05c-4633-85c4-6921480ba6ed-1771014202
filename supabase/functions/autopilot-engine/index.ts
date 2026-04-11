@@ -27,7 +27,7 @@ serve(async (req) => {
     );
 
     const results = {
-      products_discovered: 0,
+      real_links_used: 0,
       content_generated: 0,
       posts_published: 0,
       posts_scored: 0,
@@ -58,7 +58,35 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 1. ENSURE CAMPAIGN EXISTS (auto-create if needed)
+    // 1. GET REAL AFFILIATE LINKS (Temu + Amazon)
+    // ====================================================
+    let realLinks: any[] = [];
+    try {
+      const { data: links, error: linksError } = await supabase
+        .from('affiliate_links')
+        .select('id, slug, product_name, original_url, network, cloaked_url')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .in('network', ['temu', 'amazon'])
+        .not('original_url', 'like', '%AUTO%')
+        .limit(50);
+
+      if (linksError) throw linksError;
+
+      if (links && links.length > 0) {
+        realLinks = links;
+        results.real_links_used = realLinks.length;
+        console.log(`✅ Found ${realLinks.length} real affiliate links to use`);
+      } else {
+        console.log('⚠️ No real affiliate links found - autopilot will skip posting');
+        results.errors.push('No real affiliate links found');
+      }
+    } catch (error: any) {
+      results.errors.push(`Links fetch: ${error.message}`);
+    }
+
+    // ====================================================
+    // 2. ENSURE CAMPAIGN EXISTS (auto-create if needed)
     // ====================================================
     let campaign;
     try {
@@ -99,7 +127,7 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 2. SCORE EXISTING POSTS
+    // 3. SCORE EXISTING POSTS
     // ====================================================
     try {
       const { data: posts } = await supabase
@@ -153,68 +181,6 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 3. MAKE DECISIONS & CREATE PRODUCTS BASED ON PRIORITY
-    // ====================================================
-    try {
-      const { data: scalingPosts } = await supabase
-        .from('posted_content')
-        .select('id, link_id')
-        .eq('user_id', userId)
-        .eq('autopilot_state', 'scaling')
-        .limit(5);
-
-      const productsToCreate = scalingPosts && scalingPosts.length > 0 ? 5 : 3;
-
-      for (let i = 0; i < productsToCreate; i++) {
-        const productName = `AutoProduct ${Date.now()}-${i}`;
-        const slug = productName.toLowerCase().replace(/\s+/g, '-');
-
-        const { error: productError } = await supabase
-          .from('affiliate_links')
-          .insert({
-            user_id: userId,
-            campaign_id: campaign.id,
-            product_name: productName,
-            slug: slug,
-            network: 'amazon',
-            original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
-            cloaked_url: `https://go.example.com/${Date.now()}${i}`,
-            commission_rate: 10,
-            clicks: 0,
-            conversions: 0,
-            revenue: 0,
-            autopilot_state: 'testing',
-            performance_score: 0,
-            priority_score: 50
-          });
-
-        if (!productError) {
-          results.products_discovered++;
-        }
-      }
-
-      if (scalingPosts && scalingPosts.length > 0) {
-        results.decisions_applied = scalingPosts.length;
-        
-        for (const post of scalingPosts) {
-          await supabase
-            .from('autopilot_decisions')
-            .insert({
-              user_id: userId,
-              post_id: post.id,
-              link_id: post.link_id,
-              decision_type: 'scale',
-              reason: 'High CTR or clicks - creating more products',
-              old_state: 'testing',
-              new_state: 'scaling'
-            });
-        }
-      }
-    } catch (error: any) {
-      results.errors.push(`Decisions: ${error.message}`);
-    }
-
-    // ====================================================
     // 4. GENERATE CONTENT
     // ====================================================
     try {
@@ -242,23 +208,18 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 5. PUBLISH POSTS (PRIORITY QUEUE) + SEND TO ZAPIER
+    // 5. PUBLISH POSTS USING REAL LINKS + SEND TO ZAPIER
     // ====================================================
-    try {
-      const { data: links } = await supabase
-        .from('affiliate_links')
-        .select('id, slug, product_name, cloaked_url, autopilot_state, priority_score')
-        .eq('user_id', userId)
-        .order('priority_score', { ascending: false })
-        .limit(10);
-
-      if (links && links.length > 0) {
+    if (realLinks.length > 0) {
+      try {
         const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
         
         for (let i = 0; i < 2; i++) {
-          const randomLink = links[Math.floor(Math.random() * links.length)];
+          const randomLink = realLinks[Math.floor(Math.random() * realLinks.length)];
           const randomPlatform = platforms[Math.floor(Math.random() * platforms.length)];
-          const caption = `AutoPost ${Date.now()}-${i} - Check out ${randomLink.product_name}! #affiliate #automated`;
+          
+          // Create engaging caption based on product
+          const caption = `🔥 Check out this amazing ${randomLink.product_name}! Limited time offer! #${randomLink.network} #affiliate #deals`;
 
           const { data: newPost, error: postError } = await supabase
             .from('posted_content')
@@ -293,8 +254,9 @@ serve(async (req) => {
                     id: newPost.id,
                     platform: randomPlatform,
                     caption: caption,
-                    link_url: `https://yourdomain.com/go/${randomLink.slug}`,
+                    link_url: randomLink.original_url,
                     product_name: randomLink.product_name,
+                    network: randomLink.network,
                     created_at: new Date().toISOString()
                   },
                   timestamp: new Date().toISOString()
@@ -318,9 +280,11 @@ serve(async (req) => {
             }
           }
         }
+      } catch (error: any) {
+        results.errors.push(`Posts: ${error.message}`);
       }
-    } catch (error: any) {
-      results.errors.push(`Posts: ${error.message}`);
+    } else {
+      results.errors.push('No real affiliate links available - skipping post creation');
     }
 
     // ====================================================
