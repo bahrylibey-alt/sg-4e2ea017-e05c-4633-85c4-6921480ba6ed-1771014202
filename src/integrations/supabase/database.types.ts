@@ -1357,6 +1357,30 @@ export type Database = {
         }
         Relationships: []
       }
+      conversion_notifications: {
+        Row: {
+          conversion_id: string
+          created_at: string | null
+          id: string
+          revenue: number
+          user_id: string
+        }
+        Insert: {
+          conversion_id: string
+          created_at?: string | null
+          id?: string
+          revenue: number
+          user_id: string
+        }
+        Update: {
+          conversion_id?: string
+          created_at?: string | null
+          id?: string
+          revenue?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_sequences: {
         Row: {
           campaign_id: string
@@ -2883,6 +2907,44 @@ export type Database = {
           },
         ]
       }
+      traffic_warnings: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          post_id: string
+          resolved: boolean | null
+          user_id: string
+          warning_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          post_id: string
+          resolved?: boolean | null
+          user_id: string
+          warning_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          post_id?: string
+          resolved?: boolean | null
+          user_id?: string
+          warning_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_warnings_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posted_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trend_products: {
         Row: {
           asin: string | null
@@ -3019,6 +3081,44 @@ export type Database = {
           views?: number | null
         }
         Relationships: []
+      }
+      view_threshold_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          platform: string
+          post_id: string
+          threshold: number
+          user_id: string
+          views_at_notification: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          platform: string
+          post_id: string
+          threshold: number
+          user_id: string
+          views_at_notification: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          platform?: string
+          post_id?: string
+          threshold?: number
+          user_id?: string
+          views_at_notification?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "view_threshold_notifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posted_content"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

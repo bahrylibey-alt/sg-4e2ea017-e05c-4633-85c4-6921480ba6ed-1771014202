@@ -21,18 +21,24 @@ import {
   advisoryMode,
   updateDegradationStatus
 } from "./compatibilityLayer";
+import {
+  checkViewThresholdNotifications,
+  checkConversionNotifications,
+  checkTrafficWarnings
+} from "./notificationService";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 
 /**
  * AUTOMATION SCHEDULER v4.0 - VIRAL ENGINE INTEGRATION
- * Pattern learning + behavioral mimicry + viral loops
+ * Pattern learning + behavioral mimicry + viral loops + notifications
  * WITH COMPATIBILITY LAYER - Never blocks existing system
  */
 
 export const automationScheduler = {
   isRunning: false,
   intervalId: null as NodeJS.Timeout | null,
+  notificationIntervalId: null as NodeJS.Timeout | null,
 
   /**
    * START - Begin 24/7 autonomous execution
@@ -44,7 +50,7 @@ export const automationScheduler = {
     }
 
     try {
-      console.log("🚀 Starting Automation Scheduler v4.0 (VIRAL ENGINE + COMPATIBILITY)...");
+      console.log("🚀 Starting Automation Scheduler v4.0 (VIRAL ENGINE + COMPATIBILITY + NOTIFICATIONS)...");
       
       // Verify campaign exists if provided
       if (campaignId) {
@@ -72,7 +78,13 @@ export const automationScheduler = {
         await this.executePendingTasks(campaignId);
       }, 5 * 60 * 1000);
 
-      console.log("✅ Viral Engine started - Running every 5 minutes");
+      // Start notification checker (every 2 minutes)
+      await this.checkNotifications();
+      this.notificationIntervalId = setInterval(async () => {
+        await this.checkNotifications();
+      }, 2 * 60 * 1000);
+
+      console.log("✅ Viral Engine + Notifications started");
       return true;
     } catch (error) {
       console.error("❌ Failed to start scheduler:", error);
@@ -89,8 +101,34 @@ export const automationScheduler = {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    if (this.notificationIntervalId) {
+      clearInterval(this.notificationIntervalId);
+      this.notificationIntervalId = null;
+    }
     this.isRunning = false;
-    console.log("⏹️ Viral Engine stopped");
+    console.log("⏹️ Viral Engine + Notifications stopped");
+  },
+
+  /**
+   * Check for notifications (view thresholds, conversions, warnings)
+   */
+  async checkNotifications(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Run all notification checks
+      const viewNotifications = await checkViewThresholdNotifications(user.id);
+      const conversionNotifications = await checkConversionNotifications(user.id);
+      await checkTrafficWarnings(user.id);
+
+      if (viewNotifications > 0 || conversionNotifications > 0) {
+        console.log(`🔔 Notifications sent: ${viewNotifications} views, ${conversionNotifications} conversions`);
+      }
+    } catch (error) {
+      console.error("⚠️ Error checking notifications (non-blocking):", error);
+      // Don't throw - notifications are optional
+    }
   },
 
   /**
