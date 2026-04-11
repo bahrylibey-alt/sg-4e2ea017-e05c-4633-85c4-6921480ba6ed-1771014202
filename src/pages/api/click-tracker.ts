@@ -50,10 +50,15 @@ export default async function handler(
       console.error("Failed to update clicks:", updateError);
     }
 
-    // Get click metadata
-    const referrer = req.headers.referer || req.headers.referrer;
-    const userAgent = req.headers["user-agent"];
-    const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
+    // Get click metadata safely
+    const rawReferrer = req.headers.referer || req.headers.referrer;
+    const referrer = (Array.isArray(rawReferrer) ? rawReferrer[0] : rawReferrer) || "direct";
+    
+    const rawUa = req.headers["user-agent"];
+    const userAgent = (Array.isArray(rawUa) ? rawUa[0] : rawUa) || "unknown";
+    
+    const rawIp = req.headers["x-forwarded-for"];
+    const ipAddress = (Array.isArray(rawIp) ? rawIp[0] : rawIp) || req.socket?.remoteAddress || "unknown";
 
     // Record detailed click event
     const { error: eventError } = await supabase
@@ -61,9 +66,9 @@ export default async function handler(
       .insert({
         link_id: link.id,
         user_id: link.user_id,
-        ip_address: ipAddress || "unknown",
-        user_agent: userAgent || "unknown",
-        referrer: referrer || "direct",
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        referrer: referrer,
         clicked_at: new Date().toISOString(),
         converted: false,
         is_bot: false,
@@ -85,8 +90,8 @@ export default async function handler(
           metadata: {
             slug: link.slug,
             product_name: link.product_name,
-            referrer: referrer || "direct",
-            user_agent: userAgent || "unknown",
+            referrer: referrer,
+            user_agent: userAgent,
             ip_address: ipAddress
           },
           status: "success"
@@ -110,7 +115,7 @@ export default async function handler(
       product: link.product_name,
       slug: link.slug,
       clicks: newClicks,
-      referrer: referrer || "direct"
+      referrer: referrer
     });
 
     return res.status(200).json({
