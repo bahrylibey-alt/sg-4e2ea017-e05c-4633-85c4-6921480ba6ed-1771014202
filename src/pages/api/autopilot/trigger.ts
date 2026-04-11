@@ -10,26 +10,20 @@ export default async function handler(
   }
 
   try {
-    const { action, user_id } = req.body;
+    const { userId } = req.body;
 
-    if (!action || !user_id) {
+    if (!userId) {
       return res.status(400).json({ 
         error: "Missing required fields",
-        message: "action and user_id are required" 
+        message: "userId is required" 
       });
     }
 
-    console.log(`🤖 Triggering autopilot: ${action} for user ${user_id}`);
+    console.log(`🤖 Triggering autopilot for user ${userId}`);
 
-    // Get user session for authorization
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Call the edge function with proper authorization
+    // Call the edge function
     const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-      body: { action, user_id },
-      headers: session ? {
-        Authorization: `Bearer ${session.access_token}`
-      } : {}
+      body: { userId }
     });
 
     if (error) {
