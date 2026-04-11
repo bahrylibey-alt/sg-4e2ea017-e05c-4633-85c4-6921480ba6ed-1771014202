@@ -62,7 +62,7 @@ export async function generateViralHooks(params: {
   const patternKeys = Object.keys(VIRAL_PATTERNS) as Array<keyof typeof VIRAL_PATTERNS>;
 
   for (const patternKey of patternKeys) {
-    const pattern = VIRAL_PATTERNS[patternKey];
+    const pattern = VIRAL_PATTERNS[patternKey] as any;
     let hookText = '';
 
     // Generate hook text based on pattern
@@ -181,7 +181,7 @@ export async function storeContentDNA(params: {
       status = 'DEAD';
     }
 
-    await supabase.from("content_dna").insert({
+    await supabase.from("content_dna" as any).insert({
       user_id: user.id,
       content_id: params.contentId,
       hook_type: params.hookType,
@@ -208,7 +208,7 @@ export async function getWinningPatterns(platform: string): Promise<ContentDNA[]
     if (!user) return [];
 
     const { data } = await supabase
-      .from("content_dna")
+      .from("content_dna" as any)
       .select("*")
       .eq("user_id", user.id)
       .eq("platform", platform)
@@ -216,7 +216,7 @@ export async function getWinningPatterns(platform: string): Promise<ContentDNA[]
       .order("ctr", { ascending: false })
       .limit(5);
 
-    return data || [];
+    return (data as any) || [];
   } catch (error) {
     console.error("Error getting winning patterns:", error);
     return [];
@@ -232,7 +232,7 @@ export async function getBlacklistedPatterns(platform: string): Promise<string[]
     if (!user) return [];
 
     const { data } = await supabase
-      .from("content_dna")
+      .from("content_dna" as any)
       .select("hook_type")
       .eq("user_id", user.id)
       .eq("platform", platform)
@@ -554,7 +554,7 @@ export async function handleSuppressionDetected(): Promise<void> {
   if (user) {
     await supabase.from("autopilot_safety_log").insert({
       user_id: user.id,
-      intervention_type: 'suppression_pause',
+      action: 'suppression_pause',
       reason: 'Platform suppression detected - pausing to reset',
       metadata: { pause_duration_hours: 6 }
     });
@@ -599,7 +599,7 @@ export async function executeScaling(params: {
       entity_id: params.contentId,
       decision_type: 'scale',
       reason: 'High performance: 1000+ views, 2%+ CTR',
-      metadata: { 
+      metrics: { 
         action: 'double_frequency',
         expand_platform: true
       }

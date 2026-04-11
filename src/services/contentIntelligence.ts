@@ -185,7 +185,7 @@ export async function trackContentPerformance(params: {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from("content_performance_tracking").insert({
+    await supabase.from("content_performance_tracking" as any).insert({
       content_id: params.contentId,
       user_id: user.id,
       hook_score: params.hookScore,
@@ -204,11 +204,11 @@ export async function trackContentPerformance(params: {
 export async function validateContentAfter24h(contentId: string): Promise<'VALID' | 'FAILED'> {
   try {
     const { data: viewEvents } = await supabase
-      .from("view_events")
+      .from("view_events" as any)
       .select("views")
       .eq("content_id", contentId);
 
-    const totalViews = viewEvents?.reduce((sum, v) => sum + (v.views || 0), 0) || 0;
+    const totalViews = viewEvents?.reduce((sum: number, v: any) => sum + (v.views || 0), 0) || 0;
 
     let status: 'VALID' | 'FAILED' = 'FAILED';
 
@@ -219,7 +219,7 @@ export async function validateContentAfter24h(contentId: string): Promise<'VALID
     }
 
     await supabase
-      .from("content_performance_tracking")
+      .from("content_performance_tracking" as any)
       .update({
         validation_status: status
       })
@@ -242,5 +242,6 @@ export {
   isPostingSafe,
   updatePostingHistory,
   shouldScale,
-  executeScaling
+  executeScaling,
+  getRandomPostingDelay
 } from "./viralEngine";

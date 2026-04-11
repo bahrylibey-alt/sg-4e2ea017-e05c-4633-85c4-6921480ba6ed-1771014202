@@ -1098,40 +1098,58 @@ export type Database = {
       }
       content_dna: {
         Row: {
+          clicks: number | null
+          content_id: string | null
           created_at: string | null
           cta_type: string | null
+          ctr: number | null
           dna_hash: string
+          format: string | null
           format_type: string | null
           hook_type: string | null
           id: string
           performance_score: number | null
           platform: string | null
+          status: string | null
           usage_count: number | null
           user_id: string
+          views: number | null
         }
         Insert: {
+          clicks?: number | null
+          content_id?: string | null
           created_at?: string | null
           cta_type?: string | null
+          ctr?: number | null
           dna_hash: string
+          format?: string | null
           format_type?: string | null
           hook_type?: string | null
           id?: string
           performance_score?: number | null
           platform?: string | null
+          status?: string | null
           usage_count?: number | null
           user_id: string
+          views?: number | null
         }
         Update: {
+          clicks?: number | null
+          content_id?: string | null
           created_at?: string | null
           cta_type?: string | null
+          ctr?: number | null
           dna_hash?: string
+          format?: string | null
           format_type?: string | null
           hook_type?: string | null
           id?: string
           performance_score?: number | null
           platform?: string | null
+          status?: string | null
           usage_count?: number | null
           user_id?: string
+          views?: number | null
         }
         Relationships: []
       }
@@ -1177,6 +1195,48 @@ export type Database = {
           status?: string | null
           user_id?: string | null
           views_24h?: number | null
+        }
+        Relationships: []
+      }
+      content_performance_tracking: {
+        Row: {
+          clarity_score: number | null
+          content_id: string
+          created_at: string | null
+          curiosity_score: number | null
+          emotion_score: number | null
+          hook_score: number | null
+          humanization_applied: boolean | null
+          id: string
+          platform_optimized: boolean | null
+          user_id: string
+          validation_status: string | null
+        }
+        Insert: {
+          clarity_score?: number | null
+          content_id: string
+          created_at?: string | null
+          curiosity_score?: number | null
+          emotion_score?: number | null
+          hook_score?: number | null
+          humanization_applied?: boolean | null
+          id?: string
+          platform_optimized?: boolean | null
+          user_id: string
+          validation_status?: string | null
+        }
+        Update: {
+          clarity_score?: number | null
+          content_id?: string
+          created_at?: string | null
+          curiosity_score?: number | null
+          emotion_score?: number | null
+          hook_score?: number | null
+          humanization_applied?: boolean | null
+          id?: string
+          platform_optimized?: boolean | null
+          user_id?: string
+          validation_status?: string | null
         }
         Relationships: []
       }
