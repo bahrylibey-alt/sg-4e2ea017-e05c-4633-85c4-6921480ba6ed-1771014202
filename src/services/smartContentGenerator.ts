@@ -1,8 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
+import { generateHooks, generateFinalPost, trackContentPerformance } from "./contentIntelligence";
 
 /**
- * REAL CONTENT GENERATOR SERVICE
- * Generates SEO-optimized articles with affiliate links
+ * REAL CONTENT GENERATOR SERVICE v2.0
+ * Generates SEO-optimized articles with quality scoring
  */
 
 const CONTENT_TEMPLATES = {
@@ -47,7 +48,7 @@ const NICHES_MAP: Record<string, string> = {
 
 export const smartContentGenerator = {
   /**
-   * Generate a single SEO article
+   * Generate a single SEO article with intelligence filter
    */
   async generateArticle(params: {
     niche?: string;
@@ -72,30 +73,33 @@ export const smartContentGenerator = {
       const campaignId = campaigns?.[0]?.id;
       if (!campaignId) throw new Error("No campaign found");
 
-      // Get products from this campaign
+      // Get REAL products from this campaign (not fake)
       const { data: products } = await supabase
         .from("affiliate_links")
         .select("*")
         .eq("campaign_id", campaignId)
+        .eq("status", "active")
         .limit(5);
 
       if (!products || products.length === 0) {
         throw new Error("No products found - run Product Discovery first");
       }
 
-      // Generate title
-      const templates = CONTENT_TEMPLATES[type];
-      const template = templates[Math.floor(Math.random() * templates.length)];
-      
-      const title = template
-        .replace("{products}", niche)
-        .replace("{product}", products[0].product_name)
-        .replace("{product1}", products[0]?.product_name || "Product")
-        .replace("{product2}", products[1]?.product_name || "Product")
-        .replace("{year}", year.toString())
-        .replace("{price}", "50")
-        .replace("{count}", products.length.toString())
-        .replace("{benefit}", "Healthy Cooking & Easy Meals");
+      // Generate hooks and pick the best one
+      const hooks = await generateHooks({
+        productName: products[0].product_name || "Product",
+        niche,
+        benefit: "Healthy Cooking & Easy Meals"
+      });
+
+      if (hooks.length === 0 || hooks[0].total_score < 40) {
+        console.warn("⚠️ Generated hooks scored too low - content may not perform");
+      }
+
+      const bestHook = hooks[0];
+
+      // Generate title from hook
+      const title = bestHook.text;
 
       // Generate article body
       const body = this.generateArticleBody(products, type, niche);
@@ -105,7 +109,7 @@ export const smartContentGenerator = {
 
       // Insert into database
       const { data: content, error } = await supabase
-        .from("generated_content" as any)
+        .from("generated_content")
         .insert({
           title,
           body,
@@ -116,14 +120,28 @@ export const smartContentGenerator = {
           views: 0,
           clicks: 0,
           campaign_id: campaignId,
-          user_id: user.id
-        } as any)
+          user_id: user.id,
+          hook_type: "curiosity",
+          performance_score: 0,
+          autopilot_state: "testing"
+        })
         .select()
         .single();
 
       if (error) throw error;
 
-      console.log(`✅ Generated article: ${title}`);
+      // Track content performance metrics
+      await trackContentPerformance({
+        contentId: content.id,
+        hookScore: bestHook.total_score,
+        curiosityScore: bestHook.curiosity_score,
+        clarityScore: bestHook.clarity_score,
+        emotionScore: bestHook.emotion_score,
+        platformOptimized: true,
+        humanizationApplied: true
+      });
+
+      console.log(`✅ Generated article with hook score ${bestHook.total_score}: ${title}`);
       return { success: true, content };
       
     } catch (error: any) {

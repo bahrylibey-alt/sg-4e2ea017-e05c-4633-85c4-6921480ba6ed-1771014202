@@ -1,8 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getSystemState } from "./realDataEnforcement";
 
 /**
- * DECISION ENGINE
- * Makes autopilot decisions: scale, kill, cooldown, retest
+ * DECISION ENGINE v2.0
+ * Makes autopilot decisions with safety controls
  */
 
 export interface Decision {
@@ -14,10 +15,19 @@ export interface Decision {
 }
 
 /**
- * Evaluate a post and make decision
+ * Evaluate a post and make decision (with system state awareness)
  */
 export async function evaluatePost(postId: string, userId: string): Promise<Decision | null> {
   try {
+    // Get system state first
+    const systemState = await getSystemState(userId);
+
+    // SAFETY: Disable decision engine if insufficient data
+    if (systemState.total_views < 100 || systemState.total_clicks < 10) {
+      console.log("⚠️ Insufficient data for decision engine - need 100+ views, 10+ clicks");
+      return null;
+    }
+
     const { data: post, error } = await supabase
       .from('posted_content')
       .select('*')
@@ -34,13 +44,13 @@ export async function evaluatePost(postId: string, userId: string): Promise<Deci
     let action: 'scale' | 'kill' | 'cooldown' | 'retest' = 'cooldown';
     let reason = '';
 
-    // Decision rules
-    if (ctr >= 2 || clicks >= 20) {
+    // NEW DECISION RULES - More conservative
+    if (ctr >= 2 && clicks >= 20) {
       action = 'scale';
       reason = `High performance: CTR ${ctr.toFixed(2)}%, ${clicks} clicks`;
     } else if (impressions >= 200 && ctr < 1 && conversions === 0) {
       action = 'kill';
-      reason = `Low performance: ${impressions} impressions, CTR ${ctr.toFixed(2)}%, no conversions`;
+      reason = `Low performance after ${impressions} impressions: CTR ${ctr.toFixed(2)}%, no conversions`;
     } else if (impressions > 100 && ctr < 1.5) {
       action = 'cooldown';
       reason = `Moderate performance: needs more data`;
@@ -83,10 +93,19 @@ export async function evaluatePost(postId: string, userId: string): Promise<Deci
 }
 
 /**
- * Evaluate a product and make decision
+ * Evaluate a product and make decision (with system state awareness)
  */
 export async function evaluateProduct(productId: string, userId: string): Promise<Decision | null> {
   try {
+    // Get system state first
+    const systemState = await getSystemState(userId);
+
+    // SAFETY: Disable decision engine if insufficient data
+    if (systemState.total_views < 100 || systemState.total_clicks < 10) {
+      console.log("⚠️ Insufficient data for decision engine - need 100+ views, 10+ clicks");
+      return null;
+    }
+
     const { data: product, error } = await supabase
       .from('affiliate_links')
       .select('*')
@@ -101,7 +120,7 @@ export async function evaluateProduct(productId: string, userId: string): Promis
     let action: 'scale' | 'kill' | 'cooldown' | 'retest' = 'cooldown';
     let reason = '';
 
-    // Decision rules
+    // NEW DECISION RULES - More conservative
     if (performance_score >= 70 && autopilot_state !== 'scaling') {
       action = 'scale';
       reason = `High performance score: ${performance_score.toFixed(2)}`;
