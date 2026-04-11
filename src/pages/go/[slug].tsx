@@ -43,12 +43,49 @@ export default function RedirectPage() {
 
         setLinkData(link);
 
-        // Track the click using activity_logs (link_clicks table doesn't exist)
+        // Track the click - CRITICAL FIX: Use correct columns
+        const newClicks = (link.clicks || 0) + 1;
         const { error: clickError } = await supabase
+          .from('affiliate_links')
+          .update({ 
+            clicks: newClicks,
+            click_count: newClicks
+          })
+          .eq('id', link.id);
+
+        if (clickError) {
+          console.error("⚠️ Click count update failed:", clickError);
+        } else {
+          console.log("✅ Click count updated:", newClicks);
+        }
+
+        // Record click event for detailed tracking
+        const { error: eventError } = await supabase
+          .from('click_events')
+          .insert({
+            link_id: link.id,
+            user_id: link.user_id,
+            ip_address: "browser",
+            user_agent: navigator.userAgent,
+            referrer: document.referrer || 'direct',
+            clicked_at: new Date().toISOString(),
+            converted: false,
+            is_bot: false,
+            fraud_score: 0
+          });
+
+        if (eventError) {
+          console.error("⚠️ Click event tracking failed:", eventError);
+        } else {
+          console.log("✅ Click event recorded");
+        }
+
+        // Record activity log
+        const { error: activityError } = await supabase
           .from('activity_logs')
           .insert({
             user_id: link.user_id,
-            action: 'link_clicked',
+            action: 'link_click',
             details: `Clicked on ${link.product_name}`,
             metadata: {
               link_id: link.id,
@@ -61,18 +98,11 @@ export default function RedirectPage() {
             status: 'success'
           });
 
-        if (clickError) {
-          console.error("⚠️ Click tracking failed:", clickError);
+        if (activityError) {
+          console.error("⚠️ Activity log failed:", activityError);
+        } else {
+          console.log("✅ Activity logged");
         }
-
-        // Update click count on the affiliate link
-        await supabase
-          .from('affiliate_links')
-          .update({ 
-            click_count: (link.click_count || 0) + 1,
-            clicks: (link.clicks || 0) + 1
-          })
-          .eq('id', link.id);
 
         // Start countdown
         const timer = setInterval(() => {

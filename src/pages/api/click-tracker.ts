@@ -7,18 +7,6 @@ import { webhookService } from "@/services/webhookService";
  * 
  * This endpoint tracks actual clicks on your affiliate links.
  * Called when someone clicks a product link.
- * 
- * Flow:
- * 1. User clicks /go/product-slug
- * 2. Next.js redirect page calls this API
- * 3. We record the click and metadata
- * 4. Redirect to affiliate URL
- * 
- * Data captured:
- * - Referrer (where click came from)
- * - User agent (device type)
- * - IP address (for fraud detection)
- * - Timestamp
  */
 
 export default async function handler(
@@ -36,7 +24,7 @@ export default async function handler(
       return res.status(400).json({ error: "Missing slug" });
     }
 
-    // Get affiliate link details using SLUG (CRITICAL FIX)
+    // Get affiliate link details using SLUG
     const { data: link, error: linkError } = await supabase
       .from("affiliate_links")
       .select("*")
@@ -48,22 +36,45 @@ export default async function handler(
       return res.status(404).json({ error: "Link not found" });
     }
 
-    // Increment click count
+    // Increment click count - use BOTH columns for compatibility
     const newClicks = (link.clicks || 0) + 1;
-    await supabase
+    const { error: updateError } = await supabase
       .from("affiliate_links")
       .update({ 
         clicks: newClicks,
-        last_clicked_at: new Date().toISOString()
+        click_count: newClicks
       })
       .eq("id", link.id);
+
+    if (updateError) {
+      console.error("Failed to update clicks:", updateError);
+    }
 
     // Get click metadata
     const referrer = req.headers.referer || req.headers.referrer;
     const userAgent = req.headers["user-agent"];
     const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
 
-    // Record activity log instead
+    // Record detailed click event
+    const { error: eventError } = await supabase
+      .from("click_events")
+      .insert({
+        link_id: link.id,
+        user_id: link.user_id,
+        ip_address: ipAddress || "unknown",
+        user_agent: userAgent || "unknown",
+        referrer: referrer || "direct",
+        clicked_at: new Date().toISOString(),
+        converted: false,
+        is_bot: false,
+        fraud_score: 0
+      });
+
+    if (eventError) {
+      console.error("Failed to record click event:", eventError);
+    }
+
+    // Record activity log
     try {
       await supabase
         .from("activity_logs")
@@ -82,7 +93,6 @@ export default async function handler(
         });
     } catch (err) {
       console.error("Failed to log activity:", err);
-      // Don't fail the request if activity logging fails
     }
 
     // Send webhook notification to Zapier
@@ -94,7 +104,6 @@ export default async function handler(
       });
     } catch (err) {
       console.error("Failed to send webhook:", err);
-      // Don't fail the request if webhook fails
     }
 
     console.log("✅ Click tracked:", {
