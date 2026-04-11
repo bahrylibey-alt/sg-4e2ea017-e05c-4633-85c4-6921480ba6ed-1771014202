@@ -8,10 +8,17 @@ import {
   optimizeForPlatform,
   addClickMaximization
 } from "./viralEngine";
+import { 
+  safeIntelligence, 
+  isFeatureEnabled, 
+  getHooksWithFallback,
+  updateDegradationStatus
+} from "./compatibilityLayer";
 
 /**
  * CONTENT INTELLIGENCE FILTER v2.0
  * Integrated with Viral Engine for pattern learning
+ * WITH COMPATIBILITY LAYER - Never blocks existing system
  */
 
 interface Hook {
@@ -24,6 +31,7 @@ interface Hook {
 
 /**
  * Generate hooks using viral engine (10 patterns) or fallback to basic
+ * COMPATIBILITY: Falls back to basic hooks if viral engine fails
  */
 export async function generateHooks(params: {
   productName: string;
@@ -33,37 +41,59 @@ export async function generateHooks(params: {
 }): Promise<Hook[]> {
   const platform = params.platform || 'tiktok';
   
-  // Try to get viral hooks first
-  try {
-    const viralHooks = await generateViralHooks({
-      productName: params.productName,
-      niche: params.niche,
-      platform
-    });
-
-    // Get blacklisted patterns to filter out
-    const blacklisted = await getBlacklistedPatterns(platform);
-
-    // Filter out blacklisted patterns and convert to Hook format
-    const validHooks = viralHooks
-      .filter(vh => !blacklisted.includes(vh.pattern_type))
-      .map(vh => ({
-        text: vh.text,
-        curiosity_score: vh.curiosity_score,
-        clarity_score: vh.clarity_score,
-        emotion_score: vh.emotion_score,
-        total_score: vh.total_score
-      }));
-
-    if (validHooks.length > 0) {
-      console.log(`🎯 Generated ${validHooks.length} viral hooks (filtered blacklist)`);
-      return validHooks;
-    }
-  } catch (error) {
-    console.error("Error generating viral hooks, using fallback:", error);
+  // COMPATIBILITY: Check if viral engine is enabled
+  if (!isFeatureEnabled('viral_engine_enabled')) {
+    console.log('ℹ️ Viral engine disabled, using basic hooks');
+    return getFallbackHooks(params);
   }
 
-  // Fallback to basic hook generation if viral engine fails
+  // COMPATIBILITY: Wrap viral hooks in safe wrapper
+  return safeIntelligence(
+    'Viral Hook Generation',
+    async () => {
+      const viralHooks = await generateViralHooks({
+        productName: params.productName,
+        niche: params.niche,
+        platform
+      });
+
+      // Get blacklisted patterns to filter out
+      const blacklisted = await getBlacklistedPatterns(platform);
+
+      // Filter out blacklisted patterns and convert to Hook format
+      const validHooks = viralHooks
+        .filter(vh => !blacklisted.includes(vh.pattern_type))
+        .map(vh => ({
+          text: vh.text,
+          curiosity_score: vh.curiosity_score,
+          clarity_score: vh.clarity_score,
+          emotion_score: vh.emotion_score,
+          total_score: vh.total_score
+        }));
+
+      if (validHooks.length > 0) {
+        console.log(`🎯 Generated ${validHooks.length} viral hooks (filtered blacklist)`);
+        updateDegradationStatus('viral_hooks', true);
+        return validHooks;
+      }
+
+      // If no valid hooks after filtering, use fallback
+      console.log('⚠️ No valid viral hooks after filtering, using fallback');
+      return getFallbackHooks(params);
+    },
+    getFallbackHooks(params), // Fallback value
+    { log: true }
+  );
+}
+
+/**
+ * COMPATIBILITY: Fallback hook generation (always works)
+ */
+function getFallbackHooks(params: {
+  productName: string;
+  niche: string;
+  benefit?: string;
+}): Hook[] {
   const hooks: Hook[] = [];
   const templates = [
     `This ${params.productName} made me $127 in 1 day`,
@@ -84,6 +114,7 @@ export async function generateHooks(params: {
     hooks.push(hook);
   }
 
+  updateDegradationStatus('viral_hooks', false);
   return hooks.sort((a, b) => b.total_score - a.total_score);
 }
 
@@ -137,6 +168,7 @@ function scoreHook(text: string): Hook {
 
 /**
  * Generate final post using viral engine optimization
+ * COMPATIBILITY: Falls back to simple post if optimization fails
  */
 export async function generateFinalPost(params: {
   hook: Hook;
@@ -144,18 +176,28 @@ export async function generateFinalPost(params: {
   affiliateUrl: string;
   platform: 'tiktok' | 'pinterest' | 'instagram';
 }): Promise<string> {
-  // Optimize hook for platform
-  let optimized = optimizeForPlatform({
-    hook: params.hook.text,
-    platform: params.platform,
-    productName: params.productName,
-    affiliateUrl: params.affiliateUrl
-  });
+  // COMPATIBILITY: Wrap in safe execution
+  return safeIntelligence(
+    'Final Post Optimization',
+    async () => {
+      // Optimize hook for platform
+      let optimized = optimizeForPlatform({
+        hook: params.hook.text,
+        platform: params.platform,
+        productName: params.productName,
+        affiliateUrl: params.affiliateUrl
+      });
 
-  // Add click maximization
-  optimized = addClickMaximization(optimized, params.platform);
+      // Add click maximization
+      optimized = addClickMaximization(optimized, params.platform);
 
-  return optimized;
+      updateDegradationStatus('post_optimization', true);
+      return optimized;
+    },
+    // FALLBACK: Simple post without optimization
+    `${params.hook.text}\n\nCheck it out: ${params.affiliateUrl}`,
+    { log: true }
+  );
 }
 
 export function humanizeContent(text: string): string {
@@ -172,6 +214,9 @@ export function humanizeContent(text: string): string {
   return text;
 }
 
+/**
+ * COMPATIBILITY: Track performance without blocking if it fails
+ */
 export async function trackContentPerformance(params: {
   contentId: string;
   hookScore: number;
@@ -181,6 +226,7 @@ export async function trackContentPerformance(params: {
   platformOptimized: boolean;
   humanizationApplied: boolean;
 }): Promise<void> {
+  // COMPATIBILITY: Non-blocking tracking
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -196,11 +242,18 @@ export async function trackContentPerformance(params: {
       humanization_applied: params.humanizationApplied,
       validation_status: 'TESTING'
     });
+
+    updateDegradationStatus('content_tracking', true);
   } catch (error) {
-    console.error("Error tracking content performance:", error);
+    console.error("⚠️ Content tracking failed (non-blocking):", error);
+    updateDegradationStatus('content_tracking', false);
+    // Don't throw - this is optional tracking
   }
 }
 
+/**
+ * COMPATIBILITY: Validation is advisory only
+ */
 export async function validateContentAfter24h(contentId: string): Promise<'VALID' | 'FAILED'> {
   try {
     const { data: viewEvents } = await supabase
@@ -227,7 +280,7 @@ export async function validateContentAfter24h(contentId: string): Promise<'VALID
 
     return status;
   } catch (error) {
-    console.error("Error validating content:", error);
+    console.error("⚠️ Content validation failed:", error);
     return 'FAILED';
   }
 }

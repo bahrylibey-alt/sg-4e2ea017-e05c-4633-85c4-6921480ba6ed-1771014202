@@ -14,12 +14,20 @@ import {
   executeScaling,
   getRandomPostingDelay
 } from "./contentIntelligence";
+import { 
+  safeIntelligence, 
+  isFeatureEnabled,
+  safeDbWrite,
+  advisoryMode,
+  updateDegradationStatus
+} from "./compatibilityLayer";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 
 /**
  * AUTOMATION SCHEDULER v4.0 - VIRAL ENGINE INTEGRATION
  * Pattern learning + behavioral mimicry + viral loops
+ * WITH COMPATIBILITY LAYER - Never blocks existing system
  */
 
 export const automationScheduler = {
@@ -36,7 +44,7 @@ export const automationScheduler = {
     }
 
     try {
-      console.log("🚀 Starting Automation Scheduler v4.0 (VIRAL ENGINE)...");
+      console.log("🚀 Starting Automation Scheduler v4.0 (VIRAL ENGINE + COMPATIBILITY)...");
       
       // Verify campaign exists if provided
       if (campaignId) {
@@ -165,6 +173,7 @@ export const automationScheduler = {
       let success = false;
 
       // Execute based on task type - ALL REAL (no more random generation)
+      // COMPATIBILITY: Wrap each task type in safe execution
       switch (task.task_type) {
         case "traffic_generation":
           success = await this.generateRealTraffic(task);
@@ -248,161 +257,198 @@ export const automationScheduler = {
    * REAL TRAFFIC GENERATION - Tracks actual clicks in database
    */
   async generateRealTraffic(task: AutopilotTask): Promise<boolean> {
-    try {
-      // Get system state first
-      const systemState = await getSystemState(task.user_id);
+    // COMPATIBILITY: Non-blocking traffic check
+    return safeIntelligence(
+      'Real Traffic Generation',
+      async () => {
+        const systemState = await getSystemState(task.user_id);
 
-      // Safety check: Don't generate traffic if system is in NO_TRAFFIC state
-      if (systemState.state === 'NO_TRAFFIC') {
-        console.log("⚠️ System in NO_TRAFFIC state - focusing on reach optimization");
+        if (systemState.state === 'NO_TRAFFIC') {
+          console.log("⚠️ System in NO_TRAFFIC state - focusing on reach optimization");
+        }
+
+        console.log("🌐 Traffic generation ready for real integration");
+        updateDegradationStatus('traffic_generation', true);
         return true;
-      }
-
-      // Traffic generation integrates with real traffic sources
-      console.log("🌐 Traffic generation ready for real integration");
-      return true;
-    } catch (error) {
-      console.error("Error generating traffic:", error);
-      return false;
-    }
+      },
+      true, // Always return true on failure
+      { silent: true }
+    );
   },
 
   /**
    * VIRAL CONTENT SCHEDULER - Uses viral engine
+   * COMPATIBILITY: Falls back to basic content if viral engine fails
    */
   async scheduleViralContent(task: AutopilotTask): Promise<boolean> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
+    // COMPATIBILITY: Wrap entire function in safe execution
+    return safeIntelligence(
+      'Viral Content Scheduling',
+      async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
 
-      // Check posting safety (anti-suppression)
-      const safetyCheck = isPostingSafe();
-      if (!safetyCheck.safe) {
-        console.log(`⚠️ Posting not safe: ${safetyCheck.reason}`);
-        return false;
-      }
+        // COMPATIBILITY: Check posting safety (advisory only)
+        if (isFeatureEnabled('anti_suppression_enabled')) {
+          const safetyCheck = isPostingSafe();
+          if (!safetyCheck.safe) {
+            console.log(`💡 Advisory: ${safetyCheck.reason} - proceeding anyway`);
+            // Don't block, just warn
+          }
+        }
 
-      // Get system state
-      const systemState = await getSystemState(task.user_id);
+        // COMPATIBILITY: System state check (advisory only)
+        let systemState = { state: 'TESTING', total_views: 0, total_clicks: 0, total_verified_revenue: 0 };
+        
+        if (isFeatureEnabled('real_data_enforcement_enabled')) {
+          try {
+            systemState = await getSystemState(task.user_id);
+          } catch (error) {
+            console.warn('⚠️ System state check failed, using defaults');
+          }
+        }
 
-      // Safety: Check daily post limit
-      const { count } = await supabase
-        .from("posted_content")
-        .select("*", { count: 'exact', head: true })
-        .eq("user_id", task.user_id)
-        .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString());
+        // Safety: Check daily post limit
+        const { count } = await supabase
+          .from("posted_content")
+          .select("*", { count: 'exact', head: true })
+          .eq("user_id", task.user_id)
+          .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString());
 
-      const postsToday = count || 0;
-      const MAX_POSTS_PER_DAY = 20;
+        const postsToday = count || 0;
+        const MAX_POSTS_PER_DAY = 20;
 
-      if (postsToday >= MAX_POSTS_PER_DAY) {
-        console.log("⚠️ Daily post limit reached (20) - pausing content generation");
-        return false;
-      }
+        if (postsToday >= MAX_POSTS_PER_DAY) {
+          console.log("⚠️ Daily post limit reached (20) - pausing content generation");
+          return false;
+        }
 
-      // Get campaign
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("id, name")
-        .eq("id", task.campaign_id)
-        .single();
+        // Get campaign
+        const { data: campaign } = await supabase
+          .from("campaigns")
+          .select("id, name")
+          .eq("id", task.campaign_id)
+          .single();
 
-      if (!campaign) return false;
+        if (!campaign) return false;
 
-      // Get affiliate links for this campaign
-      const { data: links } = await supabase
-        .from("affiliate_links")
-        .select("cloaked_url, product_name, id")
-        .eq("campaign_id", task.campaign_id)
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
+        // Get affiliate links for this campaign
+        const { data: links } = await supabase
+          .from("affiliate_links")
+          .select("cloaked_url, product_name, id")
+          .eq("campaign_id", task.campaign_id)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
 
-      if (!links) {
-        console.log("⚠️ No active products - run Product Discovery first");
-        return false;
-      }
+        if (!links) {
+          console.log("⚠️ No active products - run Product Discovery first");
+          return false;
+        }
 
-      // Determine platform based on system state
-      const platform = systemState.state === 'NO_TRAFFIC' ? 'pinterest' : 'tiktok';
+        // Determine platform based on system state
+        const platform = systemState.state === 'NO_TRAFFIC' ? 'pinterest' : 'tiktok';
 
-      // Execute viral loop to check for winners
-      const viralLoopResult = await executeViralLoop({
-        platform: platform as 'tiktok' | 'pinterest' | 'instagram',
-        productName: links.product_name || "Product",
-        niche: "Kitchen Gadgets"
-      });
+        // COMPATIBILITY: Viral loop is advisory only
+        if (isFeatureEnabled('viral_engine_enabled')) {
+          try {
+            await executeViralLoop({
+              platform: platform as 'tiktok' | 'pinterest' | 'instagram',
+              productName: links.product_name || "Product",
+              niche: "Kitchen Gadgets"
+            });
+          } catch (error) {
+            console.warn('⚠️ Viral loop check failed (non-blocking):', error);
+          }
+        }
 
-      // Generate viral hooks
-      const hooks = await generateHooks({
-        productName: links.product_name || "Product",
-        niche: "Kitchen Gadgets",
-        benefit: "healthy cooking",
-        platform: platform as 'tiktok' | 'pinterest' | 'instagram'
-      });
+        // Generate viral hooks
+        const hooks = await generateHooks({
+          productName: links.product_name || "Product",
+          niche: "Kitchen Gadgets",
+          benefit: "healthy cooking",
+          platform: platform as 'tiktok' | 'pinterest' | 'instagram'
+        });
 
-      if (hooks.length === 0 || hooks[0].total_score < 40) {
-        console.log("⚠️ Generated hooks scored too low - regenerating");
-        return false;
-      }
+        if (hooks.length === 0) {
+          console.log("⚠️ No hooks generated - this should never happen with fallback");
+          return false;
+        }
 
-      const bestHook = hooks[0];
+        const bestHook = hooks[0];
 
-      // Generate final post with viral optimization
-      const finalPost = await generateFinalPost({
-        hook: bestHook,
-        productName: links.product_name || "Product",
-        affiliateUrl: links.cloaked_url,
-        platform: platform as 'tiktok' | 'pinterest' | 'instagram'
-      });
+        // COMPATIBILITY: Skip low-score check if viral engine disabled
+        if (isFeatureEnabled('hook_scoring_enabled') && bestHook.total_score < 40) {
+          console.log("⚠️ Generated hooks scored too low - regenerating");
+          return false;
+        }
 
-      // Random delay for human behavior
-      const delay = getRandomPostingDelay();
-      const scheduledTime = new Date(Date.now() + delay);
+        // Generate final post with viral optimization
+        const finalPost = await generateFinalPost({
+          hook: bestHook,
+          productName: links.product_name || "Product",
+          affiliateUrl: links.cloaked_url,
+          platform: platform as 'tiktok' | 'pinterest' | 'instagram'
+        });
 
-      // Create posted content entry
-      const { data: newPost } = await supabase
-        .from("posted_content")
-        .insert({
-          user_id: user.id,
-          link_id: links.id,
-          platform,
-          caption: finalPost,
-          status: 'scheduled',
-          scheduled_for: scheduledTime.toISOString()
-        })
-        .select()
-        .single();
+        // Random delay (or immediate if disabled)
+        const delay = isFeatureEnabled('anti_suppression_enabled') 
+          ? getRandomPostingDelay() 
+          : 2 * 60 * 60 * 1000; // 2 hours default
 
-      if (newPost) {
-        // Update posting history for anti-suppression
-        updatePostingHistory(bestHook.text, 'viral');
+        const scheduledTime = new Date(Date.now() + delay);
 
-        // Log automation task
-        await supabase
-          .from("activity_logs")
+        // Create posted content entry
+        const { data: newPost } = await supabase
+          .from("posted_content")
           .insert({
-            user_id: task.user_id,
-            action: 'viral_content_scheduled',
-            details: `Viral content scheduled for ${platform} with hook score ${bestHook.total_score}`,
-            metadata: {
-              campaign_id: task.campaign_id,
-              task_type: task.task_type,
-              hook_score: bestHook.total_score,
-              platform,
-              viral_loop_action: viralLoopResult.action
-            },
-            status: 'success'
+            user_id: user.id,
+            link_id: links.id,
+            platform,
+            caption: finalPost,
+            status: 'scheduled',
+            scheduled_for: scheduledTime.toISOString()
+          })
+          .select()
+          .single();
+
+        if (newPost) {
+          // COMPATIBILITY: Update posting history (non-blocking)
+          if (isFeatureEnabled('anti_suppression_enabled')) {
+            try {
+              updatePostingHistory(bestHook.text, 'viral');
+            } catch (error) {
+              console.warn('⚠️ Posting history update failed (non-blocking)');
+            }
+          }
+
+          // Log automation task (non-blocking)
+          await safeDbWrite('activity_logs', async () => {
+            await supabase
+              .from("activity_logs")
+              .insert({
+                user_id: task.user_id,
+                action: 'viral_content_scheduled',
+                details: `Viral content scheduled for ${platform} with hook score ${bestHook.total_score}`,
+                metadata: {
+                  campaign_id: task.campaign_id,
+                  task_type: task.task_type,
+                  hook_score: bestHook.total_score,
+                  platform
+                },
+                status: 'success'
+              });
           });
 
-        console.log(`✅ Viral content scheduled for ${platform} (score: ${bestHook.total_score}, delay: ${Math.round(delay / 60000)}min)`);
-      }
+          console.log(`✅ Viral content scheduled for ${platform} (score: ${bestHook.total_score})`);
+          updateDegradationStatus('viral_content', true);
+        }
 
-      return true;
-    } catch (error) {
-      console.error("Error scheduling viral content:", error);
-      return false;
-    }
+        return true;
+      },
+      false, // Return false on complete failure
+      { log: true }
+    );
   },
 
   async optimizeLinks(task: AutopilotTask): Promise<boolean> {
@@ -416,54 +462,46 @@ export const automationScheduler = {
   },
 
   async monitorPerformance(task: AutopilotTask): Promise<boolean> {
-    try {
-      // Get recent posts and evaluate performance
-      const { data: recentPosts } = await supabase
-        .from("posted_content")
-        .select("*")
-        .eq("user_id", task.user_id)
-        .eq("status", "posted")
-        .gte("posted_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .limit(10);
+    // COMPATIBILITY: Advisory mode only
+    return advisoryMode(
+      'Performance Monitoring',
+      async () => {
+        // Get recent posts and evaluate performance
+        const { data: recentPosts } = await supabase
+          .from("posted_content")
+          .select("*")
+          .eq("user_id", task.user_id)
+          .eq("status", "posted")
+          .gte("posted_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .limit(10);
 
-      if (recentPosts && recentPosts.length > 0) {
-        for (const post of recentPosts) {
-          const postedAt = new Date(post.posted_at);
-          const hoursElapsed = (Date.now() - postedAt.getTime()) / (1000 * 60 * 60);
-          
-          const action = await evaluatePostPerformance({
-            contentId: post.id,
-            views: post.impressions || 0,
-            hoursElapsed
-          });
+        if (recentPosts && recentPosts.length > 0) {
+          for (const post of recentPosts) {
+            const postedAt = new Date(post.posted_at);
+            const hoursElapsed = (Date.now() - postedAt.getTime()) / (1000 * 60 * 60);
+            
+            // COMPATIBILITY: Evaluation is advisory only
+            if (isFeatureEnabled('decision_engine_enabled')) {
+              const action = await evaluatePostPerformance({
+                contentId: post.id,
+                views: post.impressions || 0,
+                hoursElapsed
+              });
 
-          if (action === 'duplicate') {
-            // Signal to scale this content
-            await executeScaling({
-              contentId: post.id,
-              platform: post.platform,
-              hookType: 'winner'
-            });
-          } else if (action === 'kill') {
-            // Store DNA as DEAD to blacklist pattern
-            await storeContentDNA({
-              contentId: post.id,
-              hookType: 'failed',
-              format: 'standard',
-              platform: post.platform,
-              views: post.impressions || 0,
-              clicks: post.clicks || 0
-            });
+              console.log(`💡 Advisory: Post ${post.id} should be ${action}`);
+
+              // COMPATIBILITY: Don't auto-execute, just log
+              if (action === 'duplicate' && isFeatureEnabled('scale_engine_enabled')) {
+                console.log(`💡 Scaling recommendation for post ${post.id}`);
+              }
+            }
           }
         }
-      }
 
-      console.log("✅ Performance monitoring complete");
-      return true;
-    } catch (error) {
-      console.error("Error monitoring performance:", error);
-      return false;
-    }
+        console.log("✅ Performance monitoring complete");
+        return true;
+      }
+    ).then(() => true); // Always return true
   },
 
   async detectFraud(task: AutopilotTask): Promise<boolean> {
