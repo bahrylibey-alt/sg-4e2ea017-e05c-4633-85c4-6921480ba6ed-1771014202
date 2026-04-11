@@ -31,7 +31,6 @@ serve(async (req) => {
       content_generated: 0,
       posts_published: 0,
       posts_scored: 0,
-      decisions_applied: 0,
       webhooks_sent: 0,
       errors: [] as string[]
     };
@@ -58,7 +57,7 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 1. GET REAL AFFILIATE LINKS (Temu + Amazon)
+    // 1. GET REAL AFFILIATE LINKS (Amazon + Temu ONLY - No fake links!)
     // ====================================================
     let realLinks: any[] = [];
     try {
@@ -67,16 +66,15 @@ serve(async (req) => {
         .select('id, slug, product_name, original_url, network, cloaked_url')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .in('network', ['temu', 'amazon'])
-        .not('original_url', 'like', '%AUTO%')
-        .limit(50);
+        .like('original_url', '%amazon.com/dp/%')
+        .limit(100);
 
       if (linksError) throw linksError;
 
       if (links && links.length > 0) {
         realLinks = links;
         results.real_links_used = realLinks.length;
-        console.log(`✅ Found ${realLinks.length} real affiliate links to use`);
+        console.log(`✅ Found ${realLinks.length} REAL affiliate links to use`);
       } else {
         console.log('⚠️ No real affiliate links found - autopilot will skip posting');
         results.errors.push('No real affiliate links found');
@@ -127,7 +125,7 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 3. SCORE EXISTING POSTS
+    // 3. SCORE EXISTING POSTS (Performance tracking)
     // ====================================================
     try {
       const { data: posts } = await supabase
@@ -147,13 +145,11 @@ serve(async (req) => {
           const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
           const revenuePerClick = clicks > 0 ? revenue / clicks : 0;
 
-          // Calculate performance score (0-100)
           let performanceScore = 0;
           performanceScore += Math.min(ctr * 10, 40);
           performanceScore += Math.min(conversionRate * 20, 40);
           performanceScore += Math.min(revenuePerClick * 2, 20);
 
-          // Determine autopilot state
           let autopilotState = 'testing';
           if (ctr >= 2 || clicks >= 20) {
             autopilotState = 'scaling';
@@ -181,7 +177,7 @@ serve(async (req) => {
     }
 
     // ====================================================
-    // 4. GENERATE CONTENT
+    // 4. GENERATE CONTENT (AI-style captions for posts)
     // ====================================================
     try {
       for (let i = 0; i < 2; i++) {
@@ -220,6 +216,9 @@ serve(async (req) => {
           
           // Create engaging caption based on product
           const caption = `🔥 Check out this amazing ${randomLink.product_name}! Limited time offer! #${randomLink.network} #affiliate #deals`;
+          
+          // Build cloaked URL for this post
+          const cloakedUrl = `https://yourdomain.com/go/${randomLink.slug}`;
 
           const { data: newPost, error: postError } = await supabase
             .from('posted_content')
@@ -254,7 +253,7 @@ serve(async (req) => {
                     id: newPost.id,
                     platform: randomPlatform,
                     caption: caption,
-                    link_url: randomLink.original_url,
+                    link_url: cloakedUrl,
                     product_name: randomLink.product_name,
                     network: randomLink.network,
                     created_at: new Date().toISOString()
