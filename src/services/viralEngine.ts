@@ -238,7 +238,7 @@ export async function getBlacklistedPatterns(platform: string): Promise<string[]
       .eq("platform", platform)
       .eq("status", "DEAD");
 
-    return data?.map(d => d.hook_type) || [];
+    return (data as any[])?.map((d: any) => d.hook_type) || [];
   } catch (error) {
     console.error("Error getting blacklisted patterns:", error);
     return [];
