@@ -184,7 +184,7 @@ export const freeTrafficEngine = {
       // Get affiliate links for this campaign
       const { data: links } = await supabase
         .from("affiliate_links")
-        .select("cloaked_url, product_name")
+        .select("id, cloaked_url, product_name")
         .eq("campaign_id", campaignId)
         .eq("status", "active")
         .limit(1)
