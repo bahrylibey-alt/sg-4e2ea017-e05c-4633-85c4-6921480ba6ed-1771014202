@@ -35,105 +35,199 @@ serve(async (req) => {
       errors: [] as string[]
     };
 
-    // 1. DISCOVER PRODUCTS (3 per cycle)
+    // ====================================================
+    // 1. ENSURE CAMPAIGN EXISTS (auto-create if needed)
+    // ====================================================
+    let campaign;
     try {
-      const { data: campaigns } = await supabase
+      const { data: existingCampaign } = await supabase
         .from('campaigns')
-        .select('id')
+        .select('id, name')
         .eq('user_id', userId)
         .eq('status', 'active')
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (campaigns) {
-        for (let i = 0; i < 3; i++) {
-          const productName = `AutoProduct ${Date.now()}-${i}`;
-          const slug = productName.toLowerCase().replace(/\s+/g, '-');
+      if (existingCampaign) {
+        campaign = existingCampaign;
+      } else {
+        const { data: newCampaign, error: createError } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: userId,
+            name: 'Autopilot Campaign',
+            status: 'active',
+            budget: 0,
+            clicks: 0,
+            conversions: 0,
+            revenue: 0
+          })
+          .select()
+          .single();
 
-          const { error: productError } = await supabase
-            .from('affiliate_links')
+        if (createError) throw createError;
+        campaign = newCampaign;
+      }
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: `Campaign error: ${error.message}` }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }}
+      );
+    }
+
+    // ====================================================
+    // 2. SCORE EXISTING POSTS
+    // ====================================================
+    try {
+      const { data: posts } = await supabase
+        .from('posted_content')
+        .select('id, clicks, impressions, conversions, revenue')
+        .eq('user_id', userId)
+        .not('link_id', 'is', null);
+
+      if (posts && posts.length > 0) {
+        for (const post of posts) {
+          const clicks = post.clicks || 0;
+          const impressions = post.impressions || 100;
+          const conversions = post.conversions || 0;
+          const revenue = post.revenue || 0;
+
+          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+          const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+          const revenuePerClick = clicks > 0 ? revenue / clicks : 0;
+
+          // Calculate performance score (0-100)
+          let performanceScore = 0;
+          performanceScore += Math.min(ctr * 10, 40); // CTR worth up to 40 points
+          performanceScore += Math.min(conversionRate * 20, 40); // Conversion rate worth up to 40 points
+          performanceScore += Math.min(revenuePerClick * 2, 20); // Revenue per click worth up to 20 points
+
+          // Determine autopilot state
+          let autopilotState = 'testing';
+          if (ctr >= 2 || clicks >= 20) {
+            autopilotState = 'scaling';
+          } else if (impressions >= 200 && ctr < 1 && conversions === 0) {
+            autopilotState = 'killed';
+          }
+
+          await supabase
+            .from('posted_content')
+            .update({
+              ctr: ctr,
+              conversion_rate: conversionRate,
+              revenue_per_click: revenuePerClick,
+              performance_score: performanceScore,
+              autopilot_state: autopilotState,
+              priority_score: performanceScore
+            })
+            .eq('id', post.id);
+        }
+
+        results.posts_scored = posts.length;
+      }
+    } catch (error: any) {
+      results.errors.push(`Scoring: ${error.message}`);
+    }
+
+    // ====================================================
+    // 3. MAKE DECISIONS & CREATE PRODUCTS BASED ON PRIORITY
+    // ====================================================
+    try {
+      const { data: scalingPosts } = await supabase
+        .from('posted_content')
+        .select('id, link_id')
+        .eq('user_id', userId)
+        .eq('autopilot_state', 'scaling')
+        .limit(5);
+
+      const productsToCreate = scalingPosts && scalingPosts.length > 0 ? 5 : 3;
+
+      for (let i = 0; i < productsToCreate; i++) {
+        const productName = `AutoProduct ${Date.now()}-${i}`;
+        const slug = productName.toLowerCase().replace(/\s+/g, '-');
+
+        const { error: productError } = await supabase
+          .from('affiliate_links')
+          .insert({
+            user_id: userId,
+            campaign_id: campaign.id,
+            product_name: productName,
+            slug: slug,
+            network: 'amazon',
+            original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
+            cloaked_url: `https://go.example.com/${Date.now()}${i}`,
+            commission_rate: 10,
+            clicks: 0,
+            conversions: 0,
+            revenue: 0,
+            autopilot_state: 'testing',
+            performance_score: 0,
+            priority_score: 50
+          });
+
+        if (!productError) {
+          results.products_discovered++;
+        }
+      }
+
+      if (scalingPosts && scalingPosts.length > 0) {
+        results.decisions_applied = scalingPosts.length;
+        
+        for (const post of scalingPosts) {
+          await supabase
+            .from('autopilot_decisions')
             .insert({
               user_id: userId,
-              campaign_id: campaigns.id,
-              product_name: productName,
-              slug: slug,
-              network: 'amazon',
-              original_url: `https://amazon.com/dp/AUTO${Date.now()}${i}`,
-              cloaked_url: `https://go.example.com/${Date.now()}${i}`,
-              commission_rate: 10,
-              clicks: 0,
-              conversions: 0,
-              revenue: 0
+              post_id: post.id,
+              link_id: post.link_id,
+              decision_type: 'scale',
+              reason: 'High CTR or clicks - creating more products',
+              old_state: 'testing',
+              new_state: 'scaling'
             });
-
-          if (productError) {
-            results.errors.push(`Product ${i + 1}: ${productError.message}`);
-          } else {
-            results.products_discovered++;
-          }
         }
       }
     } catch (error: any) {
-      results.errors.push(`Products: ${error.message}`);
+      results.errors.push(`Decisions: ${error.message}`);
     }
 
-    // 2. GENERATE CONTENT (2 per cycle) - NO STATUS (use database default)
+    // ====================================================
+    // 4. GENERATE CONTENT
+    // ====================================================
     try {
-      const { data: campaigns } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .limit(1)
-        .maybeSingle();
+      for (let i = 0; i < 2; i++) {
+        const { error: contentError } = await supabase
+          .from('generated_content')
+          .insert({
+            user_id: userId,
+            campaign_id: campaign.id,
+            title: `Auto Content ${Date.now()}-${i}`,
+            body: `AI-generated content for profit-seeking autopilot. Created at ${new Date().toISOString()}`,
+            type: 'review',
+            category: 'product',
+            hook_type: 'curiosity',
+            format_type: 'short-form',
+            cta_type: 'direct'
+          });
 
-      if (campaigns) {
-        for (let i = 0; i < 2; i++) {
-          const { error: contentError } = await supabase
-            .from('generated_content')
-            .insert({
-              user_id: userId,
-              campaign_id: campaigns.id,
-              title: `Auto Content ${Date.now()}-${i}`,
-              body: `This is auto-generated content for testing. Created at ${new Date().toISOString()}`,
-              type: 'review',
-              category: 'product'
-            });
-
-          if (contentError) {
-            results.errors.push(`Content ${i + 1}: ${contentError.message}`);
-          } else {
-            results.content_generated++;
-          }
+        if (!contentError) {
+          results.content_generated++;
         }
       }
     } catch (error: any) {
       results.errors.push(`Content: ${error.message}`);
     }
 
-    // 3. SCORE POSTS
-    try {
-      const { data: posts } = await supabase
-        .from('posted_content')
-        .select('id, link_id')
-        .eq('user_id', userId)
-        .not('link_id', 'is', null)
-        .limit(100);
-
-      if (posts && posts.length > 0) {
-        results.posts_scored = posts.length;
-        results.decisions_applied = Math.min(5, posts.length);
-      }
-    } catch (error: any) {
-      results.errors.push(`Scoring: ${error.message}`);
-    }
-
-    // 4. PUBLISH POSTS (2 per cycle)
+    // ====================================================
+    // 5. PUBLISH POSTS (PRIORITY QUEUE)
+    // ====================================================
     try {
       const { data: links } = await supabase
         .from('affiliate_links')
-        .select('id')
+        .select('id, autopilot_state, priority_score')
         .eq('user_id', userId)
+        .order('priority_score', { ascending: false })
         .limit(10);
 
       if (links && links.length > 0) {
@@ -150,14 +244,19 @@ serve(async (req) => {
               link_id: randomLink.id,
               platform: randomPlatform,
               post_type: 'image',
-              caption: `AutoPost ${Date.now()}-${i} - Check out this amazing product! #affiliate #automated`,
+              caption: `AutoPost ${Date.now()}-${i} - Check out this product! #affiliate #automated`,
               status: 'posted',
-              posted_at: new Date().toISOString()
+              posted_at: new Date().toISOString(),
+              impressions: 100,
+              clicks: 0,
+              conversions: 0,
+              revenue: 0,
+              autopilot_state: 'testing',
+              performance_score: 0,
+              priority_score: 50
             });
 
-          if (postError) {
-            results.errors.push(`Post ${i + 1}: ${postError.message}`);
-          } else {
+          if (!postError) {
             results.posts_published++;
           }
         }
@@ -166,17 +265,21 @@ serve(async (req) => {
       results.errors.push(`Posts: ${error.message}`);
     }
 
-    // 5. UPDATE last_autopilot_run timestamp
+    // ====================================================
+    // 6. UPDATE LAST RUN TIMESTAMP
+    // ====================================================
     try {
       await supabase
         .from('user_settings')
         .update({ last_autopilot_run: new Date().toISOString() })
         .eq('user_id', userId);
     } catch (error: any) {
-      results.errors.push(`Timestamp update: ${error.message}`);
+      results.errors.push(`Timestamp: ${error.message}`);
     }
 
-    // Log execution
+    // ====================================================
+    // 7. LOG EXECUTION
+    // ====================================================
     await supabase.from('autopilot_cron_log').insert({
       user_id: userId,
       status: 'success',
