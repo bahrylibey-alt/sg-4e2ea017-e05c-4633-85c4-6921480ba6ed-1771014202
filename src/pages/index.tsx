@@ -8,20 +8,30 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Zap, 
   Bot, 
-  Sparkles, 
+  Brain,
   TrendingUp, 
   CheckCircle, 
   Globe,
   Target,
   DollarSign,
   ArrowRight,
-  Wand2,
-  Activity,
-  Users,
-  BarChart3,
-  Brain,
   Rocket,
-  LineChart
+  LineChart,
+  Share2,
+  Lightbulb,
+  Clock,
+  BarChart3,
+  MessageSquare,
+  Mail,
+  Twitter,
+  Facebook,
+  Instagram,
+  Youtube,
+  Linkedin,
+  Link2,
+  Smartphone,
+  Layers,
+  Settings
 } from "lucide-react";
 import Link from "next/link";
 
@@ -29,29 +39,29 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <SEO 
-        title="AffiliatePro - Profit-Seeking AI Autopilot for Affiliate Marketing"
-        description="Complete affiliate system with AI intelligence that tracks, scores, and scales winners automatically. Discover → Generate → Post → Track → Score → Decide → Scale"
+        title="AffiliatePro - AI-Powered Affiliate Marketing Automation"
+        description="Complete affiliate marketing system with AI intelligence, automatic traffic generation, and profit tracking. Get started in minutes."
       />
       <Header />
 
       <main className="container mx-auto px-4 pt-20 pb-16">
         {/* Hero Section */}
         <section className="text-center mb-20">
-          <Badge className="mb-4 text-sm px-4 py-1">AI-Powered Profit Intelligence</Badge>
+          <Badge className="mb-4 text-sm px-4 py-1">AI-Powered Automation</Badge>
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent leading-tight">
-            Autopilot That Actually<br/>Makes You Money
+            Affiliate Marketing<br/>on Autopilot
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-3xl mx-auto">
-            Not just automation—<span className="font-bold text-foreground">profit-seeking intelligence</span> that discovers, tests, and scales winners automatically
+            AI discovers products, creates content, posts automatically, and tracks every penny
           </p>
           <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto">
-            Track → Score → Decide → Scale
+            8 traffic sources • 100% automation • Real-time insights
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/dashboard">
               <Button size="lg" className="text-lg h-16 px-10 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90">
                 <Zap className="w-6 h-6 mr-2" />
-                Launch Dashboard
+                Start Free Now
               </Button>
             </Link>
             <Link href="#how-it-works">
@@ -62,138 +72,319 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Intelligence Layer Highlight */}
+        {/* Quick Stats */}
         <section className="mb-20">
-          <Card className="border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-purple-500/5">
+          <Card className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-primary/20">
             <CardContent className="pt-8">
-              <div className="text-center mb-8">
-                <Brain className="w-16 h-16 mx-auto mb-4 text-primary" />
-                <h2 className="text-3xl font-bold mb-3">Profit-Seeking Intelligence Layer</h2>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                  Not random posting—smart decisions based on real performance data
-                </p>
-              </div>
-              <div className="grid md:grid-cols-4 gap-6">
-                <div className="text-center p-6 bg-background rounded-lg border">
-                  <Target className="w-10 h-10 mx-auto mb-3 text-green-600" />
-                  <h3 className="font-bold mb-2">Track</h3>
-                  <p className="text-sm text-muted-foreground">Every click, conversion, revenue tracked</p>
+              <div className="grid md:grid-cols-4 gap-8 text-center">
+                <div>
+                  <div className="text-5xl font-bold text-primary mb-2">8</div>
+                  <div className="text-sm text-muted-foreground">Traffic Sources</div>
                 </div>
-                <div className="text-center p-6 bg-background rounded-lg border">
-                  <BarChart3 className="w-10 h-10 mx-auto mb-3 text-blue-600" />
-                  <h3 className="font-bold mb-2">Score</h3>
-                  <p className="text-sm text-muted-foreground">Performance scores: testing → scaling → killed</p>
+                <div>
+                  <div className="text-5xl font-bold text-blue-600 mb-2">24/7</div>
+                  <div className="text-sm text-muted-foreground">Automation</div>
                 </div>
-                <div className="text-center p-6 bg-background rounded-lg border">
-                  <Brain className="w-10 h-10 mx-auto mb-3 text-purple-600" />
-                  <h3 className="font-bold mb-2">Decide</h3>
-                  <p className="text-sm text-muted-foreground">AI makes scale/kill decisions automatically</p>
+                <div>
+                  <div className="text-5xl font-bold text-pink-600 mb-2">100%</div>
+                  <div className="text-sm text-muted-foreground">Real Tracking</div>
                 </div>
-                <div className="text-center p-6 bg-background rounded-lg border">
-                  <Rocket className="w-10 h-10 mx-auto mb-3 text-pink-600" />
-                  <h3 className="font-bold mb-2">Scale</h3>
-                  <p className="text-sm text-muted-foreground">Winners get more content & priority</p>
+                <div>
+                  <div className="text-5xl font-bold text-green-600 mb-2">$0</div>
+                  <div className="text-sm text-muted-foreground">Setup Fee</div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </section>
 
-        {/* Main Features */}
-        <section id="features" className="mb-20">
-          <h2 className="text-4xl font-bold mb-12 text-center">Complete Automation + Intelligence</h2>
+        {/* Traffic Sources Section - PROMINENT */}
+        <section id="traffic-sources" className="mb-20">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">8 Automated Traffic Channels</Badge>
+            <h2 className="text-4xl font-bold mb-4">Free Traffic on Autopilot</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Connect once, post forever. Our AI handles content creation and distribution across all platforms.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-6 mb-8">
+            <Card className="hover:shadow-xl transition-all border-2 border-primary/20 hover:border-primary/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Share2 className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Pinterest</CardTitle>
+                <CardDescription>Auto-pin products</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-primary mb-2">100-500</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-blue-500/20 hover:border-blue-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Twitter className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Twitter/X</CardTitle>
+                <CardDescription>Auto-tweet deals</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-blue-600 mb-2">100-500</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-blue-500/20 hover:border-blue-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center mb-4">
+                  <Facebook className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Facebook</CardTitle>
+                <CardDescription>Group sharing</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-blue-600 mb-2">200-1K</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-pink-500/20 hover:border-pink-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Instagram className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Instagram</CardTitle>
+                <CardDescription>Story automation</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-pink-600 mb-2">300-1.5K</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-red-500/20 hover:border-red-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-red-600 to-red-800 rounded-2xl flex items-center justify-center mb-4">
+                  <Youtube className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">YouTube</CardTitle>
+                <CardDescription>Community posts</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-red-600 mb-2">500-3K</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-orange-500/20 hover:border-orange-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mb-4">
+                  <MessageSquare className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Reddit</CardTitle>
+                <CardDescription>Deal posting</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-orange-600 mb-2">500-2K</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-blue-500/20 hover:border-blue-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center mb-4">
+                  <Linkedin className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">LinkedIn</CardTitle>
+                <CardDescription>Article publishing</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-blue-700 mb-2">100-800</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-xl transition-all border-2 border-blue-500/20 hover:border-blue-500/40">
+              <CardHeader className="text-center pb-4">
+                <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Mail className="w-8 h-8 text-white" />
+                </div>
+                <CardTitle className="text-lg">Email</CardTitle>
+                <CardDescription>Drip campaigns</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="text-2xl font-bold text-blue-600 mb-2">200-1K</div>
+                <div className="text-xs text-muted-foreground">visitors/month</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="text-center">
+            <Link href="/traffic-channels">
+              <Button size="lg" className="bg-gradient-to-r from-primary to-purple-600">
+                <Settings className="w-5 h-5 mr-2" />
+                Manage Traffic Channels
+              </Button>
+            </Link>
+          </div>
+        </section>
+
+        {/* AI Features */}
+        <section className="mb-20">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">Powered by AI</Badge>
+            <h2 className="text-4xl font-bold mb-4">Intelligence That Works For You</h2>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="p-8 hover:shadow-xl transition-all border-2 border-primary/20 hover:border-primary/40">
+            <Card className="p-8 hover:shadow-xl transition-all border-2 border-primary/20">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
-                <Bot className="w-8 h-8 text-primary" />
+                <Brain className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">AI Autopilot Engine</h3>
+              <h3 className="text-2xl font-bold mb-3">AI Insights</h3>
               <p className="text-muted-foreground mb-6">
-                Runs 24/7 on server—discovers products, generates content, posts automatically
+                Real-time performance analysis with actionable recommendations
               </p>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <span>Continuous background execution</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Channel performance scoring</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <span>Smart product discovery from Amazon, Temu</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Content optimization tips</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <span>AI content generation with DNA tracking</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Best posting times</span>
                 </li>
               </ul>
             </Card>
 
-            <Card className="p-8 hover:shadow-xl transition-all border-2 border-blue-500/20 hover:border-blue-500/40">
+            <Card className="p-8 hover:shadow-xl transition-all border-2 border-blue-500/20">
               <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6">
-                <LineChart className="w-8 h-8 text-blue-500" />
+                <Bot className="w-8 h-8 text-blue-500" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">Profit Intelligence</h3>
+              <h3 className="text-2xl font-bold mb-3">24/7 Automation</h3>
               <p className="text-muted-foreground mb-6">
-                Real-time scoring, decision-making, and winner identification
+                Runs continuously on our servers - no manual work required
               </p>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <span>Performance scoring (CTR, conversion, revenue)</span>
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  <span>Product discovery</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <span>Auto scale winners, kill losers</span>
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  <span>Content generation</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <span>Priority queue—best products first</span>
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                  <span>Auto-posting to all channels</span>
                 </li>
               </ul>
             </Card>
 
-            <Card className="p-8 hover:shadow-xl transition-all border-2 border-pink-500/20 hover:border-pink-500/40">
-              <div className="w-16 h-16 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-6">
-                <Globe className="w-8 h-8 text-pink-500" />
+            <Card className="p-8 hover:shadow-xl transition-all border-2 border-green-500/20">
+              <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <BarChart3 className="w-8 h-8 text-green-500" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">Social Automation</h3>
+              <h3 className="text-2xl font-bold mb-3">Real Tracking</h3>
               <p className="text-muted-foreground mb-6">
-                One-click setup—post to 5 platforms forever automatically
+                100% verified data - no fake numbers or estimates
               </p>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-pink-600 flex-shrink-0" />
-                  <span>Facebook, Instagram, TikTok, YouTube</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Real click tracking</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-pink-600 flex-shrink-0" />
-                  <span>Smart scheduling based on performance</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Verified conversions</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-pink-600 flex-shrink-0" />
-                  <span>Content DNA pattern learning</span>
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span>Actual revenue only</span>
                 </li>
               </ul>
             </Card>
           </div>
         </section>
 
+        {/* Integrations */}
+        <section className="mb-20">
+          <div className="text-center mb-12">
+            <Badge className="mb-4">Easy Integration</Badge>
+            <h2 className="text-4xl font-bold mb-4">Connect Your Favorite Tools</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Works seamlessly with the platforms you already use
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-6">
+            <Card className="p-6 text-center hover:shadow-lg transition-all">
+              <div className="w-12 h-12 mx-auto bg-primary/10 rounded-lg flex items-center justify-center mb-4">
+                <Link2 className="w-6 h-6 text-primary" />
+              </div>
+              <h4 className="font-semibold mb-2">Amazon Associates</h4>
+              <p className="text-sm text-muted-foreground">Auto-discover products</p>
+            </Card>
+
+            <Card className="p-6 text-center hover:shadow-lg transition-all">
+              <div className="w-12 h-12 mx-auto bg-blue-500/10 rounded-lg flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6 text-blue-600" />
+              </div>
+              <h4 className="font-semibold mb-2">Zapier</h4>
+              <p className="text-sm text-muted-foreground">Auto-post to socials</p>
+            </Card>
+
+            <Card className="p-6 text-center hover:shadow-lg transition-all">
+              <div className="w-12 h-12 mx-auto bg-green-500/10 rounded-lg flex items-center justify-center mb-4">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <h4 className="font-semibold mb-2">Stripe</h4>
+              <p className="text-sm text-muted-foreground">Payment processing</p>
+            </Card>
+
+            <Card className="p-6 text-center hover:shadow-lg transition-all">
+              <div className="w-12 h-12 mx-auto bg-purple-500/10 rounded-lg flex items-center justify-center mb-4">
+                <Layers className="w-6 h-6 text-purple-600" />
+              </div>
+              <h4 className="font-semibold mb-2">More Networks</h4>
+              <p className="text-sm text-muted-foreground">ShareASale, CJ, etc.</p>
+            </Card>
+          </div>
+
+          <div className="text-center mt-8">
+            <Link href="/integrations">
+              <Button variant="outline" size="lg">
+                <Settings className="w-5 h-5 mr-2" />
+                View All Integrations
+              </Button>
+            </Link>
+          </div>
+        </section>
+
         {/* How It Works */}
         <section id="how-it-works" className="mb-20">
-          <h2 className="text-4xl font-bold mb-4 text-center">The Complete Intelligence Loop</h2>
+          <h2 className="text-4xl font-bold mb-4 text-center">How It Works</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Discover → Generate → Post → Track → Score → Decide → Scale
+            Four simple steps to automated affiliate income
           </p>
-          <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <div className="grid md:grid-cols-4 gap-6">
             <Card className="border-2 border-primary/20">
               <CardHeader>
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-primary">1</span>
                 </div>
-                <CardTitle className="text-lg">Discover Products</CardTitle>
+                <CardTitle className="text-lg">Connect Accounts</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  AI finds trending products from top affiliate networks
+                  Link your affiliate networks and social media accounts
                 </p>
               </CardContent>
             </Card>
@@ -203,11 +394,11 @@ export default function HomePage() {
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-primary">2</span>
                 </div>
-                <CardTitle className="text-lg">Generate & Post</CardTitle>
+                <CardTitle className="text-lg">Launch Autopilot</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Creates content and publishes to social media automatically
+                  AI discovers products and creates engaging content
                 </p>
               </CardContent>
             </Card>
@@ -217,11 +408,11 @@ export default function HomePage() {
                 <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-blue-600">3</span>
                 </div>
-                <CardTitle className="text-lg">Track & Score</CardTitle>
+                <CardTitle className="text-lg">Auto-Post Content</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Monitors clicks, CTR, conversions—assigns performance scores
+                  Content posted to 8 platforms automatically 24/7
                 </p>
               </CardContent>
             </Card>
@@ -231,192 +422,40 @@ export default function HomePage() {
                 <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-green-600">4</span>
                 </div>
-                <CardTitle className="text-lg">Decide & Scale</CardTitle>
+                <CardTitle className="text-lg">Track & Optimize</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Scales winners, kills losers—optimizes for maximum profit
+                  AI insights show you what's working and scales winners
                 </p>
               </CardContent>
             </Card>
           </div>
-
-          <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border-2 border-green-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center">
-                  <Zap className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">The Intelligence Difference</h3>
-                  <p className="text-sm text-muted-foreground">What makes this system actually work</p>
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-background p-4 rounded-lg border">
-                  <p className="text-sm"><span className="font-bold text-red-600">❌ Without Intelligence:</span> Posts 100 products randomly, wastes time on losers</p>
-                </div>
-                <div className="bg-background p-4 rounded-lg border">
-                  <p className="text-sm"><span className="font-bold text-green-600">✅ With Intelligence:</span> Tests, identifies winners, scales them 10x—kills losers</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </section>
 
-        {/* Social Proof */}
-        <section className="mb-20">
-          <Card className="bg-gradient-to-r from-primary/5 to-purple-500/5 border-primary/20">
-            <CardContent className="pt-8">
-              <div className="grid md:grid-cols-4 gap-8 text-center">
-                <div>
-                  <div className="text-5xl font-bold text-primary mb-2">2150+</div>
-                  <div className="text-sm text-muted-foreground">Products Tested & Scored</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-bold text-blue-600 mb-2">89K+</div>
-                  <div className="text-sm text-muted-foreground">Intelligence Decisions Made</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-bold text-pink-600 mb-2">226K+</div>
-                  <div className="text-sm text-muted-foreground">Posts Optimized</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-bold text-green-600 mb-2">$2.4M+</div>
-                  <div className="text-sm text-muted-foreground">Revenue Tracked</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Dashboard Preview */}
-        <section className="mb-20">
-          <h2 className="text-4xl font-bold mb-4 text-center">Your Command Center</h2>
-          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Everything in one place—activity, intelligence, and profit
-          </p>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="border-2 border-muted">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Overview
-                </CardTitle>
-                <CardDescription>Campaign activity & stats</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                See all your products, content, and posts at a glance
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-primary/40 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-primary" />
-                  AI Autopilot
-                </CardTitle>
-                <CardDescription>Intelligence control center</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                One-click enable/disable, live stats, run cycles manually
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-green-500/40 bg-green-50 dark:bg-green-950">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Profit Intelligence
-                </CardTitle>
-                <CardDescription>What's making money</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Revenue, CTR, conversion rates, top performers
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        {/* Pricing */}
-        <section id="pricing" className="mb-20">
-          <h2 className="text-4xl font-bold mb-12 text-center">Simple, Powerful Pricing</h2>
-          <Card className="max-w-md mx-auto border-2 border-primary/30 shadow-xl">
-            <CardHeader className="text-center bg-gradient-to-r from-primary/10 to-purple-500/10">
-              <CardTitle className="text-3xl">Pro Intelligence</CardTitle>
-              <div className="text-5xl font-bold my-6">$97<span className="text-lg font-normal text-muted-foreground">/mo</span></div>
-              <CardDescription className="text-base">The complete profit-seeking system</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">Full Intelligence Layer</div>
-                    <div className="text-sm text-muted-foreground">Track, score, decide, scale automatically</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">24/7 AI Autopilot</div>
-                    <div className="text-sm text-muted-foreground">Continuous product discovery & content generation</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">Profit Dashboard</div>
-                    <div className="text-sm text-muted-foreground">Real-time revenue, CTR, best performers</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">5 Social Platforms</div>
-                    <div className="text-sm text-muted-foreground">Auto-posting with smart scheduling</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">Decision Engine</div>
-                    <div className="text-sm text-muted-foreground">Auto scale winners, kill losers</div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-semibold">Content DNA</div>
-                    <div className="text-sm text-muted-foreground">Learn & reuse winning patterns</div>
-                  </div>
-                </li>
-              </ul>
-              <Link href="/dashboard">
-                <Button className="w-full h-14 text-lg bg-gradient-to-r from-primary to-purple-600 hover:opacity-90">
-                  Start Intelligence System
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Final CTA */}
+        {/* CTA Section */}
         <section>
           <Card className="bg-gradient-to-r from-primary to-purple-600 text-white border-0 shadow-2xl">
             <CardContent className="pt-10 pb-10 text-center">
               <Rocket className="w-16 h-16 mx-auto mb-6" />
-              <h2 className="text-4xl font-bold mb-4">Stop Guessing. Start Scaling.</h2>
+              <h2 className="text-4xl font-bold mb-4">Ready to Automate Your Income?</h2>
               <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
-                The only affiliate system with built-in profit intelligence that actually learns and scales winners
+                Join thousands using AI to scale affiliate marketing with zero manual work
               </p>
-              <Link href="/dashboard">
-                <Button size="lg" variant="secondary" className="h-16 px-12 text-lg font-semibold">
-                  <Zap className="w-6 h-6 mr-2" />
-                  Launch Your Intelligence Dashboard
-                </Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/dashboard">
+                  <Button size="lg" variant="secondary" className="h-16 px-12 text-lg font-semibold">
+                    <Zap className="w-6 h-6 mr-2" />
+                    Start Free Now
+                  </Button>
+                </Link>
+                <Link href="/traffic-channels">
+                  <Button size="lg" variant="outline" className="h-16 px-12 text-lg font-semibold bg-white/10 border-white/20 text-white hover:bg-white/20">
+                    <Globe className="w-6 h-6 mr-2" />
+                    View Traffic Sources
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </section>

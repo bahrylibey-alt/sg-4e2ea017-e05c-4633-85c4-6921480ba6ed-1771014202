@@ -13,10 +13,12 @@ import {
   Activity,
   RefreshCw,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Brain
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { AIInsightsPanel } from "@/components/AIInsightsPanel";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -226,195 +228,215 @@ export function DashboardOverview() {
         </Button>
       </div>
 
-      {/* Truth Mode Banner */}
-      {stats.systemState === 'NO_TRAFFIC' && (
-        <Card className="border-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600" />
-              <div>
-                <p className="font-semibold text-yellow-900 dark:text-yellow-100">
-                  No Traffic Detected
-                </p>
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  System is focusing on reach optimization. Revenue will show $0 until verified conversions arrive.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Tabs for Overview vs AI Insights */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">
+            <Activity className="w-4 h-4 mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="insights">
+            <Brain className="w-4 h-4 mr-2" />
+            AI Insights
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Main Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total Revenue - VERIFIED ONLY */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Verified Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalRevenue === 0 ? (
-                <span className="text-yellow-600">Awaiting verified conversions</span>
-              ) : (
-                <span className="text-green-600">From webhook/API only</span>
-              )}
-            </p>
-          </CardContent>
-        </Card>
+        <TabsContent value="overview" className="space-y-6">
+          {/* Truth Mode Banner */}
+          {stats.systemState === 'NO_TRAFFIC' && (
+            <Card className="border-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-yellow-600" />
+                  <div>
+                    <p className="font-semibold text-yellow-900 dark:text-yellow-100">
+                      No Traffic Detected
+                    </p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      System is focusing on reach optimization. Revenue will show $0 until verified conversions arrive.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Total Views - REAL ONLY */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Real Views</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalViews.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalViews < 100 ? (
-                <span className="text-yellow-600">Need 100+ for decisions</span>
-              ) : (
-                <span className="text-green-600">Sufficient data</span>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Total Clicks - REAL ONLY */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Real Clicks</CardTitle>
-            <MousePointerClick className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalClicks < 10 ? (
-                <span className="text-yellow-600">Need 10+ for decisions</span>
-              ) : (
-                <span className="text-green-600">
-                  {((stats.totalClicks / Math.max(stats.totalViews, 1)) * 100).toFixed(2)}% CTR
-                </span>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Conversions - VERIFIED ONLY */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Verified Conversions</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalConversions}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalClicks > 0 
-                ? `${((stats.totalConversions / stats.totalClicks) * 100).toFixed(2)}% conversion rate`
-                : "No conversions yet"
-              }
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Automation Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Products Tracked</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalProducts}</div>
-            <Progress 
-              value={stats.totalProducts > 0 ? Math.min(100, (stats.totalProducts / 20) * 100) : 0} 
-              className="mt-2" 
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              {stats.totalProducts < 20 ? 'Building inventory...' : 'Good coverage'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Content Generated</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.contentGenerated}</div>
-            <Progress 
-              value={stats.contentGenerated > 0 ? Math.min(100, (stats.contentGenerated / 15) * 100) : 0} 
-              className="mt-2" 
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Quality-scored content
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Posts Published</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.postsPublished}</div>
-            <Progress 
-              value={stats.postsPublished > 0 ? Math.min(100, (stats.postsPublished / 10) * 100) : 0} 
-              className="mt-2" 
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Max 20/day limit
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Status - Truth Mode</CardTitle>
-          <CardDescription>Only verified real data displayed</CardDescription>
-        </CardHeader>
-        <CardContent>
+          {/* Main Stats Grid */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">Real Data Enforcement</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm font-medium">Safety Controls Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {stats.systemState === 'SCALING' ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium">System Scaling</span>
-                </>
-              ) : stats.systemState === 'TESTING' ? (
-                <>
-                  <Activity className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium">System Testing</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4 text-yellow-500" />
-                  <span className="text-sm font-medium">{stats.systemState.replace('_', ' ')}</span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{stats.systemState}</Badge>
-            </div>
+            {/* Total Revenue - VERIFIED ONLY */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Verified Revenue</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.totalRevenue === 0 ? (
+                    <span className="text-yellow-600">Awaiting verified conversions</span>
+                  ) : (
+                    <span className="text-green-600">From webhook/API only</span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Total Views - REAL ONLY */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Real Views</CardTitle>
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalViews.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.totalViews < 100 ? (
+                    <span className="text-yellow-600">Need 100+ for decisions</span>
+                  ) : (
+                    <span className="text-green-600">Sufficient data</span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Total Clicks - REAL ONLY */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Real Clicks</CardTitle>
+                <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalClicks.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.totalClicks < 10 ? (
+                    <span className="text-yellow-600">Need 10+ for decisions</span>
+                  ) : (
+                    <span className="text-green-600">
+                      {((stats.totalClicks / Math.max(stats.totalViews, 1)) * 100).toFixed(2)}% CTR
+                    </span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Conversions - VERIFIED ONLY */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Verified Conversions</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalConversions}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.totalClicks > 0 
+                    ? `${((stats.totalConversions / stats.totalClicks) * 100).toFixed(2)}% conversion rate`
+                    : "No conversions yet"
+                  }
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Automation Stats */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Products Tracked</CardTitle>
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalProducts}</div>
+                <Progress 
+                  value={stats.totalProducts > 0 ? Math.min(100, (stats.totalProducts / 20) * 100) : 0} 
+                  className="mt-2" 
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {stats.totalProducts < 20 ? 'Building inventory...' : 'Good coverage'}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Content Generated</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.contentGenerated}</div>
+                <Progress 
+                  value={stats.contentGenerated > 0 ? Math.min(100, (stats.contentGenerated / 15) * 100) : 0} 
+                  className="mt-2" 
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Quality-scored content
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Posts Published</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.postsPublished}</div>
+                <Progress 
+                  value={stats.postsPublished > 0 ? Math.min(100, (stats.postsPublished / 10) * 100) : 0} 
+                  className="mt-2" 
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Max 20/day limit
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle>System Status - Truth Mode</CardTitle>
+              <CardDescription>Only verified real data displayed</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-medium">Real Data Enforcement</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-sm font-medium">Safety Controls Active</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {stats.systemState === 'SCALING' ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium">System Scaling</span>
+                    </>
+                  ) : stats.systemState === 'TESTING' ? (
+                    <>
+                      <Activity className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">System Testing</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-medium">{stats.systemState.replace('_', ' ')}</span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{stats.systemState}</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="insights">
+          <AIInsightsPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
