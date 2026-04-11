@@ -1,592 +1,295 @@
 import { useState, useEffect } from "react";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { integrationService, Integration } from "@/services/integrationService";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings, Link, Zap, BarChart3, CheckCircle2, XCircle, Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Save, TestTube, Zap } from "lucide-react";
 
-export default function SettingsPage() {
-  const [integrations, setIntegrations] = useState<Integration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+export default function Settings() {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  
+  // Zapier Integration State
+  const [zapierWebhookUrl, setZapierWebhookUrl] = useState("");
+  const [zapierEnabled, setZapierEnabled] = useState(false);
 
   useEffect(() => {
-    loadIntegrations();
+    loadSettings();
   }, []);
 
-  async function loadIntegrations() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    setLoading(true);
-    const data = await integrationService.getUserIntegrations(user.id);
-    setIntegrations(data);
-    setLoading(false);
-  }
-
-  async function handleSaveIntegration() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !selectedProvider) return;
-
-    setSaving(true);
+  const loadSettings = async () => {
     try {
-      await integrationService.saveIntegration(user.id, selectedProvider, formData);
-      toast({
-        title: "✅ Integration Connected",
-        description: "Your integration has been saved successfully.",
-      });
-      await loadIntegrations();
-      setSelectedProvider(null);
-      setFormData({});
-    } catch (error: any) {
-      toast({
-        title: "❌ Connection Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  async function handleDisconnect(id: string) {
-    try {
-      await integrationService.deleteIntegration(id);
-      toast({
-        title: "Disconnected",
-        description: "Integration has been removed.",
-      });
-      await loadIntegrations();
+      // Load Zapier integration
+      const { data: zapierIntegration } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("provider", "zapier")
+        .maybeSingle();
+
+      if (zapierIntegration) {
+        setZapierEnabled(zapierIntegration.status === "connected");
+        setZapierWebhookUrl((zapierIntegration.config as any)?.webhook_url || "");
+      }
+
+      setLoading(false);
     } catch (error: any) {
+      console.error("Error loading settings:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: "Failed to load settings",
         variant: "destructive",
       });
+      setLoading(false);
     }
-  }
+  };
 
-  const templates = integrationService.getTemplates();
-  const affiliateNetworks = Object.entries(templates).filter(([_, t]) => t.category === "affiliate_network");
-  const trafficSources = Object.entries(templates).filter(([_, t]) => t.category === "traffic_source");
+  const saveZapierSettings = async () => {
+    try {
+      setSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-  const connectedProviders = new Set(integrations.map(i => i.provider));
+      // Validate webhook URL
+      if (zapierEnabled && !zapierWebhookUrl.includes("hooks.zapier.com")) {
+        toast({
+          title: "Invalid Webhook URL",
+          description: "Please use a valid Zapier webhook URL (https://hooks.zapier.com/hooks/catch/...)",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Upsert integration
+      const { error } = await supabase
+        .from("integrations")
+        .upsert({
+          user_id: user.id,
+          provider: "zapier",
+          status: zapierEnabled ? "connected" : "disconnected",
+          config: {
+            webhook_url: zapierWebhookUrl
+          }
+        }, {
+          onConflict: "user_id,provider"
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Saved!",
+        description: "Zapier integration updated successfully",
+      });
+      setSaving(false);
+    } catch (error: any) {
+      console.error("Error saving Zapier settings:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+      });
+      setSaving(false);
+    }
+  };
+
+  const testZapierWebhook = async () => {
+    try {
+      setTesting(true);
+
+      if (!zapierWebhookUrl.includes("hooks.zapier.com")) {
+        toast({
+          title: "Invalid URL",
+          description: "Please enter a valid Zapier webhook URL first",
+          variant: "destructive",
+        });
+        setTesting(false);
+        return;
+      }
+
+      // Send test webhook
+      const testData = {
+        event: "test.connection",
+        data: {
+          message: "Test webhook from your affiliate app",
+          timestamp: new Date().toISOString(),
+          test: true
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await fetch(zapierWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(testData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "✅ Connection Successful!",
+          description: "Test webhook sent to Zapier. Check your Zap history.",
+        });
+      } else {
+        toast({
+          title: "⚠️ Connection Failed",
+          description: `Webhook returned status: ${response.status}`,
+          variant: "destructive",
+        });
+      }
+
+      setTesting(false);
+    } catch (error: any) {
+      console.error("Error testing webhook:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send test webhook",
+        variant: "destructive",
+      });
+      setTesting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">
-      <Header />
-      
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Settings className="h-8 w-8 text-blue-600" />
-            <h1 className="text-4xl font-bold">Settings & Integrations</h1>
-          </div>
-          <p className="text-slate-600 text-lg">
-            Connect affiliate networks and configure traffic sources for automated campaigns
-          </p>
-        </div>
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground mt-2">Manage your account and integration settings</p>
+      </div>
 
-        <Tabs defaultValue="affiliate" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-4xl">
-            <TabsTrigger value="affiliate" className="flex items-center gap-2">
-              <Link className="h-4 w-4" />
-              Affiliate
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="payment" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Payment
-            </TabsTrigger>
-            <TabsTrigger value="automation" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Automation
-            </TabsTrigger>
+      {loading ? (
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      ) : (
+        <Tabs defaultValue="integrations" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            <TabsTrigger value="account">Account</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="affiliate" className="space-y-6">
+          <TabsContent value="integrations" className="space-y-6">
+            {/* Zapier Integration Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Connected Affiliate Networks</CardTitle>
-                <CardDescription>
-                  Add your affiliate network credentials to start promoting products
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                    <Zap className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Zapier Integration</CardTitle>
+                    <CardDescription>
+                      Connect to Zapier to automatically post content to social media
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              <CardContent className="space-y-6">
+                {/* Enable/Disable Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="zapier-enabled" className="text-base">Enable Zapier</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Send autopilot posts to Zapier for distribution
+                    </p>
                   </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {affiliateNetworks.map(([provider, template]) => {
-                      const connected = connectedProviders.has(provider);
-                      const integration = integrations.find(i => i.provider === provider);
-
-                      return (
-                        <Card key={provider} className={connected ? "border-green-500" : ""}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-2xl">{template.logo}</span>
-                                <CardTitle className="text-lg">{template.name}</CardTitle>
-                              </div>
-                              {connected ? (
-                                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                              ) : (
-                                <XCircle className="h-5 w-5 text-slate-300" />
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {connected ? (
-                              <>
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  Connected
-                                </Badge>
-                                <div className="flex gap-2">
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex-1"
-                                        onClick={() => {
-                                          setSelectedProvider(provider);
-                                          setFormData(integration?.config || {});
-                                        }}
-                                      >
-                                        Edit
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>Edit {template.name}</DialogTitle>
-                                        <DialogDescription>
-                                          Update your connection settings
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <IntegrationForm
-                                        template={template}
-                                        formData={formData}
-                                        setFormData={setFormData}
-                                        onSave={handleSaveIntegration}
-                                        saving={saving}
-                                      />
-                                    </DialogContent>
-                                  </Dialog>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => integration && handleDisconnect(integration.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </>
-                            ) : (
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    className="w-full"
-                                    onClick={() => {
-                                      setSelectedProvider(provider);
-                                      setFormData({});
-                                    }}
-                                  >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Connect
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Connect {template.name}</DialogTitle>
-                                    <DialogDescription>
-                                      Enter your {template.name} credentials
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <IntegrationForm
-                                    template={template}
-                                    formData={formData}
-                                    setFormData={setFormData}
-                                    onSave={handleSaveIntegration}
-                                    saving={saving}
-                                  />
-                                </DialogContent>
-                              </Dialog>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics & Tracking</CardTitle>
-                <CardDescription>
-                  Connect analytics tools to track visitor behavior and conversions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  </div>
-                ) : (
-                  <IntegrationGrid 
-                    category="analytics"
-                    integrations={integrations}
-                    templates={templates}
-                    connectedProviders={connectedProviders}
-                    onEdit={(provider, config) => {
-                      setSelectedProvider(provider);
-                      setFormData(config);
-                    }}
-                    onDisconnect={handleDisconnect}
+                  <Switch
+                    id="zapier-enabled"
+                    checked={zapierEnabled}
+                    onCheckedChange={setZapierEnabled}
                   />
+                </div>
+
+                {zapierEnabled && (
+                  <>
+                    {/* Webhook URL Input */}
+                    <div className="space-y-2">
+                      <Label htmlFor="webhook-url">Zapier Webhook URL</Label>
+                      <Input
+                        id="webhook-url"
+                        type="url"
+                        placeholder="https://hooks.zapier.com/hooks/catch/12345/abcde/"
+                        value={zapierWebhookUrl}
+                        onChange={(e) => setZapierWebhookUrl(e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Get this from your Zapier Zap → Webhooks by Zapier → Catch Hook trigger
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={saveZapierSettings}
+                        disabled={saving || !zapierWebhookUrl}
+                      >
+                        {saving ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Settings
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={testZapierWebhook}
+                        disabled={testing || !zapierWebhookUrl}
+                      >
+                        {testing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Testing...
+                          </>
+                        ) : (
+                          <>
+                            <TestTube className="mr-2 h-4 w-4" />
+                            Test Connection
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Setup Guide */}
+                    <div className="p-4 bg-muted rounded-lg space-y-2">
+                      <p className="font-semibold text-sm">📋 Quick Setup Guide:</p>
+                      <ol className="text-sm space-y-1 ml-4 list-decimal">
+                        <li>Go to <a href="https://zapier.com" target="_blank" rel="noopener" className="text-primary hover:underline">Zapier.com</a> → Create new Zap</li>
+                        <li>Trigger: "Webhooks by Zapier" → Event: "Catch Hook"</li>
+                        <li>Copy the webhook URL and paste it above</li>
+                        <li>Add Actions: "Create Facebook Post", "Create Instagram Post", etc.</li>
+                        <li>Turn your Zap ON</li>
+                      </ol>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Once connected, autopilot will send posts to Zapier every 30 seconds for distribution to your social media accounts.
+                      </p>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="payment" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Processing</CardTitle>
-                <CardDescription>
-                  Configure payment gateways to accept subscriptions and payments
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  </div>
-                ) : (
-                  <IntegrationGrid 
-                    category="payment"
-                    integrations={integrations}
-                    templates={templates}
-                    connectedProviders={connectedProviders}
-                    onEdit={(provider, config) => {
-                      setSelectedProvider(provider);
-                      setFormData(config);
-                    }}
-                    onDisconnect={handleDisconnect}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="automation" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Automation & Webhooks</CardTitle>
-                <CardDescription>
-                  Connect automation tools like Zapier for real-time notifications
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  </div>
-                ) : (
-                  <IntegrationGrid 
-                    category="automation"
-                    integrations={integrations}
-                    templates={templates}
-                    connectedProviders={connectedProviders}
-                    onEdit={(provider, config) => {
-                      setSelectedProvider(provider);
-                      setFormData(config);
-                    }}
-                    onDisconnect={handleDisconnect}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="traffic" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Traffic Source APIs</CardTitle>
-                <CardDescription>
-                  Configure social media and platform APIs for automated content posting
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {trafficSources.map(([provider, template]) => {
-                      const connected = connectedProviders.has(provider);
-                      const integration = integrations.find(i => i.provider === provider);
-
-                      return (
-                        <Card key={provider} className={connected ? "border-green-500" : ""}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-2xl">{template.logo}</span>
-                                <CardTitle className="text-lg">{template.name}</CardTitle>
-                              </div>
-                              {connected ? (
-                                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                              ) : (
-                                <XCircle className="h-5 w-5 text-slate-300" />
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {connected ? (
-                              <>
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  Connected
-                                </Badge>
-                                <div className="flex gap-2">
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex-1"
-                                        onClick={() => {
-                                          setSelectedProvider(provider);
-                                          setFormData(integration?.config || {});
-                                        }}
-                                      >
-                                        Edit
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>Edit {template.name}</DialogTitle>
-                                        <DialogDescription>
-                                          Update your API credentials
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <IntegrationForm
-                                        template={template}
-                                        formData={formData}
-                                        setFormData={setFormData}
-                                        onSave={handleSaveIntegration}
-                                        saving={saving}
-                                      />
-                                    </DialogContent>
-                                  </Dialog>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => integration && handleDisconnect(integration.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </>
-                            ) : (
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    className="w-full"
-                                    onClick={() => {
-                                      setSelectedProvider(provider);
-                                      setFormData({});
-                                    }}
-                                  >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Connect
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Connect {template.name}</DialogTitle>
-                                    <DialogDescription>
-                                      Enter your API credentials to enable automated posting
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <IntegrationForm
-                                    template={template}
-                                    formData={formData}
-                                    setFormData={setFormData}
-                                    onSave={handleSaveIntegration}
-                                    saving={saving}
-                                  />
-                                </DialogContent>
-                              </Dialog>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Other integrations can be added here */}
           </TabsContent>
         </Tabs>
-      </main>
-
-      <Footer />
-    </div>
-  );
-}
-
-function IntegrationForm({ template, formData, setFormData, onSave, saving }: any) {
-  return (
-    <div className="space-y-4">
-      {template.fields.map((field: any) => (
-        <div key={field.name} className="space-y-2">
-          <Label htmlFor={field.name}>
-            {field.label}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
-          </Label>
-          <Input
-            id={field.name}
-            type={field.type}
-            value={formData[field.name] || ""}
-            onChange={(e) =>
-              setFormData({ ...formData, [field.name]: e.target.value })
-            }
-            placeholder={field.label}
-            required={field.required}
-          />
-        </div>
-      ))}
-      <Button onClick={onSave} disabled={saving} className="w-full">
-        {saving ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Saving...
-          </>
-        ) : (
-          "Save Integration"
-        )}
-      </Button>
-    </div>
-  );
-}
-
-function IntegrationGrid({ category, integrations, templates, connectedProviders, onEdit, onDisconnect }: any) {
-  const categoryIntegrations = Object.entries(templates).filter(([_, t]: any) => t.category === category);
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {categoryIntegrations.map(([provider, template]: any) => {
-        const connected = connectedProviders.has(provider);
-        const integration = integrations.find((i: any) => i.provider === provider);
-
-        return (
-          <Card key={provider} className={connected ? "border-green-500" : ""}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{template.logo}</span>
-                  <CardTitle className="text-lg">{template.name}</CardTitle>
-                </div>
-                {connected ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                ) : (
-                  <XCircle className="h-5 w-5 text-slate-300" />
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {connected ? (
-                <>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Connected
-                  </Badge>
-                  <div className="flex gap-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => onEdit(provider, integration?.config || {})}
-                        >
-                          Edit
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Edit {template.name}</DialogTitle>
-                          <DialogDescription>Update your connection settings</DialogDescription>
-                        </DialogHeader>
-                        <IntegrationForm
-                          template={template}
-                          formData={integration?.config || {}}
-                          setFormData={() => {}}
-                          onSave={() => {}}
-                          saving={false}
-                        />
-                      </DialogContent>
-                    </Dialog>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => integration && onDisconnect(integration.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="w-full"
-                      onClick={() => onEdit(provider, {})}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Connect
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Connect {template.name}</DialogTitle>
-                      <DialogDescription>Enter your credentials</DialogDescription>
-                    </DialogHeader>
-                    <IntegrationForm
-                      template={template}
-                      formData={{}}
-                      setFormData={() => {}}
-                      onSave={() => {}}
-                      saving={false}
-                    />
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      )}
     </div>
   );
 }
