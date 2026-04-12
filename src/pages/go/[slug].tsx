@@ -81,7 +81,48 @@ export default function RedirectPage() {
         } else {
           console.log("✅ Click count updated:", newClicks);
           addDebug(`✅ UPDATE SUCCESS: Clicks now ${newClicks}`);
-          addDebug(`Update response: ${JSON.stringify(updateData)}`);
+        }
+
+        // CRITICAL: Identify platform from referrer to update posted_content
+        const referrer = document.referrer.toLowerCase();
+        let platform = null;
+        if (referrer.includes('twitter.com') || referrer.includes('t.co')) platform = 'twitter';
+        else if (referrer.includes('facebook.com') || referrer.includes('fb.com')) platform = 'facebook';
+        else if (referrer.includes('linkedin.com')) platform = 'linkedin';
+        else if (referrer.includes('instagram.com')) platform = 'instagram';
+        else if (referrer.includes('pinterest.com')) platform = 'pinterest';
+        else if (referrer.includes('youtube.com')) platform = 'youtube';
+
+        addDebug(`Detected platform from referrer: ${platform || 'unknown'}`);
+
+        // Update posted_content clicks so Traffic Channels page updates!
+        let postQuery = supabase
+          .from('posted_content')
+          .select('id, clicks')
+          .eq('link_id', link.id)
+          .order('posted_at', { ascending: false })
+          .limit(1);
+
+        if (platform) {
+          postQuery = postQuery.eq('platform', platform);
+        }
+
+        const { data: postData } = await postQuery.maybeSingle();
+
+        if (postData) {
+          const newPostClicks = (postData.clicks || 0) + 1;
+          const { error: postUpdateError } = await supabase
+            .from('posted_content')
+            .update({ clicks: newPostClicks })
+            .eq('id', postData.id);
+
+          if (postUpdateError) {
+            addDebug(`❌ Post click update failed: ${postUpdateError.message}`);
+          } else {
+            addDebug(`✅ Post clicks updated to ${newPostClicks}`);
+          }
+        } else {
+          addDebug(`⚠️ No posted_content found for this link to update clicks`);
         }
 
         // Record click event for detailed tracking

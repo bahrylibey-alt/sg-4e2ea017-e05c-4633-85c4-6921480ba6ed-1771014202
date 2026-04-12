@@ -45,7 +45,14 @@ export function Analytics() {
       // Get REAL posted content for performance breakdown
       const { data: posts } = await supabase
         .from('posted_content')
-        .select('platform, product_name, impressions, clicks, conversions, revenue')
+        .select(`
+          platform, 
+          impressions, 
+          clicks, 
+          conversions, 
+          revenue,
+          affiliate_links (product_name)
+        `)
         .eq('user_id', user.id)
         .eq('status', 'posted')
         .order('clicks', { ascending: false })
@@ -53,8 +60,8 @@ export function Analytics() {
 
       // Aggregate by product
       const productPerformance: Record<string, any> = {};
-      posts?.forEach(post => {
-        const product = post.product_name || 'Unknown Product';
+      posts?.forEach((post: any) => {
+        const product = post.affiliate_links?.product_name || post.platform || 'Unknown Product';
         if (!productPerformance[product]) {
           productPerformance[product] = {
             product,
