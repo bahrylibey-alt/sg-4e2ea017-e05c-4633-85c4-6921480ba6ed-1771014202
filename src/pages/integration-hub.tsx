@@ -93,17 +93,32 @@ export default function IntegrationHub() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: connections } = await supabase
+      // Load social connections
+      const { data: socialConnections } = await supabase
         .from('social_media_accounts')
         .select('platform')
         .eq('user_id', user.id);
 
-      if (connections && connections.length > 0) {
-        setIntegrations(integrations.map(i => {
-          const isConnected = connections.some(c => c.platform === i.id);
-          return isConnected ? { ...i, status: "connected" as const } : i;
-        }));
-      }
+      // Load affiliate/automation connections
+      const { data: otherConnections } = await supabase
+        .from('integrations')
+        .select('platform')
+        .eq('user_id', user.id);
+
+      console.log('✅ Integration Hub connections loaded:', { 
+        social: socialConnections?.length || 0,
+        other: otherConnections?.length || 0
+      });
+
+      const allConnectedPlatforms = [
+        ...(socialConnections?.map(c => c.platform) || []),
+        ...(otherConnections?.map(c => c.platform) || [])
+      ];
+
+      setIntegrations(integrations.map(i => {
+        const isConnected = allConnectedPlatforms.includes(i.id);
+        return isConnected ? { ...i, status: "connected" as const } : i;
+      }));
     } catch (error) {
       console.error("Failed to load connections:", error);
     }

@@ -195,29 +195,52 @@ export default function IntegrationsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: connections } = await supabase
+      // Load social media connections from social_media_accounts table
+      const { data: socialConnections } = await supabase
         .from('social_media_accounts')
         .select('*')
         .eq('user_id', user.id);
 
-      if (connections && connections.length > 0) {
-        setIntegrations(integrations.map(i => {
-          const conn = connections.find(c => c.platform === i.id);
-          if (conn) {
-            return {
-              ...i,
-              status: "connected" as const,
-              connected_at: conn.created_at,
-              credentials: {
-                access_token: conn.access_token,
-                page_id: conn.account_id || undefined,
-                account_id: conn.account_id || undefined
-              }
-            };
-          }
-          return i;
-        }));
-      }
+      // Load affiliate/other integrations from integrations table
+      const { data: affiliateConnections } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('user_id', user.id);
+
+      console.log('✅ Connections loaded:', { 
+        social: socialConnections?.length || 0, 
+        affiliate: affiliateConnections?.length || 0 
+      });
+
+      setIntegrations(integrations.map(i => {
+        // Check social connections
+        const socialConn = socialConnections?.find(c => c.platform === i.id);
+        if (socialConn) {
+          return {
+            ...i,
+            status: "connected" as const,
+            connected_at: socialConn.created_at,
+            credentials: {
+              access_token: socialConn.access_token,
+              page_id: socialConn.account_id || undefined,
+              account_id: socialConn.account_id || undefined
+            }
+          };
+        }
+
+        // Check affiliate/other integrations
+        const affiliateConn = affiliateConnections?.find(c => c.platform === i.id);
+        if (affiliateConn) {
+          return {
+            ...i,
+            status: "connected" as const,
+            connected_at: affiliateConn.connected_at,
+            credentials: affiliateConn.credentials as any
+          };
+        }
+
+        return i;
+      }));
     } catch (error) {
       console.error("Failed to load connections:", error);
     }
@@ -244,67 +267,61 @@ export default function IntegrationsPage() {
 
       const integration = connectDialog.integration;
 
-      // For affiliate networks, just mark as connected (they don't need OAuth)
-      if (integration.category === "affiliate") {
-        // Store affiliate network connection
+      console.log(`🔌 Connecting ${integration.name} (${integration.category})...`);
+
+      // CRITICAL FIX: Use correct table based on integration type
+      if (integration.category === "affiliate" || integration.category === "automation") {
+        // AFFILIATE & AUTOMATION → integrations table
+        const { error } = await supabase
+          .from('integrations')
+          .upsert({
+            user_id: userId,
+            platform: integration.id,
+            integration_type: integration.category,
+            credentials: {
+              api_key: credentials.apiKey || undefined,
+              account_id: credentials.pageId || undefined
+            },
+            is_active: true,
+            connected_at: new Date().toISOString()
+          }, { onConflict: 'user_id,platform' });
+
+        if (error) {
+          console.error('❌ Integrations table error:', error);
+          throw error;
+        }
+
+        console.log(`✅ ${integration.name} connected via integrations table`);
+
+      } else if (integration.category === "social") {
+        // SOCIAL MEDIA → social_media_accounts table
+        if (!credentials.accessToken) {
+          toast({
+            title: "Missing Access Token",
+            description: "Please provide an access token",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          return;
+        }
+
         const { error } = await supabase
           .from('social_media_accounts')
           .upsert({
             user_id: userId,
             platform: integration.id,
-            access_token: credentials.apiKey || 'connected',
-            account_id: credentials.pageId || integration.name,
+            access_token: credentials.accessToken,
+            account_id: credentials.pageId || null,
             is_active: true
           }, { onConflict: 'user_id,platform,account_id' });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Social media accounts table error:', error);
+          throw error;
+        }
 
-        setIntegrations(integrations.map(i => 
-          i.id === integration.id 
-            ? { 
-                ...i, 
-                status: "connected" as const, 
-                connected_at: new Date().toISOString(),
-                credentials: {
-                  api_key: credentials.apiKey
-                }
-              }
-            : i
-        ));
-
-        toast({
-          title: "✅ Connected!",
-          description: `${integration.name} is now active - you can discover products from this network`
-        });
-
-        setConnectDialog({ open: false });
-        setIsLoading(false);
-        return;
+        console.log(`✅ ${integration.name} connected via social_media_accounts table`);
       }
-
-      // For social media, require access tokens
-      if (!credentials.accessToken) {
-        toast({
-          title: "Missing Access Token",
-          description: "Please provide an access token",
-          variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Save to database
-      const { error } = await supabase
-        .from('social_media_accounts')
-        .upsert({
-          user_id: userId,
-          platform: integration.id,
-          access_token: credentials.accessToken,
-          account_id: credentials.pageId,
-          is_active: true
-        }, { onConflict: 'user_id,platform,account_id' });
-
-      if (error) throw error;
 
       // Update local state
       setIntegrations(integrations.map(i => 
@@ -314,6 +331,7 @@ export default function IntegrationsPage() {
               status: "connected" as const, 
               connected_at: new Date().toISOString(),
               credentials: {
+                api_key: credentials.apiKey,
                 access_token: credentials.accessToken,
                 page_id: credentials.pageId
               }
@@ -327,10 +345,13 @@ export default function IntegrationsPage() {
       });
 
       setConnectDialog({ open: false });
+      setCredentials({ pageId: "", accessToken: "", apiKey: "" });
+
     } catch (error: any) {
+      console.error('❌ Connection error:', error);
       toast({
         title: "Connection Failed",
-        description: error.message,
+        description: error.message || "Failed to connect integration",
         variant: "destructive"
       });
     } finally {
@@ -353,13 +374,29 @@ export default function IntegrationsPage() {
     try {
       setIsLoading(true);
 
-      const { error } = await supabase
-        .from('social_media_accounts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('platform', integrationId);
+      const integration = integrations.find(i => i.id === integrationId);
+      if (!integration) return;
 
-      if (error) throw error;
+      console.log(`🔌 Disconnecting ${integration.name} (${integration.category})...`);
+
+      // Use correct table based on category
+      if (integration.category === "social") {
+        const { error } = await supabase
+          .from('social_media_accounts')
+          .delete()
+          .eq('user_id', userId)
+          .eq('platform', integrationId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('integrations')
+          .delete()
+          .eq('user_id', userId)
+          .eq('platform', integrationId);
+
+        if (error) throw error;
+      }
 
       setIntegrations(integrations.map(i => 
         i.id === integrationId 
@@ -369,9 +406,10 @@ export default function IntegrationsPage() {
 
       toast({
         title: "Disconnected",
-        description: `${integrations.find(i => i.id === integrationId)?.name} has been disconnected`
+        description: `${integration.name} has been disconnected`
       });
     } catch (error: any) {
+      console.error('❌ Disconnect error:', error);
       toast({
         title: "Disconnect Failed",
         description: error.message,
