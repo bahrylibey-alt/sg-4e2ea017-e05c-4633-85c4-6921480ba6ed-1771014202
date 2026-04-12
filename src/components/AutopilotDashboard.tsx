@@ -78,7 +78,9 @@ export function AutopilotDashboard() {
         .maybeSingle();
 
       if (settings) {
-        setIsEnabled(settings.autopilot_enabled || false);
+        const enabled = settings.autopilot_enabled || false;
+        setIsEnabled(enabled);
+        console.log('✅ Autopilot status loaded:', enabled ? 'RUNNING' : 'STOPPED');
       }
     } catch (error) {
       console.error('Error loading autopilot status:', error);
@@ -108,35 +110,63 @@ export function AutopilotDashboard() {
   };
 
   const handleToggle = async (enabled: boolean) => {
-    setIsEnabled(enabled);
     setIsRunning(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-        setIsEnabled(false);
         setIsRunning(false);
         return;
       }
 
-      // Update user settings
+      console.log(`🔄 ${enabled ? 'STARTING' : 'STOPPING'} autopilot...`);
+
+      // CRITICAL: Update database FIRST before UI
       const { error: settingsError } = await supabase
         .from('user_settings')
         .update({ autopilot_enabled: enabled })
         .eq('user_id', user.id);
 
       if (settingsError) {
-        console.error('Settings update error:', settingsError);
+        console.error('❌ Settings update error:', settingsError);
+        toast({
+          title: "Error",
+          description: "Failed to update autopilot status",
+          variant: "destructive"
+        });
+        setIsRunning(false);
+        return;
       }
 
-      toast({
-        title: enabled ? "🚀 Autopilot Started" : "⏸️ Autopilot Stopped",
-        description: enabled ? "Running continuously every 30 seconds" : "System stopped",
-      });
+      // Verify the update was successful
+      const { data: verification } = await supabase
+        .from('user_settings')
+        .select('autopilot_enabled')
+        .eq('user_id', user.id)
+        .single();
 
-      if (enabled) {
-        handleRunNow();
+      if (verification && verification.autopilot_enabled === enabled) {
+        console.log(`✅ Autopilot ${enabled ? 'STARTED' : 'STOPPED'} successfully`);
+        setIsEnabled(enabled);
+        
+        toast({
+          title: enabled ? "🚀 Autopilot Started" : "⏸️ Autopilot Stopped",
+          description: enabled 
+            ? "System will run continuously every 30 seconds" 
+            : "All automation has been stopped",
+        });
+
+        if (enabled) {
+          handleRunNow();
+        }
+      } else {
+        console.error('❌ Verification failed - state mismatch');
+        toast({
+          title: "Error",
+          description: "Failed to verify autopilot state change",
+          variant: "destructive"
+        });
       }
     } catch (error: any) {
       console.error('Autopilot toggle error:', error);
@@ -145,7 +175,6 @@ export function AutopilotDashboard() {
         description: error.message || "Failed to toggle autopilot",
         variant: "destructive"
       });
-      setIsEnabled(!enabled);
     } finally {
       setIsRunning(false);
     }
@@ -224,7 +253,7 @@ export function AutopilotDashboard() {
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${getStateColor(systemState.state)} animate-pulse`} />
+              <div className={`h-3 w-3 rounded-full ${getStateColor(systemState.state)} ${isEnabled ? 'animate-pulse' : ''}`} />
               <div>
                 <p className="font-semibold text-lg">{getStateMessage(systemState.state)}</p>
                 <p className="text-sm text-muted-foreground">
@@ -244,7 +273,7 @@ export function AutopilotDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2 text-2xl">
-                <Activity className="h-6 w-6 text-primary animate-pulse" />
+                <Activity className={`h-6 w-6 ${isEnabled ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
                 AI Autopilot Intelligence
               </CardTitle>
               <CardDescription className="mt-2">
@@ -261,7 +290,7 @@ export function AutopilotDashboard() {
                   className="data-[state=checked]:bg-green-500"
                 />
                 <Label htmlFor="autopilot-toggle" className="font-bold text-base cursor-pointer">
-                  {isEnabled ? '🟢 RUNNING' : 'Enable Autopilot'}
+                  {isEnabled ? '🟢 RUNNING' : '⚪ STOPPED'}
                 </Label>
               </div>
               {isEnabled && (
@@ -316,7 +345,7 @@ export function AutopilotDashboard() {
 
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <div className={`h-2 w-2 rounded-full ${isEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               <span>Last synced: {new Date(stats.lastSync).toLocaleTimeString()}</span>
             </div>
             <div className="flex gap-2">
