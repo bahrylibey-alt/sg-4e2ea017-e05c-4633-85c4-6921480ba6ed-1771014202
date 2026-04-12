@@ -14,11 +14,13 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Brain
+  Brain,
+  Zap
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AIInsightsPanel } from "@/components/AIInsightsPanel";
+import { unifiedTrackingService } from "@/services/unifiedTrackingService";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -37,6 +39,7 @@ export function DashboardOverview() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     totalClicks: 0,
@@ -61,7 +64,7 @@ export function DashboardOverview() {
 
       console.log('📊 DashboardOverview: Loading REAL stats for user:', user.id);
 
-      // Get system state (REAL DATA ONLY)
+      // Get system state (REAL DATA ONLY - now auto-synced via triggers)
       const { data: systemState } = await supabase
         .from('system_state')
         .select('*')
@@ -156,7 +159,7 @@ export function DashboardOverview() {
         systemState: currentState
       });
 
-      console.log('✅ Dashboard stats loaded (REAL DATA):', {
+      console.log('✅ Dashboard stats loaded (REAL DATA - AUTO-SYNCED):', {
         revenue: realRevenue,
         clicks: realClicks,
         views: realViews,
@@ -184,6 +187,44 @@ export function DashboardOverview() {
       title: "Dashboard refreshed",
       description: "Latest verified data loaded"
     });
+  };
+
+  const manualSync = async () => {
+    setSyncing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const success = await unifiedTrackingService.manualSync(user.id);
+      
+      if (success) {
+        await loadStats();
+        toast({
+          title: "✅ Sync Complete",
+          description: "All stats updated from posted content"
+        });
+      } else {
+        toast({
+          title: "Sync failed",
+          description: "Please try again",
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Sync error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   useEffect(() => {
@@ -215,17 +256,28 @@ export function DashboardOverview() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Real verified performance data only</p>
+          <p className="text-muted-foreground">Real verified performance data - auto-synced</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refresh}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={manualSync}
+            disabled={syncing}
+          >
+            <Zap className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Force Sync'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Tabs for Overview vs AI Insights */}
