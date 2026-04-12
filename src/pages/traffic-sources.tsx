@@ -20,8 +20,10 @@ import {
   ArrowRight,
   Play,
   Target,
-  BarChart3
+  BarChart3,
+  Settings
 } from "lucide-react";
+import Link from "next/link";
 
 interface TrafficSource {
   id: string;
@@ -377,6 +379,37 @@ export default function TrafficSourcesPage() {
               Get highly targeted buyers without spending a penny on ads. These 9 traffic sources bring 100,000+ visitors per month.
             </p>
           </div>
+
+          {/* Empty State - No Active Sources */}
+          {stats.active_sources === 0 && (
+            <Card className="mb-8 border-2 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">
+              <CardContent className="pt-8 pb-8 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center">
+                    <Target className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">No Traffic Sources Active Yet</h3>
+                    <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
+                      Activate your first traffic source below to start generating free visitors. Each source is proven to bring real traffic.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Button size="lg" className="bg-gradient-to-r from-primary to-purple-600">
+                        <Play className="w-5 h-5 mr-2" />
+                        Activate First Source
+                      </Button>
+                      <Link href="/traffic-channels">
+                        <Button size="lg" variant="outline">
+                          <Settings className="w-5 h-5 mr-2" />
+                          Configure Channels
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">

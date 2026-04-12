@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -19,7 +20,12 @@ import {
   Settings,
   X,
   Check,
-  Plus
+  Plus,
+  AlertCircle,
+  Link2,
+  DollarSign,
+  ShoppingCart,
+  TrendingUp
 } from "lucide-react";
 
 interface Integration {
@@ -27,17 +33,19 @@ interface Integration {
   name: string;
   description: string;
   icon: any;
-  category: string;
+  category: "automation" | "social" | "affiliate";
   status: "available" | "connected";
   connected_at?: string;
   credentials?: {
     access_token?: string;
     page_id?: string;
     account_id?: string;
+    api_key?: string;
   };
 }
 
 const AVAILABLE_INTEGRATIONS: Integration[] = [
+  // AUTOMATION
   {
     id: "zapier",
     name: "Zapier",
@@ -47,6 +55,8 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     status: "connected",
     connected_at: "2026-04-08T16:00:00Z"
   },
+  
+  // SOCIAL MEDIA
   {
     id: "facebook",
     name: "Facebook",
@@ -78,10 +88,84 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     icon: Twitter,
     category: "social",
     status: "available"
+  },
+
+  // AFFILIATE NETWORKS
+  {
+    id: "amazon-associates",
+    name: "Amazon Associates",
+    description: "World's largest affiliate program - millions of products",
+    icon: ShoppingCart,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "shareasale",
+    name: "ShareASale",
+    description: "4,500+ merchants - fashion, home, tech",
+    icon: Link2,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "clickbank",
+    name: "ClickBank",
+    description: "Digital products - high commissions (50-75%)",
+    icon: DollarSign,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "impact",
+    name: "Impact",
+    description: "Premium brands - Uber, Airbnb, Shopify",
+    icon: TrendingUp,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "awin",
+    name: "Awin",
+    description: "15,000+ advertisers - global network",
+    icon: Link2,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "rakuten",
+    name: "Rakuten Advertising",
+    description: "1,000+ top brands - Walmart, Macy's, Best Buy",
+    icon: ShoppingCart,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "cj",
+    name: "CJ Affiliate",
+    description: "3,000+ brands - enterprise-level tracking",
+    icon: TrendingUp,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "pepperjam",
+    name: "Pepperjam",
+    description: "Performance marketing - quality brands",
+    icon: DollarSign,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "flexoffers",
+    name: "FlexOffers",
+    description: "12,000+ programs - diverse categories",
+    icon: Link2,
+    category: "affiliate",
+    status: "available"
   }
 ];
 
-const MAX_CONNECTIONS = 5;
+const MAX_SOCIAL_CONNECTIONS = 5;
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -90,7 +174,7 @@ export default function IntegrationsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [connectDialog, setConnectDialog] = useState<{ open: boolean; integration?: Integration }>({ open: false });
-  const [credentials, setCredentials] = useState({ pageId: "", accessToken: "" });
+  const [credentials, setCredentials] = useState({ pageId: "", accessToken: "", apiKey: "" });
 
   useEffect(() => {
     loadUser();
@@ -139,17 +223,17 @@ export default function IntegrationsPage() {
     }
   };
 
-  const getConnectedCount = () => {
-    return integrations.filter(i => i.status === "connected" && i.id !== "zapier").length;
+  const getSocialConnectedCount = () => {
+    return integrations.filter(i => i.status === "connected" && i.category === "social").length;
   };
 
-  const canConnect = () => {
-    return getConnectedCount() < MAX_CONNECTIONS;
+  const canConnectSocial = () => {
+    return getSocialConnectedCount() < MAX_SOCIAL_CONNECTIONS;
   };
 
   const openConnectDialog = (integration: Integration) => {
     setConnectDialog({ open: true, integration });
-    setCredentials({ pageId: "", accessToken: "" });
+    setCredentials({ pageId: "", accessToken: "", apiKey: "" });
   };
 
   const handleConnect = async () => {
@@ -158,12 +242,63 @@ export default function IntegrationsPage() {
     try {
       setIsLoading(true);
 
+      const integration = connectDialog.integration;
+
+      // For affiliate networks, just mark as connected (they don't need OAuth)
+      if (integration.category === "affiliate") {
+        // Store affiliate network connection
+        const { error } = await supabase
+          .from('social_media_accounts')
+          .upsert({
+            user_id: userId,
+            platform: integration.id,
+            access_token: credentials.apiKey || 'connected',
+            account_id: credentials.pageId || integration.name,
+            is_active: true
+          }, { onConflict: 'user_id,platform,account_id' });
+
+        if (error) throw error;
+
+        setIntegrations(integrations.map(i => 
+          i.id === integration.id 
+            ? { 
+                ...i, 
+                status: "connected" as const, 
+                connected_at: new Date().toISOString(),
+                credentials: {
+                  api_key: credentials.apiKey
+                }
+              }
+            : i
+        ));
+
+        toast({
+          title: "✅ Connected!",
+          description: `${integration.name} is now active - you can discover products from this network`
+        });
+
+        setConnectDialog({ open: false });
+        setIsLoading(false);
+        return;
+      }
+
+      // For social media, require access tokens
+      if (!credentials.accessToken) {
+        toast({
+          title: "Missing Access Token",
+          description: "Please provide an access token",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+      }
+
       // Save to database
       const { error } = await supabase
         .from('social_media_accounts')
         .upsert({
           user_id: userId,
-          platform: connectDialog.integration.id,
+          platform: integration.id,
           access_token: credentials.accessToken,
           account_id: credentials.pageId,
           is_active: true
@@ -173,7 +308,7 @@ export default function IntegrationsPage() {
 
       // Update local state
       setIntegrations(integrations.map(i => 
-        i.id === connectDialog.integration?.id 
+        i.id === integration.id 
           ? { 
               ...i, 
               status: "connected" as const, 
@@ -188,7 +323,7 @@ export default function IntegrationsPage() {
 
       toast({
         title: "✅ Connected!",
-        description: `${connectDialog.integration.name} is now active`
+        description: `${integration.name} is now active`
       });
 
       setConnectDialog({ open: false });
@@ -288,11 +423,78 @@ export default function IntegrationsPage() {
           "Enable Read and Write permissions"
         ],
         note: "Free tier limited to 1,500 tweets/month"
+      },
+      "amazon-associates": {
+        steps: [
+          "Sign up at affiliate-program.amazon.com",
+          "Complete your profile and website info",
+          "Get approved (usually within 24 hours)",
+          "Copy your Associate ID from the dashboard"
+        ],
+        note: "You need a website or social media presence"
+      },
+      shareasale: {
+        steps: [
+          "Sign up at shareasale.com/signup.cfm",
+          "Fill out publisher application",
+          "Get approved (1-2 days)",
+          "Copy Affiliate ID and API Token from Account Settings"
+        ],
+        note: "Need to apply to individual merchants"
+      },
+      clickbank: {
+        steps: [
+          "Create account at clickbank.com",
+          "Go to Account Settings",
+          "Generate API Key under Developer API",
+          "Copy your Account Nickname (your affiliate ID)"
+        ],
+        note: "Instant approval - start promoting immediately"
+      },
+      impact: {
+        steps: [
+          "Sign up at impact.com",
+          "Complete publisher application",
+          "Get approved by Impact team",
+          "Copy API key from Settings → Developer"
+        ],
+        note: "Premium network - higher approval standards"
+      },
+      awin: {
+        steps: [
+          "Sign up at awin.com/gb/affiliates",
+          "Complete publisher questionnaire",
+          "Verification usually takes 48 hours",
+          "Get API credentials from Settings"
+        ],
+        note: "Global network with 200+ countries"
+      },
+      rakuten: {
+        steps: [
+          "Apply at rakutenadvertising.com/publisher",
+          "Complete application with website info",
+          "Wait for approval (3-5 days)",
+          "Get API token from Account Settings"
+        ],
+        note: "Top-tier brands - quality traffic required"
+      },
+      cj: {
+        steps: [
+          "Sign up at cj.com/signup/publisher",
+          "Submit publisher application",
+          "Get approved (2-3 days)",
+          "Copy API credentials from Account → Web Services"
+        ],
+        note: "Previously Commission Junction - enterprise-level"
       }
     };
 
     return instructions[platform] || { steps: [], note: "" };
   };
+
+  const socialIntegrations = integrations.filter(i => i.category === "social");
+  const affiliateIntegrations = integrations.filter(i => i.category === "affiliate");
+  const automationIntegrations = integrations.filter(i => i.category === "automation");
 
   return (
     <>
@@ -307,15 +509,19 @@ export default function IntegrationsPage() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Integrations</h1>
             <p className="text-muted-foreground text-lg">
-              Connect apps and automate your marketing
+              Connect affiliate networks and automate your marketing
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex gap-2">
               <Badge variant="outline">
-                {getConnectedCount()}/{MAX_CONNECTIONS} Apps Connected
+                {getSocialConnectedCount()}/{MAX_SOCIAL_CONNECTIONS} Social Media Connected
+              </Badge>
+              <Badge variant="outline">
+                {affiliateIntegrations.filter(i => i.status === "connected").length}/{affiliateIntegrations.length} Affiliate Networks Connected
               </Badge>
             </div>
           </div>
 
+          {/* Core Automation */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold mb-4">🚀 Core Automation</h2>
             <Card className="border-2 border-green-500/50 bg-green-50/50 dark:bg-green-950/20">
@@ -341,7 +547,7 @@ export default function IntegrationsPage() {
               <CardContent>
                 <div className="flex justify-between items-center">
                   <div className="text-sm text-muted-foreground">
-                    Connected {formatDate(integrations.find(i => i.id === "zapier")?.connected_at)}
+                    Connected {formatDate(automationIntegrations[0]?.connected_at)}
                   </div>
                   <Button variant="outline" size="sm">
                     <Settings className="w-4 h-4 mr-2" />
@@ -352,71 +558,163 @@ export default function IntegrationsPage() {
             </Card>
           </div>
 
+          {/* Affiliate Networks */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">💰 Affiliate Networks</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Connect your affiliate network accounts to discover and promote products
+            </p>
+
+            {affiliateIntegrations.filter(i => i.status === "connected").length === 0 && (
+              <Alert className="mb-4 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription>
+                  <strong>No affiliate networks connected yet.</strong> Connect at least one network to start discovering products.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {affiliateIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge variant="outline" className="text-xs">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={isLoading}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Disconnect
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Social Media */}
           <div>
             <h2 className="text-2xl font-bold mb-4">📱 Social Media</h2>
-            <div className="grid md:grid-cols-2 gap-6">
-              {integrations
-                .filter(i => i.category === "social")
-                .map((integration) => {
-                  const Icon = integration.icon;
-                  const isConnected = integration.status === "connected";
+            <p className="text-sm text-muted-foreground mb-4">
+              Connect up to {MAX_SOCIAL_CONNECTIONS} social media accounts for automated posting
+            </p>
 
-                  return (
-                    <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
-                      <CardHeader>
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                            <Icon className="w-6 h-6" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <CardTitle className="text-lg">{integration.name}</CardTitle>
-                              {isConnected && (
-                                <Badge variant="outline" className="text-xs">
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Connected
-                                </Badge>
-                              )}
-                            </div>
-                            <CardDescription className="text-sm">
-                              {integration.description}
-                            </CardDescription>
-                          </div>
+            {socialIntegrations.filter(i => i.status === "connected").length === 0 && (
+              <Alert className="mb-4 border-orange-500/50 bg-orange-50/50 dark:bg-orange-950/20">
+                <AlertCircle className="h-4 w-4 text-orange-600" />
+                <AlertDescription>
+                  <strong>No social media connected yet.</strong> Connect platforms to enable automated traffic generation.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {socialIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex gap-2">
-                          {isConnected ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1"
-                                onClick={() => handleDisconnect(integration.id)}
-                                disabled={isLoading}
-                              >
-                                <X className="w-4 h-4 mr-2" />
-                                Disconnect
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Settings className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge variant="outline" className="text-xs">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
                             <Button
+                              variant="outline"
+                              size="sm"
                               className="flex-1"
-                              onClick={() => openConnectDialog(integration)}
-                              disabled={isLoading || !canConnect()}
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={isLoading}
                             >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Connect
+                              <X className="w-4 h-4 mr-2" />
+                              Disconnect
                             </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading || !canConnectSocial()}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         </main>
@@ -427,32 +725,62 @@ export default function IntegrationsPage() {
           <DialogHeader>
             <DialogTitle>Connect {connectDialog.integration?.name}</DialogTitle>
             <DialogDescription>
-              Enter your credentials to enable auto-posting
+              {connectDialog.integration?.category === "affiliate" 
+                ? "Enter your affiliate account details"
+                : "Enter your credentials to enable auto-posting"
+              }
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="pageId">Page/Account ID</Label>
-                <Input
-                  id="pageId"
-                  placeholder="Enter your page or account ID"
-                  value={credentials.pageId}
-                  onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
-                />
-              </div>
+              {connectDialog.integration?.category === "affiliate" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pageId">Account ID / Affiliate ID</Label>
+                    <Input
+                      id="pageId"
+                      placeholder="Enter your affiliate account ID"
+                      value={credentials.pageId}
+                      onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="accessToken">Access Token</Label>
-                <Input
-                  id="accessToken"
-                  type="password"
-                  placeholder="Enter your access token"
-                  value={credentials.accessToken}
-                  onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Key (Optional)</Label>
+                    <Input
+                      id="apiKey"
+                      type="password"
+                      placeholder="Enter API key if available"
+                      value={credentials.apiKey}
+                      onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pageId">Page/Account ID</Label>
+                    <Input
+                      id="pageId"
+                      placeholder="Enter your page or account ID"
+                      value={credentials.pageId}
+                      onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accessToken">Access Token</Label>
+                    <Input
+                      id="accessToken"
+                      type="password"
+                      placeholder="Enter your access token"
+                      value={credentials.accessToken}
+                      onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {connectDialog.integration && (
@@ -463,9 +791,11 @@ export default function IntegrationsPage() {
                     <li key={idx}>{step}</li>
                   ))}
                 </ol>
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-3">
-                  ⚠️ {getInstructions(connectDialog.integration.id).note}
-                </p>
+                {getInstructions(connectDialog.integration.id).note && (
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-3">
+                    ⚠️ {getInstructions(connectDialog.integration.id).note}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -476,7 +806,11 @@ export default function IntegrationsPage() {
             </Button>
             <Button 
               onClick={handleConnect} 
-              disabled={!credentials.pageId || !credentials.accessToken || isLoading}
+              disabled={
+                (connectDialog.integration?.category === "affiliate" && !credentials.pageId) ||
+                (connectDialog.integration?.category !== "affiliate" && (!credentials.pageId || !credentials.accessToken)) ||
+                isLoading
+              }
             >
               {isLoading ? "Connecting..." : "Connect"}
             </Button>
