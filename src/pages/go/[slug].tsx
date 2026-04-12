@@ -11,13 +11,22 @@ export default function RedirectPage() {
   const [error, setError] = useState<string | null>(null);
   const [linkData, setLinkData] = useState<any>(null);
   const [countdown, setCountdown] = useState(3);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  const addDebug = (message: string) => {
+    console.log(`🔍 [DEBUG] ${message}`);
+    setDebugInfo(prev => [...prev, message]);
+  };
 
   useEffect(() => {
-    if (!slug || typeof slug !== 'string') return;
+    if (!slug || typeof slug !== 'string') {
+      addDebug('❌ No slug provided or slug is not a string');
+      return;
+    }
 
     const trackAndRedirect = async () => {
       try {
-        console.log("🔍 Looking for slug:", slug);
+        addDebug(`Starting tracking for slug: ${slug}`);
 
         // Query the database for this slug
         const { data: link, error: linkError } = await supabase
@@ -27,40 +36,57 @@ export default function RedirectPage() {
           .eq('status', 'active')
           .maybeSingle();
 
-        console.log("📊 Query result:", { link, linkError });
+        addDebug(`Database query result: ${link ? 'FOUND' : 'NOT FOUND'}`);
+        if (linkError) addDebug(`❌ Database error: ${linkError.message}`);
 
         if (linkError) {
           console.error("❌ Database error:", linkError);
           setError("Database error occurred");
+          addDebug(`Error details: ${JSON.stringify(linkError)}`);
           return;
         }
 
         if (!link) {
           console.error("❌ Link not found for slug:", slug);
           setError("This link doesn't exist in our database");
+          addDebug(`Link not found - slug: ${slug}`);
           return;
         }
 
+        addDebug(`✅ Link found: ${link.product_name}`);
+        addDebug(`Current clicks: ${link.clicks || 0}`);
+        addDebug(`Original URL: ${link.original_url}`);
+
         setLinkData(link);
 
-        // Track the click - CRITICAL FIX: Use correct columns
+        // CRITICAL: Track the click - BOTH columns for compatibility
         const newClicks = (link.clicks || 0) + 1;
-        const { error: clickError } = await supabase
+        addDebug(`Attempting to update clicks: ${link.clicks || 0} → ${newClicks}`);
+
+        const { data: updateData, error: clickError } = await supabase
           .from('affiliate_links')
           .update({ 
             clicks: newClicks,
-            click_count: newClicks
+            click_count: newClicks,
+            updated_at: new Date().toISOString()
           })
-          .eq('id', link.id);
+          .eq('id', link.id)
+          .select();
 
         if (clickError) {
-          console.error("⚠️ Click count update failed:", clickError);
+          console.error("❌ Click count update failed:", clickError);
+          addDebug(`❌ UPDATE FAILED: ${clickError.message}`);
+          addDebug(`Error code: ${clickError.code}`);
+          addDebug(`Error details: ${JSON.stringify(clickError.details)}`);
         } else {
           console.log("✅ Click count updated:", newClicks);
+          addDebug(`✅ UPDATE SUCCESS: Clicks now ${newClicks}`);
+          addDebug(`Update response: ${JSON.stringify(updateData)}`);
         }
 
         // Record click event for detailed tracking
-        const { error: eventError } = await supabase
+        addDebug('Attempting to insert click_event...');
+        const { data: eventData, error: eventError } = await supabase
           .from('click_events')
           .insert({
             link_id: link.id,
@@ -72,15 +98,20 @@ export default function RedirectPage() {
             converted: false,
             is_bot: false,
             fraud_score: 0
-          });
+          })
+          .select();
 
         if (eventError) {
           console.error("⚠️ Click event tracking failed:", eventError);
+          addDebug(`❌ EVENT INSERT FAILED: ${eventError.message}`);
+          addDebug(`Error code: ${eventError.code}`);
         } else {
           console.log("✅ Click event recorded");
+          addDebug(`✅ EVENT INSERT SUCCESS: ${JSON.stringify(eventData)}`);
         }
 
         // Record activity log
+        addDebug('Attempting to insert activity_log...');
         const { error: activityError } = await supabase
           .from('activity_logs')
           .insert({
@@ -93,22 +124,29 @@ export default function RedirectPage() {
               product_name: link.product_name,
               network: link.network,
               user_agent: navigator.userAgent,
-              referrer: document.referrer || 'direct'
+              referrer: document.referrer || 'direct',
+              new_click_count: newClicks
             },
             status: 'success'
           });
 
         if (activityError) {
           console.error("⚠️ Activity log failed:", activityError);
+          addDebug(`❌ ACTIVITY LOG FAILED: ${activityError.message}`);
         } else {
           console.log("✅ Activity logged");
+          addDebug('✅ ACTIVITY LOG SUCCESS');
         }
+
+        addDebug('✅ All tracking operations complete');
+        addDebug(`Redirecting to: ${link.original_url}`);
 
         // Start countdown
         const timer = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
               clearInterval(timer);
+              addDebug('🚀 Redirecting now...');
               window.location.href = link.original_url;
               return 0;
             }
@@ -117,9 +155,11 @@ export default function RedirectPage() {
         }, 1000);
 
         return () => clearInterval(timer);
-      } catch (err) {
+      } catch (err: any) {
         console.error("💥 Redirect error:", err);
         setError("An error occurred");
+        addDebug(`💥 EXCEPTION: ${err.message}`);
+        addDebug(`Stack: ${err.stack}`);
       }
     };
 
@@ -129,11 +169,22 @@ export default function RedirectPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-2xl w-full">
           <CardContent className="pt-6 text-center">
             <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
             <h1 className="text-2xl font-bold mb-2">Link Error</h1>
             <p className="text-muted-foreground mb-6">{error}</p>
+            
+            {/* Debug Info */}
+            <details className="text-left bg-muted p-4 rounded-lg mb-6">
+              <summary className="cursor-pointer font-semibold mb-2">Debug Information</summary>
+              <div className="text-xs font-mono space-y-1">
+                {debugInfo.map((info, idx) => (
+                  <div key={idx}>{info}</div>
+                ))}
+              </div>
+            </details>
+
             <Button onClick={() => router.push('/dashboard')} className="w-full">
               Return to Dashboard
             </Button>
@@ -149,6 +200,17 @@ export default function RedirectPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
+          {/* Show debug in loading state too */}
+          {debugInfo.length > 0 && (
+            <details className="text-left bg-muted p-4 rounded-lg mt-4 max-w-md mx-auto">
+              <summary className="cursor-pointer text-sm font-semibold mb-2">Debug Log</summary>
+              <div className="text-xs font-mono space-y-1">
+                {debugInfo.map((info, idx) => (
+                  <div key={idx}>{info}</div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       </div>
     );
@@ -169,16 +231,31 @@ export default function RedirectPage() {
           <p className="text-sm text-muted-foreground mb-6">{linkData.network}</p>
           
           <div className="text-6xl font-bold text-primary mb-4">{countdown}</div>
-          <p className="text-muted-foreground mb-6">You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}...</p>
+          <p className="text-muted-foreground mb-6">
+            You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}...
+          </p>
           
           <Button
-            onClick={() => window.location.href = linkData.original_url}
-            className="w-full"
+            onClick={() => {
+              addDebug('🚀 Manual redirect clicked');
+              window.location.href = linkData.original_url;
+            }}
+            className="w-full mb-4"
             size="lg"
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             Go Now
           </Button>
+
+          {/* Debug Info */}
+          <details className="text-left bg-muted p-4 rounded-lg text-xs">
+            <summary className="cursor-pointer font-semibold mb-2">Debug Information</summary>
+            <div className="font-mono space-y-1">
+              {debugInfo.map((info, idx) => (
+                <div key={idx}>{info}</div>
+              ))}
+            </div>
+          </details>
         </CardContent>
       </Card>
     </div>

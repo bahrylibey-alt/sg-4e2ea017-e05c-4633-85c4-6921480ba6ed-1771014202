@@ -163,33 +163,57 @@ export default function TrafficChannels() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: campaigns } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', user.id);
+      // Get REAL data from posted_content table grouped by platform
+      const { data: posts } = await supabase
+        .from('posted_content')
+        .select('platform, impressions, clicks')
+        .eq('user_id', user.id)
+        .eq('status', 'posted');
 
-      let campaignIds: string[] = [];
-      if (campaigns && campaigns.length > 0) {
-        campaignIds = campaigns.map(c => c.id);
-      }
-
-      let query = supabase.from('traffic_sources').select('source_name, status, automation_enabled, total_clicks');
-      if (campaignIds.length > 0) {
-        query = query.in('campaign_id', campaignIds);
-      }
-
-      const { data: sources } = await query;
+      console.log('📊 Loading REAL channel stats from database:', posts);
 
       const channelStatus: Record<string, boolean> = {};
       const stats: Record<string, { views: number; clicks: number }> = {};
 
+      // Initialize all channels
       TRAFFIC_CHANNELS.forEach(channel => {
-        const source = sources?.find(s => s.source_name === channel.name);
-        channelStatus[channel.id] = source?.automation_enabled || false;
-        stats[channel.id] = {
-          views: (source?.total_clicks || 0) * 4,
-          clicks: source?.total_clicks || 0
-        };
+        channelStatus[channel.id] = false;
+        stats[channel.id] = { views: 0, clicks: 0 };
+      });
+
+      // Aggregate REAL data by platform
+      const platformMap: Record<string, string> = {
+        'facebook': 'facebook-groups',
+        'instagram': 'instagram-stories',
+        'twitter': 'twitter-autopost',
+        'linkedin': 'linkedin-articles',
+        'pinterest': 'pinterest-autopinning',
+        'youtube': 'youtube-community',
+        'reddit': 'reddit-deals',
+        'email': 'email-drip'
+      };
+
+      posts?.forEach(post => {
+        const platform = post.platform?.toLowerCase() || '';
+        const channelId = platformMap[platform];
+        
+        if (channelId) {
+          if (!stats[channelId]) {
+            stats[channelId] = { views: 0, clicks: 0 };
+          }
+          
+          // REAL DATA ONLY - no multiplication, no fake numbers
+          stats[channelId].views += post.impressions || 0;
+          stats[channelId].clicks += post.clicks || 0;
+          
+          // Channel is active if it has any posts
+          channelStatus[channelId] = true;
+        }
+      });
+
+      console.log('✅ REAL channel stats loaded:', {
+        stats,
+        channelStatus
       });
 
       setActiveChannels(channelStatus);
@@ -204,19 +228,21 @@ export default function TrafficChannels() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get real data from posted_content table
+      // Get REAL data from posted_content table (NO FAKE DATA)
       const { data: posts } = await supabase
         .from('posted_content')
         .select('platform, impressions, clicks, conversions, revenue')
         .eq('user_id', user.id)
         .eq('status', 'posted');
 
+      console.log('📊 Loading REAL analytics from database:', posts);
+
       if (!posts || posts.length === 0) {
         setChannelAnalytics([]);
         return;
       }
 
-      // Aggregate by platform
+      // Aggregate REAL data by platform
       const platformData: Record<string, ChannelAnalytics> = {};
 
       posts.forEach(post => {
@@ -233,17 +259,20 @@ export default function TrafficChannels() {
           };
         }
 
+        // REAL DATA ONLY - straight from database
         platformData[platform].views += post.impressions || 0;
         platformData[platform].clicks += post.clicks || 0;
         platformData[platform].conversions += post.conversions || 0;
         platformData[platform].revenue += Number(post.revenue) || 0;
       });
 
-      // Calculate conversion rates
+      // Calculate conversion rates from REAL data
       const analytics = Object.values(platformData).map(data => ({
         ...data,
         conversionRate: data.clicks > 0 ? (data.conversions / data.clicks) * 100 : 0
       }));
+
+      console.log('✅ REAL analytics loaded:', analytics);
 
       setChannelAnalytics(analytics.sort((a, b) => b.conversionRate - a.conversionRate));
     } catch (error) {
