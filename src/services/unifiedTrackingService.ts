@@ -96,12 +96,18 @@ export const unifiedTrackingService = {
 
       // Also update affiliate_links if linked
       if (content.link_id) {
-        await supabase
+        const { data: linkData } = await supabase
           .from('affiliate_links')
-          .update({ 
-            clicks: supabase.rpc('increment', { row_id: content.link_id }) as any
-          })
-          .eq('id', content.link_id);
+          .select('clicks')
+          .eq('id', content.link_id)
+          .single();
+          
+        if (linkData) {
+          await supabase
+            .from('affiliate_links')
+            .update({ clicks: (linkData.clicks || 0) + 1 })
+            .eq('id', content.link_id);
+        }
       }
 
       console.log(`✅ Click tracked: ${contentId} now has ${newClicks} clicks`);
