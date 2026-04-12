@@ -286,6 +286,7 @@ export default function IntegrationsPage() {
             .from('integrations')
             .update({
               category: integration.category,
+              provider_name: integration.name,
               config: {
                 api_key: credentials.apiKey || undefined,
                 account_id: credentials.pageId || undefined
@@ -301,6 +302,7 @@ export default function IntegrationsPage() {
             .insert({
               user_id: userId,
               provider: integration.id,
+              provider_name: integration.name,
               category: integration.category,
               config: {
                 api_key: credentials.apiKey || undefined,
