@@ -229,13 +229,13 @@ export default function IntegrationsPage() {
         }
 
         // Check affiliate/other integrations
-        const affiliateConn = affiliateConnections?.find(c => c.platform === i.id);
+        const affiliateConn = affiliateConnections?.find(c => c.provider === i.id);
         if (affiliateConn) {
           return {
             ...i,
             status: "connected" as const,
             connected_at: affiliateConn.connected_at,
-            credentials: affiliateConn.credentials as any
+            credentials: (affiliateConn.config || {}) as any
           };
         }
 
@@ -272,19 +272,45 @@ export default function IntegrationsPage() {
       // CRITICAL FIX: Use correct table based on integration type
       if (integration.category === "affiliate" || integration.category === "automation") {
         // AFFILIATE & AUTOMATION → integrations table
-        const { error } = await supabase
+        // First check if exists since we might not know the exact unique constraint name
+        const { data: existing } = await supabase
           .from('integrations')
-          .upsert({
-            user_id: userId,
-            platform: integration.id,
-            integration_type: integration.category,
-            credentials: {
-              api_key: credentials.apiKey || undefined,
-              account_id: credentials.pageId || undefined
-            },
-            is_active: true,
-            connected_at: new Date().toISOString()
-          }, { onConflict: 'user_id,platform' });
+          .select('id')
+          .eq('user_id', userId)
+          .eq('provider', integration.id)
+          .maybeSingle();
+
+        let error;
+        if (existing) {
+          const { error: updateError } = await supabase
+            .from('integrations')
+            .update({
+              category: integration.category,
+              config: {
+                api_key: credentials.apiKey || undefined,
+                account_id: credentials.pageId || undefined
+              },
+              status: 'connected',
+              last_sync_at: new Date().toISOString()
+            })
+            .eq('id', existing.id);
+          error = updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from('integrations')
+            .insert({
+              user_id: userId,
+              provider: integration.id,
+              category: integration.category,
+              config: {
+                api_key: credentials.apiKey || undefined,
+                account_id: credentials.pageId || undefined
+              },
+              status: 'connected',
+              connected_at: new Date().toISOString()
+            });
+          error = insertError;
+        }
 
         if (error) {
           console.error('❌ Integrations table error:', error);
@@ -393,7 +419,7 @@ export default function IntegrationsPage() {
           .from('integrations')
           .delete()
           .eq('user_id', userId)
-          .eq('platform', integrationId);
+          .eq('provider', integrationId);
 
         if (error) throw error;
       }

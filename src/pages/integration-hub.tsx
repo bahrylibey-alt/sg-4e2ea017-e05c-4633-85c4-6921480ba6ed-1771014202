@@ -102,7 +102,7 @@ export default function IntegrationHub() {
       // Load affiliate/automation connections
       const { data: otherConnections } = await supabase
         .from('integrations')
-        .select('platform')
+        .select('provider')
         .eq('user_id', user.id);
 
       console.log('✅ Integration Hub connections loaded:', { 
@@ -112,7 +112,7 @@ export default function IntegrationHub() {
 
       const allConnectedPlatforms = [
         ...(socialConnections?.map(c => c.platform) || []),
-        ...(otherConnections?.map(c => c.platform) || [])
+        ...(otherConnections?.map(c => c.provider) || [])
       ];
 
       setIntegrations(integrations.map(i => {
