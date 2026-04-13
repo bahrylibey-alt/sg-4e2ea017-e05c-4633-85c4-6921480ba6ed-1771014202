@@ -92,10 +92,18 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
 
   // AFFILIATE NETWORKS
   {
-    id: "amazon-associates",
+    id: "amazon_associates",
     name: "Amazon Associates",
     description: "World's largest affiliate program - millions of products",
     icon: ShoppingCart,
+    category: "affiliate",
+    status: "available"
+  },
+  {
+    id: "temu_affiliate",
+    name: "Temu Affiliate",
+    description: "Fast-growing marketplace - competitive commissions",
+    icon: TrendingUp,
     category: "affiliate",
     status: "available"
   },
@@ -140,7 +148,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     status: "available"
   },
   {
-    id: "cj",
+    id: "cj_affiliate",
     name: "CJ Affiliate",
     description: "3,000+ brands - enterprise-level tracking",
     icon: TrendingUp,
