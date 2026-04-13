@@ -25,7 +25,11 @@ import {
   Link2,
   DollarSign,
   ShoppingCart,
-  TrendingUp
+  TrendingUp,
+  CreditCard,
+  Mail,
+  BarChart3,
+  Webhook
 } from "lucide-react";
 
 interface Integration {
@@ -54,6 +58,92 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     category: "automation",
     status: "connected",
     connected_at: "2026-04-08T16:00:00Z"
+  },
+  {
+    id: "webhooks",
+    name: "Webhooks",
+    description: "Custom webhook integrations for real-time events",
+    icon: Webhook,
+    category: "automation",
+    status: "available"
+  },
+  
+  // PAYMENT PROCESSORS
+  {
+    id: "stripe",
+    name: "Stripe",
+    description: "Accept payments - credit cards, subscriptions, invoicing",
+    icon: CreditCard,
+    category: "payment",
+    status: "available"
+  },
+  {
+    id: "paypal",
+    name: "PayPal",
+    description: "Global payment processing and payouts",
+    icon: DollarSign,
+    category: "payment",
+    status: "available"
+  },
+
+  // EMAIL MARKETING
+  {
+    id: "mailchimp",
+    name: "Mailchimp",
+    description: "Email marketing automation and campaigns",
+    icon: Mail,
+    category: "email",
+    status: "available"
+  },
+  {
+    id: "sendgrid",
+    name: "SendGrid",
+    description: "Transactional and marketing email delivery",
+    icon: Mail,
+    category: "email",
+    status: "available"
+  },
+  {
+    id: "convertkit",
+    name: "ConvertKit",
+    description: "Email marketing for creators",
+    icon: Mail,
+    category: "email",
+    status: "available"
+  },
+
+  // ANALYTICS & TRACKING
+  {
+    id: "google_analytics",
+    name: "Google Analytics",
+    description: "Track website traffic and user behavior",
+    icon: BarChart3,
+    category: "analytics",
+    status: "available"
+  },
+  {
+    id: "facebook_pixel",
+    name: "Facebook Pixel",
+    description: "Track conversions from Facebook ads",
+    icon: BarChart3,
+    category: "analytics",
+    status: "available"
+  },
+  {
+    id: "tiktok_pixel",
+    name: "TikTok Pixel",
+    description: "Track conversions from TikTok ads",
+    icon: BarChart3,
+    category: "analytics",
+    status: "available"
+  },
+  {
+    id: "google_tag_manager",
+    name: "Google Tag Manager",
+    description: "Manage marketing tags without code changes",
+    icon: BarChart3,
+    category: "analytics",
+    status: "available"
   },
   
   // SOCIAL MEDIA
@@ -471,6 +561,104 @@ export default function IntegrationsPage() {
 
   const getInstructions = (platform: string) => {
     const instructions: Record<string, { steps: string[]; note: string }> = {
+      // Payment
+      stripe: {
+        steps: [
+          "Sign up at stripe.com",
+          "Go to Developers → API Keys",
+          "Copy Publishable Key and Secret Key",
+          "Enable webhook endpoint for payment events"
+        ],
+        note: "Use test keys for development, live keys for production"
+      },
+      paypal: {
+        steps: [
+          "Sign up at paypal.com/business",
+          "Go to Account Settings → API Access",
+          "Generate API credentials",
+          "Copy Client ID and Secret"
+        ],
+        note: "Requires Business account for API access"
+      },
+
+      // Email
+      mailchimp: {
+        steps: [
+          "Sign up at mailchimp.com",
+          "Go to Account → Extras → API Keys",
+          "Generate new API key",
+          "Copy API key and select audience"
+        ],
+        note: "Free tier includes 500 contacts"
+      },
+      sendgrid: {
+        steps: [
+          "Sign up at sendgrid.com",
+          "Go to Settings → API Keys",
+          "Create API key with Full Access",
+          "Copy and save the key (shown once)"
+        ],
+        note: "Free tier includes 100 emails/day"
+      },
+      convertkit: {
+        steps: [
+          "Sign up at convertkit.com",
+          "Go to Settings → Advanced → API",
+          "Copy API Key and API Secret",
+          "Enable webhooks for subscriber events"
+        ],
+        note: "Creator-focused email platform"
+      },
+
+      // Analytics
+      google_analytics: {
+        steps: [
+          "Go to analytics.google.com",
+          "Create GA4 property",
+          "Copy Measurement ID (G-XXXXXXXXXX)",
+          "Optional: Generate API Secret for server-side tracking"
+        ],
+        note: "GA4 is the current Google Analytics version"
+      },
+      facebook_pixel: {
+        steps: [
+          "Go to Facebook Events Manager",
+          "Create new pixel",
+          "Copy Pixel ID",
+          "Add to your website header"
+        ],
+        note: "Required for Facebook ad conversion tracking"
+      },
+      tiktok_pixel: {
+        steps: [
+          "Go to TikTok Ads Manager",
+          "Navigate to Assets → Events",
+          "Create pixel and copy Pixel ID",
+          "Install on your website"
+        ],
+        note: "Track TikTok ad performance"
+      },
+      google_tag_manager: {
+        steps: [
+          "Go to tagmanager.google.com",
+          "Create account and container",
+          "Copy Container ID (GTM-XXXXXXX)",
+          "Install container code on website"
+        ],
+        note: "Centralized tag management"
+      },
+
+      // Automation
+      webhooks: {
+        steps: [
+          "Enter your webhook endpoint URL",
+          "Select events to trigger",
+          "Configure authentication if needed",
+          "Test webhook delivery"
+        ],
+        note: "Receive real-time notifications for events"
+      },
+
       facebook: {
         steps: [
           "Go to Facebook Business Settings",
@@ -596,6 +784,9 @@ export default function IntegrationsPage() {
   const socialIntegrations = integrations.filter(i => i.category === "social");
   const affiliateIntegrations = integrations.filter(i => i.category === "affiliate_network");
   const automationIntegrations = integrations.filter(i => i.category === "automation");
+  const paymentIntegrations = integrations.filter(i => i.category === "payment");
+  const emailIntegrations = integrations.filter(i => i.category === "email");
+  const analyticsIntegrations = integrations.filter(i => i.category === "analytics");
 
   return (
     <>
@@ -610,57 +801,309 @@ export default function IntegrationsPage() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Integrations</h1>
             <p className="text-muted-foreground text-lg">
-              Connect affiliate networks and automate your marketing
+              Connect your tools and automate your affiliate marketing
             </p>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex gap-2 flex-wrap">
               <Badge variant="outline">
-                {getSocialConnectedCount()}/{MAX_SOCIAL_CONNECTIONS} Social Media Connected
+                {automationIntegrations.filter(i => i.status === "connected").length}/{automationIntegrations.length} Automation
               </Badge>
               <Badge variant="outline">
-                {affiliateIntegrations.filter(i => i.status === "connected").length}/{affiliateIntegrations.length} Affiliate Networks Connected
+                {paymentIntegrations.filter(i => i.status === "connected").length}/{paymentIntegrations.length} Payment
+              </Badge>
+              <Badge variant="outline">
+                {emailIntegrations.filter(i => i.status === "connected").length}/{emailIntegrations.length} Email
+              </Badge>
+              <Badge variant="outline">
+                {analyticsIntegrations.filter(i => i.status === "connected").length}/{analyticsIntegrations.length} Analytics
+              </Badge>
+              <Badge variant="outline">
+                {getSocialConnectedCount()}/{MAX_SOCIAL_CONNECTIONS} Social Media
+              </Badge>
+              <Badge variant="outline">
+                {affiliateIntegrations.filter(i => i.status === "connected").length}/{affiliateIntegrations.length} Affiliate Networks
               </Badge>
             </div>
           </div>
 
           {/* Core Automation */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">🚀 Core Automation</h2>
-            <Card className="border-2 border-green-500/50 bg-green-50/50 dark:bg-green-950/20">
-              <CardHeader>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <Zap className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle>Zapier</CardTitle>
-                      <Badge className="bg-green-500">
-                        <Check className="w-3 h-3 mr-1" />
-                        Connected
-                      </Badge>
-                    </div>
-                    <CardDescription className="mt-1">
-                      Connect to 5000+ apps including Facebook, YouTube, Instagram
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-muted-foreground">
-                    Connected {formatDate(automationIntegrations[0]?.connected_at)}
-                  </div>
-                  <Button variant="outline" size="sm">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Configure
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <h2 className="text-2xl font-bold mb-4">🚀 Automation</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              {automationIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge className="bg-green-500">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={integration.id === "zapier" || isLoading}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              {integration.id === "zapier" ? "Core System" : "Disconnect"}
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Payment Processors */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">💳 Payment Processing</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Accept payments and manage payouts
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              {paymentIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge variant="outline" className="text-xs">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={isLoading}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Disconnect
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Email Marketing */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">📧 Email Marketing</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Build email lists and automate campaigns
+            </p>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {emailIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge variant="outline" className="text-xs">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={isLoading}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Disconnect
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Analytics & Tracking */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">📊 Analytics & Tracking</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Track performance and optimize conversions
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              {analyticsIntegrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === "connected";
+
+                return (
+                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{integration.name}</CardTitle>
+                            {isConnected && (
+                              <Badge variant="outline" className="text-xs">
+                                <Check className="w-3 h-3 mr-1" />
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
+                          <CardDescription className="text-sm">
+                            {integration.description}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        {isConnected ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDisconnect(integration.id)}
+                              disabled={isLoading}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Disconnect
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            className="flex-1"
+                            onClick={() => openConnectDialog(integration)}
+                            disabled={isLoading}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Connect
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
 
           {/* Affiliate Networks */}
-          <div className="mb-8">
+          <div>
             <h2 className="text-2xl font-bold mb-4">💰 Affiliate Networks</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Connect your affiliate network accounts to discover and promote products
@@ -738,86 +1181,6 @@ export default function IntegrationsPage() {
               })}
             </div>
           </div>
-
-          {/* Social Media */}
-          <div>
-            <h2 className="text-2xl font-bold mb-4">📱 Social Media</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Connect up to {MAX_SOCIAL_CONNECTIONS} social media accounts for automated posting
-            </p>
-
-            {socialIntegrations.filter(i => i.status === "connected").length === 0 && (
-              <Alert className="mb-4 border-orange-500/50 bg-orange-50/50 dark:bg-orange-950/20">
-                <AlertCircle className="h-4 w-4 text-orange-600" />
-                <AlertDescription>
-                  <strong>No social media connected yet.</strong> Connect platforms to enable automated traffic generation.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {socialIntegrations.map((integration) => {
-                const Icon = integration.icon;
-                const isConnected = integration.status === "connected";
-
-                return (
-                  <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
-                    <CardHeader>
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                          <Icon className="w-6 h-6" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-lg">{integration.name}</CardTitle>
-                            {isConnected && (
-                              <Badge variant="outline" className="text-xs">
-                                <Check className="w-3 h-3 mr-1" />
-                                Connected
-                              </Badge>
-                            )}
-                          </div>
-                          <CardDescription className="text-sm">
-                            {integration.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex gap-2">
-                        {isConnected ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => handleDisconnect(integration.id)}
-                              disabled={isLoading}
-                            >
-                              <X className="w-4 h-4 mr-2" />
-                              Disconnect
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Settings className="w-4 h-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            className="flex-1"
-                            onClick={() => openConnectDialog(integration)}
-                            disabled={isLoading || !canConnectSocial()}
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Connect
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
         </main>
       </div>
 
@@ -858,7 +1221,7 @@ export default function IntegrationsPage() {
                     />
                   </div>
                 </>
-              ) : (
+              ) : connectDialog.integration?.category === "social" ? (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="pageId">Page/Account ID</Label>
@@ -878,6 +1241,86 @@ export default function IntegrationsPage() {
                       placeholder="Enter your access token"
                       value={credentials.accessToken}
                       onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : connectDialog.integration?.category === "payment" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">
+                      {connectDialog.integration.id === "stripe" ? "Publishable Key" : "Client ID"}
+                    </Label>
+                    <Input
+                      id="apiKey"
+                      placeholder={connectDialog.integration.id === "stripe" ? "pk_..." : "Enter Client ID"}
+                      value={credentials.apiKey}
+                      onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accessToken">
+                      {connectDialog.integration.id === "stripe" ? "Secret Key" : "Secret"}
+                    </Label>
+                    <Input
+                      id="accessToken"
+                      type="password"
+                      placeholder={connectDialog.integration.id === "stripe" ? "sk_..." : "Enter secret"}
+                      value={credentials.accessToken}
+                      onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : connectDialog.integration?.category === "analytics" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pageId">
+                      {connectDialog.integration.id === "google_analytics" ? "Measurement ID" : 
+                       connectDialog.integration.id === "google_tag_manager" ? "Container ID" : "Pixel ID"}
+                    </Label>
+                    <Input
+                      id="pageId"
+                      placeholder={
+                        connectDialog.integration.id === "google_analytics" ? "G-XXXXXXXXXX" :
+                        connectDialog.integration.id === "google_tag_manager" ? "GTM-XXXXXXX" : 
+                        "Enter Pixel ID"
+                      }
+                      value={credentials.pageId}
+                      onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Secret (Optional)</Label>
+                    <Input
+                      id="apiKey"
+                      type="password"
+                      placeholder="For server-side tracking"
+                      value={credentials.apiKey}
+                      onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Key</Label>
+                    <Input
+                      id="apiKey"
+                      type="password"
+                      placeholder="Enter your API key"
+                      value={credentials.apiKey}
+                      onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="pageId">Account/Project ID (Optional)</Label>
+                    <Input
+                      id="pageId"
+                      placeholder="Enter account or project ID"
+                      value={credentials.pageId}
+                      onChange={(e) => setCredentials({ ...credentials, pageId: e.target.value })}
                     />
                   </div>
                 </>
