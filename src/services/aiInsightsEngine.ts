@@ -143,27 +143,34 @@ export const aiInsightsEngine = {
     try {
       console.log('🤖 AI Insights: Starting analysis for user:', userId);
 
-      // Step 1: Score all posts with timeout
+      // Step 1: Score all posts with 20 second timeout (optimized batch processing)
       const scorePromise = scoringEngine.scoreAllPosts(userId);
       const scoreTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Scoring timeout')), 5000)
+        setTimeout(() => reject(new Error('Scoring timeout - processing taking longer than expected')), 20000)
       );
-      const scoreResults = await Promise.race([scorePromise, scoreTimeout]) as any;
+      
+      let scoreResults;
+      try {
+        scoreResults = await Promise.race([scorePromise, scoreTimeout]) as any;
+        console.log('✅ AI Insights: Scoring complete:', scoreResults);
+      } catch (err: any) {
+        console.warn('⚠️ Scoring timeout, using fallback');
+        // Return fallback data instead of failing completely
+        scoreResults = { total: 0, winners: 0, testing: 0, weak: 0, noData: 0, scores: [] };
+      }
 
-      console.log('✅ AI Insights: Scoring complete:', scoreResults);
-
-      // Step 2: Get traffic state
+      // Step 2: Get traffic state (fast query)
       const trafficState = await contentIntelligence.getTrafficState(userId);
       console.log('✅ AI Insights: Traffic state:', trafficState);
 
-      // Step 3: Analyze top performers
+      // Step 3: Analyze top performers (fast query)
       const topPerformers = await contentIntelligence.analyzeTopPerformers(userId);
       console.log('✅ AI Insights: Top performers analyzed');
 
-      // Step 4: Generate decisions with timeout
+      // Step 4: Generate decisions with 10 second timeout
       const decisionsPromise = decisionEngine.analyzeAllPosts(userId);
       const decisionsTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Decisions timeout')), 5000)
+        setTimeout(() => reject(new Error('Decisions timeout')), 10000)
       );
       
       let decisions;
@@ -224,20 +231,10 @@ export const aiInsightsEngine = {
 
       console.log('✅ AI Insights: Analysis complete');
 
-      // Save insights (FAIL-SAFE)
-      try {
-        await supabase
-          .from("autopilot_scores")
-          .upsert({
-            user_id: userId,
-            traffic_state: trafficState,
-            insights: topPerformers.insights,
-            next_steps: nextSteps,
-            updated_at: new Date().toISOString(),
-          });
-      } catch (err) {
-        console.error("Failed to save insights:", err);
-      }
+      // Save insights (FAIL-SAFE - async, don't block)
+      this.saveInsights(userId, trafficState, topPerformers.insights, nextSteps).catch(err => {
+        console.error("Failed to save insights (non-blocking):", err);
+      });
 
       return insights;
     } catch (error) {
@@ -261,6 +258,25 @@ export const aiInsightsEngine = {
         insights: ["Insights temporarily unavailable - please try refreshing"],
         nextSteps: ["Continue posting - data collection in progress"],
       };
+    }
+  },
+
+  /**
+   * Save insights (non-blocking background operation)
+   */
+  async saveInsights(userId: string, trafficState: string, insights: string[], nextSteps: string[]) {
+    try {
+      await supabase
+        .from("autopilot_scores")
+        .upsert({
+          user_id: userId,
+          traffic_state: trafficState,
+          insights: insights,
+          next_steps: nextSteps,
+          updated_at: new Date().toISOString(),
+        });
+    } catch (err) {
+      console.error("Failed to save insights:", err);
     }
   },
 

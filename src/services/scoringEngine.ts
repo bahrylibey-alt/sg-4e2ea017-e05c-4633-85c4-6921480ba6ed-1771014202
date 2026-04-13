@@ -71,7 +71,7 @@ export const scoringEngine = {
   },
 
   /**
-   * Score all user's posts
+   * Score all user's posts - OPTIMIZED VERSION
    */
   async scoreAllPosts(userId: string): Promise<{
     total: number;
@@ -87,22 +87,34 @@ export const scoringEngine = {
     }>;
   }> {
     try {
-      const { data: posts } = await supabase
+      console.log('🎯 Scoring Engine: Starting batch scoring for user:', userId);
+
+      // Fetch all posts in one query
+      const { data: posts, error } = await supabase
         .from("posted_content")
         .select("id, platform, clicks, impressions, conversions, revenue")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
+      if (error) {
+        console.error('❌ Scoring Engine: Database error:', error);
+        throw error;
+      }
+
       if (!posts || posts.length === 0) {
+        console.log('⚠️ Scoring Engine: No posts found');
         return { total: 0, winners: 0, testing: 0, weak: 0, noData: 0, scores: [] };
       }
+
+      console.log(`📊 Scoring Engine: Processing ${posts.length} posts...`);
 
       let winners = 0;
       let testing = 0;
       let weak = 0;
       let noData = 0;
 
-      const scores = await Promise.all(posts.map(async (post) => {
+      // Process all posts in memory (fast)
+      const scores = posts.map((post) => {
         const result = this.calculateScore({
           clicks: post.clicks || 0,
           impressions: post.impressions || 0,
@@ -116,30 +128,23 @@ export const scoringEngine = {
         else if (result.classification === "WEAK") weak++;
         else noData++;
 
-        // Save score to database (FAIL-SAFE)
-        try {
-          await supabase
-            .from("autopilot_scores")
-            .upsert({
-              user_id: userId,
-              post_id: post.id,
-              ctr: result.metrics.ctr,
-              conversion_rate: result.metrics.conversionRate,
-              revenue_per_click: result.metrics.revenuePerClick,
-              performance_score: result.score,
-              updated_at: new Date().toISOString(),
-            });
-        } catch (err) {
-          console.error("Failed to save score:", err);
-        }
-
         return {
           postId: post.id,
           platform: post.platform || "unknown",
           score: result.score,
           classification: result.classification,
+          ctr: result.metrics.ctr,
+          conversionRate: result.metrics.conversionRate,
+          revenuePerClick: result.metrics.revenuePerClick,
         };
-      }));
+      });
+
+      console.log(`✅ Scoring Engine: Complete - ${winners} winners, ${testing} testing, ${weak} weak, ${noData} no data`);
+
+      // Batch save scores to database (async, don't block)
+      this.batchSaveScores(userId, scores).catch(err => {
+        console.error("Failed to save scores (non-blocking):", err);
+      });
 
       return {
         total: posts.length,
@@ -147,11 +152,47 @@ export const scoringEngine = {
         testing,
         weak,
         noData,
-        scores,
+        scores: scores.map(s => ({
+          postId: s.postId,
+          platform: s.platform,
+          score: s.score,
+          classification: s.classification,
+        })),
       };
     } catch (error) {
-      console.error("Failed to score posts:", error);
+      console.error("❌ Scoring Engine: Failed to score posts:", error);
       return { total: 0, winners: 0, testing: 0, weak: 0, noData: 0, scores: [] };
+    }
+  },
+
+  /**
+   * Batch save scores (non-blocking background operation)
+   */
+  async batchSaveScores(userId: string, scores: any[]) {
+    try {
+      // Prepare batch upsert data
+      const upsertData = scores.map(s => ({
+        user_id: userId,
+        post_id: s.postId,
+        ctr: s.ctr,
+        conversion_rate: s.conversionRate,
+        revenue_per_click: s.revenuePerClick,
+        performance_score: s.score,
+        updated_at: new Date().toISOString(),
+      }));
+
+      // Batch upsert (much faster than individual calls)
+      const { error } = await supabase
+        .from("autopilot_scores")
+        .upsert(upsertData);
+
+      if (error) {
+        console.error("Failed to batch save scores:", error);
+      } else {
+        console.log(`✅ Batch saved ${scores.length} scores to database`);
+      }
+    } catch (error) {
+      console.error("Batch save error:", error);
     }
   },
 };
