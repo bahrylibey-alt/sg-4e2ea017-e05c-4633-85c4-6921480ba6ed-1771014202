@@ -121,20 +121,20 @@ export default function TrafficTest() {
 
         console.log(`📱 Creating post for ${platform}...`);
 
-        // Create posted content
+        // Create posted content - FIXED: removed product_name (column doesn't exist)
         const { data: post, error: postError } = await supabase
           .from('posted_content')
           .insert({
             user_id: user.id,
             link_id: link.id,
+            product_id: link.id,
             platform: platform,
-            product_name: link.product_name,
             caption: `Check out this amazing ${link.product_name}! ${link.cloaked_url}`,
             status: 'posted',
             posted_at: new Date().toISOString(),
-            impressions: Math.floor(Math.random() * 500) + 100, // 100-600 views
-            clicks: Math.floor(Math.random() * 30) + 5, // 5-35 clicks
-            conversions: Math.floor(Math.random() * 3), // 0-2 conversions
+            impressions: Math.floor(Math.random() * 500) + 100,
+            clicks: Math.floor(Math.random() * 30) + 5,
+            conversions: Math.floor(Math.random() * 3),
             revenue: Number((Math.random() * 50).toFixed(2))
           })
           .select()
@@ -155,11 +155,11 @@ export default function TrafficTest() {
             views: post.impressions,
             clicks: post.clicks,
             conversions: post.conversions,
-            revenue: post.revenue
+            revenue: post.revenue,
+            product_name: link.product_name
           });
         }
 
-        // Small delay between posts
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
