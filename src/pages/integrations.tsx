@@ -37,7 +37,7 @@ interface Integration {
   name: string;
   description: string;
   icon: any;
-  category: "automation" | "social" | "affiliate_network";
+  category: "automation" | "social" | "affiliate_network" | "payment" | "email" | "analytics";
   status: "available" | "connected";
   connected_at?: string;
   credentials?: {
@@ -376,8 +376,8 @@ export default function IntegrationsPage() {
       console.log(`🔌 Connecting ${integration.name} (${integration.category})...`);
 
       // CRITICAL FIX: Use correct table based on integration type
-      if (integration.category === "affiliate_network" || integration.category === "automation") {
-        // AFFILIATE & AUTOMATION → integrations table
+      if (integration.category === "affiliate_network" || integration.category === "automation" || integration.category === "payment" || integration.category === "email" || integration.category === "analytics") {
+        // AFFILIATE & OTHERS → integrations table
         // First check if exists since we might not know the exact unique constraint name
         const { data: existing } = await supabase
           .from('integrations')
@@ -395,7 +395,8 @@ export default function IntegrationsPage() {
               provider_name: integration.name,
               config: {
                 api_key: credentials.apiKey || undefined,
-                account_id: credentials.pageId || undefined
+                account_id: credentials.pageId || undefined,
+                access_token: credentials.accessToken || undefined
               },
               status: 'connected',
               last_sync_at: new Date().toISOString()
@@ -412,7 +413,8 @@ export default function IntegrationsPage() {
               category: integration.category,
               config: {
                 api_key: credentials.apiKey || undefined,
-                account_id: credentials.pageId || undefined
+                account_id: credentials.pageId || undefined,
+                access_token: credentials.accessToken || undefined
               },
               status: 'connected',
               connected_at: new Date().toISOString()
