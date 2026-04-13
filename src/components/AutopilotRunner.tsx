@@ -8,10 +8,13 @@ import { supabase } from "@/integrations/supabase/client";
  * - Executes every 30 seconds
  * - Persists through page navigation
  * - Only stops when user disables autopilot
+ * - Handles errors gracefully without spamming console
  */
 export function AutopilotRunner() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const executionInProgress = useRef(false);
+  const consecutiveErrors = useRef(0);
+  const lastErrorTime = useRef<number>(0);
 
   useEffect(() => {
     console.log('🚀 AutopilotRunner: Global service starting...');
@@ -21,6 +24,18 @@ export function AutopilotRunner() {
       if (executionInProgress.current) {
         console.log('⏭️ Execution in progress, skipping...');
         return;
+      }
+
+      // If we've had too many consecutive errors, slow down attempts
+      if (consecutiveErrors.current >= 3) {
+        const timeSinceLastError = Date.now() - lastErrorTime.current;
+        if (timeSinceLastError < 300000) { // 5 minutes
+          console.log('⏸️ Too many errors, waiting before retry...');
+          return;
+        } else {
+          // Reset after 5 minutes
+          consecutiveErrors.current = 0;
+        }
       }
 
       executionInProgress.current = true;
@@ -51,19 +66,38 @@ export function AutopilotRunner() {
 
         console.log('⚡ Running autopilot cycle...');
 
-        // Execute autopilot cycle
-        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
+        // Execute autopilot cycle with timeout
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 30000)
+        );
+
+        const autopilotPromise = supabase.functions.invoke('autopilot-engine', {
           body: { userId: user.id }
         });
 
+        const { data, error } = await Promise.race([autopilotPromise, timeoutPromise]) as any;
+
         if (error) {
-          console.error('❌ Autopilot cycle error:', error);
+          // Only log error once per 5 minutes to avoid console spam
+          const now = Date.now();
+          if (now - lastErrorTime.current > 300000) {
+            console.error('❌ Autopilot cycle error:', error.message || error);
+            lastErrorTime.current = now;
+          }
+          consecutiveErrors.current++;
         } else {
-          console.log('✅ Cycle complete:', data?.results);
+          console.log('✅ Cycle complete:', data?.results || 'success');
+          consecutiveErrors.current = 0; // Reset error counter on success
         }
 
-      } catch (error) {
-        console.error('❌ Unexpected error:', error);
+      } catch (error: any) {
+        // Gracefully handle errors without spamming
+        const now = Date.now();
+        if (now - lastErrorTime.current > 300000) {
+          console.error('❌ Unexpected error:', error.message);
+          lastErrorTime.current = now;
+        }
+        consecutiveErrors.current++;
       } finally {
         executionInProgress.current = false;
       }
