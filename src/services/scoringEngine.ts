@@ -127,7 +127,6 @@ export const scoringEngine = {
               conversion_rate: result.metrics.conversionRate,
               revenue_per_click: result.metrics.revenuePerClick,
               performance_score: result.score,
-              classification: result.classification,
               updated_at: new Date().toISOString(),
             });
         } catch (err) {

@@ -683,6 +683,7 @@ export async function generateVariations(
       platform: post.platform || "unknown",
     }));
 
+    // Save variation recommendations (FAIL-SAFE)
     try {
       await supabase
         .from("autopilot_decisions")
@@ -690,7 +691,7 @@ export async function generateVariations(
           user_id: userId,
           entity_id: postId,
           entity_type: "post",
-          decision_type: "TEST_VARIATIONS",
+          decision_type: "scale",
           reason: "Winner post - testing variations",
           metrics: { priority: "HIGH", action: `Generated ${variations.length} variations for testing` },
           created_at: new Date().toISOString(),

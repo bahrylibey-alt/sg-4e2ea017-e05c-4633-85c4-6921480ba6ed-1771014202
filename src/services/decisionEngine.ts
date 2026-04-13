@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { scoringEngine } from "./scoringEngine";
 
 interface Decision {
-  type: "SCALE_UP" | "TEST_VARIATIONS" | "REDUCE_PRIORITY" | "COLLECT_DATA";
+  type: "scale" | "cooldown" | "kill" | "retest";
   priority: "HIGH" | "MEDIUM" | "LOW";
   reason: string;
   action: string;
@@ -50,7 +50,7 @@ export const decisionEngine = {
       // WINNER: Score > 0.08
       if (scoreResult.classification === "WINNER") {
         decisions.push({
-          type: "SCALE_UP",
+          type: "scale",
           priority: "HIGH",
           reason: `High performance (score: ${scoreResult.score})`,
           action: "Recommend creating 3 variations of this post",
@@ -59,7 +59,7 @@ export const decisionEngine = {
         });
 
         decisions.push({
-          type: "SCALE_UP",
+          type: "scale",
           priority: "HIGH",
           reason: "Strong conversion rate",
           action: `Increase posting frequency on ${post.platform} by 25%`,
@@ -71,7 +71,7 @@ export const decisionEngine = {
       // TESTING: Score 0.03-0.08
       else if (scoreResult.classification === "TESTING") {
         decisions.push({
-          type: "TEST_VARIATIONS",
+          type: "retest",
           priority: "MEDIUM",
           reason: `Moderate performance (score: ${scoreResult.score})`,
           action: "Try different hook styles to improve engagement",
@@ -83,7 +83,7 @@ export const decisionEngine = {
       // WEAK: Score < 0.03
       else if (scoreResult.classification === "WEAK") {
         decisions.push({
-          type: "REDUCE_PRIORITY",
+          type: "cooldown",
           priority: "LOW",
           reason: `Low performance (score: ${scoreResult.score})`,
           action: "Reduce posting frequency but keep testing",
@@ -95,7 +95,7 @@ export const decisionEngine = {
       // NO_DATA
       else {
         decisions.push({
-          type: "COLLECT_DATA",
+          type: "retest",
           priority: "LOW",
           reason: "Insufficient data for analysis",
           action: "Continue current posting schedule to gather metrics",
@@ -135,10 +135,10 @@ export const decisionEngine = {
    */
   async analyzeAllPosts(userId: string): Promise<{
     totalDecisions: number;
-    scaleUp: number;
-    testVariations: number;
-    reducePriority: number;
-    collectData: number;
+    scale: number;
+    retest: number;
+    cooldown: number;
+    kill: number;
     decisions: Decision[];
   }> {
     try {
@@ -148,10 +148,10 @@ export const decisionEngine = {
       if (scoreResults.total === 0) {
         return {
           totalDecisions: 0,
-          scaleUp: 0,
-          testVariations: 0,
-          reducePriority: 0,
-          collectData: 0,
+          scale: 0,
+          retest: 0,
+          cooldown: 0,
+          kill: 0,
           decisions: [],
         };
       }
@@ -166,10 +166,10 @@ export const decisionEngine = {
 
       // Count decision types
       const counts = {
-        scaleUp: allDecisions.filter((d) => d.type === "SCALE_UP").length,
-        testVariations: allDecisions.filter((d) => d.type === "TEST_VARIATIONS").length,
-        reducePriority: allDecisions.filter((d) => d.type === "REDUCE_PRIORITY").length,
-        collectData: allDecisions.filter((d) => d.type === "COLLECT_DATA").length,
+        scale: allDecisions.filter((d) => d.type === "scale").length,
+        retest: allDecisions.filter((d) => d.type === "retest").length,
+        cooldown: allDecisions.filter((d) => d.type === "cooldown").length,
+        kill: allDecisions.filter((d) => d.type === "kill").length,
       };
 
       return {
@@ -181,10 +181,10 @@ export const decisionEngine = {
       console.error("Failed to analyze all posts:", error);
       return {
         totalDecisions: 0,
-        scaleUp: 0,
-        testVariations: 0,
-        reducePriority: 0,
-        collectData: 0,
+        scale: 0,
+        retest: 0,
+        cooldown: 0,
+        kill: 0,
         decisions: [],
       };
     }
