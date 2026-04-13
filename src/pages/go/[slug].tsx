@@ -59,7 +59,7 @@ export default function RedirectPage() {
 
         setLinkData(link);
 
-        // CRITICAL: Track the click - BOTH columns for compatibility
+        // CRITICAL: Track the click - Update BOTH columns for compatibility
         const newClicks = (link.clicks || 0) + 1;
         addDebug(`Attempting to update clicks: ${link.clicks || 0} → ${newClicks}`);
 
@@ -81,6 +81,7 @@ export default function RedirectPage() {
         } else {
           console.log("✅ Click count updated:", newClicks);
           addDebug(`✅ UPDATE SUCCESS: Clicks now ${newClicks}`);
+          addDebug(`Update data: ${JSON.stringify(updateData)}`);
         }
 
         // CRITICAL: Identify platform from referrer to update posted_content
@@ -93,7 +94,8 @@ export default function RedirectPage() {
         else if (referrer.includes('pinterest.com')) platform = 'pinterest';
         else if (referrer.includes('youtube.com')) platform = 'youtube';
 
-        addDebug(`Detected platform from referrer: ${platform || 'unknown'}`);
+        addDebug(`Detected platform from referrer: ${platform || 'direct'}`);
+        addDebug(`Full referrer: ${document.referrer || 'none'}`);
 
         // Update posted_content clicks so Traffic Channels page updates!
         let postQuery = supabase
@@ -107,10 +109,14 @@ export default function RedirectPage() {
           postQuery = postQuery.eq('platform', platform);
         }
 
-        const { data: postData } = await postQuery.maybeSingle();
+        const { data: postData, error: postQueryError } = await postQuery.maybeSingle();
 
-        if (postData) {
+        if (postQueryError) {
+          addDebug(`⚠️ Post query error: ${postQueryError.message}`);
+        } else if (postData) {
           const newPostClicks = (postData.clicks || 0) + 1;
+          addDebug(`Found post ${postData.id}, updating clicks: ${postData.clicks || 0} → ${newPostClicks}`);
+          
           const { error: postUpdateError } = await supabase
             .from('posted_content')
             .update({ clicks: newPostClicks })
@@ -122,10 +128,10 @@ export default function RedirectPage() {
             addDebug(`✅ Post clicks updated to ${newPostClicks}`);
           }
         } else {
-          addDebug(`⚠️ No posted_content found for this link to update clicks`);
+          addDebug(`⚠️ No posted_content found for this link (link_id: ${link.id}, platform: ${platform || 'any'})`);
         }
 
-        // Record click event for detailed tracking
+        // Record click event for detailed tracking (CRITICAL FOR ANALYTICS)
         addDebug('Attempting to insert click_event...');
         const { data: eventData, error: eventError } = await supabase
           .from('click_events')
@@ -151,7 +157,7 @@ export default function RedirectPage() {
           addDebug(`✅ EVENT INSERT SUCCESS: ${JSON.stringify(eventData)}`);
         }
 
-        // Record activity log
+        // Record activity log (OPTIONAL - helps with debugging)
         addDebug('Attempting to insert activity_log...');
         const { error: activityError } = await supabase
           .from('activity_logs')
@@ -166,7 +172,8 @@ export default function RedirectPage() {
               network: link.network,
               user_agent: navigator.userAgent,
               referrer: document.referrer || 'direct',
-              new_click_count: newClicks
+              new_click_count: newClicks,
+              platform_detected: platform
             },
             status: 'success'
           });
