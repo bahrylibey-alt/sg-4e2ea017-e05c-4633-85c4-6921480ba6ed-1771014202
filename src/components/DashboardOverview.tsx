@@ -65,9 +65,9 @@ export function DashboardOverview() {
       
       setCurrentUserId(user.id);
 
-      console.log('📊 DashboardOverview: Loading REAL stats for user:', user.id);
+      console.log('📊 DashboardOverview: Loading stats for user:', user.id);
 
-      // Get system state (REAL DATA ONLY - now auto-synced via triggers)
+      // Get system state (REAL DATA - auto-synced via triggers)
       const { data: systemState } = await supabase
         .from('system_state')
         .select('*')
@@ -80,73 +80,67 @@ export function DashboardOverview() {
       const realConversions = systemState?.total_verified_conversions || 0;
       const currentState = systemState?.state || 'NO_TRAFFIC';
 
-      // Get all campaigns
-      const { data: campaigns, error: campaignsError } = await supabase
+      console.log('✅ System state loaded:', {
+        views: realViews,
+        clicks: realClicks,
+        revenue: realRevenue,
+        conversions: realConversions,
+        state: currentState
+      });
+
+      // Get campaigns count
+      const { data: campaigns } = await supabase
         .from('campaigns')
         .select('id, status')
         .eq('user_id', user.id);
 
-      if (campaignsError) {
-        console.error('❌ Campaigns error:', campaignsError);
-        throw campaignsError;
-      }
-
       const activeCampaignsCount = campaigns?.filter(c => c.status === 'active').length || 0;
-      
-      console.log('📈 Campaigns:', {
-        total: campaigns?.length || 0,
-        active: activeCampaignsCount
+
+      // Get product count from BOTH tables (show total unique products)
+      const { data: affiliateLinks } = await supabase
+        .from('affiliate_links')
+        .select('id, status')
+        .eq('user_id', user.id);
+
+      const { data: catalogProducts } = await supabase
+        .from('product_catalog')
+        .select('id, status')
+        .eq('user_id', user.id);
+
+      const totalProductsCount = Math.max(
+        affiliateLinks?.length || 0,
+        catalogProducts?.length || 0
+      );
+
+      const activeLinksCount = affiliateLinks?.filter(l => l.status === 'active').length || 0;
+
+      console.log('🔗 Products:', {
+        affiliate_links: affiliateLinks?.length || 0,
+        product_catalog: catalogProducts?.length || 0,
+        total_shown: totalProductsCount,
+        active: activeLinksCount
       });
 
-      // Get affiliate links
-      const campaignIds = campaigns?.map(c => c.id) || [];
-      let activeLinksCount = 0;
-      let totalProductsCount = 0;
-
-      if (campaignIds.length > 0) {
-        const { data: links, error: linksError } = await supabase
-          .from('affiliate_links')
-          .select('id, status')
-          .in('campaign_id', campaignIds);
-
-        if (linksError) {
-          console.error('❌ Links error:', linksError);
-        } else {
-          activeLinksCount = links?.filter(l => l.status === 'active').length || 0;
-          totalProductsCount = links?.length || 0;
-          
-          console.log('🔗 Links:', {
-            total: totalProductsCount,
-            active: activeLinksCount
-          });
-        }
-      }
-
       // Get generated content
-      const { data: content, error: contentError } = await supabase
+      const { data: content } = await supabase
         .from('generated_content')
         .select('id, status')
         .eq('user_id', user.id);
 
       const contentCount = content?.filter(c => c.status === 'published').length || 0;
-      
-      console.log('📝 Content:', {
-        total: content?.length || 0,
-        published: contentCount
-      });
 
       // Get posted content
-      const { data: posts, error: postsError } = await supabase
+      const { data: posts } = await supabase
         .from('posted_content')
-        .select('id, status')
+        .select('id, status, posted_at')
         .eq('user_id', user.id)
         .not('posted_at', 'is', null);
 
       const postsCount = posts?.length || 0;
-      
-      console.log('📱 Posts:', {
-        total: postsCount,
-        published: posts?.filter(p => p.status === 'posted').length || 0
+
+      console.log('📝 Content:', {
+        generated: contentCount,
+        posted: postsCount
       });
 
       setStats({
@@ -162,12 +156,13 @@ export function DashboardOverview() {
         systemState: currentState
       });
 
-      console.log('✅ Dashboard stats loaded (REAL DATA - AUTO-SYNCED):', {
+      console.log('✅ Dashboard stats loaded:', {
+        products: totalProductsCount,
         revenue: realRevenue,
         clicks: realClicks,
         views: realViews,
         conversions: realConversions,
-        state: currentState
+        posts: postsCount
       });
 
     } catch (error: any) {
