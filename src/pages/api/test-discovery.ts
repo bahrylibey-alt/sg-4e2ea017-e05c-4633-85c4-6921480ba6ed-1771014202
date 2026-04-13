@@ -16,25 +16,20 @@ export default async function handler(
     // Get user from authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ error: 'Authorization required' });
+      return res.status(401).json({ error: 'Authorization required' } as any);
     }
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
+      return res.status(401).json({ error: 'Invalid token' } as any);
     }
 
     console.log(`📊 Testing for user: ${user.id}`);
 
-    // Step 1: Check connected integrations - select only needed fields
-    type IntegrationData = {
-      provider_name: string;
-      last_sync_at: string | null;
-    };
-
-    const { data: integrationsData, error: intError } = await supabase
+    // Step 1: Check connected integrations
+    const { data: integrationsData, error: intError } = await (supabase as any)
       .from('integrations')
       .select('provider_name, last_sync_at')
       .eq('user_id', user.id)
@@ -43,16 +38,16 @@ export default async function handler(
 
     if (intError) throw intError;
 
-    const integrations = integrationsData as IntegrationData[] | null;
+    const integrations = integrationsData || [];
 
-    console.log(`✅ Found ${integrations?.length || 0} connected integrations`);
+    console.log(`✅ Found ${integrations.length} connected integrations`);
 
-    if (!integrations || integrations.length === 0) {
+    if (integrations.length === 0) {
       return res.status(200).json({
         success: false,
         error: 'No connected integrations found',
         hint: 'Please connect at least one affiliate network first'
-      });
+      } as any);
     }
 
     // Step 2: Run product discovery
@@ -62,7 +57,7 @@ export default async function handler(
     console.log(`✅ Discovery complete: ${result.discovered} products`);
 
     // Step 3: Verify products were saved to affiliate_links
-    const { data: links, error: linksError } = await supabase
+    const { data: links, error: linksError } = await (supabase as any)
       .from('affiliate_links')
       .select('id')
       .eq('user_id', user.id);
@@ -72,7 +67,7 @@ export default async function handler(
     console.log(`✅ Found ${links?.length || 0} affiliate links in database`);
 
     // Step 4: Verify products were saved to product_catalog
-    const { data: catalog, error: catalogError } = await supabase
+    const { data: catalog, error: catalogError } = await (supabase as any)
       .from('product_catalog')
       .select('id')
       .eq('user_id', user.id);
@@ -82,14 +77,14 @@ export default async function handler(
     console.log(`✅ Found ${catalog?.length || 0} products in catalog`);
 
     // Step 5: Get sync times from integrations
-    const syncTimes = integrations.map(i => ({
+    const syncTimes = integrations.map((i: any) => ({
       network: i.provider_name,
       last_sync: i.last_sync_at
     }));
 
     console.log('✅ TEST DISCOVERY: Complete');
 
-    return res.status(200).json({
+    const responsePayload: any = {
       success: true,
       test_results: {
         connected_integrations: integrations.length,
@@ -100,7 +95,9 @@ export default async function handler(
         sync_times: syncTimes
       },
       message: `✅ Discovery working! ${result.discovered} products discovered and saved to both tables`
-    });
+    };
+
+    return res.status(200).json(responsePayload);
 
   } catch (error: any) {
     console.error('❌ TEST DISCOVERY: Failed:', error);
@@ -108,6 +105,6 @@ export default async function handler(
       success: false,
       error: error.message,
       stack: error.stack
-    });
+    } as any);
   }
 }
