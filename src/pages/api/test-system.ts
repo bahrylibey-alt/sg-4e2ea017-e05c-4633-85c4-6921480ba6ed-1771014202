@@ -318,6 +318,7 @@ export default async function handler(
             click_id: clickId,
             revenue: 29.99,
             verified: true,
+            source: "system_test",
           })
           .select()
           .single();
