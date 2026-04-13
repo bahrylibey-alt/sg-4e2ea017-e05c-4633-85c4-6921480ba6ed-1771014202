@@ -40,6 +40,7 @@ export function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     totalClicks: 0,
@@ -61,6 +62,8 @@ export function DashboardOverview() {
         setLoading(false);
         return;
       }
+      
+      setCurrentUserId(user.id);
 
       console.log('📊 DashboardOverview: Loading REAL stats for user:', user.id);
 
@@ -486,7 +489,7 @@ export function DashboardOverview() {
         </TabsContent>
 
         <TabsContent value="insights">
-          <AIInsightsPanel />
+          <AIInsightsPanel userId={currentUserId} />
         </TabsContent>
       </Tabs>
     </div>
