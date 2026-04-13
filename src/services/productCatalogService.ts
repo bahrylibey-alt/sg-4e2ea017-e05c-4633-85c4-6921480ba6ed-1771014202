@@ -337,29 +337,44 @@ export const productCatalogService = {
     return ["All Networks", "Temu Affiliate", "Amazon Associates"];
   },
 
-  async addProductsToCampaign(campaignId: string, productIds: string[]) {
-    const user = await authService.getCurrentUser();
-    if (!user) throw new Error("Authentication required");
+  async addProductsToCampaign(
+    campaignId: string,
+    productIds: string[]
+  ): Promise<any[]> {
+    try {
+      const campaignProducts = productIds.map((productId) => {
+        const product = this.products.find((p) => p.id === productId);
+        if (!product) return null;
 
-    const allProducts = this.getHighConvertingProducts();
-    const products = allProducts.filter(p => productIds.includes(p.id));
+        return {
+          campaign_id: campaignId,
+          product_id: productId,
+          product_name: product.name,
+          network: product.network,
+          commission_rate: parseFloat(product.commission),
+          created_at: new Date().toISOString(),
+        };
+      }).filter(Boolean);
 
-    const insertData = products.map(p => ({
-      campaign_id: campaignId,
-      product_name: p.name
-    }));
+      if (campaignProducts.length === 0) {
+        return [];
+      }
 
-    const { data, error } = await supabase
-      .from("campaign_products")
-      .insert(insertData)
-      .select();
+      const { data, error } = await supabase
+        .from("campaign_products")
+        .insert(campaignProducts)
+        .select();
 
-    if (error) {
-      console.error("Failed to add products:", error);
-      throw error;
+      if (error) {
+        console.error("Error adding products to campaign:", error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error("Failed to add products to campaign:", error);
+      return [];
     }
-
-    return data;
   },
 
   async getCampaignProducts(campaignId: string) {
