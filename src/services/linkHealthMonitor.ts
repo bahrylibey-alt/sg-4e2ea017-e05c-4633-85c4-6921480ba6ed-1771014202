@@ -283,3 +283,29 @@ export async function validateAndCleanDatabase(userId: string): Promise<{
     removed
   };
 }
+
+export const linkHealthMonitor = {
+  validateProduct: async (url: string) => {
+    const res = await validateUrl(url);
+    return { valid: res.isWorking, reason: res.error, confidence: "high" };
+  },
+  detectNetwork: (url: string) => {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes("amazon") || lowerUrl.includes("amzn")) return "Amazon Associates";
+    if (lowerUrl.includes("temu")) return "Temu Affiliate";
+    if (lowerUrl.includes("aliexpress") || lowerUrl.includes("ali.ski")) return "AliExpress Affiliate";
+    return "Unknown";
+  },
+  trackClickFailure: async (linkId: string) => {
+    const { data } = await supabase.from("affiliate_links").select("check_failures").eq("id", linkId).single();
+    if (data) {
+      await supabase.from("affiliate_links").update({ 
+        check_failures: (data.check_failures || 0) + 1,
+        is_working: false
+      }).eq("id", linkId);
+    }
+  },
+  repairLink: async (linkId: string) => {
+    return { repaired: false, newUrl: null };
+  }
+};
