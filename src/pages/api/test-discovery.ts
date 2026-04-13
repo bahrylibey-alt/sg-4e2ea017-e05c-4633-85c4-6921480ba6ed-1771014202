@@ -28,10 +28,10 @@ export default async function handler(
 
     console.log(`📊 Testing for user: ${user.id}`);
 
-    // Step 1: Check connected integrations
+    // Step 1: Check connected integrations - select only needed fields
     const { data: integrations, error: intError } = await supabase
       .from('integrations')
-      .select('*')
+      .select('provider_name, last_sync_at')
       .eq('user_id', user.id)
       .eq('category', 'affiliate_network')
       .eq('status', 'connected');
@@ -57,7 +57,7 @@ export default async function handler(
     // Step 3: Verify products were saved to affiliate_links
     const { data: links, error: linksError } = await supabase
       .from('affiliate_links')
-      .select('*')
+      .select('id')
       .eq('user_id', user.id);
 
     if (linksError) throw linksError;
@@ -67,15 +67,15 @@ export default async function handler(
     // Step 4: Verify products were saved to product_catalog
     const { data: catalog, error: catalogError } = await supabase
       .from('product_catalog')
-      .select('*')
+      .select('id')
       .eq('user_id', user.id);
 
     if (catalogError) throw catalogError;
 
     console.log(`✅ Found ${catalog?.length || 0} products in catalog`);
 
-    // Step 5: Get sync times from integrations we already fetched
-    const syncTimes = (integrations as any[]).map(i => ({
+    // Step 5: Get sync times from integrations
+    const syncTimes = integrations.map(i => ({
       network: i.provider_name,
       last_sync: i.last_sync_at
     }));
