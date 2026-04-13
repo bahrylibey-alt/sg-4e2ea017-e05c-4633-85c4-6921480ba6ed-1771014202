@@ -29,7 +29,12 @@ export default async function handler(
     console.log(`📊 Testing for user: ${user.id}`);
 
     // Step 1: Check connected integrations - select only needed fields
-    const { data: integrations, error: intError } = await supabase
+    type IntegrationData = {
+      provider_name: string;
+      last_sync_at: string | null;
+    };
+
+    const { data: integrationsData, error: intError } = await supabase
       .from('integrations')
       .select('provider_name, last_sync_at')
       .eq('user_id', user.id)
@@ -37,6 +42,8 @@ export default async function handler(
       .eq('status', 'connected');
 
     if (intError) throw intError;
+
+    const integrations = integrationsData as IntegrationData[] | null;
 
     console.log(`✅ Found ${integrations?.length || 0} connected integrations`);
 
