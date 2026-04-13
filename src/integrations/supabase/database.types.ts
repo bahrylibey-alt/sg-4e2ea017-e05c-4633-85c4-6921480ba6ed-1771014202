@@ -2352,6 +2352,7 @@ export type Database = {
           price: number | null
           status: string | null
           updated_at: string | null
+          user_id: string
         }
         Insert: {
           affiliate_url: string
@@ -2366,6 +2367,7 @@ export type Database = {
           price?: number | null
           status?: string | null
           updated_at?: string | null
+          user_id: string
         }
         Update: {
           affiliate_url?: string
@@ -2380,8 +2382,17 @@ export type Database = {
           price?: number | null
           status?: string | null
           updated_at?: string | null
+          user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "product_catalog_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_metrics_daily: {
         Row: {
