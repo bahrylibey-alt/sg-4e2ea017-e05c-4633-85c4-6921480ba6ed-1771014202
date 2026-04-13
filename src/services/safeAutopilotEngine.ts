@@ -42,7 +42,7 @@ export async function calculatePerformanceScore(
     // Calculate scores (SAFE MATH)
     const ctr = metrics.impressions > 0 ? (metrics.clicks / metrics.impressions) * 100 : 0;
     const conversionRate = metrics.clicks > 0 ? (metrics.conversions / metrics.clicks) * 100 : 0;
-    const revenuePerClick = metrics.clicks > 0 ? metrics.revenue / metrics.clicks : 0;
+    const revenuePerClick = metrics.clicks > 0 ? Number(metrics.revenue) / metrics.clicks : 0;
 
     // Performance score formula (0-100)
     const score = Math.min(
@@ -55,10 +55,10 @@ export async function calculatePerformanceScore(
       await supabase.from("autopilot_scores").upsert({
         user_id: userId,
         [`${entityType}_id`]: entityId,
-        ctr: parseFloat(ctr.toFixed(2)),
-        conversion_rate: parseFloat(conversionRate.toFixed(2)),
-        revenue_per_click: parseFloat(revenuePerClick.toFixed(2)),
-        performance_score: parseFloat(score.toFixed(2)),
+        ctr: Number(ctr.toFixed(2)),
+        conversion_rate: Number(conversionRate.toFixed(2)),
+        revenue_per_click: Number(revenuePerClick.toFixed(2)),
+        performance_score: Number(score.toFixed(2)),
         updated_at: new Date().toISOString(),
       });
     } catch (saveError) {
@@ -67,11 +67,11 @@ export async function calculatePerformanceScore(
 
     return {
       success: true,
-      score: parseFloat(score.toFixed(2)),
+      score: Number(score.toFixed(2)),
       metrics: {
-        ctr: parseFloat(ctr.toFixed(2)),
-        conversionRate: parseFloat(conversionRate.toFixed(2)),
-        revenuePerClick: parseFloat(revenuePerClick.toFixed(2)),
+        ctr: Number(ctr.toFixed(2)),
+        conversionRate: Number(conversionRate.toFixed(2)),
+        revenuePerClick: Number(revenuePerClick.toFixed(2)),
       },
     };
   } catch (error: any) {
@@ -210,12 +210,12 @@ export async function getVerifiedRevenue(userId: string): Promise<{
       .eq("user_id", userId)
       .eq("verified", false);
 
-    const verifiedRevenue = verified?.reduce((sum, c) => sum + parseFloat(c.revenue), 0) || 0;
-    const estimatedRevenue = estimated?.reduce((sum, c) => sum + parseFloat(c.revenue), 0) || 0;
+    const verifiedRevenue = verified?.reduce((sum, c) => sum + Number(c.revenue), 0) || 0;
+    const estimatedRevenue = estimated?.reduce((sum, c) => sum + Number(c.revenue), 0) || 0;
 
     return {
-      verified: parseFloat(verifiedRevenue.toFixed(2)),
-      estimated: parseFloat(estimatedRevenue.toFixed(2)),
+      verified: Number(verifiedRevenue.toFixed(2)),
+      estimated: Number(estimatedRevenue.toFixed(2)),
       totalConversions: (verified?.length || 0) + (estimated?.length || 0),
     };
   } catch (error) {
@@ -276,7 +276,7 @@ export async function validateTrackingChain(postId: string): Promise<{
         data.conversions = conversions?.length || 0;
         data.verifiedRevenue = conversions
           ?.filter((c) => c.verified)
-          .reduce((sum, c) => sum + parseFloat(c.revenue), 0) || 0;
+          .reduce((sum, c) => sum + Number(c.revenue), 0) || 0;
       } else {
         missing.push("click_id");
       }

@@ -60,7 +60,7 @@ export default async function handler(
             clicks: metrics.clicks + (productData.clicks || 0),
             impressions: metrics.impressions + (productData.impressions || 0),
             conversions: metrics.conversions + (productData.conversions || 0),
-            revenue: metrics.revenue + (parseFloat(productData.revenue) || 0),
+            revenue: metrics.revenue + Number(productData.revenue || 0),
           };
         }
       } catch (err) {
@@ -85,10 +85,10 @@ export default async function handler(
     );
 
     // Overall performance score (0-100)
-    const performanceScore = Math.min(
+    const performanceScore = Number(Math.min(
       100,
-      (ctr * 0.3 + conversionRate * 0.4 + engagementScore * 0.3).toFixed(2)
-    );
+      Number((ctr * 0.3 + conversionRate * 0.4 + engagementScore * 0.3).toFixed(2))
+    ));
 
     // Save score (FAIL-SAFE: if fails, just return calculated values)
     try {
@@ -96,11 +96,11 @@ export default async function handler(
         user_id,
         post_id: post_id || null,
         product_id: product_id || null,
-        ctr: parseFloat(ctr.toFixed(2)),
-        conversion_rate: parseFloat(conversionRate.toFixed(2)),
-        revenue_per_click: parseFloat(revenuePerClick.toFixed(2)),
-        engagement_score: parseFloat(engagementScore.toFixed(2)),
-        performance_score: parseFloat(performanceScore),
+        ctr: Number(ctr.toFixed(2)),
+        conversion_rate: Number(conversionRate.toFixed(2)),
+        revenue_per_click: Number(revenuePerClick.toFixed(2)),
+        engagement_score: Number(engagementScore.toFixed(2)),
+        performance_score: performanceScore,
         updated_at: new Date().toISOString(),
       });
     } catch (err) {
@@ -110,11 +110,11 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       scores: {
-        ctr: parseFloat(ctr.toFixed(2)),
-        conversion_rate: parseFloat(conversionRate.toFixed(2)),
-        revenue_per_click: parseFloat(revenuePerClick.toFixed(2)),
-        engagement_score: parseFloat(engagementScore.toFixed(2)),
-        performance_score: parseFloat(performanceScore),
+        ctr: Number(ctr.toFixed(2)),
+        conversion_rate: Number(conversionRate.toFixed(2)),
+        revenue_per_click: Number(revenuePerClick.toFixed(2)),
+        engagement_score: Number(engagementScore.toFixed(2)),
+        performance_score: performanceScore,
       },
       metrics,
     });

@@ -59,11 +59,18 @@ export default async function handler(
 
     // Update product click count (FAIL-SAFE: if fails, continue)
     try {
-      await supabase.rpc("increment", {
-        row_id: link_id,
-        table_name: "affiliate_links",
-        column_name: "clicks",
-      });
+      const { data } = await supabase
+        .from("affiliate_links")
+        .select("clicks")
+        .eq("id", link_id)
+        .single();
+        
+      if (data) {
+        await supabase
+          .from("affiliate_links")
+          .update({ clicks: (data.clicks || 0) + 1 })
+          .eq("id", link_id);
+      }
     } catch (err) {
       console.error("Product click count update failed:", err);
     }

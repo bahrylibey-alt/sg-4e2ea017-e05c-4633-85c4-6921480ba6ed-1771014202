@@ -632,6 +632,83 @@ export type Database = {
         }
         Relationships: []
       }
+      autopilot_scores: {
+        Row: {
+          conversion_rate: number | null
+          created_at: string | null
+          ctr: number | null
+          engagement_score: number | null
+          id: string
+          performance_score: number | null
+          post_id: string | null
+          product_id: string | null
+          recommendations: Json | null
+          revenue_per_click: number | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversion_rate?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          engagement_score?: number | null
+          id?: string
+          performance_score?: number | null
+          post_id?: string | null
+          product_id?: string | null
+          recommendations?: Json | null
+          revenue_per_click?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversion_rate?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          engagement_score?: number | null
+          id?: string
+          performance_score?: number | null
+          post_id?: string | null
+          product_id?: string | null
+          recommendations?: Json | null
+          revenue_per_click?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_scores_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posted_content"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_scores_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_scores_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "link_performance_summary"
+            referencedColumns: ["link_id"]
+          },
+          {
+            foreignKeyName: "autopilot_scores_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       autopilot_tasks: {
         Row: {
           campaign_id: string | null
