@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 import { 
   Zap, 
   Facebook, 
@@ -583,7 +584,7 @@ export default function IntegrationsPage() {
       });
 
       // Refresh integrations list
-      await fetchIntegrations();
+      await loadConnections();
 
     } catch (error: any) {
       console.error('❌ Product sync failed:', error);
@@ -1172,6 +1173,7 @@ export default function IntegrationsPage() {
               {affiliateIntegrations.map((integration) => {
                 const Icon = integration.icon;
                 const isConnected = integration.status === "connected";
+                const isAffiliate = integration.category === "affiliate_network";
 
                 return (
                   <Card key={integration.id} className={isConnected ? "border-green-500/50" : ""}>
@@ -1203,23 +1205,25 @@ export default function IntegrationsPage() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => handleDisconnect(integration.id, integration.name)}
+                              onClick={() => handleDisconnect(integration.id)}
                               disabled={isLoading}
                               className="flex-1"
                             >
                               <XCircle className="w-4 h-4 mr-2" />
                               Disconnect
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSyncProducts(integration.id, integration.name)}
-                              disabled={isLoading}
-                              className="flex-1 border-primary text-primary hover:bg-primary hover:text-white"
-                            >
-                              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                              Sync Products
-                            </Button>
+                            {isAffiliate && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSyncProducts(integration.id, integration.name)}
+                                disabled={isLoading}
+                                className="flex-1 border-primary text-primary hover:bg-primary hover:text-white"
+                              >
+                                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                                Sync Products
+                              </Button>
+                            )}
                           </>
                         ) : (
                           <Button
