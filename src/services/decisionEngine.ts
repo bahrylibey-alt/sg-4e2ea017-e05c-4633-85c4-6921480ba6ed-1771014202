@@ -106,19 +106,21 @@ export const decisionEngine = {
 
       // Save decisions (FAIL-SAFE)
       for (const decision of decisions) {
-        supabase
-          .from("autopilot_decisions")
-          .insert({
-            user_id: userId,
-            post_id: postId,
-            type: decision.type,
-            priority: decision.priority,
-            reason: decision.reason,
-            action: decision.action,
-            created_at: new Date().toISOString(),
-          })
-          .then(() => {})
-          .catch((err) => console.error("Failed to save decision:", err));
+        try {
+          await supabase
+            .from("autopilot_decisions")
+            .insert({
+              user_id: userId,
+              entity_id: postId,
+              entity_type: "post",
+              decision_type: decision.type,
+              reason: decision.reason,
+              metrics: { priority: decision.priority, action: decision.action },
+              created_at: new Date().toISOString(),
+            });
+        } catch (err) {
+          console.error("Failed to save decision:", err);
+        }
       }
 
       return decisions;

@@ -102,7 +102,7 @@ export const scoringEngine = {
       let weak = 0;
       let noData = 0;
 
-      const scores = posts.map((post) => {
+      const scores = await Promise.all(posts.map(async (post) => {
         const result = this.calculateScore({
           clicks: post.clicks || 0,
           impressions: post.impressions || 0,
@@ -117,20 +117,22 @@ export const scoringEngine = {
         else noData++;
 
         // Save score to database (FAIL-SAFE)
-        supabase
-          .from("autopilot_scores")
-          .upsert({
-            user_id: userId,
-            post_id: post.id,
-            ctr: result.metrics.ctr,
-            conversion_rate: result.metrics.conversionRate,
-            revenue_per_click: result.metrics.revenuePerClick,
-            performance_score: result.score,
-            classification: result.classification,
-            updated_at: new Date().toISOString(),
-          })
-          .then(() => {})
-          .catch((err) => console.error("Failed to save score:", err));
+        try {
+          await supabase
+            .from("autopilot_scores")
+            .upsert({
+              user_id: userId,
+              post_id: post.id,
+              ctr: result.metrics.ctr,
+              conversion_rate: result.metrics.conversionRate,
+              revenue_per_click: result.metrics.revenuePerClick,
+              performance_score: result.score,
+              classification: result.classification,
+              updated_at: new Date().toISOString(),
+            });
+        } catch (err) {
+          console.error("Failed to save score:", err);
+        }
 
         return {
           postId: post.id,
@@ -138,7 +140,7 @@ export const scoringEngine = {
           score: result.score,
           classification: result.classification,
         };
-      });
+      }));
 
       return {
         total: posts.length,

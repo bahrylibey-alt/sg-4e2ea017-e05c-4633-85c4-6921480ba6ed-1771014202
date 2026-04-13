@@ -84,24 +84,26 @@ export const viralEngine = {
       // Generate 3 variations with different hooks
       const variations = HOOK_TEMPLATES.slice(0, 3).map((template) => ({
         hookType: template.hookType,
-        content: `${template.template}\n\n${post.content || ""}`,
+        content: `${template.template}\n\n${post.caption || ""}`,
         platform: post.platform || "unknown",
       }));
 
       // Save variation recommendations (FAIL-SAFE)
-      supabase
-        .from("autopilot_decisions")
-        .insert({
-          user_id: userId,
-          post_id: postId,
-          type: "TEST_VARIATIONS",
-          priority: "HIGH",
-          reason: "Winner post - testing variations",
-          action: `Generated ${variations.length} variations for testing`,
-          created_at: new Date().toISOString(),
-        })
-        .then(() => {})
-        .catch((err) => console.error("Failed to save variation decision:", err));
+      try {
+        await supabase
+          .from("autopilot_decisions")
+          .insert({
+            user_id: userId,
+            entity_id: postId,
+            entity_type: "post",
+            decision_type: "TEST_VARIATIONS",
+            reason: "Winner post - testing variations",
+            metrics: { priority: "HIGH", action: `Generated ${variations.length} variations for testing` },
+            created_at: new Date().toISOString(),
+          });
+      } catch (err) {
+        console.error("Failed to save variation decision:", err);
+      }
 
       return {
         success: true,
@@ -141,10 +143,10 @@ export const viralEngine = {
       // Save to content DNA
       await supabase.from("content_dna").upsert({
         user_id: userId,
-        post_id: postId,
+        content_id: postId,
         hook_type: hookType,
         performance_score: score.score,
-        usage_count: 1,
+        dna_hash: `${postId}_${hookType}`,
         created_at: new Date().toISOString(),
       });
     } catch (error) {
@@ -166,7 +168,7 @@ export const viralEngine = {
     try {
       const { data: dnaRecords } = await supabase
         .from("content_dna")
-        .select("hook_type, performance_score, usage_count")
+        .select("hook_type, performance_score")
         .eq("user_id", userId)
         .order("performance_score", { ascending: false });
 
@@ -185,7 +187,7 @@ export const viralEngine = {
           hookStats[record.hook_type] = { totalScore: 0, usage: 0 };
         }
         hookStats[record.hook_type].totalScore += record.performance_score || 0;
-        hookStats[record.hook_type].usage += record.usage_count || 1;
+        hookStats[record.hook_type].usage += 1;
       });
 
       // Calculate averages
