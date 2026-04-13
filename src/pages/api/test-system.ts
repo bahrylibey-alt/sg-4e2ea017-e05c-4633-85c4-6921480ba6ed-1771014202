@@ -33,22 +33,21 @@ export default async function handler(
 
     // Test 1: Product Sync
     console.log('📦 Test 1: Product Sync');
-    const { data: affiliateLinks } = await supabase
+    const { data: affiliateLinks } = await (supabase as any)
       .from('affiliate_links')
       .select('id, product_name, network, clicks')
       .eq('user_id', user.id);
 
-    const { data: catalogProducts } = await supabase
+    const { data: catalogProducts } = await (supabase as any)
       .from('product_catalog')
-      .select('id, name, network')
-      .eq('user_id', user.id);
+      .select('id, name, network');
 
     testResults.tests.product_sync = {
       status: (affiliateLinks?.length || 0) > 0 && (catalogProducts?.length || 0) > 0 ? 'PASS' : 'FAIL',
       affiliate_links_count: affiliateLinks?.length || 0,
       product_catalog_count: catalogProducts?.length || 0,
       sync_match: (affiliateLinks?.length || 0) === (catalogProducts?.length || 0),
-      sample_products: affiliateLinks?.slice(0, 3).map(l => ({
+      sample_products: affiliateLinks?.slice(0, 3).map((l: any) => ({
         name: l.product_name,
         network: l.network,
         clicks: l.clicks
@@ -57,7 +56,7 @@ export default async function handler(
 
     // Test 2: System State
     console.log('📊 Test 2: System State');
-    const { data: systemState } = await supabase
+    const { data: systemState } = await (supabase as any)
       .from('system_state')
       .select('*')
       .eq('user_id', user.id)
@@ -75,7 +74,7 @@ export default async function handler(
 
     // Test 3: Click Events
     console.log('🖱️ Test 3: Click Tracking');
-    const { data: clickEvents } = await supabase
+    const { data: clickEvents } = await (supabase as any)
       .from('click_events')
       .select('id, link_id, clicked_at, converted')
       .eq('user_id', user.id)
@@ -85,7 +84,7 @@ export default async function handler(
     testResults.tests.click_tracking = {
       status: 'PASS',
       total_clicks_recorded: clickEvents?.length || 0,
-      recent_clicks: clickEvents?.slice(0, 3).map(c => ({
+      recent_clicks: clickEvents?.slice(0, 3).map((c: any) => ({
         clicked_at: c.clicked_at,
         converted: c.converted
       })),
@@ -94,7 +93,7 @@ export default async function handler(
 
     // Test 4: Conversion Events
     console.log('💰 Test 4: Conversion Tracking');
-    const { data: conversions } = await supabase
+    const { data: conversions } = await (supabase as any)
       .from('conversion_events')
       .select('id, revenue, verified, source, created_at')
       .eq('user_id', user.id)
@@ -104,9 +103,9 @@ export default async function handler(
     testResults.tests.conversion_tracking = {
       status: 'PASS',
       total_conversions: conversions?.length || 0,
-      verified_conversions: conversions?.filter(c => c.verified).length || 0,
-      total_revenue: conversions?.reduce((sum, c) => sum + Number(c.revenue), 0) || 0,
-      recent_conversions: conversions?.slice(0, 3).map(c => ({
+      verified_conversions: conversions?.filter((c: any) => c.verified).length || 0,
+      total_revenue: conversions?.reduce((sum: number, c: any) => sum + Number(c.revenue), 0) || 0,
+      recent_conversions: conversions?.slice(0, 3).map((c: any) => ({
         revenue: c.revenue,
         verified: c.verified,
         source: c.source,
@@ -116,7 +115,7 @@ export default async function handler(
 
     // Test 5: Posted Content
     console.log('📱 Test 5: Posted Content');
-    const { data: posts } = await supabase
+    const { data: posts } = await (supabase as any)
       .from('posted_content')
       .select('id, platform, status, posted_at, clicks, conversions, revenue')
       .eq('user_id', user.id)
@@ -127,10 +126,10 @@ export default async function handler(
     testResults.tests.posted_content = {
       status: posts && posts.length > 0 ? 'PASS' : 'FAIL',
       total_posts: posts?.length || 0,
-      total_post_clicks: posts?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0,
-      total_post_conversions: posts?.reduce((sum, p) => sum + (p.conversions || 0), 0) || 0,
-      total_post_revenue: posts?.reduce((sum, p) => sum + Number(p.revenue || 0), 0) || 0,
-      recent_posts: posts?.slice(0, 3).map(p => ({
+      total_post_clicks: posts?.reduce((sum: number, p: any) => sum + (p.clicks || 0), 0) || 0,
+      total_post_conversions: posts?.reduce((sum: number, p: any) => sum + (p.conversions || 0), 0) || 0,
+      total_post_revenue: posts?.reduce((sum: number, p: any) => sum + Number(p.revenue || 0), 0) || 0,
+      recent_posts: posts?.slice(0, 3).map((p: any) => ({
         platform: p.platform,
         clicks: p.clicks,
         conversions: p.conversions,
@@ -140,7 +139,7 @@ export default async function handler(
 
     // Test 6: Generated Content
     console.log('✍️ Test 6: Generated Content');
-    const { data: generatedContent } = await supabase
+    const { data: generatedContent } = await (supabase as any)
       .from('generated_content')
       .select('id, status, type, created_at')
       .eq('user_id', user.id);
@@ -148,8 +147,8 @@ export default async function handler(
     testResults.tests.generated_content = {
       status: generatedContent && generatedContent.length > 0 ? 'PASS' : 'FAIL',
       total_generated: generatedContent?.length || 0,
-      published: generatedContent?.filter(c => c.status === 'published').length || 0,
-      draft: generatedContent?.filter(c => c.status === 'draft').length || 0
+      published: generatedContent?.filter((c: any) => c.status === 'published').length || 0,
+      draft: generatedContent?.filter((c: any) => c.status === 'draft').length || 0
     };
 
     // Overall System Status
