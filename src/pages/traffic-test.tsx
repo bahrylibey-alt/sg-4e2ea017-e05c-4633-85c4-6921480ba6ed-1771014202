@@ -135,7 +135,7 @@ export default function TrafficTest() {
             impressions: Math.floor(Math.random() * 500) + 100, // 100-600 views
             clicks: Math.floor(Math.random() * 30) + 5, // 5-35 clicks
             conversions: Math.floor(Math.random() * 3), // 0-2 conversions
-            revenue: (Math.random() * 50).toFixed(2)
+            revenue: Number((Math.random() * 50).toFixed(2))
           })
           .select()
           .single();
