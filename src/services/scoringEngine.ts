@@ -1,238 +1,156 @@
-import { supabase } from "@/integrations/supabase/client";
-
 /**
  * SCORING ENGINE
- * Calculates performance scores for posts and products
+ * Calculates performance scores using real metrics
+ * Formula: (CTR * 0.4) + (conversion_rate * 0.4) + (revenue_per_click * 0.2)
  */
 
-export interface PostScore {
-  performance_score: number;
-  autopilot_state: 'testing' | 'scaling' | 'cooldown' | 'killed';
-  priority_score: number;
-  ctr: number;
-  conversion_rate: number;
-  revenue_per_click: number;
+import { supabase } from "@/integrations/supabase/client";
+
+interface PerformanceMetrics {
+  clicks: number;
+  impressions: number;
+  conversions: number;
+  revenue: number;
 }
 
-export interface ProductScore {
-  performance_score: number;
-  autopilot_state: 'testing' | 'scaling' | 'cooldown' | 'killed';
-  priority_score: number;
+interface ScoreResult {
+  score: number;
+  classification: "WINNER" | "TESTING" | "WEAK" | "NO_DATA";
+  metrics: {
+    ctr: number;
+    conversionRate: number;
+    revenuePerClick: number;
+  };
 }
 
-/**
- * Score a single post based on performance metrics
- */
-export async function scorePost(postId: string): Promise<PostScore | null> {
-  try {
-    const { data: post, error } = await supabase
-      .from('posted_content')
-      .select('*')
-      .eq('id', postId)
-      .single();
-
-    if (error || !post) {
-      console.error('Error fetching post:', error);
-      return null;
-    }
-
-    // Calculate metrics
-    const impressions = post.impressions || 0;
-    const clicks = post.clicks || 0;
-    const conversions = post.conversions || 0;
-    const revenue = post.revenue || 0;
-
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-    const conversion_rate = clicks > 0 ? (conversions / clicks) * 100 : 0;
-    const revenue_per_click = clicks > 0 ? revenue / clicks : 0;
-
-    // Determine autopilot state based on rules
-    let autopilot_state: 'testing' | 'scaling' | 'cooldown' | 'killed' = 'testing';
-
-    if (impressions >= 200 && ctr < 1 && conversions === 0) {
-      autopilot_state = 'killed';
-    } else if (ctr >= 2 || clicks >= 20) {
-      autopilot_state = 'scaling';
-    } else if (impressions > 100) {
-      autopilot_state = 'cooldown';
-    }
-
-    // Calculate performance score (0-100)
-    const ctr_score = Math.min(ctr * 10, 40); // max 40 points
-    const conv_score = Math.min(conversion_rate * 3, 30); // max 30 points
-    const revenue_score = Math.min(revenue_per_click * 10, 30); // max 30 points
-    const performance_score = ctr_score + conv_score + revenue_score;
-
-    // Calculate priority score
-    let priority_score = performance_score;
-    if (autopilot_state === 'scaling') priority_score += 20;
-    if (autopilot_state === 'killed') priority_score = 0;
-
-    const score: PostScore = {
-      performance_score: Math.round(performance_score * 100) / 100,
-      autopilot_state,
-      priority_score: Math.round(priority_score * 100) / 100,
-      ctr: Math.round(ctr * 100) / 100,
-      conversion_rate: Math.round(conversion_rate * 100) / 100,
-      revenue_per_click: Math.round(revenue_per_click * 100) / 100
-    };
-
-    // Update post with calculated scores
-    await supabase
-      .from('posted_content')
-      .update({
-        ctr: score.ctr,
-        conversion_rate: score.conversion_rate,
-        revenue_per_click: score.revenue_per_click,
-        performance_score: score.performance_score,
-        autopilot_state: score.autopilot_state,
-        priority_score: score.priority_score
-      })
-      .eq('id', postId);
-
-    return score;
-  } catch (error) {
-    console.error('Error scoring post:', error);
-    return null;
-  }
-}
-
-/**
- * Score a product based on aggregated post performance
- */
-export async function scoreProduct(productId: string): Promise<ProductScore | null> {
-  try {
-    const { data: product, error } = await supabase
-      .from('affiliate_links')
-      .select('*')
-      .eq('id', productId)
-      .single();
-
-    if (error || !product) {
-      console.error('Error fetching product:', error);
-      return null;
-    }
-
-    // Get all posts for this product
-    const { data: posts } = await supabase
-      .from('posted_content')
-      .select('clicks, conversions, revenue, ctr, conversion_rate, autopilot_state')
-      .eq('product_id', productId);
-
-    if (!posts || posts.length === 0) {
+export const scoringEngine = {
+  /**
+   * Calculate performance score (0-1 scale)
+   */
+  calculateScore(metrics: PerformanceMetrics): ScoreResult {
+    // Handle no data case
+    if (metrics.impressions === 0 && metrics.clicks === 0) {
       return {
-        performance_score: 0,
-        autopilot_state: 'testing',
-        priority_score: 0
+        score: 0,
+        classification: "NO_DATA",
+        metrics: { ctr: 0, conversionRate: 0, revenuePerClick: 0 },
       };
     }
 
-    // Aggregate metrics
-    const total_clicks = posts.reduce((sum, p) => sum + (p.clicks || 0), 0);
-    const total_conversions = posts.reduce((sum, p) => sum + (p.conversions || 0), 0);
-    const total_revenue = posts.reduce((sum, p) => sum + (p.revenue || 0), 0);
-    const avg_ctr = posts.reduce((sum, p) => sum + (p.ctr || 0), 0) / posts.length;
-    const avg_conversion_rate = posts.reduce((sum, p) => sum + (p.conversion_rate || 0), 0) / posts.length;
-
-    // Count state distribution
-    const scaling_posts = posts.filter(p => p.autopilot_state === 'scaling').length;
-    const killed_posts = posts.filter(p => p.autopilot_state === 'killed').length;
-
-    // Determine product state
-    let autopilot_state: 'testing' | 'scaling' | 'cooldown' | 'killed' = 'testing';
+    // Calculate individual metrics
+    const ctr = metrics.impressions > 0 
+      ? metrics.clicks / metrics.impressions 
+      : 0;
     
-    if (killed_posts > posts.length / 2) {
-      autopilot_state = 'killed';
-    } else if (scaling_posts >= 2 || (total_clicks >= 50 && avg_ctr >= 2)) {
-      autopilot_state = 'scaling';
-    } else if (posts.length >= 5) {
-      autopilot_state = 'cooldown';
-    }
+    const conversionRate = metrics.clicks > 0 
+      ? metrics.conversions / metrics.clicks 
+      : 0;
+    
+    const revenuePerClick = metrics.clicks > 0 
+      ? Number(metrics.revenue) / metrics.clicks 
+      : 0;
 
-    // Calculate performance score
-    const ctr_score = Math.min(avg_ctr * 10, 40);
-    const conv_score = Math.min(avg_conversion_rate * 3, 30);
-    const revenue_score = Math.min((total_revenue / 100) * 10, 30);
-    const performance_score = ctr_score + conv_score + revenue_score;
+    // Calculate composite score (0-1 scale)
+    const score = (ctr * 0.4) + (conversionRate * 0.4) + (revenuePerClick * 0.2);
 
-    // Calculate priority score
-    let priority_score = performance_score;
-    if (autopilot_state === 'scaling') priority_score += 30;
-    if (autopilot_state === 'killed') priority_score = 0;
+    // Classify based on score
+    let classification: "WINNER" | "TESTING" | "WEAK" | "NO_DATA";
+    if (score > 0.08) classification = "WINNER";
+    else if (score >= 0.03) classification = "TESTING";
+    else classification = "WEAK";
 
-    const score: ProductScore = {
-      performance_score: Math.round(performance_score * 100) / 100,
-      autopilot_state,
-      priority_score: Math.round(priority_score * 100) / 100
+    return {
+      score: Number(score.toFixed(4)),
+      classification,
+      metrics: {
+        ctr: Number(ctr.toFixed(4)),
+        conversionRate: Number(conversionRate.toFixed(4)),
+        revenuePerClick: Number(revenuePerClick.toFixed(2)),
+      },
     };
+  },
 
-    // Update product with calculated scores
-    await supabase
-      .from('affiliate_links')
-      .update({
-        performance_score: score.performance_score,
-        autopilot_state: score.autopilot_state,
-        priority_score: score.priority_score,
-        ...(autopilot_state === 'scaling' ? { last_scaled_at: new Date().toISOString() } : {}),
-        ...(autopilot_state === 'killed' ? { last_killed_at: new Date().toISOString() } : {})
-      })
-      .eq('id', productId);
+  /**
+   * Score all user's posts
+   */
+  async scoreAllPosts(userId: string): Promise<{
+    total: number;
+    winners: number;
+    testing: number;
+    weak: number;
+    noData: number;
+    scores: Array<{
+      postId: string;
+      platform: string;
+      score: number;
+      classification: string;
+    }>;
+  }> {
+    try {
+      const { data: posts } = await supabase
+        .from("posted_content")
+        .select("id, platform, clicks, impressions, conversions, revenue")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
-    return score;
-  } catch (error) {
-    console.error('Error scoring product:', error);
-    return null;
-  }
-}
+      if (!posts || posts.length === 0) {
+        return { total: 0, winners: 0, testing: 0, weak: 0, noData: 0, scores: [] };
+      }
 
-/**
- * Score all posts for a user
- */
-export async function scoreAllPosts(userId: string): Promise<number> {
-  try {
-    const { data: posts } = await supabase
-      .from('posted_content')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'posted');
+      let winners = 0;
+      let testing = 0;
+      let weak = 0;
+      let noData = 0;
 
-    if (!posts) return 0;
+      const scores = posts.map((post) => {
+        const result = this.calculateScore({
+          clicks: post.clicks || 0,
+          impressions: post.impressions || 0,
+          conversions: post.conversions || 0,
+          revenue: Number(post.revenue || 0),
+        });
 
-    let scored = 0;
-    for (const post of posts) {
-      const score = await scorePost(post.id);
-      if (score) scored++;
+        // Count classifications
+        if (result.classification === "WINNER") winners++;
+        else if (result.classification === "TESTING") testing++;
+        else if (result.classification === "WEAK") weak++;
+        else noData++;
+
+        // Save score to database (FAIL-SAFE)
+        supabase
+          .from("autopilot_scores")
+          .upsert({
+            user_id: userId,
+            post_id: post.id,
+            ctr: result.metrics.ctr,
+            conversion_rate: result.metrics.conversionRate,
+            revenue_per_click: result.metrics.revenuePerClick,
+            performance_score: result.score,
+            classification: result.classification,
+            updated_at: new Date().toISOString(),
+          })
+          .then(() => {})
+          .catch((err) => console.error("Failed to save score:", err));
+
+        return {
+          postId: post.id,
+          platform: post.platform || "unknown",
+          score: result.score,
+          classification: result.classification,
+        };
+      });
+
+      return {
+        total: posts.length,
+        winners,
+        testing,
+        weak,
+        noData,
+        scores,
+      };
+    } catch (error) {
+      console.error("Failed to score posts:", error);
+      return { total: 0, winners: 0, testing: 0, weak: 0, noData: 0, scores: [] };
     }
-
-    return scored;
-  } catch (error) {
-    console.error('Error scoring all posts:', error);
-    return 0;
-  }
-}
-
-/**
- * Score all products for a user
- */
-export async function scoreAllProducts(userId: string): Promise<number> {
-  try {
-    const { data: products } = await supabase
-      .from('affiliate_links')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    if (!products) return 0;
-
-    let scored = 0;
-    for (const product of products) {
-      const score = await scoreProduct(product.id);
-      if (score) scored++;
-    }
-
-    return scored;
-  } catch (error) {
-    console.error('Error scoring all products:', error);
-    return 0;
-  }
-}
+  },
+};

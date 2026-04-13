@@ -1,319 +1,308 @@
+/**
+ * DECISION ENGINE
+ * Makes RECOMMENDATIONS based on performance scores
+ * NEVER executes actions automatically
+ */
+
 import { supabase } from "@/integrations/supabase/client";
-import { getSystemState } from "./realDataEnforcement";
+import { scoringEngine } from "./scoringEngine";
 
-/**
- * DECISION ENGINE v2.0
- * Makes autopilot decisions with safety controls
- */
-
-export interface Decision {
-  entity_type: 'post' | 'product';
-  entity_id: string;
-  action: 'scale' | 'kill' | 'cooldown' | 'retest';
+interface Decision {
+  type: "SCALE_UP" | "TEST_VARIATIONS" | "REDUCE_PRIORITY" | "COLLECT_DATA";
+  priority: "HIGH" | "MEDIUM" | "LOW";
   reason: string;
-  metrics: any;
+  action: string;
+  postId?: string;
+  platform?: string;
+  productId?: string;
 }
 
-/**
- * Evaluate a post and make decision (with system state awareness)
- */
-export async function evaluatePost(postId: string, userId: string): Promise<Decision | null> {
-  try {
-    // Get system state first
-    const systemState = await getSystemState(userId);
+export const decisionEngine = {
+  /**
+   * Analyze post and generate recommendations
+   */
+  async analyzePost(
+    userId: string,
+    postId: string
+  ): Promise<Decision[]> {
+    const decisions: Decision[] = [];
 
-    // SAFETY: Disable decision engine if insufficient data
-    if (systemState.total_views < 100 || systemState.total_clicks < 10) {
-      console.log("⚠️ Insufficient data for decision engine - need 100+ views, 10+ clicks");
-      return null;
-    }
+    try {
+      // Get post data
+      const { data: post } = await supabase
+        .from("posted_content")
+        .select("*")
+        .eq("id", postId)
+        .single();
 
-    const { data: post, error } = await supabase
-      .from('posted_content')
-      .select('*')
-      .eq('id', postId)
-      .single();
-
-    if (error || !post) return null;
-
-    const impressions = post.impressions || 0;
-    const clicks = post.clicks || 0;
-    const conversions = post.conversions || 0;
-    const ctr = post.ctr || 0;
-
-    let action: 'scale' | 'kill' | 'cooldown' | 'retest' = 'cooldown';
-    let reason = '';
-
-    // NEW DECISION RULES - More conservative
-    if (ctr >= 2 && clicks >= 20) {
-      action = 'scale';
-      reason = `High performance: CTR ${ctr.toFixed(2)}%, ${clicks} clicks`;
-    } else if (impressions >= 200 && ctr < 1 && conversions === 0) {
-      action = 'kill';
-      reason = `Low performance after ${impressions} impressions: CTR ${ctr.toFixed(2)}%, no conversions`;
-    } else if (impressions > 100 && ctr < 1.5) {
-      action = 'cooldown';
-      reason = `Moderate performance: needs more data`;
-    } else {
-      action = 'retest';
-      reason = 'Collecting more data';
-    }
-
-    const decision: Decision = {
-      entity_type: 'post',
-      entity_id: postId,
-      action,
-      reason,
-      metrics: {
-        impressions,
-        clicks,
-        conversions,
-        ctr,
-        revenue: post.revenue || 0
+      if (!post) {
+        return decisions;
       }
-    };
 
-    // Log decision
-    await supabase
-      .from('autopilot_decisions')
-      .insert({
-        user_id: userId,
-        entity_type: 'post',
-        entity_id: postId,
-        decision_type: action,
-        reason,
-        metrics: decision.metrics
+      // Calculate score
+      const scoreResult = scoringEngine.calculateScore({
+        clicks: post.clicks || 0,
+        impressions: post.impressions || 0,
+        conversions: post.conversions || 0,
+        revenue: Number(post.revenue || 0),
       });
 
-    return decision;
-  } catch (error) {
-    console.error('Error evaluating post:', error);
-    return null;
-  }
-}
+      // WINNER: Score > 0.08
+      if (scoreResult.classification === "WINNER") {
+        decisions.push({
+          type: "SCALE_UP",
+          priority: "HIGH",
+          reason: `High performance (score: ${scoreResult.score})`,
+          action: "Recommend creating 3 variations of this post",
+          postId,
+          platform: post.platform,
+        });
 
-/**
- * Evaluate a product and make decision (with system state awareness)
- */
-export async function evaluateProduct(productId: string, userId: string): Promise<Decision | null> {
-  try {
-    // Get system state first
-    const systemState = await getSystemState(userId);
-
-    // SAFETY: Disable decision engine if insufficient data
-    if (systemState.total_views < 100 || systemState.total_clicks < 10) {
-      console.log("⚠️ Insufficient data for decision engine - need 100+ views, 10+ clicks");
-      return null;
-    }
-
-    const { data: product, error } = await supabase
-      .from('affiliate_links')
-      .select('*')
-      .eq('id', productId)
-      .single();
-
-    if (error || !product) return null;
-
-    const performance_score = product.performance_score || 0;
-    const autopilot_state = product.autopilot_state || 'testing';
-
-    let action: 'scale' | 'kill' | 'cooldown' | 'retest' = 'cooldown';
-    let reason = '';
-
-    // NEW DECISION RULES - More conservative
-    if (performance_score >= 70 && autopilot_state !== 'scaling') {
-      action = 'scale';
-      reason = `High performance score: ${performance_score.toFixed(2)}`;
-    } else if (performance_score < 20 && autopilot_state === 'testing') {
-      action = 'kill';
-      reason = `Low performance score: ${performance_score.toFixed(2)}`;
-    } else if (autopilot_state === 'scaling' && performance_score < 50) {
-      action = 'cooldown';
-      reason = `Performance declined from ${performance_score.toFixed(2)}`;
-    } else {
-      action = 'retest';
-      reason = 'Monitoring performance';
-    }
-
-    const decision: Decision = {
-      entity_type: 'product',
-      entity_id: productId,
-      action,
-      reason,
-      metrics: {
-        performance_score,
-        autopilot_state,
-        clicks: product.clicks || 0,
-        conversions: product.conversions || 0,
-        revenue: product.revenue || 0
+        decisions.push({
+          type: "SCALE_UP",
+          priority: "HIGH",
+          reason: "Strong conversion rate",
+          action: `Increase posting frequency on ${post.platform} by 25%`,
+          postId,
+          platform: post.platform,
+        });
       }
-    };
 
-    // Log decision
-    await supabase
-      .from('autopilot_decisions')
-      .insert({
-        user_id: userId,
-        entity_type: 'product',
-        entity_id: productId,
-        decision_type: action,
-        reason,
-        metrics: decision.metrics
+      // TESTING: Score 0.03-0.08
+      else if (scoreResult.classification === "TESTING") {
+        decisions.push({
+          type: "TEST_VARIATIONS",
+          priority: "MEDIUM",
+          reason: `Moderate performance (score: ${scoreResult.score})`,
+          action: "Try different hook styles to improve engagement",
+          postId,
+          platform: post.platform,
+        });
+      }
+
+      // WEAK: Score < 0.03
+      else if (scoreResult.classification === "WEAK") {
+        decisions.push({
+          type: "REDUCE_PRIORITY",
+          priority: "LOW",
+          reason: `Low performance (score: ${scoreResult.score})`,
+          action: "Reduce posting frequency but keep testing",
+          postId,
+          platform: post.platform,
+        });
+      }
+
+      // NO_DATA
+      else {
+        decisions.push({
+          type: "COLLECT_DATA",
+          priority: "LOW",
+          reason: "Insufficient data for analysis",
+          action: "Continue current posting schedule to gather metrics",
+          postId,
+          platform: post.platform,
+        });
+      }
+
+      // Save decisions (FAIL-SAFE)
+      for (const decision of decisions) {
+        supabase
+          .from("autopilot_decisions")
+          .insert({
+            user_id: userId,
+            post_id: postId,
+            type: decision.type,
+            priority: decision.priority,
+            reason: decision.reason,
+            action: decision.action,
+            created_at: new Date().toISOString(),
+          })
+          .then(() => {})
+          .catch((err) => console.error("Failed to save decision:", err));
+      }
+
+      return decisions;
+    } catch (error) {
+      console.error("Decision analysis failed:", error);
+      return decisions;
+    }
+  },
+
+  /**
+   * Analyze all user's posts and generate recommendations
+   */
+  async analyzeAllPosts(userId: string): Promise<{
+    totalDecisions: number;
+    scaleUp: number;
+    testVariations: number;
+    reducePriority: number;
+    collectData: number;
+    decisions: Decision[];
+  }> {
+    try {
+      // Score all posts first
+      const scoreResults = await scoringEngine.scoreAllPosts(userId);
+
+      if (scoreResults.total === 0) {
+        return {
+          totalDecisions: 0,
+          scaleUp: 0,
+          testVariations: 0,
+          reducePriority: 0,
+          collectData: 0,
+          decisions: [],
+        };
+      }
+
+      // Generate decisions for each post
+      const allDecisions: Decision[] = [];
+      
+      for (const scoreData of scoreResults.scores) {
+        const postDecisions = await this.analyzePost(userId, scoreData.postId);
+        allDecisions.push(...postDecisions);
+      }
+
+      // Count decision types
+      const counts = {
+        scaleUp: allDecisions.filter((d) => d.type === "SCALE_UP").length,
+        testVariations: allDecisions.filter((d) => d.type === "TEST_VARIATIONS").length,
+        reducePriority: allDecisions.filter((d) => d.type === "REDUCE_PRIORITY").length,
+        collectData: allDecisions.filter((d) => d.type === "COLLECT_DATA").length,
+      };
+
+      return {
+        totalDecisions: allDecisions.length,
+        ...counts,
+        decisions: allDecisions,
+      };
+    } catch (error) {
+      console.error("Failed to analyze all posts:", error);
+      return {
+        totalDecisions: 0,
+        scaleUp: 0,
+        testVariations: 0,
+        reducePriority: 0,
+        collectData: 0,
+        decisions: [],
+      };
+    }
+  },
+
+  /**
+   * Get platform-specific recommendations
+   */
+  async getPlatformRecommendations(userId: string): Promise<{
+    bestPlatform: string | null;
+    recommendations: Array<{
+      platform: string;
+      action: "INCREASE" | "MAINTAIN" | "REDUCE";
+      reason: string;
+      currentFrequency: number;
+      recommendedFrequency: number;
+    }>;
+  }> {
+    try {
+      const { data: posts } = await supabase
+        .from("posted_content")
+        .select("platform, clicks, impressions, conversions")
+        .eq("user_id", userId);
+
+      if (!posts || posts.length === 0) {
+        return { bestPlatform: null, recommendations: [] };
+      }
+
+      // Group by platform
+      const platformStats: Record<string, {
+        posts: number;
+        totalClicks: number;
+        totalImpressions: number;
+        totalConversions: number;
+      }> = {};
+
+      posts.forEach((post) => {
+        const platform = post.platform || "unknown";
+        if (!platformStats[platform]) {
+          platformStats[platform] = {
+            posts: 0,
+            totalClicks: 0,
+            totalImpressions: 0,
+            totalConversions: 0,
+          };
+        }
+        platformStats[platform].posts++;
+        platformStats[platform].totalClicks += post.clicks || 0;
+        platformStats[platform].totalImpressions += post.impressions || 0;
+        platformStats[platform].totalConversions += post.conversions || 0;
       });
 
-    return decision;
-  } catch (error) {
-    console.error('Error evaluating product:', error);
-    return null;
-  }
-}
+      // Calculate platform scores
+      const platformScores: Array<{
+        platform: string;
+        score: number;
+        conversionRate: number;
+      }> = [];
 
-/**
- * Apply decisions to posts (scale/kill/cooldown)
- */
-export async function applyPostDecision(decision: Decision): Promise<boolean> {
-  try {
-    const { data: post } = await supabase
-      .from('posted_content')
-      .select('priority_score')
-      .eq('id', decision.entity_id)
-      .single();
-      
-    const currentPriority = post?.priority_score || 0;
+      for (const [platform, stats] of Object.entries(platformStats)) {
+        const conversionRate = stats.totalClicks > 0 
+          ? stats.totalConversions / stats.totalClicks 
+          : 0;
+        
+        const ctr = stats.totalImpressions > 0 
+          ? stats.totalClicks / stats.totalImpressions 
+          : 0;
 
-    if (decision.action === 'scale') {
-      await supabase
-        .from('posted_content')
-        .update({
-          autopilot_state: 'scaling',
-          priority_score: currentPriority + 20
-        })
-        .eq('id', decision.entity_id);
+        const score = (ctr * 0.5) + (conversionRate * 0.5);
 
-      return true;
-    } else if (decision.action === 'kill') {
-      await supabase
-        .from('posted_content')
-        .update({
-          autopilot_state: 'killed',
-          priority_score: 0
-        })
-        .eq('id', decision.entity_id);
+        platformScores.push({
+          platform,
+          score,
+          conversionRate,
+        });
+      }
 
-      return true;
-    } else if (decision.action === 'cooldown') {
-      await supabase
-        .from('posted_content')
-        .update({
-          autopilot_state: 'cooldown',
-          priority_score: currentPriority * 0.5
-        })
-        .eq('id', decision.entity_id);
+      // Sort by score
+      platformScores.sort((a, b) => b.score - a.score);
 
-      return true;
+      // Best platform
+      const bestPlatform = platformScores[0]?.platform || null;
+
+      // Generate recommendations
+      const recommendations = platformScores.map((ps) => {
+        const currentFrequency = platformStats[ps.platform].posts;
+        let action: "INCREASE" | "MAINTAIN" | "REDUCE";
+        let recommendedFrequency = currentFrequency;
+        let reason = "";
+
+        if (ps.conversionRate > 0.08) {
+          action = "INCREASE";
+          recommendedFrequency = Math.min(20, Math.ceil(currentFrequency * 1.25)); // Max +25%
+          reason = `High conversion rate (${(ps.conversionRate * 100).toFixed(1)}%)`;
+        } else if (ps.conversionRate < 0.03) {
+          action = "REDUCE";
+          recommendedFrequency = Math.max(1, Math.ceil(currentFrequency * 0.75));
+          reason = `Low conversion rate (${(ps.conversionRate * 100).toFixed(1)}%)`;
+        } else {
+          action = "MAINTAIN";
+          recommendedFrequency = currentFrequency;
+          reason = "Moderate performance - continue testing";
+        }
+
+        return {
+          platform: ps.platform,
+          action,
+          reason,
+          currentFrequency,
+          recommendedFrequency,
+        };
+      });
+
+      return {
+        bestPlatform,
+        recommendations,
+      };
+    } catch (error) {
+      console.error("Failed to get platform recommendations:", error);
+      return { bestPlatform: null, recommendations: [] };
     }
-
-    return false;
-  } catch (error) {
-    console.error('Error applying post decision:', error);
-    return false;
-  }
-}
-
-/**
- * Apply decisions to products (scale/kill/cooldown)
- */
-export async function applyProductDecision(decision: Decision): Promise<boolean> {
-  try {
-    const { data: product } = await supabase
-      .from('affiliate_links')
-      .select('priority_score')
-      .eq('id', decision.entity_id)
-      .single();
-      
-    const currentPriority = product?.priority_score || 0;
-
-    if (decision.action === 'scale') {
-      await supabase
-        .from('affiliate_links')
-        .update({
-          autopilot_state: 'scaling',
-          last_scaled_at: new Date().toISOString(),
-          priority_score: currentPriority + 30
-        })
-        .eq('id', decision.entity_id);
-
-      return true;
-    } else if (decision.action === 'kill') {
-      await supabase
-        .from('affiliate_links')
-        .update({
-          autopilot_state: 'killed',
-          last_killed_at: new Date().toISOString(),
-          priority_score: 0,
-          status: 'inactive'
-        })
-        .eq('id', decision.entity_id);
-
-      return true;
-    } else if (decision.action === 'cooldown') {
-      await supabase
-        .from('affiliate_links')
-        .update({
-          autopilot_state: 'cooldown',
-          priority_score: currentPriority * 0.5
-        })
-        .eq('id', decision.entity_id);
-
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error('Error applying product decision:', error);
-    return false;
-  }
-}
-
-/**
- * Get AI recommendation based on recent decisions
- */
-export async function getAIRecommendation(userId: string): Promise<string[]> {
-  try {
-    const { data: decisions } = await supabase
-      .from('autopilot_decisions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (!decisions || decisions.length === 0) {
-      return ["System is learning your patterns. Check back soon!"];
-    }
-
-    const recommendations: string[] = [];
-
-    // Count actions
-    const scales = decisions.filter(d => d.decision_type === 'scale').length;
-    const kills = decisions.filter(d => d.decision_type === 'kill').length;
-
-    if (scales > 3) {
-      recommendations.push(`🚀 ${scales} items are scaling now — generating more content for winners`);
-    }
-
-    if (kills > 2) {
-      recommendations.push(`⚠️ ${kills} low performers paused — focusing budget on what works`);
-    }
-
-    // Recent scale
-    const recentScale = decisions.find(d => d.decision_type === 'scale');
-    if (recentScale) {
-      recommendations.push(`✅ "${recentScale.reason}" — autopilot is optimizing`);
-    }
-
-    return recommendations.length > 0 ? recommendations : ["System running smoothly"];
-  } catch (error) {
-    console.error('Error getting AI recommendation:', error);
-    return ["System is analyzing performance"];
-  }
-}
+  },
+};

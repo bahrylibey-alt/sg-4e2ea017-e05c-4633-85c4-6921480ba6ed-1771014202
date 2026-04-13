@@ -1,435 +1,184 @@
-import { supabase } from "@/integrations/supabase/client";
-
 /**
- * AI INSIGHTS ENGINE v1.0
- * Analyzes channel performance and suggests content adjustments
- * 
- * Uses REAL database data to generate actionable recommendations
+ * AI INSIGHTS ENGINE
+ * Generates actionable insights for users
  */
 
-export interface ChannelInsight {
-  channel: string;
-  insight: string;
-  recommendation: string;
-  priority: 'high' | 'medium' | 'low';
-  metric: string;
-  currentValue: number;
-  targetValue: number;
-  expectedImprovement: string;
-}
+import { supabase } from "@/integrations/supabase/client";
+import { scoringEngine } from "./scoringEngine";
+import { decisionEngine } from "./decisionEngine";
+import { contentIntelligence } from "./contentIntelligence";
 
-export interface ContentAdjustment {
-  type: 'hook' | 'format' | 'timing' | 'platform' | 'cta';
-  current: string;
-  suggested: string;
-  reason: string;
-  expectedImpact: string;
+interface AIInsights {
+  summary: {
+    totalPosts: number;
+    winners: number;
+    testing: number;
+    weak: number;
+    trafficState: "NO_DATA" | "LOW" | "ACTIVE" | "SCALING";
+  };
+  topPerformers: {
+    bestPlatform: string | null;
+    bestHook: string | null;
+    topProduct: {
+      id: string;
+      name: string;
+      conversionRate: number;
+    } | null;
+  };
+  recommendations: Array<{
+    type: string;
+    priority: string;
+    action: string;
+    reason: string;
+  }>;
+  insights: string[];
+  nextSteps: string[];
 }
 
 export const aiInsightsEngine = {
   /**
-   * Analyze all channels and generate insights
+   * Generate complete AI insights for user
    */
-  async generateChannelInsights(userId: string): Promise<ChannelInsight[]> {
+  async generateInsights(userId: string): Promise<AIInsights> {
     try {
-      const insights: ChannelInsight[] = [];
+      // Step 1: Score all posts
+      const scoreResults = await scoringEngine.scoreAllPosts(userId);
 
-      // Get channel performance data
-      const { data: posts } = await supabase
-        .from('posted_content')
-        .select('platform, impressions, clicks, conversions, ctr, created_at')
-        .eq('user_id', userId)
-        .eq('status', 'posted')
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      // Step 2: Get traffic state
+      const trafficState = await contentIntelligence.getTrafficState(userId);
 
-      if (!posts || posts.length === 0) {
-        return [{
-          channel: 'All Channels',
-          insight: 'No data available yet',
-          recommendation: 'Start posting content to get insights',
-          priority: 'high',
-          metric: 'Posts',
-          currentValue: 0,
-          targetValue: 10,
-          expectedImprovement: 'Begin tracking performance'
-        }];
+      // Step 3: Analyze top performers
+      const topPerformers = await contentIntelligence.analyzeTopPerformers(userId);
+
+      // Step 4: Generate decisions
+      const decisions = await decisionEngine.analyzeAllPosts(userId);
+
+      // Step 5: Generate next steps
+      const nextSteps: string[] = [];
+
+      if (trafficState === "NO_DATA") {
+        nextSteps.push("Post your first content to start collecting data");
+        nextSteps.push("Connect at least one affiliate product");
+        nextSteps.push("Wait 24-48 hours for initial metrics");
+      } else if (trafficState === "LOW") {
+        nextSteps.push("Continue posting consistently (3-5 posts/week)");
+        nextSteps.push("Test different platforms to find your best fit");
+        nextSteps.push("Try various hook types to see what resonates");
+      } else if (trafficState === "ACTIVE") {
+        nextSteps.push("Focus on your best platform");
+        nextSteps.push("Create variations of top posts");
+        nextSteps.push("Monitor conversion rates closely");
+      } else {
+        // SCALING
+        nextSteps.push("Scale winners by 25% max");
+        nextSteps.push("Reduce weak performers");
+        nextSteps.push("Test new products in your niche");
       }
 
-      // Aggregate by platform
-      const platformData: Record<string, {
-        posts: number;
-        views: number;
-        clicks: number;
-        conversions: number;
-        avgCtr: number;
-      }> = {};
+      // Build insights summary
+      const insights = {
+        summary: {
+          totalPosts: scoreResults.total,
+          winners: scoreResults.winners,
+          testing: scoreResults.testing,
+          weak: scoreResults.weak,
+          trafficState,
+        },
+        topPerformers: {
+          bestPlatform: topPerformers.bestPlatform,
+          bestHook: topPerformers.bestHook,
+          topProduct: topPerformers.topProduct,
+        },
+        recommendations: decisions.decisions.slice(0, 5).map((d) => ({
+          type: d.type,
+          priority: d.priority,
+          action: d.action,
+          reason: d.reason,
+        })),
+        insights: topPerformers.insights,
+        nextSteps,
+      };
 
-      posts.forEach(post => {
-        const platform = post.platform || 'unknown';
-        
-        if (!platformData[platform]) {
-          platformData[platform] = {
-            posts: 0,
-            views: 0,
-            clicks: 0,
-            conversions: 0,
-            avgCtr: 0
-          };
-        }
+      // Save insights (FAIL-SAFE)
+      supabase
+        .from("autopilot_scores")
+        .upsert({
+          user_id: userId,
+          traffic_state: trafficState,
+          insights: topPerformers.insights,
+          next_steps: nextSteps,
+          updated_at: new Date().toISOString(),
+        })
+        .then(() => {})
+        .catch((err) => console.error("Failed to save insights:", err));
 
-        platformData[platform].posts++;
-        platformData[platform].views += post.impressions || 0;
-        platformData[platform].clicks += post.clicks || 0;
-        platformData[platform].conversions += post.conversions || 0;
-      });
-
-      // Calculate CTR and generate insights
-      Object.entries(platformData).forEach(([platform, data]) => {
-        data.avgCtr = data.views > 0 ? (data.clicks / data.views) * 100 : 0;
-
-        // Low CTR insight
-        if (data.avgCtr < 1 && data.views > 100) {
-          insights.push({
-            channel: platform,
-            insight: `Low click-through rate (${data.avgCtr.toFixed(2)}%)`,
-            recommendation: 'Improve hook quality - try curiosity-driven headlines',
-            priority: 'high',
-            metric: 'CTR',
-            currentValue: data.avgCtr,
-            targetValue: 2.5,
-            expectedImprovement: '+150% more clicks'
-          });
-        }
-
-        // Good CTR insight
-        if (data.avgCtr > 2) {
-          insights.push({
-            channel: platform,
-            insight: `Strong CTR (${data.avgCtr.toFixed(2)}%)`,
-            recommendation: 'Scale this channel - double posting frequency',
-            priority: 'high',
-            metric: 'CTR',
-            currentValue: data.avgCtr,
-            targetValue: data.avgCtr * 1.5,
-            expectedImprovement: '2x traffic potential'
-          });
-        }
-
-        // Low views insight
-        if (data.views < 50 && data.posts > 5) {
-          insights.push({
-            channel: platform,
-            insight: 'Low visibility - content not reaching audience',
-            recommendation: 'Use platform-specific hashtags and post during peak hours',
-            priority: 'medium',
-            metric: 'Views',
-            currentValue: data.views,
-            targetValue: 200,
-            expectedImprovement: '4x visibility boost'
-          });
-        }
-
-        // Zero conversions insight
-        if (data.clicks > 20 && data.conversions === 0) {
-          insights.push({
-            channel: platform,
-            insight: 'Getting clicks but no conversions',
-            recommendation: 'Align landing page with hook promise - reduce friction',
-            priority: 'high',
-            metric: 'Conversion Rate',
-            currentValue: 0,
-            targetValue: 3,
-            expectedImprovement: 'Start generating revenue'
-          });
-        }
-
-        // High performing channel
-        if (data.conversions > 3 && data.avgCtr > 2) {
-          insights.push({
-            channel: platform,
-            insight: `Top performer - ${data.conversions} conversions`,
-            recommendation: 'Clone winning content patterns - create 5 variations',
-            priority: 'high',
-            metric: 'Conversions',
-            currentValue: data.conversions,
-            targetValue: data.conversions * 2,
-            expectedImprovement: 'Double revenue potential'
-          });
-        }
-      });
-
-      // Sort by priority
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      insights.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-
-      return insights.slice(0, 8); // Return top 8 insights
-
+      return insights;
     } catch (error) {
-      console.error('Error generating insights:', error);
-      return [];
+      console.error("Failed to generate insights:", error);
+      return {
+        summary: {
+          totalPosts: 0,
+          winners: 0,
+          testing: 0,
+          weak: 0,
+          trafficState: "NO_DATA",
+        },
+        topPerformers: {
+          bestPlatform: null,
+          bestHook: null,
+          topProduct: null,
+        },
+        recommendations: [],
+        insights: ["Insights temporarily unavailable"],
+        nextSteps: ["Continue posting - data collection in progress"],
+      };
     }
   },
 
   /**
-   * Generate content adjustment suggestions based on performance
+   * Get quick summary
    */
-  async generateContentAdjustments(userId: string): Promise<ContentAdjustment[]> {
-    try {
-      const adjustments: ContentAdjustment[] = [];
-
-      // Get recent low-performing content
-      const { data: lowPerformers } = await supabase
-        .from('posted_content')
-        .select('id, caption, platform, impressions, clicks, ctr')
-        .eq('user_id', userId)
-        .eq('status', 'posted')
-        .lt('ctr', 1)
-        .gte('impressions', 50)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (lowPerformers && lowPerformers.length > 0) {
-        // Analyze common issues
-        lowPerformers.forEach(post => {
-          const caption = post.caption || '';
-
-          // Check hook quality
-          if (!caption.includes('$') && !caption.toLowerCase().includes('free')) {
-            adjustments.push({
-              type: 'hook',
-              current: caption.substring(0, 50) + '...',
-              suggested: 'Add money hook: "Made $127 in 1 day with this..."',
-              reason: 'Curiosity-driven hooks with specific numbers perform 3x better',
-              expectedImpact: '+200% CTR'
-            });
-          }
-
-          // Check for CTA
-          if (!caption.toLowerCase().includes('link') && !caption.toLowerCase().includes('bio')) {
-            adjustments.push({
-              type: 'cta',
-              current: 'Missing clear call-to-action',
-              suggested: 'Add "Link in bio 👆" or "Check it out here →"',
-              reason: 'Clear CTAs increase click-through by 150%',
-              expectedImpact: '+150% clicks'
-            });
-          }
-
-          // Platform-specific suggestions
-          if (post.platform === 'tiktok' && caption.length > 100) {
-            adjustments.push({
-              type: 'format',
-              current: 'Long caption on TikTok',
-              suggested: 'Keep under 60 characters - make it punchy',
-              reason: 'TikTok users prefer short, snappy text',
-              expectedImpact: '+80% engagement'
-            });
-          }
-
-          if (post.platform === 'pinterest' && !caption.toLowerCase().includes('best') && !caption.toLowerCase().includes('top')) {
-            adjustments.push({
-              type: 'hook',
-              current: caption.substring(0, 50) + '...',
-              suggested: 'Use SEO keywords: "Best Kitchen Gadgets 2026"',
-              reason: 'Pinterest favors SEO-optimized titles',
-              expectedImpact: '+300% reach'
-            });
-          }
-        });
-      }
-
-      // Get high-performing content for pattern learning
-      const { data: topPerformers } = await supabase
-        .from('posted_content')
-        .select('platform, caption, ctr')
-        .eq('user_id', userId)
-        .eq('status', 'posted')
-        .gt('ctr', 2)
-        .order('ctr', { ascending: false })
-        .limit(3);
-
-      if (topPerformers && topPerformers.length > 0) {
-        adjustments.push({
-          type: 'platform',
-          current: 'Posting on all platforms equally',
-          suggested: `Focus on ${topPerformers[0].platform} - it's your best performer`,
-          reason: `${topPerformers[0].platform} has ${topPerformers[0].ctr.toFixed(2)}% CTR vs others`,
-          expectedImpact: '2x efficiency'
-        });
-      }
-
-      // Remove duplicates
-      const unique = adjustments.filter((adj, index, self) =>
-        index === self.findIndex(a => a.type === adj.type && a.suggested === adj.suggested)
-      );
-
-      return unique.slice(0, 6); // Return top 6 adjustments
-
-    } catch (error) {
-      console.error('Error generating adjustments:', error);
-      return [];
-    }
-  },
-
-  /**
-   * Get best posting times based on historical performance
-   */
-  async getBestPostingTimes(userId: string): Promise<{
-    platform: string;
-    bestHours: number[];
-    reason: string;
-  }[]> {
-    try {
-      const { data: posts } = await supabase
-        .from('posted_content')
-        .select('platform, posted_at, impressions')
-        .eq('user_id', userId)
-        .eq('status', 'posted')
-        .not('posted_at', 'is', null);
-
-      if (!posts || posts.length === 0) {
-        return [];
-      }
-
-      const platformHours: Record<string, Record<number, { count: number; totalViews: number }>> = {};
-
-      posts.forEach(post => {
-        const platform = post.platform || 'unknown';
-        const hour = new Date(post.posted_at).getHours();
-
-        if (!platformHours[platform]) {
-          platformHours[platform] = {};
-        }
-
-        if (!platformHours[platform][hour]) {
-          platformHours[platform][hour] = { count: 0, totalViews: 0 };
-        }
-
-        platformHours[platform][hour].count++;
-        platformHours[platform][hour].totalViews += post.impressions || 0;
-      });
-
-      const recommendations: any[] = [];
-
-      Object.entries(platformHours).forEach(([platform, hours]) => {
-        const hourStats = Object.entries(hours).map(([hour, stats]) => ({
-          hour: parseInt(hour),
-          avgViews: stats.totalViews / stats.count
-        }));
-
-        hourStats.sort((a, b) => b.avgViews - a.avgViews);
-
-        const bestHours = hourStats.slice(0, 3).map(h => h.hour);
-
-        recommendations.push({
-          platform,
-          bestHours,
-          reason: `Posts at ${bestHours.join(', ')}:00 get ${Math.round(hourStats[0].avgViews)} avg views`
-        });
-      });
-
-      return recommendations;
-
-    } catch (error) {
-      console.error('Error calculating best times:', error);
-      return [];
-    }
-  },
-
-  /**
-   * Generate overall performance summary
-   */
-  async getPerformanceSummary(userId: string): Promise<{
-    score: number;
-    grade: 'A' | 'B' | 'C' | 'D' | 'F';
-    summary: string;
-    topWin: string;
-    topOpportunity: string;
+  async getQuickSummary(userId: string): Promise<{
+    status: "collecting_data" | "learning" | "optimizing" | "scaling";
+    message: string;
+    metric: number;
   }> {
     try {
-      const { data: systemState } = await supabase
-        .from('system_state')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const trafficState = await contentIntelligence.getTrafficState(userId);
 
-      const views = systemState?.total_views || 0;
-      const clicks = systemState?.total_clicks || 0;
-      const conversions = systemState?.total_verified_conversions || 0;
-      const revenue = Number(systemState?.total_verified_revenue) || 0;
-
-      // Calculate performance score
-      let score = 0;
-      
-      if (views > 0) score += 10;
-      if (views > 100) score += 10;
-      if (views > 1000) score += 10;
-      
-      if (clicks > 0) score += 10;
-      if (clicks > 10) score += 10;
-      if (clicks > 50) score += 10;
-      
-      const ctr = views > 0 ? (clicks / views) * 100 : 0;
-      if (ctr > 1) score += 10;
-      if (ctr > 2) score += 10;
-      if (ctr > 3) score += 10;
-      
-      if (conversions > 0) score += 10;
-      if (revenue > 0) score += 10;
-
-      // Determine grade
-      let grade: 'A' | 'B' | 'C' | 'D' | 'F';
-      if (score >= 90) grade = 'A';
-      else if (score >= 75) grade = 'B';
-      else if (score >= 60) grade = 'C';
-      else if (score >= 40) grade = 'D';
-      else grade = 'F';
-
-      // Generate summary
-      let summary = '';
-      if (grade === 'A') summary = 'Excellent! Your content is performing at the highest level.';
-      else if (grade === 'B') summary = 'Good performance! Focus on scaling your winners.';
-      else if (grade === 'C') summary = 'Moderate performance. Optimize hooks and CTAs.';
-      else if (grade === 'D') summary = 'Needs improvement. Review content strategy.';
-      else summary = 'Getting started. Keep posting consistently.';
-
-      // Top win and opportunity
-      let topWin = 'N/A';
-      let topOpportunity = 'Generate more traffic';
-
-      if (ctr > 2) {
-        topWin = `Strong ${ctr.toFixed(1)}% CTR - Your hooks are working!`;
-      } else if (revenue > 0) {
-        topWin = `$${revenue.toFixed(2)} verified revenue - System is profitable!`;
-      } else if (views > 500) {
-        topWin = `${views.toLocaleString()} views - Good reach!`;
+      switch (trafficState) {
+        case "NO_DATA":
+          return {
+            status: "collecting_data",
+            message: "Post content to start collecting data",
+            metric: 0,
+          };
+        case "LOW":
+          return {
+            status: "learning",
+            message: "Learning your audience preferences",
+            metric: 25,
+          };
+        case "ACTIVE":
+          return {
+            status: "optimizing",
+            message: "Optimizing based on performance data",
+            metric: 60,
+          };
+        case "SCALING":
+          return {
+            status: "scaling",
+            message: "Scaling your best performers",
+            metric: 90,
+          };
       }
-
-      if (clicks > 20 && conversions === 0) {
-        topOpportunity = 'Fix conversion funnel - clicks not converting';
-      } else if (ctr < 1 && views > 100) {
-        topOpportunity = 'Improve hooks - CTR is below 1%';
-      } else if (views < 100) {
-        topOpportunity = 'Increase posting frequency for more data';
-      }
-
-      return {
-        score,
-        grade,
-        summary,
-        topWin,
-        topOpportunity
-      };
-
     } catch (error) {
-      console.error('Error generating summary:', error);
+      console.error("Failed to get quick summary:", error);
       return {
-        score: 0,
-        grade: 'F',
-        summary: 'Unable to calculate performance',
-        topWin: 'N/A',
-        topOpportunity: 'Start posting content'
+        status: "collecting_data",
+        message: "Status check unavailable",
+        metric: 0,
       };
     }
-  }
+  },
 };

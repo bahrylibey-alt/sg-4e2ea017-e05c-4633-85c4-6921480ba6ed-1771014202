@@ -1,300 +1,147 @@
+/**
+ * CONTENT INTELLIGENCE
+ * Tracks what works and learns patterns
+ */
+
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  generateViralHooks, 
-  storeContentDNA, 
-  getWinningPatterns,
-  getBlacklistedPatterns,
-  mutateWinningHook,
-  optimizeForPlatform,
-  addClickMaximization
-} from "./viralEngine";
-import { 
-  safeIntelligence, 
-  isFeatureEnabled, 
-  getHooksWithFallback,
-  updateDegradationStatus
-} from "./compatibilityLayer";
+import { scoringEngine } from "./scoringEngine";
 
-/**
- * CONTENT INTELLIGENCE FILTER v2.0
- * Integrated with Viral Engine for pattern learning
- * WITH COMPATIBILITY LAYER - Never blocks existing system
- */
+export const contentIntelligence = {
+  /**
+   * Analyze top performers
+   */
+  async analyzeTopPerformers(userId: string): Promise<{
+    bestPlatform: string | null;
+    bestHook: string | null;
+    topProduct: {
+      id: string;
+      name: string;
+      conversionRate: number;
+    } | null;
+    insights: string[];
+  }> {
+    const insights: string[] = [];
 
-interface Hook {
-  text: string;
-  curiosity_score: number;
-  clarity_score: number;
-  emotion_score: number;
-  total_score: number;
-}
+    try {
+      // Get top posts
+      const { data: posts } = await supabase
+        .from("posted_content")
+        .select("*")
+        .eq("user_id", userId)
+        .order("clicks", { ascending: false })
+        .limit(10);
 
-/**
- * Generate hooks using viral engine (10 patterns) or fallback to basic
- * COMPATIBILITY: Falls back to basic hooks if viral engine fails
- */
-export async function generateHooks(params: {
-  productName: string;
-  niche: string;
-  benefit?: string;
-  platform?: 'tiktok' | 'pinterest' | 'instagram';
-}): Promise<Hook[]> {
-  const platform = params.platform || 'tiktok';
-  
-  // COMPATIBILITY: Check if viral engine is enabled
-  if (!isFeatureEnabled('viral_engine_enabled')) {
-    console.log('ℹ️ Viral engine disabled, using basic hooks');
-    return getFallbackHooks(params);
-  }
-
-  // COMPATIBILITY: Wrap viral hooks in safe wrapper
-  return safeIntelligence(
-    'Viral Hook Generation',
-    async () => {
-      const viralHooks = await generateViralHooks({
-        productName: params.productName,
-        niche: params.niche,
-        platform
-      });
-
-      // Get blacklisted patterns to filter out
-      const blacklisted = await getBlacklistedPatterns(platform);
-
-      // Filter out blacklisted patterns and convert to Hook format
-      const validHooks = viralHooks
-        .filter(vh => !blacklisted.includes(vh.pattern_type))
-        .map(vh => ({
-          text: vh.text,
-          curiosity_score: vh.curiosity_score,
-          clarity_score: vh.clarity_score,
-          emotion_score: vh.emotion_score,
-          total_score: vh.total_score
-        }));
-
-      if (validHooks.length > 0) {
-        console.log(`🎯 Generated ${validHooks.length} viral hooks (filtered blacklist)`);
-        updateDegradationStatus('viral_hooks', true);
-        return validHooks;
+      if (!posts || posts.length === 0) {
+        return {
+          bestPlatform: null,
+          bestHook: null,
+          topProduct: null,
+          insights: ["No data yet - continue posting to generate insights"],
+        };
       }
 
-      // If no valid hooks after filtering, use fallback
-      console.log('⚠️ No valid viral hooks after filtering, using fallback');
-      return getFallbackHooks(params);
-    },
-    getFallbackHooks(params), // Fallback value
-    { log: true }
-  );
-}
-
-/**
- * COMPATIBILITY: Fallback hook generation (always works)
- */
-function getFallbackHooks(params: {
-  productName: string;
-  niche: string;
-  benefit?: string;
-}): Hook[] {
-  const hooks: Hook[] = [];
-  const templates = [
-    `This ${params.productName} made me $127 in 1 day`,
-    `Nobody is talking about this ${params.niche} product`,
-    `I tested ${params.productName} so you don't waste money`,
-    `This ${params.productName} changed everything for ${params.benefit || 'me'}`,
-    `Most people don't know about ${params.productName}`,
-    `The secret to ${params.benefit || 'success'} (it's this ${params.productName})`,
-    `Hidden gem: ${params.productName} is underrated`,
-    `I discovered ${params.productName} and it's crazy good`
-  ];
-
-  const shuffled = templates.sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 3);
-
-  for (const template of selected) {
-    const hook = scoreHook(template);
-    hooks.push(hook);
-  }
-
-  updateDegradationStatus('viral_hooks', false);
-  return hooks.sort((a, b) => b.total_score - a.total_score);
-}
-
-function scoreHook(text: string): Hook {
-  const lowerText = text.toLowerCase();
-
-  const CURIOSITY_TRIGGERS = [
-    "this made", "nobody is talking about", "tested so you don't",
-    "changed everything", "most people don't know", "secret",
-    "hidden", "discovered", "found out"
-  ];
-
-  const CLARITY_WORDS = [
-    "$", "day", "week", "month", "minutes", "hours",
-    "simple", "easy", "quick"
-  ];
-
-  const EMOTION_WORDS = [
-    "amazing", "shocked", "surprised", "crazy", "insane",
-    "unbelievable", "game-changer", "life-changing"
-  ];
-
-  let curiosityScore = 0;
-  for (const trigger of CURIOSITY_TRIGGERS) {
-    if (lowerText.includes(trigger)) curiosityScore += 8;
-  }
-  curiosityScore = Math.min(curiosityScore, 40);
-
-  let clarityScore = 0;
-  for (const word of CLARITY_WORDS) {
-    if (lowerText.includes(word)) clarityScore += 6;
-  }
-  clarityScore = Math.min(clarityScore, 30);
-
-  let emotionScore = 0;
-  for (const word of EMOTION_WORDS) {
-    if (lowerText.includes(word)) emotionScore += 6;
-  }
-  emotionScore = Math.min(emotionScore, 30);
-
-  const totalScore = curiosityScore + clarityScore + emotionScore;
-
-  return {
-    text,
-    curiosity_score: curiosityScore,
-    clarity_score: clarityScore,
-    emotion_score: emotionScore,
-    total_score: totalScore
-  };
-}
-
-/**
- * Generate final post using viral engine optimization
- * COMPATIBILITY: Falls back to simple post if optimization fails
- */
-export async function generateFinalPost(params: {
-  hook: Hook;
-  productName: string;
-  affiliateUrl: string;
-  platform: 'tiktok' | 'pinterest' | 'instagram';
-}): Promise<string> {
-  // COMPATIBILITY: Wrap in safe execution
-  return safeIntelligence(
-    'Final Post Optimization',
-    async () => {
-      // Optimize hook for platform
-      let optimized = optimizeForPlatform({
-        hook: params.hook.text,
-        platform: params.platform,
-        productName: params.productName,
-        affiliateUrl: params.affiliateUrl
+      // Best platform
+      const platformCounts: Record<string, number> = {};
+      posts.forEach((post) => {
+        const platform = post.platform || "unknown";
+        platformCounts[platform] = (platformCounts[platform] || 0) + 1;
       });
+      const bestPlatform = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-      // Add click maximization
-      optimized = addClickMaximization(optimized, params.platform);
+      if (bestPlatform) {
+        insights.push(`${bestPlatform} is your top platform (${platformCounts[bestPlatform]} high-performing posts)`);
+      }
 
-      updateDegradationStatus('post_optimization', true);
-      return optimized;
-    },
-    // FALLBACK: Simple post without optimization
-    `${params.hook.text}\n\nCheck it out: ${params.affiliateUrl}`,
-    { log: true }
-  );
-}
+      // Best hook type (from content DNA)
+      const { data: dnaRecords } = await supabase
+        .from("content_dna")
+        .select("hook_type, performance_score")
+        .eq("user_id", userId)
+        .order("performance_score", { ascending: false })
+        .limit(1);
 
-export function humanizeContent(text: string): string {
-  if (Math.random() < 0.3) {
-    const emojis = ['👀', '🔥', '✨', '💯', '🎯'];
-    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-    text = `${randomEmoji} ${text}`;
-  }
+      const bestHook = dnaRecords?.[0]?.hook_type || null;
 
-  if (Math.random() < 0.1) {
-    text = text.replace('!', '!!');
-  }
+      if (bestHook) {
+        insights.push(`"${bestHook}" hooks perform best for you`);
+      }
 
-  return text;
-}
+      // Top product (from affiliate links)
+      const { data: products } = await supabase
+        .from("affiliate_links")
+        .select("id, product_name, clicks, conversions")
+        .eq("user_id", userId)
+        .order("conversions", { ascending: false })
+        .limit(1);
 
-/**
- * COMPATIBILITY: Track performance without blocking if it fails
- */
-export async function trackContentPerformance(params: {
-  contentId: string;
-  hookScore: number;
-  curiosityScore: number;
-  clarityScore: number;
-  emotionScore: number;
-  platformOptimized: boolean;
-  humanizationApplied: boolean;
-}): Promise<void> {
-  // COMPATIBILITY: Non-blocking tracking
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+      const topProduct = products?.[0] 
+        ? {
+            id: products[0].id,
+            name: products[0].product_name || "Unknown",
+            conversionRate: products[0].clicks > 0 
+              ? (products[0].conversions || 0) / products[0].clicks 
+              : 0,
+          }
+        : null;
 
-    await supabase.from("content_performance_tracking" as any).insert({
-      content_id: params.contentId,
-      user_id: user.id,
-      hook_score: params.hookScore,
-      curiosity_score: params.curiosityScore,
-      clarity_score: params.clarityScore,
-      emotion_score: params.emotionScore,
-      platform_optimized: params.platformOptimized,
-      humanization_applied: params.humanizationApplied,
-      validation_status: 'TESTING'
-    });
+      if (topProduct && topProduct.conversionRate > 0) {
+        insights.push(
+          `"${topProduct.name}" converts at ${(topProduct.conversionRate * 100).toFixed(1)}%`
+        );
+      }
 
-    updateDegradationStatus('content_tracking', true);
-  } catch (error) {
-    console.error("⚠️ Content tracking failed (non-blocking):", error);
-    updateDegradationStatus('content_tracking', false);
-    // Don't throw - this is optional tracking
-  }
-}
+      // Post timing insights
+      const postHours = posts
+        .map((p) => (p.posted_at ? new Date(p.posted_at).getHours() : null))
+        .filter((h) => h !== null) as number[];
 
-/**
- * COMPATIBILITY: Validation is advisory only
- */
-export async function validateContentAfter24h(contentId: string): Promise<'VALID' | 'FAILED'> {
-  try {
-    const { data: viewEvents } = await supabase
-      .from("view_events" as any)
-      .select("views")
-      .eq("content_id", contentId);
+      if (postHours.length > 0) {
+        const avgHour = Math.round(
+          postHours.reduce((sum, h) => sum + h, 0) / postHours.length
+        );
+        insights.push(`Best posting time: around ${avgHour}:00`);
+      }
 
-    const totalViews = viewEvents?.reduce((sum: number, v: any) => sum + (v.views || 0), 0) || 0;
-
-    let status: 'VALID' | 'FAILED' = 'FAILED';
-
-    if (totalViews >= 100) {
-      status = 'VALID';
-    } else if (totalViews < 50) {
-      status = 'FAILED';
+      return {
+        bestPlatform,
+        bestHook,
+        topProduct,
+        insights,
+      };
+    } catch (error) {
+      console.error("Failed to analyze top performers:", error);
+      return {
+        bestPlatform: null,
+        bestHook: null,
+        topProduct: null,
+        insights: ["Analysis temporarily unavailable"],
+      };
     }
+  },
 
-    await supabase
-      .from("content_performance_tracking" as any)
-      .update({
-        validation_status: status
-      })
-      .eq("content_id", contentId);
+  /**
+   * Get traffic state
+   */
+  async getTrafficState(userId: string): Promise<
+    "NO_DATA" | "LOW" | "ACTIVE" | "SCALING"
+  > {
+    try {
+      const { data: posts, count } = await supabase
+        .from("posted_content")
+        .select("clicks, impressions", { count: "exact" })
+        .eq("user_id", userId);
 
-    return status;
-  } catch (error) {
-    console.error("⚠️ Content validation failed:", error);
-    return 'FAILED';
-  }
-}
+      if (!count || count === 0) return "NO_DATA";
 
-// Re-export viral engine functions for easy access
-export { 
-  storeContentDNA, 
-  getWinningPatterns, 
-  mutateWinningHook,
-  evaluatePostPerformance,
-  executeViralLoop,
-  isPostingSafe,
-  updatePostingHistory,
-  shouldScale,
-  executeScaling,
-  getRandomPostingDelay
-} from "./viralEngine";
+      const totalClicks = posts?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0;
+      const totalImpressions = posts?.reduce((sum, p) => sum + (p.impressions || 0), 0) || 0;
+
+      if (totalImpressions < 100) return "LOW";
+      if (totalClicks < 10) return "ACTIVE";
+      return "SCALING";
+    } catch (error) {
+      console.error("Failed to get traffic state:", error);
+      return "NO_DATA";
+    }
+  },
+};

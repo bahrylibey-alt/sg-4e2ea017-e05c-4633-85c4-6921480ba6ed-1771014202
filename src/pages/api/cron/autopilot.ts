@@ -1,124 +1,99 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import type { NextApiRequest, NextApiResponse } from "next";
+import { supabase } from "@/integrations/supabase/client";
+import { scoringEngine } from "@/services/scoringEngine";
+import { decisionEngine } from "@/services/decisionEngine";
+import { aiInsightsEngine } from "@/services/aiInsightsEngine";
 
 /**
- * Vercel Cron Job - Runs autopilot every 2 minutes
+ * AUTONOMOUS ENGINE CRON
+ * Runs every 30-60 minutes
+ * Collects data → Scores → Classifies → Recommends → Saves decisions
  * 
- * This API route is called by Vercel Cron (configured in vercel.json)
- * It checks if any user has autopilot enabled and triggers the Edge Function
- * 
- * Runs independently of user's browser - true 24/7 operation
+ * SAFE: Only generates recommendations, never auto-executes
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Verify this is being called by Vercel Cron (optional security check)
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  // Verify cron authorization (optional - add API key check here)
   const authHeader = req.headers.authorization;
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
-  console.log('🤖 Cron: Starting autopilot check...');
+  console.log("🤖 [Autopilot] Starting autonomous engine cycle...");
 
   try {
-    // Create Supabase admin client
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key for admin access
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
-
-    // Get all users with autopilot enabled
-    const { data: users, error: usersError } = await supabase
-      .from('user_settings')
-      .select('user_id, last_autopilot_run')
-      .eq('autopilot_enabled', true);
-
-    if (usersError) {
-      console.error('❌ Cron: Error fetching users:', usersError);
-      return res.status(500).json({ error: usersError.message });
-    }
+    // Get all active users
+    const { data: users } = await supabase
+      .from("profiles")
+      .select("id")
+      .limit(100); // Process in batches
 
     if (!users || users.length === 0) {
-      console.log('⏸️ Cron: No users with autopilot enabled');
-      return res.status(200).json({ message: 'No active autopilot users', executed: 0 });
+      console.log("No users to process");
+      return res.status(200).json({
+        success: true,
+        message: "No users to process",
+        processed: 0,
+      });
     }
 
-    console.log(`🎯 Cron: Found ${users.length} user(s) with autopilot enabled`);
+    console.log(`Processing ${users.length} users...`);
 
-    const results = [];
+    let totalScored = 0;
+    let totalDecisions = 0;
 
-    // Execute autopilot for each user
     for (const user of users) {
       try {
-        console.log(`🚀 Cron: Triggering autopilot for user ${user.user_id}`);
+        console.log(`📊 Processing user: ${user.id}`);
 
-        // Call the Edge Function
-        const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-          body: {
-            action: 'run_cycle',
-            user_id: user.user_id
-          }
-        });
+        // Step 1: Score all posts
+        const scoreResults = await scoringEngine.scoreAllPosts(user.id);
+        totalScored += scoreResults.total;
 
-        if (error) {
-          console.error(`❌ Cron: Edge Function error for user ${user.user_id}:`, error);
-          results.push({
-            user_id: user.user_id,
-            success: false,
-            error: error.message
-          });
+        console.log(`✅ Scored ${scoreResults.total} posts (${scoreResults.winners} winners)`);
 
-          // Log the error
-          await supabase.from('autopilot_cron_log').insert({
-            user_id: user.user_id,
-            status: 'error',
-            error: error.message
-          });
-        } else {
-          console.log(`✅ Cron: Autopilot executed successfully for user ${user.user_id}`, data);
-          results.push({
-            user_id: user.user_id,
-            success: true,
-            results: data
-          });
+        // Step 2: Generate decisions
+        const decisions = await decisionEngine.analyzeAllPosts(user.id);
+        totalDecisions += decisions.totalDecisions;
 
-          // Update last_autopilot_run
-          await supabase
-            .from('user_settings')
-            .update({ last_autopilot_run: new Date().toISOString() })
-            .eq('user_id', user.user_id);
+        console.log(`✅ Generated ${decisions.totalDecisions} recommendations`);
 
-          // Log success
-          await supabase.from('autopilot_cron_log').insert({
-            user_id: user.user_id,
-            status: 'success',
-            results: data
-          });
-        }
-      } catch (error: any) {
-        console.error(`❌ Cron: Unexpected error for user ${user.user_id}:`, error);
-        results.push({
-          user_id: user.user_id,
-          success: false,
-          error: error.message
-        });
+        // Step 3: Generate insights
+        await aiInsightsEngine.generateInsights(user.id);
+
+        console.log(`✅ Insights updated`);
+
+        // Rate limit between users
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (userError) {
+        console.error(`Failed to process user ${user.id}:`, userError);
+        // Continue with next user (FAIL-SAFE)
       }
     }
 
-    console.log(`✅ Cron: Completed autopilot for ${users.length} user(s)`);
+    console.log(`
+🎯 Autopilot Cycle Complete:
+- Users Processed: ${users.length}
+- Posts Scored: ${totalScored}
+- Decisions Generated: ${totalDecisions}
+    `);
 
     return res.status(200).json({
-      message: 'Autopilot cron executed',
-      executed: users.length,
-      results
+      success: true,
+      message: "Autopilot cycle completed",
+      stats: {
+        usersProcessed: users.length,
+        postsScored: totalScored,
+        decisionsGenerated: totalDecisions,
+      },
     });
-
   } catch (error: any) {
-    console.error('❌ Cron: Fatal error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error("Autopilot cycle failed:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Autopilot cycle failed",
+    });
   }
 }
