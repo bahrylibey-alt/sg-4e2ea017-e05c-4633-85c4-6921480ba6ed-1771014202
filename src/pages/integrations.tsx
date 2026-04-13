@@ -100,6 +100,14 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     status: "available"
   },
   {
+    id: "aliexpress_affiliate",
+    name: "AliExpress Affiliate",
+    description: "Global marketplace - competitive commissions up to 50%",
+    icon: TrendingUp,
+    category: "affiliate_network",
+    status: "available"
+  },
+  {
     id: "temu_affiliate",
     name: "Temu Affiliate",
     description: "Fast-growing marketplace - competitive commissions",
@@ -515,6 +523,16 @@ export default function IntegrationsPage() {
           "Copy your Affiliate ID from the dashboard"
         ],
         note: "Competitive commissions on trending products"
+      },
+      aliexpress_affiliate: {
+        steps: [
+          "Sign up at portals.aliexpress.com",
+          "Complete publisher application",
+          "Get approved (usually 1-2 days)",
+          "Go to Tools → API → Get your App Key and App Secret",
+          "Copy your Tracking ID from Account Settings"
+        ],
+        note: "Commissions up to 50% on trending products"
       },
       shareasale: {
         steps: [

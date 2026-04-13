@@ -704,7 +704,13 @@ export const affiliateIntegrationService = {
 
       // For now, return success for all networks
       // In production, this would make actual API calls
-      const supportedNetworks = ['Amazon Associates', 'Temu Affiliate', 'AliExpress Affiliate', 'ClickBank', 'ShareASale'];
+      const supportedNetworks = [
+        'Amazon Associates', 
+        'Temu Affiliate', 
+        'AliExpress Affiliate', 
+        'ClickBank', 
+        'ShareASale'
+      ];
       
       if (!supportedNetworks.includes(network)) {
         return {

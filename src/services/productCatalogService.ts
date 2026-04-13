@@ -305,6 +305,68 @@ export const productCatalogService = {
         estimatedEPC: "$2.80",
         description: "Wireless Noise Cancelling, Spatial Audio, 24-Hour Battery",
         image: "https://images.unsplash.com/photo-1545127398-14699f92334b?w=500&q=80"
+      },
+
+      // AliExpress Products
+      {
+        id: "aliexpress-1",
+        name: "Wireless Bluetooth Earbuds",
+        network: "AliExpress Affiliate",
+        commission: "45%",
+        category: "Electronics",
+        estimatedPrice: 25.99,
+        conversionRate: 12.5,
+        trending: true,
+        url: "https://www.aliexpress.com/item/1005003154875962.html",
+        affiliate_url: "https://s.click.aliexpress.com/e/_DlVxQKz"
+      },
+      {
+        id: "aliexpress-2",
+        name: "Smart Watch Fitness Tracker",
+        network: "AliExpress Affiliate",
+        commission: "50%",
+        category: "Electronics",
+        estimatedPrice: 39.99,
+        conversionRate: 10.8,
+        trending: true,
+        url: "https://www.aliexpress.com/item/1005004567892345.html",
+        affiliate_url: "https://s.click.aliexpress.com/e/_DmAbCdE"
+      },
+      {
+        id: "aliexpress-3",
+        name: "LED Strip Lights RGB",
+        network: "AliExpress Affiliate",
+        commission: "48%",
+        category: "Home",
+        estimatedPrice: 19.99,
+        conversionRate: 14.2,
+        trending: true,
+        url: "https://www.aliexpress.com/item/1005002987654321.html",
+        affiliate_url: "https://s.click.aliexpress.com/e/_DnFgHiJ"
+      },
+      {
+        id: "aliexpress-4",
+        name: "Phone Camera Lens Kit",
+        network: "AliExpress Affiliate",
+        commission: "46%",
+        category: "Electronics",
+        estimatedPrice: 29.99,
+        conversionRate: 11.5,
+        trending: false,
+        url: "https://www.aliexpress.com/item/1005003789456123.html",
+        affiliate_url: "https://s.click.aliexpress.com/e/_DoKlMnP"
+      },
+      {
+        id: "aliexpress-5",
+        name: "Magnetic Phone Car Mount",
+        network: "AliExpress Affiliate",
+        commission: "44%",
+        category: "Electronics",
+        estimatedPrice: 12.99,
+        conversionRate: 15.8,
+        trending: true,
+        url: "https://www.aliexpress.com/item/1005002345678901.html",
+        affiliate_url: "https://s.click.aliexpress.com/e/_DpQrStU"
       }
     ];
 
