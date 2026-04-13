@@ -74,12 +74,17 @@ export default async function handler(
 
     console.log(`✅ Found ${catalog?.length || 0} products in catalog`);
 
-    // Step 5: Check integration sync times
-    const { data: updatedIntegrations } = await supabase
+    // Step 5: Check integration sync times - simplified to avoid type errors
+    const syncQuery = await supabase
       .from('integrations')
       .select('provider_name, last_sync_at')
       .eq('user_id', user.id)
-      .eq('category', 'affiliate_network') as { data: Array<{ provider_name: string; last_sync_at: string | null }> | null };
+      .eq('category', 'affiliate_network');
+
+    const syncTimes = syncQuery.data?.map((i: any) => ({
+      network: i.provider_name,
+      last_sync: i.last_sync_at
+    })) || [];
 
     console.log('✅ TEST DISCOVERY: Complete');
 
@@ -91,10 +96,7 @@ export default async function handler(
         networks_used: result.networks,
         affiliate_links_saved: links?.length || 0,
         catalog_entries_saved: catalog?.length || 0,
-        sync_times: updatedIntegrations?.map(i => ({
-          network: i.provider_name,
-          last_sync: i.last_sync_at
-        }))
+        sync_times: syncTimes
       },
       message: `✅ Discovery working! ${result.discovered} products discovered and saved to both tables`
     });
