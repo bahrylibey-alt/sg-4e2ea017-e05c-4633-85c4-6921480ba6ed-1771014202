@@ -4,13 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
  * SMART PRODUCT DISCOVERY ENGINE
  * 
  * Revolutionary AI-powered product discovery that:
- * 1. Scrapes Amazon Best Sellers in real-time
- * 2. Monitors Google Trends for search volume
- * 3. Tracks TikTok trending hashtags
+ * 1. Scrapes Amazon Best Sellers in real-time (requires Amazon Product API key)
+ * 2. Monitors Google Trends for search volume (requires Google Trends API)
+ * 3. Tracks TikTok trending hashtags (requires TikTok API)
  * 4. Scores products 0-100 based on multiple signals
  * 5. Auto-adds top-scoring products to campaigns
  * 
- * ALL REAL DATA - NO MOCKS
+ * CURRENT STATUS: Uses realistic test data. Real API integration requires:
+ * - Amazon Product Advertising API credentials
+ * - Google Trends API access
+ * - TikTok Marketing API (optional)
  */
 
 interface ProductSignals {
