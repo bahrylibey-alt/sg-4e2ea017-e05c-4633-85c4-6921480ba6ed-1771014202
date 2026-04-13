@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Brain,
-  Zap
+  Zap,
+  Package
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -391,23 +392,6 @@ export function DashboardOverview() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Products Tracked</CardTitle>
-                <Eye className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalProducts}</div>
-                <Progress 
-                  value={stats.totalProducts > 0 ? Math.min(100, (stats.totalProducts / 20) * 100) : 0} 
-                  className="mt-2" 
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {stats.totalProducts < 20 ? 'Building inventory...' : 'Good coverage'}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Content Generated</CardTitle>
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
@@ -440,6 +424,20 @@ export function DashboardOverview() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Products Tracked */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Products Tracked</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalProducts}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.totalProducts === 0 ? 'No products yet' : `${stats.activeLinks} active links`}
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Quick Status */}
           <Card>
