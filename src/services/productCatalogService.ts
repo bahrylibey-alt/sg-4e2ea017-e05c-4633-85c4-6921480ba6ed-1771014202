@@ -414,8 +414,10 @@ export const productCatalogService = {
     productIds: string[]
   ): Promise<any[]> {
     try {
+      const allProducts = this.getHighConvertingProducts();
+      
       const campaignProducts = productIds.map((productId) => {
-        const product = this.products.find((p) => p.id === productId);
+        const product = allProducts.find((p) => p.id === productId);
         if (!product) return null;
 
         return {
