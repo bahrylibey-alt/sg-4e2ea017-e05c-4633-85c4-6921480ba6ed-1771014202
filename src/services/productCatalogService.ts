@@ -406,7 +406,7 @@ export const productCatalogService = {
   },
 
   getNetworks(): string[] {
-    return ["All Networks", "Temu Affiliate", "Amazon Associates"];
+    return ["All Networks", "Temu Affiliate", "Amazon Associates", "AliExpress Affiliate"];
   },
 
   async addProductsToCampaign(
