@@ -11,24 +11,17 @@ export default function RedirectPage() {
   const [error, setError] = useState<string | null>(null);
   const [linkData, setLinkData] = useState<any>(null);
   const [countdown, setCountdown] = useState(3);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
-
-  const addDebug = (message: string) => {
-    console.log(`🔍 [DEBUG] ${message}`);
-    setDebugInfo(prev => [...prev, message]);
-  };
 
   useEffect(() => {
     if (!slug || typeof slug !== 'string') {
-      addDebug('❌ No slug provided or slug is not a string');
       return;
     }
 
     const trackAndRedirect = async () => {
       try {
-        addDebug(`Starting tracking for slug: ${slug}`);
+        console.log(`🔍 [TRACKING] Starting for slug: ${slug}`);
 
-        // Query the database for this slug
+        // Get the affiliate link
         const { data: link, error: linkError } = await supabase
           .from('affiliate_links')
           .select('*')
@@ -36,55 +29,33 @@ export default function RedirectPage() {
           .eq('status', 'active')
           .maybeSingle();
 
-        addDebug(`Database query result: ${link ? 'FOUND' : 'NOT FOUND'}`);
-        if (linkError) addDebug(`❌ Database error: ${linkError.message}`);
-
-        if (linkError) {
-          console.error("❌ Database error:", linkError);
-          setError("Database error occurred");
-          addDebug(`Error details: ${JSON.stringify(linkError)}`);
+        if (linkError || !link) {
+          console.error("❌ Link not found:", linkError);
+          setError("This link doesn't exist");
           return;
         }
 
-        if (!link) {
-          console.error("❌ Link not found for slug:", slug);
-          setError("This link doesn't exist in our database");
-          addDebug(`Link not found - slug: ${slug}`);
-          return;
-        }
-
-        addDebug(`✅ Link found: ${link.product_name}`);
-        addDebug(`Current clicks: ${link.clicks || 0}`);
-        addDebug(`Original URL: ${link.original_url}`);
-
+        console.log(`✅ Link found: ${link.product_name}`);
         setLinkData(link);
 
-        // CRITICAL: Track the click - Update BOTH columns for compatibility
+        // STEP 1: Update affiliate link click count
         const newClicks = (link.clicks || 0) + 1;
-        addDebug(`Attempting to update clicks: ${link.clicks || 0} → ${newClicks}`);
-
-        const { data: updateData, error: clickError } = await supabase
+        const { error: clickError } = await supabase
           .from('affiliate_links')
           .update({ 
             clicks: newClicks,
             click_count: newClicks,
             updated_at: new Date().toISOString()
           })
-          .eq('id', link.id)
-          .select();
+          .eq('id', link.id);
 
         if (clickError) {
           console.error("❌ Click count update failed:", clickError);
-          addDebug(`❌ UPDATE FAILED: ${clickError.message}`);
-          addDebug(`Error code: ${clickError.code}`);
-          addDebug(`Error details: ${JSON.stringify(clickError.details)}`);
         } else {
-          console.log("✅ Click count updated:", newClicks);
-          addDebug(`✅ UPDATE SUCCESS: Clicks now ${newClicks}`);
-          addDebug(`Update data: ${JSON.stringify(updateData)}`);
+          console.log(`✅ Affiliate link clicks: ${link.clicks || 0} → ${newClicks}`);
         }
 
-        // CRITICAL: Identify platform from referrer to update posted_content
+        // STEP 2: Detect platform from referrer
         const referrer = document.referrer.toLowerCase();
         let platform = null;
         if (referrer.includes('twitter.com') || referrer.includes('t.co')) platform = 'twitter';
@@ -92,48 +63,35 @@ export default function RedirectPage() {
         else if (referrer.includes('linkedin.com')) platform = 'linkedin';
         else if (referrer.includes('instagram.com')) platform = 'instagram';
         else if (referrer.includes('pinterest.com')) platform = 'pinterest';
-        else if (referrer.includes('youtube.com')) platform = 'youtube';
 
-        addDebug(`Detected platform from referrer: ${platform || 'direct'}`);
-        addDebug(`Full referrer: ${document.referrer || 'none'}`);
+        console.log(`📱 Platform detected: ${platform || 'direct'}`);
 
-        // Update posted_content clicks so Traffic Channels page updates!
-        let postQuery = supabase
-          .from('posted_content')
-          .select('id, clicks')
-          .eq('link_id', link.id)
-          .order('posted_at', { ascending: false })
-          .limit(1);
-
+        // STEP 3: Update posted_content clicks
         if (platform) {
-          postQuery = postQuery.eq('platform', platform);
-        }
-
-        const { data: postData, error: postQueryError } = await postQuery.maybeSingle();
-
-        if (postQueryError) {
-          addDebug(`⚠️ Post query error: ${postQueryError.message}`);
-        } else if (postData) {
-          const newPostClicks = (postData.clicks || 0) + 1;
-          addDebug(`Found post ${postData.id}, updating clicks: ${postData.clicks || 0} → ${newPostClicks}`);
-          
-          const { error: postUpdateError } = await supabase
+          const { data: postData } = await supabase
             .from('posted_content')
-            .update({ clicks: newPostClicks })
-            .eq('id', postData.id);
+            .select('id, clicks')
+            .eq('link_id', link.id)
+            .eq('platform', platform)
+            .order('posted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-          if (postUpdateError) {
-            addDebug(`❌ Post click update failed: ${postUpdateError.message}`);
-          } else {
-            addDebug(`✅ Post clicks updated to ${newPostClicks}`);
+          if (postData) {
+            const newPostClicks = (postData.clicks || 0) + 1;
+            const { error: postUpdateError } = await supabase
+              .from('posted_content')
+              .update({ clicks: newPostClicks })
+              .eq('id', postData.id);
+
+            if (!postUpdateError) {
+              console.log(`✅ Posted content clicks: ${postData.clicks || 0} → ${newPostClicks}`);
+            }
           }
-        } else {
-          addDebug(`⚠️ No posted_content found for this link (link_id: ${link.id}, platform: ${platform || 'any'})`);
         }
 
-        // Record click event for detailed tracking (CRITICAL FOR ANALYTICS)
-        addDebug('Attempting to insert click_event...');
-        const { data: eventData, error: eventError } = await supabase
+        // STEP 4: Record click_event
+        const { error: eventError } = await supabase
           .from('click_events')
           .insert({
             link_id: link.id,
@@ -145,56 +103,40 @@ export default function RedirectPage() {
             converted: false,
             is_bot: false,
             fraud_score: 0
-          })
-          .select();
-
-        if (eventError) {
-          console.error("⚠️ Click event tracking failed:", eventError);
-          addDebug(`❌ EVENT INSERT FAILED: ${eventError.message}`);
-          addDebug(`Error code: ${eventError.code}`);
-        } else {
-          console.log("✅ Click event recorded");
-          addDebug(`✅ EVENT INSERT SUCCESS: ${JSON.stringify(eventData)}`);
-        }
-
-        // Record activity log (OPTIONAL - helps with debugging)
-        addDebug('Attempting to insert activity_log...');
-        const { error: activityError } = await supabase
-          .from('activity_logs')
-          .insert({
-            user_id: link.user_id,
-            action: 'link_click',
-            details: `Clicked on ${link.product_name}`,
-            metadata: {
-              link_id: link.id,
-              slug: link.slug,
-              product_name: link.product_name,
-              network: link.network,
-              user_agent: navigator.userAgent,
-              referrer: document.referrer || 'direct',
-              new_click_count: newClicks,
-              platform_detected: platform
-            },
-            status: 'success'
           });
 
-        if (activityError) {
-          console.error("⚠️ Activity log failed:", activityError);
-          addDebug(`❌ ACTIVITY LOG FAILED: ${activityError.message}`);
-        } else {
-          console.log("✅ Activity logged");
-          addDebug('✅ ACTIVITY LOG SUCCESS');
+        if (!eventError) {
+          console.log("✅ Click event recorded");
         }
 
-        addDebug('✅ All tracking operations complete');
-        addDebug(`Redirecting to: ${link.original_url}`);
+        // STEP 5: Update system_state
+        const { data: systemState } = await supabase
+          .from('system_state')
+          .select('total_clicks')
+          .eq('user_id', link.user_id)
+          .maybeSingle();
+
+        if (systemState) {
+          const { error: stateError } = await supabase
+            .from('system_state')
+            .update({ 
+              total_clicks: (systemState.total_clicks || 0) + 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', link.user_id);
+
+          if (!stateError) {
+            console.log(`✅ System state clicks: ${systemState.total_clicks || 0} → ${(systemState.total_clicks || 0) + 1}`);
+          }
+        }
+
+        console.log('🎉 All tracking complete - redirecting...');
 
         // Start countdown
         const timer = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
               clearInterval(timer);
-              addDebug('🚀 Redirecting now...');
               window.location.href = link.original_url;
               return 0;
             }
@@ -206,8 +148,6 @@ export default function RedirectPage() {
       } catch (err: any) {
         console.error("💥 Redirect error:", err);
         setError("An error occurred");
-        addDebug(`💥 EXCEPTION: ${err.message}`);
-        addDebug(`Stack: ${err.stack}`);
       }
     };
 
@@ -217,22 +157,11 @@ export default function RedirectPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-2xl w-full">
+        <Card className="max-w-md w-full">
           <CardContent className="pt-6 text-center">
             <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
             <h1 className="text-2xl font-bold mb-2">Link Error</h1>
             <p className="text-muted-foreground mb-6">{error}</p>
-            
-            {/* Debug Info */}
-            <details className="text-left bg-muted p-4 rounded-lg mb-6">
-              <summary className="cursor-pointer font-semibold mb-2">Debug Information</summary>
-              <div className="text-xs font-mono space-y-1">
-                {debugInfo.map((info, idx) => (
-                  <div key={idx}>{info}</div>
-                ))}
-              </div>
-            </details>
-
             <Button onClick={() => router.push('/dashboard')} className="w-full">
               Return to Dashboard
             </Button>
@@ -248,17 +177,6 @@ export default function RedirectPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
-          {/* Show debug in loading state too */}
-          {debugInfo.length > 0 && (
-            <details className="text-left bg-muted p-4 rounded-lg mt-4 max-w-md mx-auto">
-              <summary className="cursor-pointer text-sm font-semibold mb-2">Debug Log</summary>
-              <div className="text-xs font-mono space-y-1">
-                {debugInfo.map((info, idx) => (
-                  <div key={idx}>{info}</div>
-                ))}
-              </div>
-            </details>
-          )}
         </div>
       </div>
     );
@@ -284,26 +202,13 @@ export default function RedirectPage() {
           </p>
           
           <Button
-            onClick={() => {
-              addDebug('🚀 Manual redirect clicked');
-              window.location.href = linkData.original_url;
-            }}
-            className="w-full mb-4"
+            onClick={() => window.location.href = linkData.original_url}
+            className="w-full"
             size="lg"
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             Go Now
           </Button>
-
-          {/* Debug Info */}
-          <details className="text-left bg-muted p-4 rounded-lg text-xs">
-            <summary className="cursor-pointer font-semibold mb-2">Debug Information</summary>
-            <div className="font-mono space-y-1">
-              {debugInfo.map((info, idx) => (
-                <div key={idx}>{info}</div>
-              ))}
-            </div>
-          </details>
         </CardContent>
       </Card>
     </div>
