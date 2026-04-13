@@ -75,11 +75,11 @@ export default async function handler(
     console.log(`✅ Found ${catalog?.length || 0} products in catalog`);
 
     // Step 5: Check integration sync times
-    const { data: updatedIntegrations } = await (supabase as any)
+    const { data: updatedIntegrations } = await supabase
       .from('integrations')
       .select('provider_name, last_sync_at')
       .eq('user_id', user.id)
-      .eq('category', 'affiliate_network');
+      .eq('category', 'affiliate_network') as { data: Array<{ provider_name: string; last_sync_at: string | null }> | null };
 
     console.log('✅ TEST DISCOVERY: Complete');
 
