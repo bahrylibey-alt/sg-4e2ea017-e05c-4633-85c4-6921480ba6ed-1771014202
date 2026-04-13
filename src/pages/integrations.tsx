@@ -29,7 +29,10 @@ import {
   CreditCard,
   Mail,
   BarChart3,
-  Webhook
+  Webhook,
+  CheckCircle,
+  XCircle,
+  RefreshCw
 } from "lucide-react";
 
 interface Integration {
@@ -550,6 +553,44 @@ export default function IntegrationsPage() {
         title: "Disconnect Failed",
         description: error.message,
         variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSyncProducts = async (integrationId: string, providerName: string) => {
+    if (!userId) return;
+
+    try {
+      setIsLoading(true);
+
+      toast({
+        title: "Syncing Products",
+        description: `Discovering products from ${providerName}...`,
+      });
+
+      console.log(`🔄 Starting product sync for ${providerName}...`);
+
+      // Trigger product discovery
+      const result = await smartProductDiscovery.discoverProducts(userId, 20);
+
+      console.log('✅ Product sync complete:', result);
+
+      toast({
+        title: "Sync Complete!",
+        description: `Discovered ${result.discovered} products from ${result.networks.join(', ')}`,
+      });
+
+      // Refresh integrations list
+      await fetchIntegrations();
+
+    } catch (error: any) {
+      console.error('❌ Product sync failed:', error);
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync products",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -1105,21 +1146,28 @@ export default function IntegrationsPage() {
           </div>
 
           {/* Affiliate Networks */}
-          <div>
-            <h2 className="text-2xl font-bold mb-4">💰 Affiliate Networks</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Connect your affiliate network accounts to discover and promote products
-            </p>
-
-            {affiliateIntegrations.filter(i => i.status === "connected").length === 0 && (
-              <Alert className="mb-4 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
-                <AlertDescription>
-                  <strong>No affiliate networks connected yet.</strong> Connect at least one network to start discovering products.
-                </AlertDescription>
-              </Alert>
-            )}
-
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">💰 Affiliate Networks</h2>
+                <p className="text-sm text-muted-foreground">Connect your affiliate network accounts to discover and promote products</p>
+              </div>
+              {affiliateIntegrations.some(i => i.status === "connected") && (
+                <Button
+                  onClick={() => {
+                    const connectedAffiliate = affiliateIntegrations.find(i => i.status === "connected");
+                    if (connectedAffiliate) {
+                      handleSyncProducts(connectedAffiliate.id, "All Networks");
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="bg-gradient-to-r from-primary to-purple-600"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  Sync All Products
+                </Button>
+              )}
+            </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {affiliateIntegrations.map((integration) => {
                 const Icon = integration.icon;
@@ -1153,26 +1201,34 @@ export default function IntegrationsPage() {
                         {isConnected ? (
                           <>
                             <Button
-                              variant="outline"
+                              variant="destructive"
                               size="sm"
-                              className="flex-1"
-                              onClick={() => handleDisconnect(integration.id)}
+                              onClick={() => handleDisconnect(integration.id, integration.name)}
                               disabled={isLoading}
+                              className="flex-1"
                             >
-                              <X className="w-4 h-4 mr-2" />
+                              <XCircle className="w-4 h-4 mr-2" />
                               Disconnect
                             </Button>
-                            <Button variant="outline" size="sm">
-                              <Settings className="w-4 h-4" />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSyncProducts(integration.id, integration.name)}
+                              disabled={isLoading}
+                              className="flex-1 border-primary text-primary hover:bg-primary hover:text-white"
+                            >
+                              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                              Sync Products
                             </Button>
                           </>
                         ) : (
                           <Button
-                            className="flex-1"
-                            onClick={() => openConnectDialog(integration)}
+                            onClick={() => setConnectDialog({ open: true, integration })}
                             disabled={isLoading}
+                            size="sm"
+                            className="w-full"
                           >
-                            <Plus className="w-4 h-4 mr-2" />
+                            <Link2 className="w-4 h-4 mr-2" />
                             Connect
                           </Button>
                         )}
