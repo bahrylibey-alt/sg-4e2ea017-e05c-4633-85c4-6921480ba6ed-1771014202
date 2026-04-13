@@ -121,13 +121,12 @@ export default function TrafficTest() {
 
         console.log(`📱 Creating post for ${platform}...`);
 
-        // Create posted content - FIXED: removed product_name (column doesn't exist)
+        // Create posted content - FIXED: removed product_id (references wrong table)
         const { data: post, error: postError } = await supabase
           .from('posted_content')
           .insert({
             user_id: user.id,
             link_id: link.id,
-            product_id: link.id,
             platform: platform,
             caption: `Check out this amazing ${link.product_name}! ${link.cloaked_url}`,
             status: 'posted',
