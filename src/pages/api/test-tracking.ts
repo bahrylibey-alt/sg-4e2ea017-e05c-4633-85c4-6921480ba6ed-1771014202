@@ -203,7 +203,7 @@ export default async function handler(
       step: "Check System State",
       status: systemState ? "PASS" : "WARN",
       totalClicks: systemState?.total_clicks || 0,
-      totalConversions: systemState?.total_conversions || 0,
+      totalConversions: systemState?.total_verified_conversions || 0,
       message: systemState ? "System state exists" : "System state not found (may need first sync)",
     });
 
