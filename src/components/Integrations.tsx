@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Check, Loader2, Settings } from "lucide-react";
+import { Check, Loader2, Settings, RefreshCw } from "lucide-react";
 import { integrationService, type Integration, type IntegrationConfig } from "@/services/integrationService";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,13 @@ export function Integrations() {
   const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfig>({});
   const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    success: boolean;
+    message: string;
+    discovered?: number;
+    networks?: string[];
+  } | null>(null);
 
   const templates = integrationService.getTemplates();
   const availableIntegrations = Object.entries(templates).map(([key, template]) => ({
@@ -144,6 +151,49 @@ export function Integrations() {
         title: "Request submitted",
         description: `We'll review your request for ${integrationName} integration`
       });
+    }
+  };
+
+  const handleManualSync = async () => {
+    try {
+      setSyncing(true);
+      setSyncResult(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch('/api/manual-sync', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSyncResult({
+          success: true,
+          message: data.message,
+          discovered: data.discovered,
+          networks: data.networks,
+        });
+      } else {
+        setSyncResult({
+          success: false,
+          message: data.error || 'Sync failed',
+        });
+      }
+    } catch (error: any) {
+      setSyncResult({
+        success: false,
+        message: error.message || 'Sync failed',
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
