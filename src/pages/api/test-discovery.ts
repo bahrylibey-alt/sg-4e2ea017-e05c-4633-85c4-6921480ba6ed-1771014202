@@ -75,7 +75,7 @@ export default async function handler(
     console.log(`✅ Found ${catalog?.length || 0} products in catalog`);
 
     // Step 5: Get sync times from integrations we already fetched
-    const syncTimes = integrations.map(i => ({
+    const syncTimes = (integrations as any[]).map(i => ({
       network: i.provider_name,
       last_sync: i.last_sync_at
     }));
