@@ -3,17 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, XCircle, Loader2, ExternalLink, PlayCircle, Database, Activity } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { CheckCircle, XCircle, Loader2, ExternalLink, PlayCircle, Database, Activity, Trash2, WrenchIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { checkAllLinksHealth, removeAllBrokenLinks, autoRepairLinks } from "@/services/linkHealthMonitor";
 
 export default function TrafficTest() {
   const [testing, setTesting] = useState(false);
-  const [generatingTraffic, setGeneratingTraffic] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [autoRepairing, setAutoRepairing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<any>(null);
-  const [trafficResults, setTrafficResults] = useState<any>(null);
 
-  const runTest = async () => {
+  const runHealthCheck = async () => {
     setTesting(true);
+    setProgress(0);
     setResults(null);
 
     try {
@@ -22,75 +26,36 @@ export default function TrafficTest() {
         throw new Error('Please log in first');
       }
 
-      // 1. Check database connections
-      const { data: links, error: linksError } = await supabase
-        .from('affiliate_links')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(10);
+      setProgress(10);
 
-      if (linksError) throw linksError;
+      // Run comprehensive health check
+      const healthResults = await checkAllLinksHealth(user.id);
 
-      // 2. Test each link's redirect
-      const linkTests = await Promise.all(
-        (links || []).map(async (link) => {
-          try {
-            const redirectUrl = `/go/${link.slug}`;
-            return {
-              name: link.product_name,
-              slug: link.slug,
-              network: link.network,
-              originalUrl: link.original_url,
-              redirectUrl: redirectUrl,
-              clicks: link.clicks || 0,
-              status: 'working'
-            };
-          } catch (err) {
-            return {
-              name: link.product_name,
-              slug: link.slug,
-              error: err instanceof Error ? err.message : 'Unknown error',
-              status: 'error'
-            };
-          }
-        })
-      );
-
-      // 3. Check system state
-      const { data: systemState } = await supabase
-        .from('system_state')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      setProgress(100);
 
       setResults({
-        totalLinks: links?.length || 0,
-        working: linkTests.filter(t => t.status === 'working').length,
-        failed: linkTests.filter(t => t.status === 'error').length,
-        links: linkTests,
-        systemState: systemState || {
-          total_views: 0,
-          total_clicks: 0,
-          total_verified_conversions: 0,
-          total_verified_revenue: 0,
-          state: 'NO_TRAFFIC'
-        },
-        dbError: linksError
+        type: 'health_check',
+        totalLinks: healthResults.totalChecked,
+        working: healthResults.working,
+        broken: healthResults.broken,
+        removed: healthResults.removed,
+        links: healthResults.results.slice(0, 20) // Show first 20
       });
-    } catch (error) {
-      console.error('Test failed:', error);
+
+    } catch (error: any) {
+      console.error('Health check failed:', error);
       setResults({
-        error: error instanceof Error ? error.message : 'Unknown error'
+        type: 'error',
+        error: error.message
       });
     } finally {
       setTesting(false);
+      setProgress(0);
     }
   };
 
-  const generateTestTraffic = async () => {
-    setGeneratingTraffic(true);
-    setTrafficResults(null);
+  const removeAllBroken = async () => {
+    setCleaning(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -98,101 +63,58 @@ export default function TrafficTest() {
         throw new Error('Please log in first');
       }
 
-      console.log('🚀 Generating test traffic...');
+      const removed = await removeAllBrokenLinks(user.id);
 
-      // Get active links
-      const { data: links } = await supabase
-        .from('affiliate_links')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(3);
-
-      if (!links || links.length === 0) {
-        throw new Error('No active affiliate links found. Create some products first.');
-      }
-
-      const platforms = ['facebook', 'instagram', 'twitter', 'linkedin'];
-      const results = [];
-
-      for (let i = 0; i < platforms.length; i++) {
-        const platform = platforms[i];
-        const link = links[i % links.length];
-
-        console.log(`📱 Creating post for ${platform}...`);
-
-        // Create posted content - FIXED: removed product_id (references wrong table)
-        const { data: post, error: postError } = await supabase
-          .from('posted_content')
-          .insert({
-            user_id: user.id,
-            link_id: link.id,
-            platform: platform,
-            caption: `Check out this amazing ${link.product_name}! ${link.cloaked_url}`,
-            status: 'posted',
-            posted_at: new Date().toISOString(),
-            impressions: Math.floor(Math.random() * 500) + 100,
-            clicks: Math.floor(Math.random() * 30) + 5,
-            conversions: Math.floor(Math.random() * 3),
-            revenue: Number((Math.random() * 50).toFixed(2))
-          })
-          .select()
-          .single();
-
-        if (postError) {
-          console.error(`❌ Failed to create ${platform} post:`, postError);
-          results.push({
-            platform,
-            success: false,
-            error: postError.message
-          });
-        } else {
-          console.log(`✅ ${platform} post created:`, post);
-          results.push({
-            platform,
-            success: true,
-            views: post.impressions,
-            clicks: post.clicks,
-            conversions: post.conversions,
-            revenue: post.revenue,
-            product_name: link.product_name
-          });
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      // Wait for triggers to sync
-      console.log('⏳ Waiting for database triggers to sync...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Verify system state updated
-      const { data: updatedState } = await supabase
-        .from('system_state')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      setTrafficResults({
-        success: true,
-        postsCreated: results.filter(r => r.success).length,
-        postsFailed: results.filter(r => !r.success).length,
-        results,
-        systemState: updatedState,
-        totalViews: results.reduce((sum, r) => sum + (r.views || 0), 0),
-        totalClicks: results.reduce((sum, r) => sum + (r.clicks || 0), 0),
-        totalConversions: results.reduce((sum, r) => sum + (r.conversions || 0), 0),
-        totalRevenue: results.reduce((sum, r) => sum + parseFloat(r.revenue || '0'), 0).toFixed(2)
+      setResults({
+        type: 'cleanup',
+        removed,
+        message: `Successfully removed ${removed} broken links from database`
       });
 
     } catch (error: any) {
-      console.error('❌ Traffic generation failed:', error);
-      setTrafficResults({
-        success: false,
+      console.error('Cleanup failed:', error);
+      setResults({
+        type: 'error',
         error: error.message
       });
     } finally {
-      setGeneratingTraffic(false);
+      setCleaning(false);
+    }
+  };
+
+  const runAutoRepair = async () => {
+    setAutoRepairing(true);
+    setProgress(0);
+    setResults(null);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Please log in first');
+      }
+
+      setProgress(20);
+
+      const repairResults = await autoRepairLinks(user.id);
+
+      setProgress(100);
+
+      setResults({
+        type: 'auto_repair',
+        repaired: repairResults.repaired,
+        removed: repairResults.removed,
+        report: repairResults.report
+      });
+
+    } catch (error: any) {
+      console.error('Auto-repair failed:', error);
+      setResults({
+        type: 'error',
+        error: error.message
+      });
+    } finally {
+      setAutoRepairing(false);
+      setProgress(0);
     }
   };
 
@@ -202,63 +124,90 @@ export default function TrafficTest() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="w-6 h-6 text-primary" />
-            🧪 Complete Traffic Generation Test
+            🔍 Link Health Monitor
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <Button onClick={runTest} disabled={testing} size="lg" className="w-full">
+          <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950">
+            <AlertDescription>
+              <strong>Real Link Validation:</strong> This tool checks if Amazon/Temu products still exist, not just redirect URLs. 
+              Broken products are automatically marked and can be removed with one click.
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid grid-cols-3 gap-4">
+            <Button 
+              onClick={runHealthCheck} 
+              disabled={testing || cleaning || autoRepairing} 
+              size="lg" 
+              className="w-full"
+            >
               {testing ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Testing Links...
+                  Checking...
                 </>
               ) : (
                 <>
                   <Database className="w-4 h-4 mr-2" />
-                  Test Link System
+                  Check All Links
                 </>
               )}
             </Button>
 
             <Button 
-              onClick={generateTestTraffic} 
-              disabled={generatingTraffic}
+              onClick={removeAllBroken} 
+              disabled={testing || cleaning || autoRepairing}
               size="lg" 
-              className="w-full bg-green-600 hover:bg-green-700"
+              variant="destructive"
+              className="w-full"
             >
-              {generatingTraffic ? (
+              {cleaning ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating Traffic...
+                  Removing...
                 </>
               ) : (
                 <>
-                  <PlayCircle className="w-4 h-4 mr-2" />
-                  Generate Test Traffic
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remove Broken
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={runAutoRepair} 
+              disabled={testing || cleaning || autoRepairing}
+              size="lg" 
+              className="w-full bg-green-600 hover:bg-green-700"
+            >
+              {autoRepairing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Repairing...
+                </>
+              ) : (
+                <>
+                  <WrenchIcon className="w-4 h-4 mr-2" />
+                  Auto-Repair
                 </>
               )}
             </Button>
           </div>
 
-          <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-            <AlertDescription className="text-sm">
-              <strong>Test Link System:</strong> Validates database connections and link redirects<br/>
-              <strong>Generate Test Traffic:</strong> Creates real posts with views/clicks across 4 platforms (Facebook, Instagram, Twitter, LinkedIn)
-            </AlertDescription>
-          </Alert>
+          {(testing || autoRepairing) && progress > 0 && (
+            <div className="space-y-2">
+              <Progress value={progress} className="w-full" />
+              <p className="text-sm text-center text-muted-foreground">
+                {progress}% complete...
+              </p>
+            </div>
+          )}
 
-          {/* Link Test Results */}
+          {/* Results Display */}
           {results && (
             <div className="space-y-4">
-              {results.error ? (
-                <Alert className="border-red-500 bg-red-50 dark:bg-red-950">
-                  <XCircle className="w-4 h-4 text-red-600" />
-                  <AlertDescription className="text-red-800 dark:text-red-200">
-                    {results.error}
-                  </AlertDescription>
-                </Alert>
-              ) : (
+              {results.type === 'health_check' && (
                 <>
                   <div className="grid grid-cols-4 gap-4">
                     <Card>
@@ -275,69 +224,49 @@ export default function TrafficTest() {
                     </Card>
                     <Card>
                       <CardContent className="pt-6 text-center">
-                        <p className="text-3xl font-bold text-blue-600">{results.systemState.total_views}</p>
-                        <p className="text-sm text-muted-foreground">Total Views</p>
+                        <p className="text-3xl font-bold text-orange-600">{results.broken}</p>
+                        <p className="text-sm text-muted-foreground">Broken</p>
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6 text-center">
-                        <p className="text-3xl font-bold text-purple-600">{results.systemState.total_clicks}</p>
-                        <p className="text-sm text-muted-foreground">Total Clicks</p>
+                        <p className="text-3xl font-bold text-red-600">{results.removed}</p>
+                        <p className="text-sm text-muted-foreground">Removed</p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">System State</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">State:</span>
-                          <Badge className="ml-2">{results.systemState.state}</Badge>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Verified Revenue:</span>
-                          <span className="ml-2 font-bold">${Number(results.systemState.total_verified_revenue || 0).toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Conversions:</span>
-                          <span className="ml-2 font-bold">{results.systemState.total_verified_conversions || 0}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">CTR:</span>
-                          <span className="ml-2 font-bold">
-                            {results.systemState.total_views > 0 
-                              ? ((results.systemState.total_clicks / results.systemState.total_views) * 100).toFixed(2)
-                              : 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {results.removed > 0 && (
+                    <Alert className="border-red-500 bg-red-50 dark:bg-red-950">
+                      <AlertDescription className="text-red-800 dark:text-red-200">
+                        <strong>⚠️ {results.removed} links removed</strong> - These products no longer exist on Amazon/Temu after 3 failed checks.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   <div className="space-y-2">
-                    <h3 className="font-semibold">Link Details:</h3>
-                    {results.links.slice(0, 5).map((link: any, idx: number) => (
-                      <Card key={idx}>
+                    <h3 className="font-semibold">Link Details (First 20):</h3>
+                    {results.links.map((link: any, idx: number) => (
+                      <Card key={idx} className={link.isWorking ? "border-green-500/50" : "border-red-500/50"}>
                         <CardContent className="pt-4">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                {link.status === 'working' ? (
+                                {link.isWorking ? (
                                   <CheckCircle className="w-4 h-4 text-green-600" />
                                 ) : (
                                   <XCircle className="w-4 h-4 text-red-600" />
                                 )}
-                                <p className="font-semibold">{link.name}</p>
+                                <p className="font-semibold">{link.productName}</p>
                                 <Badge variant="secondary">{link.network}</Badge>
+                                {link.isWorking && <Badge className="bg-green-500">WORKING</Badge>}
+                                {!link.isWorking && <Badge variant="destructive">BROKEN</Badge>}
                               </div>
                               <p className="text-sm text-muted-foreground mb-1">
                                 Slug: <code className="bg-muted px-1 rounded">{link.slug}</code>
                               </p>
-                              <p className="text-sm text-muted-foreground">
-                                Clicks: <span className="font-bold">{link.clicks}</span>
+                              <p className="text-xs text-muted-foreground break-all">
+                                URL: {link.originalUrl}
                               </p>
                               {link.error && (
                                 <p className="text-sm text-red-600 mt-2">Error: {link.error}</p>
@@ -346,7 +275,7 @@ export default function TrafficTest() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => window.open(link.redirectUrl, '_blank')}
+                              onClick={() => window.open(link.originalUrl, '_blank')}
                             >
                               <ExternalLink className="w-4 h-4" />
                             </Button>
@@ -357,122 +286,72 @@ export default function TrafficTest() {
                   </div>
                 </>
               )}
+
+              {results.type === 'cleanup' && (
+                <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <AlertDescription className="text-green-800 dark:text-green-200">
+                    <strong>✅ Cleanup Complete!</strong><br/>
+                    {results.message}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {results.type === 'auto_repair' && (
+                <Card className="border-2 border-green-500">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      Auto-Repair Complete!
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="bg-muted p-4 rounded-lg text-sm whitespace-pre-wrap">
+                      {results.report}
+                    </pre>
+                  </CardContent>
+                </Card>
+              )}
+
+              {results.type === 'error' && (
+                <Alert className="border-red-500 bg-red-50 dark:bg-red-950">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <AlertDescription className="text-red-800 dark:text-red-200">
+                    {results.error}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
+        </CardContent>
+      </Card>
 
-          {/* Traffic Generation Results */}
-          {trafficResults && (
-            <Card className="border-2 border-green-500">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {trafficResults.success ? (
-                    <>
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      Traffic Generated Successfully!
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-5 h-5 text-red-600" />
-                      Traffic Generation Failed
-                    </>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {trafficResults.success ? (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <Card>
-                        <CardContent className="pt-6 text-center">
-                          <p className="text-3xl font-bold text-blue-600">{trafficResults.totalViews}</p>
-                          <p className="text-sm text-muted-foreground">Views Generated</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="pt-6 text-center">
-                          <p className="text-3xl font-bold text-purple-600">{trafficResults.totalClicks}</p>
-                          <p className="text-sm text-muted-foreground">Clicks Generated</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="pt-6 text-center">
-                          <p className="text-3xl font-bold text-green-600">{trafficResults.totalConversions}</p>
-                          <p className="text-sm text-muted-foreground">Conversions</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="pt-6 text-center">
-                          <p className="text-3xl font-bold text-orange-600">${trafficResults.totalRevenue}</p>
-                          <p className="text-sm text-muted-foreground">Revenue</p>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <AlertDescription>
-                        <strong>Success!</strong> Created {trafficResults.postsCreated} posts across 4 platforms. 
-                        Check the Dashboard or Traffic Channels page to see the results!
-                      </AlertDescription>
-                    </Alert>
-
-                    {trafficResults.systemState && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">Updated System State</CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-sm space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Views:</span>
-                            <span className="font-bold">{trafficResults.systemState.total_views || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Clicks:</span>
-                            <span className="font-bold">{trafficResults.systemState.total_clicks || 0}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">State:</span>
-                            <Badge>{trafficResults.systemState.state || 'NO_TRAFFIC'}</Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    <div className="space-y-2">
-                      <h4 className="font-semibold text-sm">Platform Breakdown:</h4>
-                      {trafficResults.results.map((result: any, idx: number) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div className="flex items-center gap-2">
-                            {result.success ? (
-                              <CheckCircle className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <XCircle className="w-4 h-4 text-red-600" />
-                            )}
-                            <span className="font-semibold capitalize">{result.platform}</span>
-                          </div>
-                          {result.success && (
-                            <div className="text-sm text-muted-foreground">
-                              {result.views} views · {result.clicks} clicks · {result.conversions} conv · ${result.revenue}
-                            </div>
-                          )}
-                          {result.error && (
-                            <span className="text-sm text-red-600">{result.error}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <Alert className="border-red-500 bg-red-50 dark:bg-red-950">
-                    <XCircle className="w-4 h-4 text-red-600" />
-                    <AlertDescription className="text-red-800 dark:text-red-200">
-                      {trafficResults.error}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-          )}
+      <Card>
+        <CardHeader>
+          <CardTitle>How It Works</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div>
+            <strong>1. Check All Links</strong>
+            <p className="text-muted-foreground">
+              Validates ACTUAL Amazon/Temu product pages (not just redirect URLs). 
+              Marks broken products and counts failures.
+            </p>
+          </div>
+          <div>
+            <strong>2. Remove Broken</strong>
+            <p className="text-muted-foreground">
+              Deletes links with 3+ consecutive failures from database. 
+              Clean slate for real products only.
+            </p>
+          </div>
+          <div>
+            <strong>3. Auto-Repair</strong>
+            <p className="text-muted-foreground">
+              Runs full health check + removes all broken links in one click. 
+              Your database will only contain working products.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
