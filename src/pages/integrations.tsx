@@ -33,7 +33,7 @@ interface Integration {
   name: string;
   description: string;
   icon: any;
-  category: "automation" | "social" | "affiliate";
+  category: "automation" | "social" | "affiliate_network";
   status: "available" | "connected";
   connected_at?: string;
   credentials?: {
@@ -90,13 +90,13 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     status: "available"
   },
 
-  // AFFILIATE NETWORKS
+  // AFFILIATE NETWORKS - FIXED: IDs use underscores to match database, category is "affiliate_network"
   {
     id: "amazon_associates",
     name: "Amazon Associates",
     description: "World's largest affiliate program - millions of products",
     icon: ShoppingCart,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -104,7 +104,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "Temu Affiliate",
     description: "Fast-growing marketplace - competitive commissions",
     icon: TrendingUp,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -112,7 +112,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "ShareASale",
     description: "4,500+ merchants - fashion, home, tech",
     icon: Link2,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -120,7 +120,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "ClickBank",
     description: "Digital products - high commissions (50-75%)",
     icon: DollarSign,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -128,7 +128,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "Impact",
     description: "Premium brands - Uber, Airbnb, Shopify",
     icon: TrendingUp,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -136,7 +136,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "Awin",
     description: "15,000+ advertisers - global network",
     icon: Link2,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -144,7 +144,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "Rakuten Advertising",
     description: "1,000+ top brands - Walmart, Macy's, Best Buy",
     icon: ShoppingCart,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -152,7 +152,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "CJ Affiliate",
     description: "3,000+ brands - enterprise-level tracking",
     icon: TrendingUp,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -160,7 +160,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "Pepperjam",
     description: "Performance marketing - quality brands",
     icon: DollarSign,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   },
   {
@@ -168,7 +168,7 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
     name: "FlexOffers",
     description: "12,000+ programs - diverse categories",
     icon: Link2,
-    category: "affiliate",
+    category: "affiliate_network",
     status: "available"
   }
 ];
@@ -278,7 +278,7 @@ export default function IntegrationsPage() {
       console.log(`🔌 Connecting ${integration.name} (${integration.category})...`);
 
       // CRITICAL FIX: Use correct table based on integration type
-      if (integration.category === "affiliate" || integration.category === "automation") {
+      if (integration.category === "affiliate_network" || integration.category === "automation") {
         // AFFILIATE & AUTOMATION → integrations table
         // First check if exists since we might not know the exact unique constraint name
         const { data: existing } = await supabase
@@ -498,7 +498,7 @@ export default function IntegrationsPage() {
         ],
         note: "Free tier limited to 1,500 tweets/month"
       },
-      "amazon-associates": {
+      amazon_associates: {
         steps: [
           "Sign up at affiliate-program.amazon.com",
           "Complete your profile and website info",
@@ -506,6 +506,15 @@ export default function IntegrationsPage() {
           "Copy your Associate ID from the dashboard"
         ],
         note: "You need a website or social media presence"
+      },
+      temu_affiliate: {
+        steps: [
+          "Sign up at Temu Affiliate Program",
+          "Complete application with your promotion channels",
+          "Get approved (1-2 days)",
+          "Copy your Affiliate ID from the dashboard"
+        ],
+        note: "Competitive commissions on trending products"
       },
       shareasale: {
         steps: [
@@ -567,7 +576,7 @@ export default function IntegrationsPage() {
   };
 
   const socialIntegrations = integrations.filter(i => i.category === "social");
-  const affiliateIntegrations = integrations.filter(i => i.category === "affiliate");
+  const affiliateIntegrations = integrations.filter(i => i.category === "affiliate_network");
   const automationIntegrations = integrations.filter(i => i.category === "automation");
 
   return (
@@ -799,7 +808,7 @@ export default function IntegrationsPage() {
           <DialogHeader>
             <DialogTitle>Connect {connectDialog.integration?.name}</DialogTitle>
             <DialogDescription>
-              {connectDialog.integration?.category === "affiliate" 
+              {connectDialog.integration?.category === "affiliate_network" 
                 ? "Enter your affiliate account details"
                 : "Enter your credentials to enable auto-posting"
               }
@@ -808,7 +817,7 @@ export default function IntegrationsPage() {
 
           <div className="space-y-6 py-4">
             <div className="space-y-4">
-              {connectDialog.integration?.category === "affiliate" ? (
+              {connectDialog.integration?.category === "affiliate_network" ? (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="pageId">Account ID / Affiliate ID</Label>
@@ -881,8 +890,8 @@ export default function IntegrationsPage() {
             <Button 
               onClick={handleConnect} 
               disabled={
-                (connectDialog.integration?.category === "affiliate" && !credentials.pageId) ||
-                (connectDialog.integration?.category !== "affiliate" && (!credentials.pageId || !credentials.accessToken)) ||
+                (connectDialog.integration?.category === "affiliate_network" && !credentials.pageId) ||
+                (connectDialog.integration?.category !== "affiliate_network" && (!credentials.pageId || !credentials.accessToken)) ||
                 isLoading
               }
             >
