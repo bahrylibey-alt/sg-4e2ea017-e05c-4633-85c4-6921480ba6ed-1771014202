@@ -16,9 +16,20 @@ export const contentIntelligence = {
   }> {
     const insights: string[] = [];
     try {
-      const { data: posts } = await supabase.from("posted_content").select("*").eq("user_id", userId).order("clicks", { ascending: false }).limit(10);
+      const { data: posts } = await supabase
+        .from("posted_content")
+        .select("*")
+        .eq("user_id", userId)
+        .order("clicks", { ascending: false })
+        .limit(10);
+
       if (!posts || posts.length === 0) {
-        return { bestPlatform: null, bestHook: null, topProduct: null, insights: ["No data yet - continue posting to generate insights"] };
+        return { 
+          bestPlatform: null, 
+          bestHook: null, 
+          topProduct: null, 
+          insights: ["No data yet - continue posting to generate insights"] 
+        };
       }
 
       const platformCounts: Record<string, number> = {};
@@ -26,20 +37,36 @@ export const contentIntelligence = {
         const platform = post.platform || "unknown";
         platformCounts[platform] = (platformCounts[platform] || 0) + 1;
       });
+      
       const bestPlatform = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
       if (bestPlatform) insights.push(`${bestPlatform} is your top platform (${platformCounts[bestPlatform]} high-performing posts)`);
 
-      const { data: dnaRecords } = await supabase.from("content_dna").select("hook_type, performance_score").eq("user_id", userId).order("performance_score", { ascending: false }).limit(1);
+      const { data: dnaRecords } = await supabase
+        .from("content_dna")
+        .select("hook_type, performance_score")
+        .eq("user_id", userId)
+        .order("performance_score", { ascending: false })
+        .limit(1);
+      
       const bestHook = dnaRecords?.[0]?.hook_type || null;
       if (bestHook) insights.push(`"${bestHook}" hooks perform best for you`);
 
-      const { data: products } = await supabase.from("affiliate_links").select("id, product_name, clicks, conversions").eq("user_id", userId).order("conversions", { ascending: false }).limit(1);
+      const { data: products } = await supabase
+        .from("affiliate_links")
+        .select("id, product_name, clicks, conversions")
+        .eq("user_id", userId)
+        .order("conversions", { ascending: false })
+        .limit(1);
+      
       const topProduct = products?.[0] ? {
         id: products[0].id,
         name: products[0].product_name || "Unknown",
         conversionRate: products[0].clicks > 0 ? (products[0].conversions || 0) / products[0].clicks : 0,
       } : null;
-      if (topProduct && topProduct.conversionRate > 0) insights.push(`"${topProduct.name}" converts at ${(topProduct.conversionRate * 100).toFixed(1)}%`);
+      
+      if (topProduct && topProduct.conversionRate > 0) {
+        insights.push(`"${topProduct.name}" converts at ${(topProduct.conversionRate * 100).toFixed(1)}%`);
+      }
 
       const postHours = posts.map((p) => (p.posted_at ? new Date(p.posted_at).getHours() : null)).filter((h) => h !== null) as number[];
       if (postHours.length > 0) {
@@ -50,16 +77,27 @@ export const contentIntelligence = {
       return { bestPlatform, bestHook, topProduct, insights };
     } catch (error) {
       console.error("Failed to analyze top performers:", error);
-      return { bestPlatform: null, bestHook: null, topProduct: null, insights: ["Analysis temporarily unavailable"] };
+      return { 
+        bestPlatform: null, 
+        bestHook: null, 
+        topProduct: null, 
+        insights: ["Analysis temporarily unavailable"] 
+      };
     }
   },
 
   async getTrafficState(userId: string): Promise<"NO_DATA" | "LOW" | "ACTIVE" | "SCALING"> {
     try {
-      const { data: posts, count } = await supabase.from("posted_content").select("clicks, impressions", { count: "exact" }).eq("user_id", userId);
+      const { data: posts, count } = await supabase
+        .from("posted_content")
+        .select("clicks, impressions", { count: "exact" })
+        .eq("user_id", userId);
+      
       if (!count || count === 0) return "NO_DATA";
+      
       const totalClicks = posts?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0;
       const totalImpressions = posts?.reduce((sum, p) => sum + (p.impressions || 0), 0) || 0;
+      
       if (totalImpressions < 100) return "LOW";
       if (totalClicks < 10) return "ACTIVE";
       return "SCALING";
@@ -103,17 +141,40 @@ export const aiInsightsEngine = {
    */
   async generateInsights(userId: string): Promise<AIInsights> {
     try {
-      // Step 1: Score all posts
-      const scoreResults = await scoringEngine.scoreAllPosts(userId);
+      console.log('🤖 AI Insights: Starting analysis for user:', userId);
+
+      // Step 1: Score all posts with timeout
+      const scorePromise = scoringEngine.scoreAllPosts(userId);
+      const scoreTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Scoring timeout')), 5000)
+      );
+      const scoreResults = await Promise.race([scorePromise, scoreTimeout]) as any;
+
+      console.log('✅ AI Insights: Scoring complete:', scoreResults);
 
       // Step 2: Get traffic state
       const trafficState = await contentIntelligence.getTrafficState(userId);
+      console.log('✅ AI Insights: Traffic state:', trafficState);
 
       // Step 3: Analyze top performers
       const topPerformers = await contentIntelligence.analyzeTopPerformers(userId);
+      console.log('✅ AI Insights: Top performers analyzed');
 
-      // Step 4: Generate decisions
-      const decisions = await decisionEngine.analyzeAllPosts(userId);
+      // Step 4: Generate decisions with timeout
+      const decisionsPromise = decisionEngine.analyzeAllPosts(userId);
+      const decisionsTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Decisions timeout')), 5000)
+      );
+      
+      let decisions;
+      try {
+        decisions = await Promise.race([decisionsPromise, decisionsTimeout]) as any;
+      } catch (err) {
+        console.warn('⚠️ Decision engine timeout, using fallback');
+        decisions = { decisions: [] };
+      }
+
+      console.log('✅ AI Insights: Decisions generated');
 
       // Step 5: Generate next steps
       const nextSteps: string[] = [];
@@ -151,7 +212,7 @@ export const aiInsightsEngine = {
           bestHook: topPerformers.bestHook,
           topProduct: topPerformers.topProduct,
         },
-        recommendations: decisions.decisions.slice(0, 5).map((d) => ({
+        recommendations: decisions.decisions.slice(0, 5).map((d: any) => ({
           type: d.type,
           priority: d.priority,
           action: d.action,
@@ -160,6 +221,8 @@ export const aiInsightsEngine = {
         insights: topPerformers.insights,
         nextSteps,
       };
+
+      console.log('✅ AI Insights: Analysis complete');
 
       // Save insights (FAIL-SAFE)
       try {
@@ -178,7 +241,9 @@ export const aiInsightsEngine = {
 
       return insights;
     } catch (error) {
-      console.error("Failed to generate insights:", error);
+      console.error("❌ AI Insights: Failed to generate insights:", error);
+      
+      // Return fallback insights instead of throwing
       return {
         summary: {
           totalPosts: 0,
@@ -193,7 +258,7 @@ export const aiInsightsEngine = {
           topProduct: null,
         },
         recommendations: [],
-        insights: ["Insights temporarily unavailable"],
+        insights: ["Insights temporarily unavailable - please try refreshing"],
         nextSteps: ["Continue posting - data collection in progress"],
       };
     }

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, TrendingUp, Lightbulb, Target, RefreshCw } from "lucide-react";
+import { Sparkles, TrendingUp, Lightbulb, Target, RefreshCw, AlertCircle } from "lucide-react";
 import { aiInsightsEngine } from "@/services/aiInsightsEngine";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,20 +13,37 @@ interface AIInsightsPanelProps {
 export function AIInsightsPanel({ userId }: AIInsightsPanelProps) {
   const [insights, setInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadInsights = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      const data = await aiInsightsEngine.generateInsights(userId);
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Analysis timeout - taking too long')), 15000)
+      );
+
+      const insightsPromise = aiInsightsEngine.generateInsights(userId);
+
+      const data = await Promise.race([insightsPromise, timeoutPromise]) as any;
+      
       setInsights(data);
-    } catch (error) {
+      setError(null);
+    } catch (error: any) {
       console.error("Failed to load insights:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load AI insights",
-        variant: "destructive",
-      });
+      setError(error.message || "Failed to load AI insights");
+      
+      // Don't show toast for timeout - just show error state
+      if (!error.message?.includes('timeout')) {
+        toast({
+          title: "Error",
+          description: "Failed to load AI insights",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -43,7 +60,31 @@ export function AIInsightsPanel({ userId }: AIInsightsPanelProps) {
           <Sparkles className="w-5 h-5 text-primary animate-pulse" />
           <h3 className="text-lg font-semibold">AI Insights</h3>
         </div>
-        <p className="text-sm text-muted-foreground">Analyzing your performance...</p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Analyzing your performance data...</p>
+          </div>
+          <p className="text-xs text-muted-foreground">This may take up to 15 seconds</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6 border-orange-500">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertCircle className="w-5 h-5 text-orange-600" />
+          <h3 className="text-lg font-semibold">AI Insights</h3>
+        </div>
+        <div className="space-y-3">
+          <p className="text-sm text-orange-600">{error}</p>
+          <Button onClick={loadInsights} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -55,7 +96,11 @@ export function AIInsightsPanel({ userId }: AIInsightsPanelProps) {
           <Sparkles className="w-5 h-5 text-primary" />
           <h3 className="text-lg font-semibold">AI Insights</h3>
         </div>
-        <p className="text-sm text-muted-foreground">No insights available yet</p>
+        <p className="text-sm text-muted-foreground">No insights available yet. Post some content to get started!</p>
+        <Button onClick={loadInsights} variant="outline" size="sm" className="mt-3">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </Card>
     );
   }
