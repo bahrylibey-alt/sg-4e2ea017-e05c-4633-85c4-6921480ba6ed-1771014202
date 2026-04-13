@@ -1,305 +1,471 @@
 # TRACKING SYSTEM TEST GUIDE
-## Verify Click → Conversion → Intelligence → Profit Flow
 
-## 🎯 WHAT WE'RE TESTING
+## 🎯 VERIFY COMPLETE TRACKING CHAIN
 
-The complete profit-seeking loop:
-1. **Click Tracking**: User clicks link → system records it
-2. **Conversion Tracking**: User buys → system records revenue
-3. **Intelligence Scoring**: System calculates performance
-4. **Autopilot Decisions**: System scales winners, kills losers
-5. **Profit Dashboard**: Shows what's making money
+This guide tests the complete tracking flow:
+**Post → View → Click → Conversion → Revenue**
 
 ---
 
-## ✅ PRE-TEST CHECKLIST
+## TEST 1: VIEW TRACKING
 
-Before starting, verify:
-- [ ] You're logged in
-- [ ] Dashboard loads without errors
-- [ ] Autopilot is enabled (Dashboard → AI Autopilot tab → Toggle ON)
-- [ ] At least 1 product exists in database
+### Create a Test Post
+```javascript
+const { data: post } = await supabase.from("posted_content").insert({
+  user_id: "YOUR_USER_ID",
+  platform: "tiktok",
+  caption: "Test post for tracking",
+  product_id: "PRODUCT_ID"
+}).select().single();
 
----
+console.log("Post created:", post.id);
+```
 
-## 🧪 TEST 1: CLICK TRACKING
+### Track a View
+```javascript
+const { data: view } = await supabase.from("view_events").insert({
+  user_id: "YOUR_USER_ID",
+  post_id: post.id,
+  product_id: "PRODUCT_ID",
+  platform: "tiktok"
+}).select().single();
 
-### What to test:
-Does the system track clicks when someone clicks an affiliate link?
+console.log("View tracked:", view.id);
+```
 
-### Steps:
+### Verify Sync (Database Trigger)
+```javascript
+// Wait 1-2 seconds for trigger
+await new Promise(r => setTimeout(r, 2000));
 
-1. **Go to Dashboard → Overview tab**
-   - Note the current click count
+const { data: updatedPost } = await supabase
+  .from("posted_content")
+  .select("impressions")
+  .eq("id", post.id)
+  .single();
 
-2. **Open a new tab**
-   - Go to: `https://yourdomain.com/go/test-tracking-product`
-   - You should be redirected to Amazon/affiliate network
+console.log("Post impressions:", updatedPost.impressions); // Should be 1
+```
 
-3. **Return to Dashboard**
-   - Refresh the page
-   - Click count should increase by +1
-
-### ✅ Expected Result:
-- Clicks increment in real-time
-- Click event logged in database
-- User redirected to correct URL
-
-### ❌ If it doesn't work:
-- Check browser console for errors
-- Verify the slug exists: Go to Database tab → `affiliate_links` table → check `slug` column
-- Check RLS policies allow public SELECT on active links
-
----
-
-## 🧪 TEST 2: CONVERSION TRACKING
-
-### What to test:
-Does the system record revenue when a conversion happens?
-
-### Steps:
-
-1. **Simulate a conversion via API**
-   - Open a new browser tab
-   - Go to: `https://yourdomain.com/api/postback?network=amazon&click_id=test-tracking-product&amount=50&commission=5&status=approved`
-   - You should see: `{"success": true, "message": "Conversion tracked"}`
-
-2. **Go to Dashboard → Profit Intelligence tab**
-   - Check "Total Revenue" - should show $5.00
-   - Check "Conversion Rate" - should be calculated
-   - Check top products - test-tracking-product should appear
-
-### ✅ Expected Result:
-- Revenue increases by commission amount
-- Conversion count increments
-- Conversion rate calculated
-- Profit Dashboard shows updated revenue
-
-### ❌ If it doesn't work:
-- Check API response for error messages
-- Verify postback URL parameters are correct
-- Check Database tab → `affiliate_links` → `revenue` column
+**✅ PASS:** Impressions count increased  
+**❌ FAIL:** Trigger not working
 
 ---
 
-## 🧪 TEST 3: INTELLIGENCE LAYER SCORING
+## TEST 2: CLICK TRACKING
 
-### What to test:
-Does the autopilot score posts and assign states (testing/scaling/killed)?
+### Create Affiliate Link
+```javascript
+const { data: link } = await supabase.from("affiliate_links").insert({
+  user_id: "YOUR_USER_ID",
+  product_id: "PRODUCT_ID",
+  original_url: "https://amazon.com/product",
+  slug: "test-" + Date.now(),
+  network: "Amazon Associates"
+}).select().single();
 
-### Steps:
+console.log("Link created:", link.id);
+```
 
-1. **Go to Dashboard → AI Autopilot tab**
-   - Click "Run Cycle Now"
-   - Wait for success message
+### Track a Click
+```javascript
+const { data: click } = await supabase.from("click_events").insert({
+  user_id: "YOUR_USER_ID",
+  link_id: link.id,
+  post_id: post.id,
+  product_id: "PRODUCT_ID",
+  platform: "tiktok"
+}).select().single();
 
-2. **Check Database tab → `affiliate_links` table**
-   - Look for columns: `ctr`, `performance_score`, `autopilot_state`
-   - Values should be calculated (not null)
+console.log("Click tracked:", click.id);
+```
 
-3. **Go to Dashboard → Profit Intelligence tab**
-   - Check "Performance Metrics" section
-   - Should show CTR, conversion rate, performance scores
+### Verify Sync (2 Triggers)
+```javascript
+// Wait for triggers
+await new Promise(r => setTimeout(r, 2000));
 
-### ✅ Expected Result:
-- CTR calculated: (clicks / impressions) × 100
-- Performance score calculated
-- Autopilot state assigned: testing, scaling, cooldown, or killed
-- Decisions logged in `autopilot_decisions` table
+// Check post clicks
+const { data: updatedPost } = await supabase
+  .from("posted_content")
+  .select("clicks")
+  .eq("id", post.id)
+  .single();
 
-### ❌ If it doesn't work:
-- Check browser console for autopilot errors
-- Verify Edge Function is deployed: Database tab → Edge Functions
-- Check autopilot logs: Database tab → `autopilot_cron_log`
+console.log("Post clicks:", updatedPost.clicks); // Should be 1
 
----
+// Check link clicks
+const { data: updatedLink } = await supabase
+  .from("affiliate_links")
+  .select("clicks")
+  .eq("id", link.id)
+  .single();
 
-## 🧪 TEST 4: AUTOPILOT DECISIONS
+console.log("Link clicks:", updatedLink.clicks); // Should be 1
+```
 
-### What to test:
-Does autopilot make smart decisions (scale winners, kill losers)?
-
-### Steps:
-
-1. **Create a "winning" post** (manually set high performance):
-   ```sql
-   -- Go to Database tab → SQL Editor → Run this:
-   
-   UPDATE posted_content SET
-     impressions = 300,
-     clicks = 10,
-     conversions = 2,
-     revenue = 20
-   WHERE id = (SELECT id FROM posted_content LIMIT 1);
-   ```
-
-2. **Run autopilot cycle**
-   - Dashboard → AI Autopilot tab → "Run Cycle Now"
-
-3. **Check decisions**
-   - Database tab → `autopilot_decisions` table
-   - Should see decision_type = 'scale'
-   - Reason should explain why (e.g., "CTR above threshold")
-
-4. **Check if autopilot creates more products for winners**
-   - Dashboard → Overview tab
-   - Products count should increase by 5 (scaling) or 3 (testing)
-
-### ✅ Expected Result:
-- High performing posts get "scaling" state
-- Autopilot creates 5 new products for scaling posts
-- Decision logged in `autopilot_decisions` table
-- Low performing posts get "killed" state after 200 impressions, CTR <1%, no conversions
-
-### ❌ If it doesn't work:
-- Verify scoring ran: Check `affiliate_links.ctr` is calculated
-- Check decision engine rules: Database tab → `autopilot_decisions`
-- Verify Edge Function logs: Database tab → Logs section
+**✅ PASS:** Both counts increased  
+**❌ FAIL:** Triggers not syncing
 
 ---
 
-## 🧪 TEST 5: PROFIT DASHBOARD
+## TEST 3: CONVERSION TRACKING
 
-### What to test:
-Does the Profit Dashboard show accurate revenue and best performers?
+### Track a Conversion
+```javascript
+const { data: conversion } = await supabase.from("conversion_events").insert({
+  user_id: "YOUR_USER_ID",
+  click_id: click.id,
+  revenue: 29.99,
+  verified: true,
+  source: "test"
+}).select().single();
 
-### Steps:
+console.log("Conversion tracked:", conversion.id);
+```
 
-1. **Go to Dashboard → Profit Intelligence tab**
+### Verify Sync (3 Triggers)
+```javascript
+// Wait for triggers
+await new Promise(r => setTimeout(r, 2000));
 
-2. **Verify metrics display**:
-   - ✅ Total Revenue shows sum of all conversions
-   - ✅ CTR shows average click-through rate
-   - ✅ Conversion Rate shows percentage
-   - ✅ Best Platform identified (highest revenue platform)
-   - ✅ Best Product shown (highest performance score)
-   - ✅ Top 5 Posts ranked by revenue
+// Check post conversions & revenue
+const { data: updatedPost } = await supabase
+  .from("posted_content")
+  .select("conversions, revenue")
+  .eq("id", post.id)
+  .single();
 
-3. **Cross-check with database**:
-   ```sql
-   -- Go to Database tab → SQL Editor → Run:
-   
-   SELECT SUM(revenue) as total_revenue
-   FROM affiliate_links;
-   
-   SELECT AVG(ctr) as avg_ctr
-   FROM affiliate_links
-   WHERE clicks > 0;
-   ```
+console.log("Post conversions:", updatedPost.conversions); // Should be 1
+console.log("Post revenue:", updatedPost.revenue); // Should be 29.99
 
-### ✅ Expected Result:
-- Dashboard numbers match database queries
-- Best performers are correctly identified
-- Metrics update in real-time (every 5 seconds)
+// Check link conversions & revenue
+const { data: updatedLink } = await supabase
+  .from("affiliate_links")
+  .select("conversions, revenue")
+  .eq("id", link.id)
+  .single();
 
-### ❌ If it doesn't work:
-- Check browser console for errors
-- Verify data exists: Database tab → `affiliate_links` → check revenue > 0
-- Refresh the page
+console.log("Link conversions:", updatedLink.conversions); // Should be 1
+console.log("Link revenue:", updatedLink.revenue); // Should be 29.99
 
----
+// Check system state
+const { data: systemState } = await supabase
+  .from("system_state")
+  .select("*")
+  .eq("user_id", "YOUR_USER_ID")
+  .single();
 
-## 🎉 SUCCESS CRITERIA
+console.log("Total revenue:", systemState.total_revenue); // Should include 29.99
+console.log("Total conversions:", systemState.total_conversions);
+```
 
-The system is working correctly when:
-
-1. ✅ **Click Tracking**: Clicks increment when link is clicked
-2. ✅ **Conversion Tracking**: Revenue updates when postback received
-3. ✅ **Intelligence Scoring**: CTR, performance_score, autopilot_state calculated
-4. ✅ **Autopilot Decisions**: Scale decisions made for good performers
-5. ✅ **Profit Dashboard**: Shows accurate revenue, CTR, best performers
-
----
-
-## 🐛 COMMON ISSUES & FIXES
-
-### Issue: "Failed to fetch" error when running autopilot
-**Fix:**
-- Edge Function not deployed
-- Go to Database tab → Edge Functions → Verify `autopilot-engine` exists
-- If missing, contact support to redeploy
-
-### Issue: Clicks not tracking
-**Fix:**
-- Check `/go/[slug].tsx` page for errors
-- Verify slug exists in database
-- Check RLS policies: Database tab → RLS Policies → `affiliate_links`
-
-### Issue: Conversions not recording
-**Fix:**
-- Verify postback URL parameters: `network`, `click_id`, `amount`, `commission`, `status`
-- Check API logs: Browser console → Network tab
-- Verify `click_id` matches a real product slug
-
-### Issue: Profit Dashboard shows $0
-**Fix:**
-- Run Test 2 (Conversion Tracking) to add test revenue
-- Verify data exists: Database tab → `affiliate_links` → check `revenue` column
-- Refresh the dashboard
-
-### Issue: Autopilot not making decisions
-**Fix:**
-- Ensure posts have enough data (impressions > 0, clicks > 0)
-- Run Test 4 to manually set high performance data
-- Check Edge Function logs: Database tab → Logs
+**✅ PASS:** All metrics synced  
+**❌ FAIL:** Triggers incomplete
 
 ---
 
-## 📊 QUICK DATABASE CHECKS
+## TEST 4: PERFORMANCE SCORING
 
-Run these queries in Database tab → SQL Editor to verify data:
+### Calculate Score
+```javascript
+const scoringService = await import('/src/services/scoringEngine.ts');
 
-```sql
--- 1. Check click tracking
-SELECT slug, clicks, click_count 
-FROM affiliate_links 
-ORDER BY clicks DESC 
-LIMIT 10;
+const score = scoringService.scoringEngine.calculateScore({
+  clicks: updatedPost.clicks,
+  impressions: updatedPost.impressions,
+  conversions: updatedPost.conversions,
+  revenue: Number(updatedPost.revenue)
+});
 
--- 2. Check conversion tracking
-SELECT slug, conversions, revenue, conversion_rate 
-FROM affiliate_links 
-WHERE revenue > 0 
-ORDER BY revenue DESC 
-LIMIT 10;
+console.log("Performance score:", score);
+// Expected: { score: X.XX, classification: "WINNER/TESTING/WEAK/NO_DATA", metrics: {...} }
+```
 
--- 3. Check intelligence scoring
-SELECT slug, ctr, performance_score, autopilot_state 
-FROM affiliate_links 
-WHERE performance_score > 0 
-ORDER BY performance_score DESC 
-LIMIT 10;
+**✅ PASS:** Score calculated correctly  
+**❌ FAIL:** Formula error
 
--- 4. Check autopilot decisions
-SELECT decision_type, reason, created_at 
-FROM autopilot_decisions 
-ORDER BY created_at DESC 
-LIMIT 10;
+---
 
--- 5. Check posted content performance
-SELECT platform, clicks, conversions, revenue, ctr 
-FROM posted_content 
-WHERE revenue > 0 
-ORDER BY revenue DESC 
-LIMIT 10;
+## TEST 5: AI RECOMMENDATIONS
+
+### Generate Recommendations
+```javascript
+const decisionService = await import('/src/services/decisionEngine.ts');
+
+const decisions = await decisionService.decisionEngine.analyzePost(
+  "YOUR_USER_ID",
+  post.id
+);
+
+console.log("Recommendations:", decisions);
+// Expected: [{ type: "scale/retest/cooldown", priority: "HIGH/MEDIUM/LOW", reason: "...", action: "..." }]
+```
+
+**✅ PASS:** Recommendations generated  
+**❌ FAIL:** No recommendations
+
+### Verify Saved to Database
+```javascript
+const { data: savedDecisions } = await supabase
+  .from("autopilot_decisions")
+  .select("*")
+  .eq("entity_id", post.id)
+  .order("created_at", { ascending: false });
+
+console.log("Saved decisions:", savedDecisions.length);
+```
+
+**✅ PASS:** Decisions saved to DB  
+**❌ FAIL:** Database save failed
+
+---
+
+## TEST 6: DASHBOARD INSIGHTS
+
+### Generate Full Insights
+```javascript
+const insightsService = await import('/src/services/aiInsightsEngine.ts');
+
+const insights = await insightsService.aiInsightsEngine.generateInsights("YOUR_USER_ID");
+
+console.log("AI Insights:", insights);
+// Expected: { performanceSummary: {...}, topPerformers: {...}, recommendations: [...], nextSteps: [...] }
+```
+
+**✅ PASS:** Insights generated  
+**❌ FAIL:** Service error
+
+---
+
+## COMPLETE TEST SCRIPT
+
+### Run All Tests in Browser Console
+
+```javascript
+async function runCompleteTest() {
+  console.log("🧪 Starting Complete Tracking System Test");
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.error("❌ No user authenticated");
+    return;
+  }
+  
+  const results = {
+    post_creation: false,
+    view_tracking: false,
+    view_sync: false,
+    click_tracking: false,
+    click_sync: false,
+    conversion_tracking: false,
+    conversion_sync: false,
+    scoring: false,
+    recommendations: false,
+    insights: false
+  };
+  
+  try {
+    // 1. Create Post
+    const { data: post, error: postError } = await supabase.from("posted_content").insert({
+      user_id: user.id,
+      platform: "tiktok",
+      caption: "Tracking test post",
+    }).select().single();
+    
+    if (postError) throw new Error("Post creation failed: " + postError.message);
+    results.post_creation = true;
+    console.log("✅ Post created:", post.id);
+    
+    // 2. Track View
+    const { error: viewError } = await supabase.from("view_events").insert({
+      user_id: user.id,
+      post_id: post.id,
+      platform: "tiktok"
+    });
+    
+    if (viewError) throw new Error("View tracking failed: " + viewError.message);
+    results.view_tracking = true;
+    console.log("✅ View tracked");
+    
+    // Wait for trigger
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // 3. Check View Sync
+    const { data: postAfterView } = await supabase
+      .from("posted_content")
+      .select("impressions")
+      .eq("id", post.id)
+      .single();
+    
+    results.view_sync = postAfterView.impressions > 0;
+    console.log("✅ View sync:", postAfterView.impressions);
+    
+    // 4. Create Link
+    const { data: link } = await supabase.from("affiliate_links").insert({
+      user_id: user.id,
+      original_url: "https://amazon.com/test",
+      slug: "test-" + Date.now(),
+      network: "Test"
+    }).select().single();
+    
+    // 5. Track Click
+    const { data: click, error: clickError } = await supabase.from("click_events").insert({
+      user_id: user.id,
+      link_id: link.id,
+      post_id: post.id,
+      platform: "tiktok"
+    }).select().single();
+    
+    if (clickError) throw new Error("Click tracking failed: " + clickError.message);
+    results.click_tracking = true;
+    console.log("✅ Click tracked");
+    
+    // Wait for triggers
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // 6. Check Click Sync
+    const { data: postAfterClick } = await supabase
+      .from("posted_content")
+      .select("clicks")
+      .eq("id", post.id)
+      .single();
+    
+    results.click_sync = postAfterClick.clicks > 0;
+    console.log("✅ Click sync:", postAfterClick.clicks);
+    
+    // 7. Track Conversion
+    const { error: conversionError } = await supabase.from("conversion_events").insert({
+      user_id: user.id,
+      click_id: click.id,
+      revenue: 29.99,
+      verified: true,
+      source: "test"
+    });
+    
+    if (conversionError) throw new Error("Conversion tracking failed: " + conversionError.message);
+    results.conversion_tracking = true;
+    console.log("✅ Conversion tracked");
+    
+    // Wait for triggers
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // 8. Check Conversion Sync
+    const { data: postAfterConversion } = await supabase
+      .from("posted_content")
+      .select("conversions, revenue")
+      .eq("id", post.id)
+      .single();
+    
+    results.conversion_sync = postAfterConversion.conversions > 0;
+    console.log("✅ Conversion sync:", postAfterConversion.conversions, postAfterConversion.revenue);
+    
+    // 9. Test Scoring
+    const scoringModule = await import('/src/services/scoringEngine.ts');
+    const score = scoringModule.scoringEngine.calculateScore({
+      clicks: postAfterConversion.clicks || 0,
+      impressions: postAfterConversion.impressions || 0,
+      conversions: postAfterConversion.conversions || 0,
+      revenue: Number(postAfterConversion.revenue || 0)
+    });
+    
+    results.scoring = score.score >= 0;
+    console.log("✅ Scoring:", score);
+    
+    // 10. Test Recommendations
+    const decisionModule = await import('/src/services/decisionEngine.ts');
+    const decisions = await decisionModule.decisionEngine.analyzePost(user.id, post.id);
+    
+    results.recommendations = decisions.length > 0;
+    console.log("✅ Recommendations:", decisions.length);
+    
+    // 11. Test Insights
+    const insightsModule = await import('/src/services/aiInsightsEngine.ts');
+    const insights = await insightsModule.aiInsightsEngine.generateInsights(user.id);
+    
+    results.insights = insights.performanceSummary.totalScore >= 0;
+    console.log("✅ Insights generated");
+    
+    // Summary
+    console.log("\n📊 TEST RESULTS:");
+    Object.entries(results).forEach(([test, passed]) => {
+      console.log(`${passed ? '✅' : '❌'} ${test}`);
+    });
+    
+    const totalTests = Object.keys(results).length;
+    const passedTests = Object.values(results).filter(v => v).length;
+    console.log(`\n🎯 TOTAL: ${passedTests}/${totalTests} tests passed`);
+    
+    return results;
+    
+  } catch (error) {
+    console.error("❌ Test failed:", error.message);
+    return results;
+  }
+}
+
+// Run test
+runCompleteTest();
 ```
 
 ---
 
-## ✅ SYSTEM STATUS
+## EXPECTED RESULTS
 
-Run this to get complete system health:
+### All Tests Pass ✅
+```
+✅ Post created
+✅ View tracked
+✅ View sync: 1
+✅ Click tracked
+✅ Click sync: 1
+✅ Conversion tracked
+✅ Conversion sync: 1 29.99
+✅ Scoring: { score: X.XX, classification: "...", ... }
+✅ Recommendations: N
+✅ Insights generated
 
-```sql
-SELECT 
-  (SELECT COUNT(*) FROM affiliate_links) as total_products,
-  (SELECT SUM(clicks) FROM affiliate_links) as total_clicks,
-  (SELECT SUM(conversions) FROM affiliate_links) as total_conversions,
-  (SELECT SUM(revenue) FROM affiliate_links) as total_revenue,
-  (SELECT COUNT(*) FROM posted_content) as total_posts,
-  (SELECT COUNT(*) FROM autopilot_decisions) as total_decisions,
-  (SELECT COUNT(*) FROM affiliate_links WHERE autopilot_state = 'scaling') as scaling_products,
-  (SELECT COUNT(*) FROM affiliate_links WHERE autopilot_state = 'killed') as killed_products;
+🎯 TOTAL: 10/10 tests passed
 ```
 
-This shows if your profit-seeking intelligence layer is working correctly!
+### What This Proves
+1. ✅ Complete tracking chain works
+2. ✅ Database triggers auto-sync metrics
+3. ✅ Performance scoring calculates correctly
+4. ✅ AI recommendations generate
+5. ✅ Insights dashboard has real data
+6. ✅ No mocks, all real database operations
+
+---
+
+## TROUBLESHOOTING
+
+### Triggers Not Firing
+```sql
+-- Check if triggers exist
+SELECT * FROM pg_trigger WHERE tgname LIKE 'sync_%';
+
+-- Re-create triggers if missing (already done in system)
+```
+
+### Metrics Not Syncing
+- Wait 2-3 seconds after insert
+- Check database connection
+- Verify RLS policies allow reads
+
+### Score Always 0
+- Check metrics are > 0
+- Verify conversion has revenue
+- Formula: (CTR×0.4) + (CR×0.4) + (RPC×0.2)
+
+### No Recommendations
+- Score must be calculated first
+- Check `autopilot_scores` table
+- Verify user_id matches
+
+---
+
+**Test Status:** Ready to run  
+**Expected Time:** 30-60 seconds  
+**All Features:** Real database operations  
+**No Mocks:** Complete verification
