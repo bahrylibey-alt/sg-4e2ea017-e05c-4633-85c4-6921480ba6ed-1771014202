@@ -314,11 +314,13 @@ export const productCatalogService = {
         network: "AliExpress Affiliate",
         commission: "45%",
         category: "Electronics",
-        estimatedPrice: 25.99,
+        price: "$25.99",
         conversionRate: 12.5,
-        trending: true,
-        url: "https://www.aliexpress.com/item/1005003154875962.html",
-        affiliate_url: "https://s.click.aliexpress.com/e/_DlVxQKz"
+        rating: 4.6,
+        estimatedEPC: "$3.50",
+        description: "High-quality wireless earbuds with noise cancellation.",
+        image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&q=80",
+        url: "https://s.click.aliexpress.com/e/_DlVxQKz"
       },
       {
         id: "aliexpress-2",
@@ -326,11 +328,13 @@ export const productCatalogService = {
         network: "AliExpress Affiliate",
         commission: "50%",
         category: "Electronics",
-        estimatedPrice: 39.99,
+        price: "$39.99",
         conversionRate: 10.8,
-        trending: true,
-        url: "https://www.aliexpress.com/item/1005004567892345.html",
-        affiliate_url: "https://s.click.aliexpress.com/e/_DmAbCdE"
+        rating: 4.5,
+        estimatedEPC: "$4.10",
+        description: "Fitness tracker with heart rate monitor and sleep tracking.",
+        image: "https://images.unsplash.com/photo-1557935728-e6d1eaabe558?w=500&q=80",
+        url: "https://s.click.aliexpress.com/e/_DmAbCdE"
       },
       {
         id: "aliexpress-3",
@@ -338,11 +342,13 @@ export const productCatalogService = {
         network: "AliExpress Affiliate",
         commission: "48%",
         category: "Home",
-        estimatedPrice: 19.99,
+        price: "$19.99",
         conversionRate: 14.2,
-        trending: true,
-        url: "https://www.aliexpress.com/item/1005002987654321.html",
-        affiliate_url: "https://s.click.aliexpress.com/e/_DnFgHiJ"
+        rating: 4.7,
+        estimatedEPC: "$2.80",
+        description: "Color changing LED strip lights with remote control.",
+        image: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=500&q=80",
+        url: "https://s.click.aliexpress.com/e/_DnFgHiJ"
       },
       {
         id: "aliexpress-4",
@@ -350,11 +356,13 @@ export const productCatalogService = {
         network: "AliExpress Affiliate",
         commission: "46%",
         category: "Electronics",
-        estimatedPrice: 29.99,
+        price: "$29.99",
         conversionRate: 11.5,
-        trending: false,
-        url: "https://www.aliexpress.com/item/1005003789456123.html",
-        affiliate_url: "https://s.click.aliexpress.com/e/_DoKlMnP"
+        rating: 4.4,
+        estimatedEPC: "$3.15",
+        description: "Professional camera lens kit for smartphones.",
+        image: "https://images.unsplash.com/photo-1585060544812-6b45742d762f?w=500&q=80",
+        url: "https://s.click.aliexpress.com/e/_DoKlMnP"
       },
       {
         id: "aliexpress-5",
@@ -362,11 +370,13 @@ export const productCatalogService = {
         network: "AliExpress Affiliate",
         commission: "44%",
         category: "Electronics",
-        estimatedPrice: 12.99,
+        price: "$12.99",
         conversionRate: 15.8,
-        trending: true,
-        url: "https://www.aliexpress.com/item/1005002345678901.html",
-        affiliate_url: "https://s.click.aliexpress.com/e/_DpQrStU"
+        rating: 4.8,
+        estimatedEPC: "$2.10",
+        description: "Universal magnetic car mount for all smartphones.",
+        image: "https://images.unsplash.com/photo-1575117323283-d7faa7f9322a?w=500&q=80",
+        url: "https://s.click.aliexpress.com/e/_DpQrStU"
       }
     ];
 
