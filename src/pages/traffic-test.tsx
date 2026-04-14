@@ -4,9 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, XCircle, Loader2, ExternalLink, PlayCircle, Database, Activity, Trash2, WrenchIcon } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, ExternalLink, Database, Activity, Trash2, WrenchIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { checkAllLinksHealth, removeAllBrokenLinks, autoRepairLinks } from "@/services/linkHealthMonitor";
 
 export default function TrafficTest() {
   const [testing, setTesting] = useState(false);
@@ -28,8 +27,20 @@ export default function TrafficTest() {
 
       setProgress(10);
 
-      // Run comprehensive health check
-      const healthResults = await checkAllLinksHealth(user.id);
+      // Call server-side API instead of client-side validation
+      const response = await fetch('/api/health-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.statusText}`);
+      }
+
+      const healthResults = await response.json();
 
       setProgress(100);
 
@@ -63,12 +74,36 @@ export default function TrafficTest() {
         throw new Error('Please log in first');
       }
 
-      const removed = await removeAllBrokenLinks(user.id);
+      // Remove all broken links (3+ failures)
+      const { data: brokenLinks } = await supabase
+        .from('affiliate_links')
+        .select('id, product_name')
+        .eq('user_id', user.id)
+        .eq('is_working', false)
+        .gte('check_failures', 3);
+
+      if (!brokenLinks || brokenLinks.length === 0) {
+        setResults({
+          type: 'cleanup',
+          removed: 0,
+          message: 'No broken links to remove'
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('affiliate_links')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('is_working', false)
+        .gte('check_failures', 3);
+
+      if (error) throw error;
 
       setResults({
         type: 'cleanup',
-        removed,
-        message: `Successfully removed ${removed} broken links from database`
+        removed: brokenLinks.length,
+        message: `Successfully removed ${brokenLinks.length} broken links from database`
       });
 
     } catch (error: any) {
@@ -95,15 +130,47 @@ export default function TrafficTest() {
 
       setProgress(20);
 
-      const repairResults = await autoRepairLinks(user.id);
+      // Step 1: Run health check
+      const healthResponse = await fetch('/api/health-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!healthResponse.ok) {
+        throw new Error('Health check failed');
+      }
+
+      const healthResults = await healthResponse.json();
+      setProgress(60);
+
+      // Step 2: Remove broken links
+      if (healthResults.removed > 0) {
+        await removeAllBroken();
+      }
 
       setProgress(100);
 
+      const report = `
+Auto-Repair Complete:
+- Total Links Checked: ${healthResults.totalChecked}
+- ✅ Working Links: ${healthResults.working}
+- ❌ Broken Links: ${healthResults.broken}
+- 🗑️ Removed Links: ${healthResults.removed}
+
+Next Steps:
+- Working links are ready for traffic
+- Broken links with <3 failures will be rechecked
+- Links with 3+ failures have been removed
+      `.trim();
+
       setResults({
         type: 'auto_repair',
-        repaired: repairResults.repaired,
-        removed: repairResults.removed,
-        report: repairResults.report
+        repaired: 0,
+        removed: healthResults.removed,
+        report
       });
 
     } catch (error: any) {
@@ -128,10 +195,10 @@ export default function TrafficTest() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950">
+          <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
             <AlertDescription>
-              <strong>Real Link Validation:</strong> This tool checks if Amazon/Temu products still exist, not just redirect URLs. 
-              Broken products are automatically marked and can be removed with one click.
+              <strong>Server-Side Validation:</strong> This tool uses server-side APIs to check if Amazon/Temu products still exist. 
+              No CORS issues - all validation happens on the server.
             </AlertDescription>
           </Alert>
 
@@ -332,9 +399,9 @@ export default function TrafficTest() {
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <div>
-            <strong>1. Check All Links</strong>
+            <strong>1. Check All Links (Server-Side)</strong>
             <p className="text-muted-foreground">
-              Validates ACTUAL Amazon/Temu product pages (not just redirect URLs). 
+              Uses server-side API to validate Amazon/Temu product pages without CORS issues. 
               Marks broken products and counts failures.
             </p>
           </div>
