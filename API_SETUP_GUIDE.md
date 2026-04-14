@@ -1,288 +1,264 @@
-# 🔌 API ENDPOINTS - READY FOR ZAPIER
+# Affiliate Network API Setup Guide - Get Real Revenue Tracking
 
-**Date:** April 8, 2026  
-**Status:** ✅ PRODUCTION READY
-
----
-
-## 🎯 YOUR ZAPIER INTEGRATION IS NOW LIVE!
-
-### ✅ **3 API Endpoints Deployed:**
-
-#### **1. Test Connection**
-```
-GET https://yourapp.vercel.app/api/zapier/test-connection
-```
-
-**Purpose:** Verify Zapier can reach your API  
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Zapier connection successful!",
-  "timestamp": "2026-04-08T16:00:00.000Z",
-  "endpoints": {
-    "content_feed": "/api/zapier/content-feed",
-    "webhook": "/api/zapier/webhook",
-    "test": "/api/zapier/test-connection"
-  },
-  "status": "✅ All systems operational"
-}
-```
-
-**Test it now:** Open in browser or use curl:
-```bash
-curl https://yourapp.vercel.app/api/zapier/test-connection
-```
+## 🎯 Goal
+Configure your affiliate networks to send conversion data to your system via webhooks/postbacks.
 
 ---
 
-#### **2. Content Feed** (Zapier Monitors This)
-```
-GET https://yourapp.vercel.app/api/zapier/content-feed?platform=pinterest&status=pending&limit=10
-```
+## 📍 Your Postback URL
 
-**Purpose:** Provides pending content for Zapier to post  
-**Query Parameters:**
-- `platform` (optional): Filter by platform (pinterest, facebook, instagram, twitter, etc.)
-- `status` (optional): Filter by status (pending, published, failed) - default: pending
-- `limit` (optional): Number of items to return - default: 10
+**Copy this URL** - you'll need it for each affiliate network:
 
-**Response:**
-```json
-{
-  "success": true,
-  "count": 4,
-  "items": [
-    {
-      "id": "abc123",
-      "campaign_id": "campaign_xyz",
-      "platform": "pinterest",
-      "content_type": "pin",
-      "title": "Amazing Kitchen Gadget",
-      "body": "Check out this product!",
-      "image_url": "https://...",
-      "link_url": "https://yourapp.com/go/abc123",
-      "status": "pending",
-      "scheduled_for": "2026-04-08T16:00:00.000Z",
-      "created_at": "2026-04-08T15:55:00.000Z"
-    }
-  ],
-  "metadata": {
-    "platform": "pinterest",
-    "status": "pending",
-    "timestamp": "2026-04-08T16:00:00.000Z"
-  }
-}
+```
+https://your-domain.vercel.app/api/postback
 ```
 
-**Test it now:**
-```bash
-curl https://yourapp.vercel.app/api/zapier/content-feed
+Replace `your-domain` with your actual Vercel domain.
+
+---
+
+## 1️⃣ Amazon Associates Setup
+
+### Step 1: Get Your Amazon Associate ID
+1. Go to https://affiliate-program.amazon.com/
+2. Sign in to your account
+3. Find your **Associate ID** (format: `yourname-20`)
+
+### Step 2: Add Tracking ID to Your Links
+Amazon Associates doesn't support postback webhooks, but tracks via:
+- **Affiliate links** with your tag: `?tag=yourname-20`
+- **Reports** in Amazon dashboard (manual check)
+
+**Limitation:** Amazon requires manual revenue checking in their dashboard. No automatic webhook.
+
+**Alternative:** Use Amazon Product Advertising API for automated tracking (advanced)
+
+### Your Amazon Links Should Look Like:
+```
+https://www.amazon.com/dp/B0D18S9TB2?tag=yourname-20
 ```
 
 ---
 
-#### **3. Webhook** (Zapier Sends Updates Here)
-```
-POST https://yourapp.vercel.app/api/zapier/webhook
-```
+## 2️⃣ Temu Affiliate Program Setup
 
-**Purpose:** Receives status updates from Zapier after posting  
-**Request Body:**
+### Step 1: Join Temu Affiliate Program
+1. Go to https://seller.temu.com/affiliate
+2. Apply for affiliate partnership
+3. Get approved (usually 1-3 days)
+
+### Step 2: Configure Postback URL
+1. Login to Temu Affiliate Dashboard
+2. Go to **Settings** → **Tracking & Conversion**
+3. Add your postback URL:
+   ```
+   https://your-domain.vercel.app/api/postback
+   ```
+4. Select these parameters to send:
+   - `order_id` (required)
+   - `commission` (required)
+   - `sale_amount` (required)
+   - `click_id` (required - this is your link slug)
+
+### Step 3: Test Postback
+Temu will send a test conversion. Check your `/api/postback` endpoint logs.
+
+**Expected Postback Format:**
 ```json
 {
-  "action": "post_success",
-  "content_id": "abc123",
-  "platform": "pinterest",
-  "external_id": "pinterest_pin_123",
-  "status": "published"
+  "order_id": "TM123456789",
+  "commission": "15.50",
+  "sale_amount": "155.00",
+  "click_id": "your-product-slug",
+  "status": "confirmed"
 }
 ```
 
-**Supported Actions:**
-- `post_success` - Post was published successfully
-- `update_stats` - Update views/clicks from external platform
-- `post_failed` - Post failed with error message
+---
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Webhook processed successfully: post_success",
-  "content_id": "abc123",
-  "platform": "pinterest"
-}
+## 3️⃣ AliExpress Affiliate Program Setup
+
+### Step 1: Join AliExpress Affiliate
+1. Go to https://portals.aliexpress.com/
+2. Sign up for Affiliate Program
+3. Get your **App Key** and **Tracking ID**
+
+### Step 2: Use Tracking Links
+AliExpress provides tracking links through their API:
+```
+https://s.click.aliexpress.com/e/_your_tracking_code
 ```
 
-**Test it with curl:**
+### Step 3: Check Reports
+- AliExpress doesn't support postback webhooks directly
+- Revenue tracked via their dashboard reports
+- Export reports and import to your system
+
+**Alternative:** Use AliExpress API for automated sync (advanced)
+
+---
+
+## 4️⃣ ClickBank Setup (Digital Products)
+
+### Step 1: Get ClickBank Account
+1. Go to https://www.clickbank.com/
+2. Sign up as an affiliate
+3. Get your **Account Nickname**
+
+### Step 2: Configure Instant Notification URL (IPN)
+1. Login to ClickBank
+2. Go to **Settings** → **My Site**
+3. Add Instant Notification URL:
+   ```
+   https://your-domain.vercel.app/api/postback
+   ```
+4. Enable these notification types:
+   - SALE
+   - BILL
+   - RFND (refund)
+
+### Step 3: Verify Secret Key
+ClickBank sends a `secret_key` with each postback for security.
+1. Copy your secret key from ClickBank settings
+2. Add to your `.env.local`:
+   ```
+   CLICKBANK_SECRET_KEY=your_secret_key_here
+   ```
+
+**Expected Postback Format:**
+```
+POST /api/postback
+ctransaction=SALE&ctransreceipt=ABC12345&ctransamount=47.00&caffitid=your-affiliate-id&caccountamount=23.50
+```
+
+---
+
+## 5️⃣ ShareASale Setup
+
+### Step 1: Join ShareASale
+1. Go to https://www.shareasale.com/
+2. Apply as an affiliate
+3. Get approved (review process)
+
+### Step 2: Configure Postback Pixel
+1. Login to ShareASale dashboard
+2. Go to **Tools** → **Tracking Pixel**
+3. Add your postback URL:
+   ```
+   https://your-domain.vercel.app/api/postback?merchant_id=[[merchantID]]&order_id=[[ordernumber]]&amount=[[amount]]&commission=[[commission]]
+   ```
+
+### Step 3: Enable Auto-Deposit
+ShareASale requires minimum $50 for payout. Enable auto-deposit in settings.
+
+**Expected Postback Format:**
+```
+GET /api/postback?merchant_id=12345&order_id=SS789&amount=99.99&commission=9.99
+```
+
+---
+
+## 🧪 Testing Your Postback Endpoint
+
+### Test 1: Manual Postback Simulation
 ```bash
-curl -X POST https://yourapp.vercel.app/api/zapier/webhook \
+# Test with curl
+curl -X POST https://your-domain.vercel.app/api/postback \
   -H "Content-Type: application/json" \
   -d '{
-    "action": "post_success",
-    "content_id": "test123",
-    "platform": "pinterest",
-    "external_id": "pin_123",
-    "status": "published"
+    "network": "temu_affiliate",
+    "order_id": "TEST123",
+    "commission": "15.50",
+    "sale_amount": "155.00",
+    "click_id": "test-product-slug",
+    "status": "confirmed"
   }'
 ```
 
----
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Conversion tracked successfully",
+  "conversion_id": "uuid-here"
+}
+```
 
-## 🚀 HOW THE SYSTEM WORKS
-
-### **Automatic Content Queue:**
-
-1. **Autopilot Runs** (every 60 seconds)
-   - Discovers 5 new products
-   - Generates 2 articles
-   - **Queues 4 social media posts** to `posted_content` table
-   - Sets `status = 'pending'`
-
-2. **Zapier Monitors** (every 5 minutes)
-   - Polls `/api/zapier/content-feed?status=pending`
-   - Finds new posts waiting to be published
-   - Gets content details (title, body, image, link)
-
-3. **Zapier Posts** (to external platforms)
-   - Pinterest: Creates pin on your board
-   - Facebook: Posts to your groups
-   - Instagram: Posts story
-   - Twitter: Sends tweet
-
-4. **Zapier Reports Back** (via webhook)
-   - Calls `/api/zapier/webhook` with `action=post_success`
-   - Updates database: `status = 'published'`
-   - Stores `external_id` (Pinterest pin ID, etc.)
-
-5. **Stats Tracking** (continuous)
-   - Zapier periodically sends view/click updates
-   - Calls webhook with `action=update_stats`
-   - Your database stays in sync with external platforms
-
----
-
-## 📊 DATABASE STRUCTURE
-
-### **posted_content Table:**
-
+### Test 2: Check Database
 ```sql
-CREATE TABLE posted_content (
-  id UUID PRIMARY KEY,
-  campaign_id UUID REFERENCES campaigns(id),
-  user_id UUID REFERENCES profiles(id),
-  platform TEXT,           -- 'pinterest', 'facebook', 'instagram', 'twitter'
-  content_type TEXT,       -- 'pin', 'post', 'story', 'tweet'
-  title TEXT,
-  body TEXT,
-  image_url TEXT,
-  link_url TEXT,           -- Your affiliate link
-  status TEXT,             -- 'pending', 'published', 'failed'
-  external_id TEXT,        -- Post ID from external platform
-  scheduled_for TIMESTAMP,
-  posted_at TIMESTAMP,
-  views INTEGER DEFAULT 0,
-  clicks INTEGER DEFAULT 0,
-  error_message TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-);
+SELECT * FROM conversion_events ORDER BY created_at DESC LIMIT 5;
+```
+
+You should see your test conversion appear.
+
+### Test 3: Check Dashboard
+1. Go to `/dashboard`
+2. Refresh page
+3. Revenue should update with test conversion
+
+---
+
+## 🔒 Security Best Practices
+
+### 1. Validate Postback Sources
+Only accept postbacks from known IP ranges:
+- **Temu IPs:** (check their documentation)
+- **ClickBank IPs:** (check their documentation)
+- **ShareASale IPs:** (check their documentation)
+
+### 2. Use Secret Keys
+Always verify `secret_key` or signature sent by affiliate networks.
+
+### 3. Prevent Duplicate Conversions
+Your `/api/postback` already checks for duplicate `order_id` to prevent double-counting.
+
+---
+
+## 📊 What Happens When Postback Arrives
+
+```
+1. User clicks your /go/[slug] link
+   ↓
+2. System tracks click in click_events table
+   ↓
+3. User lands on affiliate product page
+   ↓
+4. User makes a purchase
+   ↓
+5. Affiliate network sends postback to /api/postback
+   ↓
+6. System records in conversion_events table
+   ↓
+7. System updates system_state with new revenue
+   ↓
+8. Dashboard shows updated revenue in real-time
 ```
 
 ---
 
-## ✅ VERIFICATION CHECKLIST
+## 🚨 Common Issues & Fixes
 
-Before connecting Zapier, verify:
+### Issue 1: "Postback URL not reachable"
+**Fix:** Make sure your Vercel domain is live and `/api/postback` returns 200 OK
 
-### **1. API Endpoints Working:**
-```bash
-# Test connection endpoint
-curl https://yourapp.vercel.app/api/zapier/test-connection
+### Issue 2: "Conversions not showing in dashboard"
+**Fix:** Check conversion_events table, verify click_id matches a real link slug
 
-# Should return: {"success": true, "message": "Zapier connection successful!"}
-```
-
-### **2. Content Queue Active:**
-```sql
--- Check Database → posted_content table
-SELECT COUNT(*) FROM posted_content WHERE status = 'pending';
-
--- Should have 4+ pending posts if autopilot is running
-```
-
-### **3. Autopilot Running:**
-```sql
--- Check Database → activity_logs table
-SELECT * FROM activity_logs 
-WHERE action = 'autopilot_cycle' 
-ORDER BY created_at DESC 
-LIMIT 5;
-
--- Should show recent cycles with "queued for Zapier" in details
-```
-
-### **4. Server Accessible:**
-- Your app must be deployed to Vercel (or publicly accessible URL)
-- Zapier cannot reach `localhost` - needs real domain
+### Issue 3: "Revenue is $0 despite conversions"
+**Fix:** Verify commission field is populated in postback data
 
 ---
 
-## 🎯 NEXT STEPS
+## 🎯 Next Steps
 
-1. **Read the Full Guide:**
-   - Open `ZAPIER_INTEGRATION_GUIDE.md`
-   - Follow step-by-step Zapier setup (30 minutes)
-
-2. **Start with 1 Platform:**
-   - Pinterest is easiest (highest ROI)
-   - Create your first Zap
-   - Test with 1 post
-   - Verify it works
-
-3. **Scale Up:**
-   - Add more platforms one by one
-   - Monitor results
-   - Adjust posting frequency
-   - Track ROI per platform
+1. ✅ Set up postback URLs in affiliate dashboards
+2. ✅ Test with manual curl request
+3. ✅ Generate real traffic (see TRAFFIC_GENERATION_GUIDE.md)
+4. ✅ Monitor first real conversion
+5. ✅ Scale successful products
 
 ---
 
-## 💡 TROUBLESHOOTING
-
-### **"Can't access API endpoints"**
-- Make sure app is deployed to Vercel
-- Test URLs should use your Vercel domain, not localhost
-- Check that endpoints exist: Go to Code Editor → `src/pages/api/zapier/`
-
-### **"No pending content"**
-- Launch autopilot from Dashboard
-- Wait 60 seconds for first cycle
-- Check Database → `posted_content` table
-- Should see rows with `status = 'pending'`
-
-### **"Zapier can't connect"**
-- Verify app is publicly accessible (not localhost)
-- Check firewall/security settings
-- Test endpoint in browser first
-
----
-
-## 🎉 YOU'RE READY!
-
-Your system is now **100% ready** for Zapier integration:
-- ✅ 3 API endpoints deployed and tested
-- ✅ Content queue system active
-- ✅ Autopilot creating posts every cycle
-- ✅ Database structure optimized
-- ✅ Webhook handlers ready
-
-**Next:** Follow `ZAPIER_INTEGRATION_GUIDE.md` to create your first Zap!
-
----
-
-**Last Updated:** April 8, 2026  
-**API Version:** 1.0  
-**Status:** ✅ Production Ready  
-**Integration Time:** 30 minutes
+**Last Updated:** 2026-04-14  
+**Status:** Ready for Production  
+**Support:** Contact your affiliate network's support team for postback setup help
