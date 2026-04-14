@@ -639,6 +639,7 @@ export type Database = {
           ctr: number | null
           engagement_score: number | null
           id: string
+          insights: Json | null
           performance_score: number | null
           post_id: string | null
           product_id: string | null
@@ -654,6 +655,7 @@ export type Database = {
           ctr?: number | null
           engagement_score?: number | null
           id?: string
+          insights?: Json | null
           performance_score?: number | null
           post_id?: string | null
           product_id?: string | null
@@ -669,6 +671,7 @@ export type Database = {
           ctr?: number | null
           engagement_score?: number | null
           id?: string
+          insights?: Json | null
           performance_score?: number | null
           post_id?: string | null
           product_id?: string | null
