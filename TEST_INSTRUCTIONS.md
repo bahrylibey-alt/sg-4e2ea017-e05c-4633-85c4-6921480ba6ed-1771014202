@@ -98,6 +98,47 @@ https://3000-4e2ea017-e05c-4633-85c4-6921480ba6ed.softgen.dev/api/test-cron-auto
 
 ---
 
+## 🔧 AUTO-FIX SWITCH (ONE-CLICK SYSTEM REPAIR)
+
+### **Location:**
+Open your dashboard:
+```
+https://3000-4e2ea017-e05c-4633-85c4-6921480ba6ed.softgen.dev/dashboard
+```
+
+Scroll to the bottom → You'll see:
+**"🔧 System Auto-Fix & Runner"** card
+
+### **What It Does:**
+1. **🔧 Auto-Fix All Problems** (Main button)
+   - Scans entire system for issues
+   - Fixes everything automatically
+   - Shows detailed report
+
+2. **Manual Controls** (Two buttons)
+   - **▶️ Run Autopilot** - Trigger content generation NOW
+   - **🔄 Find Products** - Discover new products NOW
+
+### **How to Use:**
+1. Click **"🔧 Auto-Fix All Problems"**
+2. Wait 10-20 seconds (button shows "Scanning & Fixing...")
+3. View results:
+   - System Status: HEALTHY / DEGRADED / CRITICAL
+   - Issues Found: Total count
+   - Issues Fixed: Green count
+   - Issues Failed: Red count
+   - Detailed issue list
+   - Recommendations
+
+### **When to Use Auto-Fix:**
+- ✅ Dashboard shows 0 activity
+- ✅ No new products added in days
+- ✅ Tracking not working
+- ✅ Autopilot stuck
+- ✅ Monthly maintenance
+
+---
+
 ## 📊 DASHBOARD PAGES TO CHECK
 
 ### **1. Main Dashboard**
@@ -109,8 +150,9 @@ Should show:
 - ✅ $1,010+ revenue
 - ✅ Autopilot enabled
 - ✅ Performance metrics
+- ✅ Auto-Fix switch at bottom
 
-### **2. Tracking Dashboard (NEW)**
+### **2. Tracking Dashboard**
 ```
 https://3000-4e2ea017-e05c-4633-85c4-6921480ba6ed.softgen.dev/tracking-dashboard
 ```
@@ -192,13 +234,15 @@ Should show:
 
 ### **Test Returns Error?**
 1. Check `/api/health-check` first
-2. Verify autopilot is enabled in settings
-3. Check database connectivity
+2. Click "🔧 Auto-Fix All Problems" on dashboard
+3. Check if autopilot is enabled in settings
+4. Check database connectivity
 
 ### **No Content Being Created?**
 1. Visit `/api/test-cron-autopilot`
-2. Check if autopilot_enabled = true
-3. Review system_state in database
+2. Click "Run Autopilot" on dashboard
+3. Check if autopilot_enabled = true
+4. Review system_state in database
 
 ### **Need Full Diagnostics?**
 ```
@@ -240,6 +284,7 @@ Before declaring success, verify:
 - [ ] Tracking dashboard shows real data
 - [ ] Traffic channels shows 8 sources
 - [ ] Autopilot toggle is enabled
+- [ ] Auto-fix switch visible on dashboard
 - [ ] No console errors in browser
 
 ---
@@ -252,12 +297,14 @@ Before declaring success, verify:
 3. ✅ Traffic channels displays 8 sources
 4. ✅ Tracking dashboard shows events
 5. ✅ No errors in browser console
+6. ✅ Auto-fix switch appears on dashboard
 
 **Revolutionary features active:**
 - ✅ Viral DNA extraction working
 - ✅ Quantum multiplication creating variations
 - ✅ Content intelligence predicting performance
 - ✅ All systems coordinating without crashes
+- ✅ Auto-fix repairs issues automatically
 
 ---
 
@@ -266,5 +313,7 @@ Before declaring success, verify:
 If all tests pass, your revolutionary autopilot system is operational!
 
 **Next:** Just check dashboards daily to monitor results. The system runs automatically every 30 minutes.
+
+**Problems?** Click "🔧 Auto-Fix All Problems" on the dashboard!
 
 **Questions?** Run `/api/health-check` anytime for system status.
