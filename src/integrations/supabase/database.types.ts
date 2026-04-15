@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -640,6 +640,7 @@ export type Database = {
           engagement_score: number | null
           id: string
           insights: Json | null
+          next_steps: string | null
           performance_score: number | null
           post_id: string | null
           product_id: string | null
@@ -656,6 +657,7 @@ export type Database = {
           engagement_score?: number | null
           id?: string
           insights?: Json | null
+          next_steps?: string | null
           performance_score?: number | null
           post_id?: string | null
           product_id?: string | null
@@ -672,6 +674,7 @@ export type Database = {
           engagement_score?: number | null
           id?: string
           insights?: Json | null
+          next_steps?: string | null
           performance_score?: number | null
           post_id?: string | null
           product_id?: string | null
