@@ -110,7 +110,7 @@ export const unifiedOrchestrator = {
           let scoredCount = 0;
           for (const product of products) {
             try {
-              await scoringEngine.calculateScore(userId, product.id, 'link');
+              await scoringEngine.calculateScore(product.id);
               scoredCount++;
             } catch (scoreError) {
               console.error(`⚠️ Failed to score ${product.product_name}:`, scoreError);
