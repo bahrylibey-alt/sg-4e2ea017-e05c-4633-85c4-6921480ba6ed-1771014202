@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 /**
  * MANUAL TEST FOR AUTOPILOT CRON
  * Visit: /api/test-cron-autopilot
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,

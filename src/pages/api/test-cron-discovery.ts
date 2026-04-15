@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 /**
  * MANUAL TEST FOR PRODUCT DISCOVERY CRON
  * Visit: /api/test-cron-discovery
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
