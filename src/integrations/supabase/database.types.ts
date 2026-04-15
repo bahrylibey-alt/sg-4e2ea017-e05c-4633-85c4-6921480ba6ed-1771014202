@@ -715,6 +715,92 @@ export type Database = {
           },
         ]
       }
+      autopilot_settings: {
+        Row: {
+          auto_scale_winners: boolean | null
+          autopilot_frequency: string | null
+          content_generation_frequency: string | null
+          content_length: string | null
+          content_tone: string | null
+          created_at: string | null
+          enabled_platforms: Json | null
+          excluded_niches: Json | null
+          id: string
+          max_hashtags: number | null
+          max_product_price: number | null
+          min_product_price: number | null
+          min_product_rating: number | null
+          pause_threshold: number | null
+          pause_underperformers: boolean | null
+          preferred_networks: Json | null
+          product_discovery_frequency: string | null
+          scale_threshold: number | null
+          target_niches: Json | null
+          updated_at: string | null
+          use_emojis: boolean | null
+          use_hashtags: boolean | null
+          user_id: string
+        }
+        Insert: {
+          auto_scale_winners?: boolean | null
+          autopilot_frequency?: string | null
+          content_generation_frequency?: string | null
+          content_length?: string | null
+          content_tone?: string | null
+          created_at?: string | null
+          enabled_platforms?: Json | null
+          excluded_niches?: Json | null
+          id?: string
+          max_hashtags?: number | null
+          max_product_price?: number | null
+          min_product_price?: number | null
+          min_product_rating?: number | null
+          pause_threshold?: number | null
+          pause_underperformers?: boolean | null
+          preferred_networks?: Json | null
+          product_discovery_frequency?: string | null
+          scale_threshold?: number | null
+          target_niches?: Json | null
+          updated_at?: string | null
+          use_emojis?: boolean | null
+          use_hashtags?: boolean | null
+          user_id: string
+        }
+        Update: {
+          auto_scale_winners?: boolean | null
+          autopilot_frequency?: string | null
+          content_generation_frequency?: string | null
+          content_length?: string | null
+          content_tone?: string | null
+          created_at?: string | null
+          enabled_platforms?: Json | null
+          excluded_niches?: Json | null
+          id?: string
+          max_hashtags?: number | null
+          max_product_price?: number | null
+          min_product_price?: number | null
+          min_product_rating?: number | null
+          pause_threshold?: number | null
+          pause_underperformers?: boolean | null
+          preferred_networks?: Json | null
+          product_discovery_frequency?: string | null
+          scale_threshold?: number | null
+          target_niches?: Json | null
+          updated_at?: string | null
+          use_emojis?: boolean | null
+          use_hashtags?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       autopilot_tasks: {
         Row: {
           campaign_id: string | null
