@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { getSystemState, trackViews, trackClick } from "./realDataEnforcement";
+
 import { 
   generateHooks, 
   generateFinalPost,
@@ -300,7 +300,8 @@ export const automationScheduler = {
     return safeIntelligence(
       'Real Traffic Generation',
       async () => {
-        const systemState = await getSystemState(task.user_id);
+        const { data: _ss } = await supabase.from('system_state').select('state').eq('user_id', task.user_id).maybeSingle();
+        const systemState = { state: _ss?.state || 'TESTING' };
 
         if (systemState.state === 'NO_TRAFFIC') {
           console.log("⚠️ System in NO_TRAFFIC state - focusing on reach optimization");

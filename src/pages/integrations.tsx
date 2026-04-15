@@ -579,8 +579,8 @@ export default function IntegrationsPage() {
       console.log('✅ Product sync complete:', result);
 
       toast({
-        title: "Sync Complete!",
-        description: `Discovered ${result.discovered} products from ${result.networks.join(', ')}`,
+        title: "Manual Sync Complete",
+        description: `Discovered ${result.data?.discovery?.totalDiscovered || 0} new products across ${Object.keys(result.data?.discovery?.byNetwork || {}).length} networks.`,
       });
 
       // Refresh integrations list

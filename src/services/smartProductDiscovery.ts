@@ -38,13 +38,14 @@ export const smartProductDiscovery = {
 
     try {
       // Get user's connected integrations
-      const { data: integrations } = await supabase
+      const { data: _ints } = await supabase
         .from('integrations')
-        .select('provider, settings, status')
+        .select('*')
         .eq('user_id', userId)
         .eq('category', 'affiliate')
         .eq('status', 'connected');
 
+      const integrations = _ints as any[];
       if (!integrations || integrations.length === 0) {
         console.log('⚠️ No affiliate networks connected - cannot discover products');
         result.recommendations.push('Connect affiliate networks in /integrations to discover products');

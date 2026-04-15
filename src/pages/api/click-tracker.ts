@@ -47,7 +47,7 @@ export default async function handler(
     // Get the affiliate link
     const { data: affiliateLink } = await supabase
       .from('affiliate_links')
-      .select('id, user_id, product_id, destination_url')
+      .select('id, user_id, product_id, original_url')
       .eq('id', linkIdStr)
       .maybeSingle();
 
@@ -104,7 +104,7 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       click_id: clickEvent.id,
-      redirect_url: affiliateLink.destination_url,
+      redirect_url: affiliateLink.original_url,
       message: 'Click tracked successfully'
     });
 
