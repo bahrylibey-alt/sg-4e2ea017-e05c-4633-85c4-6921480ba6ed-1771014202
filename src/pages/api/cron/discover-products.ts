@@ -1,93 +1,91 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/integrations/supabase/client';
-import { smartProductDiscovery } from '@/services/smartProductDiscovery';
+import type { NextApiRequest, NextApiResponse } from "next";
+import { supabase } from "@/integrations/supabase/client";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * CRON JOB: Product Discovery
- * Runs daily to discover new products from connected affiliate networks
- * Trigger via: Vercel Cron or manual API call
+ * PRODUCT DISCOVERY CRON JOB
+ * Runs daily to discover new products from REAL affiliate network APIs
+ * 
+ * NO FAKE DATA - Only calls real affiliate APIs with valid credentials
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Verify cron secret
+  const authHeader = req.headers.authorization;
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
-    console.log('🔄 CRON: Product Discovery Starting...');
+    console.log('🔍 PRODUCT DISCOVERY: Starting...');
 
-    // Verify cron secret (optional - for security)
-    const authHeader = req.headers.authorization;
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get all users with connected affiliate integrations
-    const { data: users, error: usersError } = await supabase
-      .from('integrations')
-      .select('user_id')
-      .eq('category', 'affiliate_network')
-      .eq('status', 'connected');
-
-    if (usersError) throw usersError;
+    // Get all users with autopilot enabled
+    const { data: users } = await supabase
+      .from('user_settings')
+      .select('user_id, autopilot_enabled')
+      .eq('autopilot_enabled', true);
 
     if (!users || users.length === 0) {
-      console.log('⚠️ No users with affiliate integrations found');
-      return res.status(200).json({ 
-        success: true, 
-        message: 'No users to process',
-        usersProcessed: 0 
+      return res.status(200).json({
+        success: true,
+        message: 'No users with autopilot enabled',
+        processed: 0
       });
     }
 
-    // Get unique user IDs
-    const uniqueUserIds = [...new Set(users.map(u => u.user_id))];
-    console.log(`📊 Found ${uniqueUserIds.length} users with affiliate integrations`);
+    console.log(`Discovering products for ${users.length} users...`);
 
     const results = [];
-
-    for (const userId of uniqueUserIds) {
+    for (const user of users) {
       try {
-        console.log(`🔍 Discovering products for user: ${userId}`);
-
-        const result = await smartProductDiscovery.discoverProducts(userId, 20);
-
+        console.log(`🎯 Processing user: ${user.user_id}`);
+        
+        // Get user's autopilot settings
+        const { data: settings } = await supabase
+          .from('autopilot_settings')
+          .select('*')
+          .eq('user_id', user.user_id)
+          .maybeSingle();
+        
+        // Discover products from REAL affiliate networks only
+        const discoveryResult = await smartProductDiscovery.discoverProducts(user.user_id, settings);
+        
         results.push({
-          userId,
-          success: true,
-          discovered: result.discovered,
-          networks: result.networks,
+          userId: user.user_id,
+          success: discoveryResult.totalDiscovered > 0,
+          discovered: discoveryResult.totalDiscovered,
+          byNetwork: discoveryResult.byNetwork,
+          recommendations: discoveryResult.recommendations
         });
 
-        console.log(`✅ User ${userId}: Discovered ${result.discovered} products from ${result.networks.join(', ')}`);
-      } catch (error: any) {
-        console.error(`❌ Failed for user ${userId}:`, error);
+        console.log(`✅ User ${user.user_id}: Discovered ${discoveryResult.totalDiscovered} products`);
+
+      } catch (userError) {
+        console.error(`❌ Error processing user ${user.user_id}:`, userError);
         results.push({
-          userId,
+          userId: user.user_id,
           success: false,
-          error: error.message,
+          error: userError instanceof Error ? userError.message : 'Unknown error'
         });
       }
     }
 
-    const totalDiscovered = results.reduce((sum, r) => sum + (r.discovered || 0), 0);
-    const successCount = results.filter(r => r.success).length;
-
-    console.log(`✅ CRON: Product Discovery Complete`);
-    console.log(`📊 ${successCount}/${uniqueUserIds.length} users processed`);
-    console.log(`📦 ${totalDiscovered} total products discovered`);
-
     return res.status(200).json({
       success: true,
-      usersProcessed: uniqueUserIds.length,
-      successCount,
-      totalDiscovered,
-      results,
+      message: `Processed ${users.length} users`,
+      processed: users.length,
+      results
     });
 
   } catch (error: any) {
-    console.error('❌ CRON: Product Discovery Failed:', error);
+    console.error('❌ PRODUCT DISCOVERY ERROR:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: error.message
     });
   }
 }
