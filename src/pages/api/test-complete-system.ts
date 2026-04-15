@@ -259,7 +259,7 @@ export default async function handler(
     console.log('TEST 12: System State...');
     const { data: systemState } = await supabase
       .from('system_state')
-      .select('state, total_views, total_clicks, total_conversions, total_revenue')
+      .select('state, total_views, total_clicks, last_post_at')
       .eq('user_id', userId)
       .maybeSingle();
 
