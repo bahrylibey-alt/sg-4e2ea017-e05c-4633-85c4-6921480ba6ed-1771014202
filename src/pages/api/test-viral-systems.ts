@@ -1,5 +1,5 @@
 
-<![CDATA[
+
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
@@ -190,4 +190,4 @@ export default async function handler(
     });
   }
 }
-</content>
+

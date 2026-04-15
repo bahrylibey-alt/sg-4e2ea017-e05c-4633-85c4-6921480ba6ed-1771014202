@@ -1,5 +1,5 @@
 
-<![CDATA[
+
 /**
  * VIRAL ENGINE
  * 
@@ -84,7 +84,7 @@ export const viralEngine = {
       // PHASE 3: Create campaigns for each product
       console.log('⚡ PHASE 3: Creating campaigns...');
       for (const link of products) {
-        const catalog = link.product_catalog || {};
+        const catalog = (link.product_catalog as any) || {};
         const productName = link.product_name || catalog.name || 'Product';
         const price = catalog.price || 0;
         const network = catalog.network || 'amazon';
@@ -92,7 +92,7 @@ export const viralEngine = {
         // Choose best strategy based on available data
         let strategy: ViralCampaign['strategy'] = 'INTELLIGENCE_PREDICT';
         let contentVariations: string[] = [];
-        let platforms: string[] = ['pinterest', 'tiktok', 'instagram'];
+        const platforms: string[] = ['pinterest', 'tiktok', 'instagram'];
 
         if (hasDNA && dnaResults.viralPatterns.length > 0) {
           // DNA CLONE STRATEGY - Use proven patterns
@@ -322,4 +322,4 @@ export const viralEngine = {
     }
   }
 };
-</content>
+

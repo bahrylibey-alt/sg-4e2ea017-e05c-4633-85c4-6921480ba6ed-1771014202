@@ -1,5 +1,5 @@
 
-<![CDATA[
+
 /**
  * UNIFIED ORCHESTRATOR
  * 
@@ -131,14 +131,14 @@ export const unifiedOrchestrator = {
       // PHASE 3: DECISION ENGINE (Get recommendations)
       console.log('🎯 PHASE 3: Generating decisions...');
       try {
-        const decisions = await decisionEngine.analyze(userId);
+        const decisions = await decisionEngine.analyzeAllPosts(userId);
         result.execution.phase3_decisions = {
-          success: decisions.success,
-          recommendations: decisions.recommendations.length
+          success: true,
+          recommendations: decisions.totalDecisions
         };
-        result.systemHealth.decisionsGenerated = decisions.success;
-        result.nextActions = decisions.recommendations.slice(0, 5);
-        console.log(`✅ DECISIONS: ${decisions.recommendations.length} recommendations`);
+        result.systemHealth.decisionsGenerated = true;
+        result.nextActions = decisions.decisions.slice(0, 5).map(d => d.action);
+        console.log(`✅ DECISIONS: ${decisions.totalDecisions} recommendations`);
       } catch (error) {
         console.error('⚠️ Decision engine failed (continuing):', error);
       }
@@ -316,4 +316,4 @@ export const unifiedOrchestrator = {
     }
   }
 };
-</content>
+

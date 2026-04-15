@@ -1,5 +1,5 @@
 
-<![CDATA[
+
 /**
  * QUANTUM CONTENT MULTIPLIER
  * 
@@ -304,4 +304,4 @@ export const quantumContentMultiplier = {
     return Math.min(100, energy);
   }
 };
-</content>
+

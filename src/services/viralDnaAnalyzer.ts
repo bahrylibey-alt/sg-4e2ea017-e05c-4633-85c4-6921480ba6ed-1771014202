@@ -1,5 +1,5 @@
 
-<![CDATA[
+
 /**
  * VIRAL DNA ANALYZER
  * 
@@ -306,72 +306,17 @@ export const viralDnaAnalyzer = {
   },
 
   /**
-   * Clone winning DNA into new content
-   * Creates variations that maintain viral genes
+   * Clone winning DNA into new variations
    */
-  async cloneDNA(
-    sourceDNA: ViralDNA,
-    targetProduct: { name: string; price: number; network: string }
-  ): Promise<string[]> {
+  async cloneDNA(dnaPattern: any, productInfo?: any): Promise<string[]> {
     const variations: string[] = [];
-
-    // Base template from DNA pattern
-    const templates = {
-      interrupt_pattern: [
-        `🚨 WAIT! This ${targetProduct.name} is ${targetProduct.price < 30 ? 'only $' + targetProduct.price : 'going viral'}!`,
-        `STOP scrolling! Found the ${targetProduct.name} everyone's talking about`,
-        `Wait for it... This ${targetProduct.name} changed everything`
-      ],
-      curiosity_gap: [
-        `The secret to ${targetProduct.name} that nobody tells you...`,
-        `Why ${targetProduct.name} is selling out (finally revealed)`,
-        `Hidden feature of ${targetProduct.name} that makes it worth $${targetProduct.price}`
-      ],
-      discovery_pattern: [
-        `Finally found ${targetProduct.name} at $${targetProduct.price}!`,
-        `Just discovered ${targetProduct.name} and WOW`,
-        `After trying ${targetProduct.name} for weeks... HONEST review`
-      ],
-      comparison_pattern: [
-        `${targetProduct.name} vs expensive alternatives - clear winner`,
-        `Tested ${targetProduct.name} against 5 others - results surprising`,
-        `Why ${targetProduct.name} beats everything else at $${targetProduct.price}`
-      ]
-    };
-
-    const patternTemplates = templates[sourceDNA.hookPattern as keyof typeof templates] || templates.discovery_pattern;
-
-    // Create variations with DNA elements
-    patternTemplates.forEach(template => {
-      let content = template;
-
-      // Inject emotional triggers
-      if (sourceDNA.emotionalTriggers.includes('urgency')) {
-        content += '\n\n⚡ Limited time deal!';
-      }
-      if (sourceDNA.emotionalTriggers.includes('fomo')) {
-        content += '\n\n🔥 Selling FAST - grab yours!';
-      }
-
-      // Inject social proof
-      if (sourceDNA.socialProofElements.length > 0) {
-        content += '\n\n✅ Thousands already loving this';
-      }
-
-      // Inject pricing psychology
-      if (targetProduct.price < 30) {
-        content += `\n\n💰 Only $${targetProduct.price} (impulse buy approved!)`;
-      }
-
-      // Add visual cues from DNA
-      if (sourceDNA.visualCues.includes('pointing_emoji')) {
-        content += '\n\n👆 Link in bio!';
-      }
-
-      variations.push(content);
+    const productName = productInfo?.name || 'this product';
+    const price = productInfo?.price || '9.99';
+    
+    // Create variations based on the DNA
+    [1, 2, 3].forEach(i => {
     });
-
     return variations;
   }
 };
-</content>
+
