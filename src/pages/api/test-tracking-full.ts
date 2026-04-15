@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * COMPREHENSIVE TRACKING TEST
  * Tests: Views → Clicks → Conversions flow
- * Visit: /api/test-tracking-full
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
@@ -52,6 +52,9 @@ export default async function handler(
       data: await viewResponse.json()
     };
 
+    // Wait a bit for DB write
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // TEST 2: Track Clicks
     const clickResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/tracking/clicks`, {
       method: 'POST',
@@ -71,6 +74,9 @@ export default async function handler(
       data: await clickResponse.json()
     };
 
+    // Wait a bit for DB write
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // TEST 3: Track Conversion
     const conversionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/tracking/conversions`, {
       method: 'POST',
@@ -88,6 +94,9 @@ export default async function handler(
       status: conversionResponse.status,
       data: await conversionResponse.json()
     };
+
+    // Wait a bit for DB write
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // TEST 4: Verify in Database
     const { data: viewEvents } = await supabase
@@ -112,14 +121,23 @@ export default async function handler(
       totalRevenue: conversionEvents?.reduce((sum, c) => sum + Number(c.revenue), 0) || 0
     };
 
+    const allPassed = 
+      testResults.views.status === 200 &&
+      testResults.clicks.status === 200 &&
+      testResults.conversions.status === 200 &&
+      testResults.database.viewEvents > 0 &&
+      testResults.database.clickEvents > 0 &&
+      testResults.database.conversionEvents > 0;
+
     return res.status(200).json({
       success: true,
       message: 'Tracking test complete',
+      testsPassed: allPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED',
       results: testResults,
       summary: {
-        viewsTracked: testResults.views.data.tracked,
-        clicksTracked: testResults.clicks.data.tracked,
-        conversionsTracked: testResults.conversions.data.tracked,
+        viewsTracked: testResults.views?.data?.tracked || false,
+        clicksTracked: testResults.clicks?.data?.tracked || false,
+        conversionsTracked: testResults.conversions?.data?.tracked || false,
         databaseVerified: testResults.database.viewEvents > 0 && 
                           testResults.database.clickEvents > 0 && 
                           testResults.database.conversionEvents > 0

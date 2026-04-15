@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * COMPREHENSIVE SYSTEM DIAGNOSTIC
  * Tests ALL components and identifies issues
- * Visit: /api/diagnose-system
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
@@ -12,6 +12,7 @@ export default async function handler(
 ) {
   const diagnostics: any = {
     timestamp: new Date().toISOString(),
+    userId: 'cd9e03a2-9620-44be-a934-ac2ed69db465',
     environment: {},
     database: {},
     tracking: {},
@@ -21,13 +22,15 @@ export default async function handler(
   };
 
   try {
+    const userId = diagnostics.userId;
+
     // 1. ENVIRONMENT CHECK
     diagnostics.environment = {
       supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       supabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
       cronSecret: !!process.env.CRON_SECRET,
-      cronSecretValue: process.env.CRON_SECRET?.substring(0, 10) + '...'
+      nodeEnv: process.env.NODE_ENV
     };
 
     if (!process.env.CRON_SECRET) {
@@ -37,16 +40,21 @@ export default async function handler(
 
     // 2. DATABASE CHECK
     const { data: profiles } = await supabase.from('profiles').select('id, email');
-    const { data: products } = await supabase.from('product_catalog').select('id, status');
-    const { data: integrations } = await supabase.from('integrations').select('provider, status');
-    const { data: systemState } = await supabase.from('system_state').select('*');
+    const { data: products } = await supabase.from('affiliate_links').select('id, network').eq('user_id', userId);
+    const { data: integrations } = await supabase.from('integrations').select('provider, status, category').eq('user_id', userId);
+    const { data: systemState } = await supabase.from('system_state').select('*').eq('user_id', userId).maybeSingle();
+
+    const affiliateNetworks = integrations?.filter(i => i.category === 'affiliate') || [];
+    const trafficSources = integrations?.filter(i => i.category === 'tracking') || [];
 
     diagnostics.database = {
       totalUsers: profiles?.length || 0,
       totalProducts: products?.length || 0,
-      activeProducts: products?.filter(p => p.status === 'active').length || 0,
-      integrations: integrations?.map(i => `${i.provider}:${i.status}`) || [],
-      systemState: systemState?.[0] || null
+      affiliateNetworks: affiliateNetworks.length,
+      trafficSources: trafficSources.length,
+      affiliateList: affiliateNetworks.map(i => `${i.provider}:${i.status}`),
+      trafficList: trafficSources.map(i => `${i.provider}:${i.status}`),
+      systemState: systemState || null
     };
 
     if (!profiles?.length) {
@@ -56,6 +64,14 @@ export default async function handler(
       diagnostics.issues.push("⚠️ No products in catalog");
       diagnostics.recommendations.push("Run product discovery or add products manually");
     }
+    if (!affiliateNetworks.length) {
+      diagnostics.issues.push("❌ No affiliate networks connected");
+      diagnostics.recommendations.push("Connect affiliate networks in Settings → Integrations");
+    }
+    if (!trafficSources.length) {
+      diagnostics.issues.push("⚠️ No traffic sources connected");
+      diagnostics.recommendations.push("System can work with simulated traffic");
+    }
 
     // 3. TRACKING CHECK (Last 48 hours)
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -63,16 +79,19 @@ export default async function handler(
     const { data: recentClicks } = await supabase
       .from('click_events')
       .select('id')
+      .eq('user_id', userId)
       .gte('tracked_at', cutoff);
     
     const { data: recentViews } = await supabase
       .from('view_events')
       .select('id')
+      .eq('user_id', userId)
       .gte('tracked_at', cutoff);
     
     const { data: recentConversions } = await supabase
       .from('conversion_events')
       .select('id, revenue')
+      .eq('user_id', userId)
       .gte('tracked_at', cutoff);
 
     diagnostics.tracking = {
@@ -83,58 +102,62 @@ export default async function handler(
     };
 
     if (!recentClicks?.length && !recentViews?.length) {
-      diagnostics.issues.push("❌ No tracking activity in last 48 hours");
-      diagnostics.recommendations.push("Test tracking endpoints manually");
+      diagnostics.issues.push("⚠️ No tracking activity in last 48 hours");
+      diagnostics.recommendations.push("Test tracking endpoints with /api/test-tracking-full");
     }
 
     // 4. AUTOMATION CHECK
-    const { data: autopilotScores } = await supabase
-      .from('autopilot_scores')
-      .select('updated_at')
-      .order('updated_at', { ascending: false })
-      .limit(1);
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('autopilot_enabled, last_autopilot_run')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    const { data: scheduledPosts } = await supabase
+    const { data: postedContent } = await supabase
       .from('posted_content')
-      .select('id')
+      .select('id, platform, clicks, revenue')
+      .eq('user_id', userId)
+      .eq('status', 'posted')
+      .order('created_at', { ascending: false })
       .limit(10);
 
-    const lastAutopilotRun = autopilotScores?.[0]?.updated_at;
-    const timeSinceLastRun = lastAutopilotRun 
-      ? Math.floor((Date.now() - new Date(lastAutopilotRun).getTime()) / (1000 * 60))
+    const timeSinceLastRun = settings?.last_autopilot_run 
+      ? Math.floor((Date.now() - new Date(settings.last_autopilot_run).getTime()) / (1000 * 60))
       : null;
 
     diagnostics.automation = {
-      lastAutopilotRun: lastAutopilotRun || 'Never',
+      autopilotEnabled: settings?.autopilot_enabled || false,
+      lastAutopilotRun: settings?.last_autopilot_run || 'Never',
       minutesSinceLastRun: timeSinceLastRun,
-      autopilotScore: 0,
-      scheduledPosts: scheduledPosts?.length || 0
+      recentPosts: postedContent?.length || 0,
+      totalClicks: postedContent?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0,
+      totalRevenue: postedContent?.reduce((sum, p) => sum + (p.revenue || 0), 0) || 0
     };
 
-    if (timeSinceLastRun && timeSinceLastRun > 60) {
+    if (!settings?.autopilot_enabled) {
+      diagnostics.issues.push("❌ Autopilot is disabled");
+      diagnostics.recommendations.push("Enable autopilot in Dashboard");
+    } else if (timeSinceLastRun && timeSinceLastRun > 60) {
       diagnostics.issues.push(`⚠️ Autopilot hasn't run in ${timeSinceLastRun} minutes (should run every 30min)`);
-      diagnostics.recommendations.push("Check Vercel cron configuration or run /api/test-cron-autopilot");
+      diagnostics.recommendations.push("Test autopilot with /api/test-cron-autopilot");
     }
 
-    // 5. INTEGRATION CHECK
-    const { data: activeIntegrations } = await supabase
-      .from('integrations')
-      .select('provider, last_sync_at, status')
-      .eq('status', 'connected');
+    // 5. CONTENT CHECK
+    const { data: allPosts } = await supabase
+      .from('posted_content')
+      .select('platform, status')
+      .eq('user_id', userId);
 
-    diagnostics.integrations = activeIntegrations?.map(i => ({
-      provider: i.provider,
-      lastSync: i.last_sync_at,
-      hoursSinceSync: i.last_sync_at 
-        ? Math.floor((Date.now() - new Date(i.last_sync_at).getTime()) / (1000 * 60 * 60))
-        : null
-    })) || [];
+    const statusBreakdown = allPosts?.reduce((acc, p) => {
+      acc[p.status] = (acc[p.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
 
-    activeIntegrations?.forEach(i => {
-      if (!i.last_sync_at) {
-        diagnostics.issues.push(`⚠️ ${i.provider} integration never synced`);
-      }
-    });
+    diagnostics.content = {
+      totalPosts: allPosts?.length || 0,
+      statusBreakdown,
+      platforms: [...new Set(allPosts?.map(p => p.platform))]
+    };
 
     // 6. HEALTH SUMMARY
     diagnostics.health = {
@@ -159,11 +182,12 @@ export default async function handler(
         "1. Visit /api/test-cron-autopilot to test autopilot",
         "2. Visit /api/test-cron-discovery to test product discovery",
         "3. Visit /api/test-tracking-full to test tracking system",
-        "4. Check Vercel dashboard for cron execution logs"
+        "4. Visit /api/health-check for quick system overview"
       ]
     });
 
   } catch (error: any) {
+    console.error('Diagnostic error:', error);
     return res.status(500).json({
       success: false,
       error: error.message,

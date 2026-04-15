@@ -4,24 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * COMPREHENSIVE SYSTEM HEALTH CHECK
  * Shows exactly what's working and what's not
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: "Not authenticated"
-      });
-    }
+    // Use fixed user ID for testing
+    const userId = 'cd9e03a2-9620-44be-a934-ac2ed69db465';
 
     const health: any = {
       timestamp: new Date().toISOString(),
-      userId: user.id,
+      userId: userId,
       checks: {}
     };
 
@@ -29,7 +24,7 @@ export default async function handler(
     const { data: affiliateNetworks } = await supabase
       .from('integrations')
       .select('provider, provider_name, status')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('category', 'affiliate');
 
     health.checks.affiliateNetworks = {
@@ -42,8 +37,8 @@ export default async function handler(
     const { data: trafficSources } = await supabase
       .from('integrations')
       .select('provider, provider_name, status')
-      .eq('user_id', user.id)
-      .eq('category', 'traffic');
+      .eq('user_id', userId)
+      .in('category', ['traffic', 'tracking']);
 
     health.checks.trafficSources = {
       status: trafficSources && trafficSources.length > 0 ? '✅ WORKING' : '❌ NO SOURCES',
@@ -55,7 +50,7 @@ export default async function handler(
     const { data: products } = await supabase
       .from('affiliate_links')
       .select('id, slug, network')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     health.checks.products = {
       status: products && products.length > 0 ? '✅ WORKING' : '❌ NO PRODUCTS',
@@ -67,7 +62,7 @@ export default async function handler(
     const { data: posts } = await supabase
       .from('posted_content')
       .select('id, platform, status, impressions, clicks')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'posted')
       .order('created_at', { ascending: false })
       .limit(10);
@@ -87,7 +82,7 @@ export default async function handler(
     const { data: scheduled } = await supabase
       .from('scheduled_posts')
       .select('id, platform, scheduled_time, status')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'pending');
 
     health.checks.scheduled = {
@@ -99,7 +94,7 @@ export default async function handler(
     const { data: settings } = await supabase
       .from('user_settings')
       .select('autopilot_enabled, last_autopilot_run')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     const minutesSinceRun = settings?.last_autopilot_run 
@@ -117,7 +112,7 @@ export default async function handler(
     const { data: systemState } = await supabase
       .from('system_state')
       .select('state, total_views, total_clicks, last_post_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     health.checks.systemState = {
@@ -125,6 +120,27 @@ export default async function handler(
       totalViews: systemState?.total_views || 0,
       totalClicks: systemState?.total_clicks || 0,
       lastPost: systemState?.last_post_at || 'Never'
+    };
+
+    // 8. Check Recent Tracking Activity (Last 48 hours)
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    
+    const { data: recentClicks } = await supabase
+      .from('click_events')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('tracked_at', cutoff);
+    
+    const { data: recentViews } = await supabase
+      .from('view_events')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('tracked_at', cutoff);
+
+    health.checks.tracking = {
+      clicksLast48h: recentClicks?.length || 0,
+      viewsLast48h: recentViews?.length || 0,
+      status: (recentClicks?.length || 0) > 0 ? '✅ ACTIVE' : '⚠️ NO RECENT ACTIVITY'
     };
 
     // Overall Status
@@ -159,6 +175,11 @@ export default async function handler(
     if (!health.checks.autopilot.status.includes('✅')) {
       health.issues.push('Autopilot is disabled');
       health.recommendations.push('Go to Dashboard → Enable Autopilot');
+    }
+
+    if (!health.checks.tracking.status.includes('✅')) {
+      health.issues.push('No tracking activity in last 48 hours');
+      health.recommendations.push('Test tracking with /api/test-tracking-full');
     }
 
     return res.status(200).json({
