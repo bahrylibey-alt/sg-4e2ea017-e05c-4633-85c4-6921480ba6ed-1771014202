@@ -54,7 +54,7 @@ export default async function handler(
     console.log('🔍 Running product discovery...');
     const result = await smartProductDiscovery.discoverProducts(user.id, 50);
 
-    console.log(`✅ Discovery complete: ${result.discovered} products`);
+    console.log(`✅ Discovery complete: ${result.totalDiscovered} products`);
 
     // Step 3: Verify products were saved to affiliate_links
     const { data: links, error: linksError } = await (supabase as any)
@@ -88,13 +88,13 @@ export default async function handler(
       success: true,
       test_results: {
         connected_integrations: integrations.length,
-        discovered_products: result.discovered,
-        networks_used: result.networks,
+        discovered_products: result.totalDiscovered,
+        networks_used: Object.keys(result.byNetwork),
         affiliate_links_saved: links?.length || 0,
         catalog_entries_saved: catalog?.length || 0,
         sync_times: syncTimes
       },
-      message: `✅ Discovery working! ${result.discovered} products discovered and saved to both tables`
+      message: `✅ Discovery working! ${result.totalDiscovered} products discovered and saved to both tables`
     };
 
     return res.status(200).json(responsePayload);

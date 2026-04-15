@@ -580,7 +580,7 @@ export default function IntegrationsPage() {
 
       toast({
         title: "Manual Sync Complete",
-        description: `Discovered ${result.data?.discovery?.totalDiscovered || 0} new products across ${Object.keys(result.data?.discovery?.byNetwork || {}).length} networks.`,
+        description: `Discovered ${result.totalDiscovered || 0} new products across ${Object.keys(result.byNetwork || {}).length} networks.`,
       });
 
       // Refresh integrations list

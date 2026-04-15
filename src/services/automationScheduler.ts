@@ -342,7 +342,8 @@ export const automationScheduler = {
         
         if (isFeatureEnabled('real_data_enforcement_enabled')) {
           try {
-            systemState = await getSystemState(task.user_id);
+            const { data: _ss } = await supabase.from('system_state').select('state').eq('user_id', task.user_id).maybeSingle();
+            systemState = { ...systemState, state: _ss?.state || 'TESTING' };
           } catch (error) {
             console.warn('⚠️ System state check failed, using defaults');
           }

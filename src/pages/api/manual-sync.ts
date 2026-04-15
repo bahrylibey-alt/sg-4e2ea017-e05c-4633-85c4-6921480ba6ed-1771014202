@@ -36,15 +36,15 @@ export default async function handler(
     const result = await smartProductDiscovery.discoverProducts(user.id, 50);
 
     console.log(`✅ MANUAL SYNC: Complete`);
-    console.log(`📦 ${result.discovered} products discovered`);
-    console.log(`🔌 Networks: ${result.networks.join(', ')}`);
+    console.log(`📦 ${result.totalDiscovered} products discovered`);
+    console.log(`🔌 Networks: ${Object.keys(result.byNetwork).join(', ')}`);
 
     return res.status(200).json({
       success: true,
-      discovered: result.discovered,
-      networks: result.networks,
-      products: result.products,
-      message: `Successfully discovered ${result.discovered} products from ${result.networks.length} networks`
+      discovered: result.totalDiscovered,
+      networks: Object.keys(result.byNetwork),
+      products: result.topProducts,
+      message: `Successfully discovered ${result.totalDiscovered} products from ${Object.keys(result.byNetwork).length} networks`
     });
 
   } catch (error: any) {
