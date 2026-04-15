@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
  * SAFE TRACKING API - Views
  * Tracks view events without breaking existing system
  * If fails → logs error, returns success anyway
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
  * Records VERIFIED conversions only (from webhooks/APIs)
  * Estimated revenue MUST be labeled clearly
  * Never fakes revenue
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,

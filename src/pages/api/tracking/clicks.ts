@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
  * SAFE TRACKING API - Clicks
  * Tracks click events and updates product metrics
  * If fails → logs error, continues system
+ * NO AUTH REQUIRED - For testing purposes
  */
 export default async function handler(
   req: NextApiRequest,
