@@ -59,6 +59,16 @@ export async function calculatePerformanceScore(
         conversion_rate: Number(conversionRate.toFixed(2)),
         revenue_per_click: Number(revenuePerClick.toFixed(2)),
         performance_score: Number(score.toFixed(2)),
+        recommendations: [], // Store recommendations in recommendations jsonb column
+        insights: { // Store additional insights here
+          lastCalculated: new Date().toISOString(),
+          metrics: {
+            clicks: metrics.clicks,
+            impressions: metrics.impressions,
+            conversions: metrics.conversions,
+            revenue: metrics.revenue
+          }
+        },
         updated_at: new Date().toISOString(),
       });
     } catch (saveError) {
