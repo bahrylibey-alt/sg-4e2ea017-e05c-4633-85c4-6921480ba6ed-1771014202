@@ -270,9 +270,9 @@ export const aiInsightsEngine = {
         .from("autopilot_scores")
         .upsert({
           user_id: userId,
-          traffic_state: trafficState,
+          status: trafficState,
           insights: insights,
-          next_steps: nextSteps,
+          next_steps: JSON.stringify(nextSteps),
           updated_at: new Date().toISOString(),
         });
     } catch (err) {
