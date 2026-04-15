@@ -90,14 +90,14 @@ export default async function handler(
     // 4. AUTOMATION CHECK
     const { data: autopilotScores } = await supabase
       .from('autopilot_scores')
-      .select('updated_at, total_score')
+      .select('updated_at')
       .order('updated_at', { ascending: false })
       .limit(1);
 
     const { data: scheduledPosts } = await supabase
-      .from('scheduled_content')
-      .select('id, status, scheduled_for')
-      .in('status', ['pending', 'processing']);
+      .from('posted_content')
+      .select('id')
+      .limit(10);
 
     const lastAutopilotRun = autopilotScores?.[0]?.updated_at;
     const timeSinceLastRun = lastAutopilotRun 
@@ -107,7 +107,7 @@ export default async function handler(
     diagnostics.automation = {
       lastAutopilotRun: lastAutopilotRun || 'Never',
       minutesSinceLastRun: timeSinceLastRun,
-      autopilotScore: autopilotScores?.[0]?.total_score || 0,
+      autopilotScore: 0,
       scheduledPosts: scheduledPosts?.length || 0
     };
 
