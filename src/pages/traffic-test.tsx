@@ -50,7 +50,7 @@ export default function TrafficTest() {
         working: healthResults.working,
         broken: healthResults.broken,
         removed: healthResults.removed,
-        links: healthResults.results.slice(0, 20) // Show first 20
+        links: healthResults.results?.slice(0, 20) || [] // Show first 20, handle undefined
       });
 
     } catch (error: any) {
