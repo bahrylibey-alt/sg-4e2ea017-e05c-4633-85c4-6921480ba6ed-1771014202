@@ -99,31 +99,14 @@ export const unifiedOrchestrator = {
       // PHASE 2: SCORING (Analyze all products)
       console.log('📊 PHASE 2: Scoring products...');
       try {
-        const { data: products } = await supabase
-          .from('affiliate_links')
-          .select('id, product_name')
-          .eq('user_id', userId)
-          .eq('status', 'active')
-          .limit(50);
-
-        if (products && products.length > 0) {
-          let scoredCount = 0;
-          for (const product of products) {
-            try {
-              await scoringEngine.calculateScore(product.id);
-              scoredCount++;
-            } catch (scoreError) {
-              console.error(`⚠️ Failed to score ${product.product_name}:`, scoreError);
-            }
-          }
-          result.execution.phase2_scoring = {
-            success: true,
-            productsScored: scoredCount
-          };
-          result.systemHealth.scoringComplete = scoredCount > 0;
-          result.metrics.totalProductsAnalyzed = scoredCount;
-          console.log(`✅ SCORING: ${scoredCount} products analyzed`);
-        }
+        const scoreResults = await scoringEngine.scoreAllPosts(userId);
+        result.execution.phase2_scoring = {
+          success: true,
+          productsScored: scoreResults.total
+        };
+        result.systemHealth.scoringComplete = scoreResults.total > 0;
+        result.metrics.totalProductsAnalyzed = scoreResults.total;
+        console.log(`✅ SCORING: ${scoreResults.total} posts analyzed`);
       } catch (error) {
         console.error('⚠️ Scoring failed (continuing):', error);
       }
