@@ -88,11 +88,13 @@ export default function Dashboard() {
               <ProfitDashboard />
             </TabsContent>
           </Tabs>
+          
+          {/* Auto-Fix System - Always visible at bottom */}
+          <div className="mt-6">
+            <AutopilotRunner />
+          </div>
         </main>
         <Footer />
-      </div>
-      <div className="mt-6">
-        <AutopilotRunner />
       </div>
     </>
   );
