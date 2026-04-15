@@ -1,99 +1,92 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { scoringEngine } from "@/services/scoringEngine";
-import { decisionEngine } from "@/services/decisionEngine";
-import { aiInsightsEngine } from "@/services/aiInsightsEngine";
+import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
 
 /**
- * AUTONOMOUS ENGINE CRON
- * Runs every 30-60 minutes
- * Collects data → Scores → Classifies → Recommends → Saves decisions
+ * AUTOPILOT CRON JOB
+ * Runs every 30 minutes via Vercel Cron
  * 
- * SAFE: Only generates recommendations, never auto-executes
+ * NOW POWERED BY: Unified Orchestrator (7 revolutionary systems)
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Verify cron authorization (optional - add API key check here)
+  // Verify cron secret
   const authHeader = req.headers.authorization;
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  console.log("🤖 [Autopilot] Starting autonomous engine cycle...");
-
   try {
-    // Get all active users
+    console.log('🤖 AUTOPILOT CRON: Starting...');
+
+    // Get all users with autopilot enabled
     const { data: users } = await supabase
-      .from("profiles")
-      .select("id")
-      .limit(100); // Process in batches
+      .from('user_settings')
+      .select('user_id, autopilot_enabled')
+      .eq('autopilot_enabled', true);
 
     if (!users || users.length === 0) {
-      console.log("No users to process");
       return res.status(200).json({
         success: true,
-        message: "No users to process",
-        processed: 0,
+        message: 'No users with autopilot enabled',
+        processed: 0
       });
     }
 
     console.log(`Processing ${users.length} users...`);
 
-    let totalScored = 0;
-    let totalDecisions = 0;
-
+    const results = [];
     for (const user of users) {
       try {
-        console.log(`📊 Processing user: ${user.id}`);
+        console.log(`🎯 Processing user: ${user.user_id}`);
+        
+        // Run unified orchestrator
+        const result = await unifiedOrchestrator.execute(user.user_id);
+        
+        results.push({
+          userId: user.user_id,
+          success: result.success,
+          metrics: result.metrics,
+          health: result.systemHealth
+        });
 
-        // Step 1: Score all posts
-        const scoreResults = await scoringEngine.scoreAllPosts(user.id);
-        totalScored += scoreResults.total;
+        // Update last run time
+        await supabase
+          .from('user_settings')
+          .update({ 
+            last_autopilot_run: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.user_id);
 
-        console.log(`✅ Scored ${scoreResults.total} posts (${scoreResults.winners} winners)`);
+        console.log(`✅ User ${user.user_id}: ${result.success ? 'SUCCESS' : 'PARTIAL'}`);
 
-        // Step 2: Generate decisions
-        const decisions = await decisionEngine.analyzeAllPosts(user.id);
-        totalDecisions += decisions.totalDecisions;
-
-        console.log(`✅ Generated ${decisions.totalDecisions} recommendations`);
-
-        // Step 3: Generate insights
-        await aiInsightsEngine.generateInsights(user.id);
-
-        console.log(`✅ Insights updated`);
-
-        // Rate limit between users
-        await new Promise((resolve) => setTimeout(resolve, 1000));
       } catch (userError) {
-        console.error(`Failed to process user ${user.id}:`, userError);
-        // Continue with next user (FAIL-SAFE)
+        console.error(`❌ Error processing user ${user.user_id}:`, userError);
+        results.push({
+          userId: user.user_id,
+          success: false,
+          error: userError instanceof Error ? userError.message : 'Unknown error'
+        });
       }
     }
 
-    console.log(`
-🎯 Autopilot Cycle Complete:
-- Users Processed: ${users.length}
-- Posts Scored: ${totalScored}
-- Decisions Generated: ${totalDecisions}
-    `);
-
     return res.status(200).json({
       success: true,
-      message: "Autopilot cycle completed",
-      stats: {
-        usersProcessed: users.length,
-        postsScored: totalScored,
-        decisionsGenerated: totalDecisions,
-      },
+      message: `Processed ${users.length} users`,
+      processed: users.length,
+      results
     });
+
   } catch (error: any) {
-    console.error("Autopilot cycle failed:", error);
+    console.error('❌ AUTOPILOT CRON ERROR:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || "Autopilot cycle failed",
+      error: error.message
     });
   }
 }
