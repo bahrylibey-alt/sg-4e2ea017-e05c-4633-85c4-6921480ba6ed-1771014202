@@ -26,6 +26,7 @@ import {
   checkConversionNotifications,
   checkTrafficWarnings
 } from "./notificationService";
+import { smartCampaignService } from "./smartCampaignService";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 

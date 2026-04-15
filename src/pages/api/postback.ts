@@ -41,19 +41,25 @@ export default async function handler(
       });
     }
 
+    const networkStr = Array.isArray(network) ? network[0] : network;
+    const clickIdStr = Array.isArray(click_id) ? click_id[0] : click_id;
+    const amountStr = Array.isArray(amount) ? amount[0] : amount;
+    const orderIdStr = order_id ? (Array.isArray(order_id) ? order_id[0] : order_id) : undefined;
+    const statusStr = Array.isArray(status) ? status[0] : status;
+
     // Parse amount and commission
-    const revenue = parseFloat(amount as string);
-    const commissionAmount = commission ? parseFloat(commission as string) : revenue * 0.05; // Default 5% if not provided
+    const revenue = parseFloat(amountStr);
+    const commissionAmount = commission ? parseFloat(Array.isArray(commission) ? commission[0] : commission) : revenue * 0.05;
 
     // Find the click event
     const { data: clickEvent } = await supabase
       .from('click_events')
       .select('id, link_id, user_id, content_id')
-      .eq('id', click_id)
+      .eq('id', clickIdStr)
       .maybeSingle();
 
     if (!clickEvent) {
-      console.error('❌ Click event not found:', click_id);
+      console.error('❌ Click event not found:', clickIdStr);
       return res.status(404).json({
         success: false,
         error: 'Click event not found'
@@ -69,9 +75,9 @@ export default async function handler(
         user_id: clickEvent.user_id,
         revenue: revenue,
         commission: commissionAmount,
-        source: network as string,
-        order_id: order_id as string,
-        status: status as string,
+        source: networkStr,
+        order_id: orderIdStr,
+        status: statusStr,
         converted_at: new Date().toISOString()
       })
       .select()

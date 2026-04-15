@@ -1,5 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 
+interface DiscoveryResult {
+  totalDiscovered: number;
+  byNetwork: Record<string, number>;
+  topProducts: any[];
+  recommendations: string[];
+}
+
 /**
  * SMART PRODUCT DISCOVERY ENGINE
  * Discovers trending products from affiliate networks
@@ -33,7 +40,7 @@ export const smartProductDiscovery = {
       // Get user's connected integrations
       const { data: integrations } = await supabase
         .from('integrations')
-        .select('provider, api_key, status')
+        .select('provider, settings, status')
         .eq('user_id', userId)
         .eq('category', 'affiliate')
         .eq('status', 'connected');
@@ -56,7 +63,9 @@ export const smartProductDiscovery = {
       const minPrice = autopilotSettings?.min_product_price || 10;
       const maxPrice = autopilotSettings?.max_product_price || 500;
       const minRating = autopilotSettings?.min_product_rating || 4.0;
-      const preferredNetworks = autopilotSettings?.preferred_networks || [];
+      const preferredNetworks = Array.isArray(autopilotSettings?.preferred_networks) 
+        ? autopilotSettings.preferred_networks 
+        : [];
 
       // Discover from each connected network
       for (const integration of integrations) {
@@ -71,8 +80,19 @@ export const smartProductDiscovery = {
         console.log(`📡 Fetching products from ${network}...`);
 
         try {
+          // Get API key from settings JSONB
+          const apiKey = integration.settings && typeof integration.settings === 'object' 
+            ? (integration.settings as any).api_key 
+            : null;
+
+          if (!apiKey) {
+            console.log(`⚠️ No API key found for ${network}`);
+            result.recommendations.push(`Add API key for ${network} in /integrations`);
+            continue;
+          }
+
           // Call the real affiliate network API
-          const products = await this.fetchFromNetwork(network, integration.api_key, {
+          const products = await this.fetchFromNetwork(network, apiKey, {
             minPrice,
             maxPrice,
             minRating

@@ -38,11 +38,15 @@ export default async function handler(
       });
     }
 
+    const contentIdStr = Array.isArray(content_id) ? content_id[0] : content_id;
+    const platformStr = Array.isArray(platform) ? platform[0] : platform;
+    const viewsStr = Array.isArray(views) ? views[0] : views;
+
     // Get the posted content
     const { data: postedContent } = await supabase
       .from('posted_content')
       .select('id, user_id')
-      .eq('id', content_id)
+      .eq('id', contentIdStr)
       .maybeSingle();
 
     if (!postedContent) {
@@ -52,7 +56,7 @@ export default async function handler(
       });
     }
 
-    const viewCount = parseInt(views as string);
+    const viewCount = parseInt(viewsStr.toString());
 
     // Record the view event
     const { error: viewError } = await supabase
@@ -60,9 +64,9 @@ export default async function handler(
       .insert({
         content_id: postedContent.id,
         user_id: postedContent.user_id,
-        platform: platform as string,
+        platform: platformStr,
         views: viewCount,
-        engagement_rate: engagement_rate ? parseFloat(engagement_rate as string) : null,
+        engagement_rate: engagement_rate ? parseFloat(Array.isArray(engagement_rate) ? engagement_rate[0] : engagement_rate.toString()) : null,
         tracked_at: new Date().toISOString()
       });
 
@@ -90,7 +94,7 @@ export default async function handler(
         .eq('id', postedContent.id);
     }
 
-    console.log('✅ View recorded for content:', content_id);
+    console.log('✅ View recorded for content:', contentIdStr);
 
     return res.status(200).json({
       success: true,

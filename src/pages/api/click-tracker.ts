@@ -38,11 +38,17 @@ export default async function handler(
       });
     }
 
+    const linkIdStr = Array.isArray(link_id) ? link_id[0] : link_id;
+    const platformStr = Array.isArray(platform) ? platform[0] : platform;
+    const countryStr = country ? (Array.isArray(country) ? country[0] : country) : 'unknown';
+    const deviceStr = Array.isArray(device_type) ? device_type[0] : device_type;
+    const referrerStr = referrer ? (Array.isArray(referrer) ? referrer[0] : referrer) : undefined;
+
     // Get the affiliate link
     const { data: affiliateLink } = await supabase
       .from('affiliate_links')
-      .select('id, user_id, product_id, redirect_url')
-      .eq('id', link_id)
+      .select('id, user_id, product_id, destination_url')
+      .eq('id', linkIdStr)
       .maybeSingle();
 
     if (!affiliateLink) {
@@ -58,10 +64,10 @@ export default async function handler(
       .insert({
         link_id: affiliateLink.id,
         user_id: affiliateLink.user_id,
-        platform: platform as string,
-        country: country as string,
-        device_type: device_type as string,
-        referrer: referrer as string,
+        platform: platformStr,
+        country: countryStr,
+        device_type: deviceStr,
+        referrer: referrerStr,
         clicked_at: new Date().toISOString(),
         converted: false
       })
@@ -98,7 +104,7 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       click_id: clickEvent.id,
-      redirect_url: affiliateLink.redirect_url,
+      redirect_url: affiliateLink.destination_url,
       message: 'Click tracked successfully'
     });
 
