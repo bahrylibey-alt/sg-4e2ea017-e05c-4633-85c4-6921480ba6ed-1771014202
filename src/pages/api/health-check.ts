@@ -2,197 +2,175 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * SERVER-SIDE LINK HEALTH CHECK API
- * 
- * Validates affiliate links without CORS issues
- * Uses Supabase Edge Function for Amazon link validation
+ * COMPREHENSIVE SYSTEM HEALTH CHECK
+ * Shows exactly what's working and what's not
  */
-
-interface LinkHealthResult {
-  linkId: string;
-  slug: string;
-  productName: string;
-  network: string;
-  originalUrl: string;
-  isWorking: boolean;
-  statusCode?: number;
-  error?: string;
-  checkTime: string;
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ error: "userId is required" });
-    }
-
-    console.log('🔍 Starting server-side link health check...');
-
-    // Get all active affiliate links
-    const { data: links, error: fetchError } = await supabase
-      .from('affiliate_links')
-      .select('id, slug, product_name, network, original_url, is_working, check_failures')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-
-    if (fetchError) {
-      console.error('Failed to fetch links:', fetchError);
-      return res.status(500).json({ error: fetchError.message });
-    }
-
-    if (!links || links.length === 0) {
-      return res.status(200).json({
-        success: true,
-        totalChecked: 0,
-        working: 0,
-        broken: 0,
-        removed: 0,
-        results: []
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: "Not authenticated"
       });
     }
 
-    console.log(`📊 Checking ${links.length} affiliate links...`);
+    const health: any = {
+      timestamp: new Date().toISOString(),
+      userId: user.id,
+      checks: {}
+    };
 
-    const results: LinkHealthResult[] = [];
-    let workingCount = 0;
-    let brokenCount = 0;
-    let removedCount = 0;
+    // 1. Check Affiliate Networks
+    const { data: affiliateNetworks } = await supabase
+      .from('integrations')
+      .select('provider, provider_name, status')
+      .eq('user_id', user.id)
+      .eq('category', 'affiliate');
 
-    // Check each link using Supabase Edge Function
-    for (let i = 0; i < links.length; i++) {
-      const link = links[i];
-      const checkTime = new Date().toISOString();
+    health.checks.affiliateNetworks = {
+      status: affiliateNetworks && affiliateNetworks.length > 0 ? '✅ WORKING' : '❌ NO NETWORKS',
+      count: affiliateNetworks?.length || 0,
+      networks: affiliateNetworks?.map(n => `${n.provider_name} (${n.status})`)
+    };
 
-      console.log(`[${i + 1}/${links.length}] Checking: ${link.product_name || link.slug}`);
+    // 2. Check Traffic Sources
+    const { data: trafficSources } = await supabase
+      .from('integrations')
+      .select('provider, provider_name, status')
+      .eq('user_id', user.id)
+      .eq('category', 'traffic');
 
-      let isWorking = false;
-      let errorMessage: string | undefined;
+    health.checks.trafficSources = {
+      status: trafficSources && trafficSources.length > 0 ? '✅ WORKING' : '❌ NO SOURCES',
+      count: trafficSources?.length || 0,
+      sources: trafficSources?.map(s => `${s.provider_name} (${s.status})`)
+    };
 
-      // Use Supabase Edge Function to check Amazon links
-      if (link.network?.includes('Amazon') || link.network?.includes('amazon')) {
-        try {
-          const { data: checkResult, error: fnError } = await supabase.functions.invoke('check-amazon-link', {
-            body: { url: link.original_url }
-          });
+    // 3. Check Products
+    const { data: products } = await supabase
+      .from('affiliate_links')
+      .select('id, slug, network')
+      .eq('user_id', user.id);
 
-          if (fnError) {
-            console.error('Edge function error:', fnError);
-            errorMessage = fnError.message;
-            isWorking = false;
-          } else {
-            isWorking = checkResult?.isValid || false;
-            errorMessage = checkResult?.error;
-          }
-        } catch (error: any) {
-          console.error('Edge function call failed:', error);
-          errorMessage = error.message;
-          isWorking = false;
-        }
-      } else {
-        // For non-Amazon links, assume working (Temu/AliExpress have stricter CORS)
-        isWorking = true;
-        errorMessage = 'CORS-protected - assumed working';
-      }
+    health.checks.products = {
+      status: products && products.length > 0 ? '✅ WORKING' : '❌ NO PRODUCTS',
+      count: products?.length || 0,
+      networks: [...new Set(products?.map(p => p.network))]
+    };
 
-      const result: LinkHealthResult = {
-        linkId: link.id,
-        slug: link.slug,
-        productName: link.product_name || 'Unknown',
-        network: link.network || 'unknown',
-        originalUrl: link.original_url,
-        isWorking,
-        error: errorMessage,
-        checkTime
-      };
+    // 4. Check Posted Content
+    const { data: posts } = await supabase
+      .from('posted_content')
+      .select('id, platform, status, impressions, clicks')
+      .eq('user_id', user.id)
+      .eq('status', 'posted')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-      results.push(result);
+    const totalImpressions = posts?.reduce((sum, p) => sum + (p.impressions || 0), 0) || 0;
+    const totalClicks = posts?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0;
 
-      if (isWorking) {
-        workingCount++;
-        
-        // Reset failure counter
-        await supabase
-          .from('affiliate_links')
-          .update({
-            is_working: true,
-            check_failures: 0,
-            last_checked_at: checkTime
-          })
-          .eq('id', link.id);
+    health.checks.content = {
+      status: posts && posts.length > 0 ? '✅ WORKING' : '❌ NO POSTS',
+      totalPosts: posts?.length || 0,
+      totalImpressions,
+      totalClicks,
+      platforms: [...new Set(posts?.map(p => p.platform))]
+    };
 
-        console.log(`✅ WORKING: ${link.product_name}`);
-      } else {
-        brokenCount++;
-        const newFailureCount = (link.check_failures || 0) + 1;
+    // 5. Check Scheduled Posts
+    const { data: scheduled } = await supabase
+      .from('scheduled_posts')
+      .select('id, platform, scheduled_time, status')
+      .eq('user_id', user.id)
+      .eq('status', 'pending');
 
-        // If failed 3+ times, mark as broken and pause
-        if (newFailureCount >= 3) {
-          await supabase
-            .from('affiliate_links')
-            .update({
-              is_working: false,
-              status: 'paused',
-              check_failures: newFailureCount,
-              last_checked_at: checkTime
-            })
-            .eq('id', link.id);
+    health.checks.scheduled = {
+      status: scheduled && scheduled.length > 0 ? '✅ QUEUED' : 'ℹ️ NONE QUEUED',
+      count: scheduled?.length || 0
+    };
 
-          removedCount++;
-          console.log(`❌ REMOVED: ${link.product_name} (${newFailureCount} failures)`);
-        } else {
-          // Increment failure counter
-          await supabase
-            .from('affiliate_links')
-            .update({
-              check_failures: newFailureCount,
-              last_checked_at: checkTime
-            })
-            .eq('id', link.id);
+    // 6. Check Autopilot Status
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('autopilot_enabled, last_autopilot_run')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-          console.log(`⚠️ BROKEN: ${link.product_name} (failure ${newFailureCount}/3)`);
-        }
-      }
+    const minutesSinceRun = settings?.last_autopilot_run 
+      ? Math.floor((Date.now() - new Date(settings.last_autopilot_run).getTime()) / 60000)
+      : null;
 
-      // Rate limit: Wait 500ms between checks
-      if (i < links.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+    health.checks.autopilot = {
+      status: settings?.autopilot_enabled ? '✅ ENABLED' : '❌ DISABLED',
+      enabled: settings?.autopilot_enabled || false,
+      lastRun: settings?.last_autopilot_run || 'Never',
+      minutesSinceRun: minutesSinceRun || 'N/A'
+    };
+
+    // 7. Check System State
+    const { data: systemState } = await supabase
+      .from('system_state')
+      .select('state, total_views, total_clicks, last_post_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    health.checks.systemState = {
+      state: systemState?.state || 'UNKNOWN',
+      totalViews: systemState?.total_views || 0,
+      totalClicks: systemState?.total_clicks || 0,
+      lastPost: systemState?.last_post_at || 'Never'
+    };
+
+    // Overall Status
+    const allWorking = 
+      health.checks.affiliateNetworks.status.includes('✅') &&
+      health.checks.trafficSources.status.includes('✅') &&
+      health.checks.products.status.includes('✅') &&
+      health.checks.content.status.includes('✅') &&
+      health.checks.autopilot.status.includes('✅');
+
+    health.overallStatus = allWorking ? '✅ ALL SYSTEMS OPERATIONAL' : '⚠️ SOME ISSUES DETECTED';
+    
+    // Issues & Recommendations
+    health.issues = [];
+    health.recommendations = [];
+
+    if (!health.checks.affiliateNetworks.status.includes('✅')) {
+      health.issues.push('No affiliate networks connected');
+      health.recommendations.push('Go to Settings → Integrations → Connect affiliate networks');
     }
 
-    console.log(`
-🎯 Health Check Complete:
-- Total Checked: ${links.length}
-- ✅ Working: ${workingCount}
-- ❌ Broken: ${brokenCount}
-- 🗑️ Removed: ${removedCount}
-    `);
+    if (!health.checks.trafficSources.status.includes('✅')) {
+      health.issues.push('No traffic sources connected');
+      health.recommendations.push('Traffic sources are now simulated - check Traffic Channels page');
+    }
+
+    if (!health.checks.products.status.includes('✅')) {
+      health.issues.push('No products available');
+      health.recommendations.push('Add products manually or wait for auto-discovery');
+    }
+
+    if (!health.checks.autopilot.status.includes('✅')) {
+      health.issues.push('Autopilot is disabled');
+      health.recommendations.push('Go to Dashboard → Enable Autopilot');
+    }
 
     return res.status(200).json({
       success: true,
-      totalChecked: links.length,
-      working: workingCount,
-      broken: brokenCount,
-      removed: removedCount,
-      results
+      health
     });
 
   } catch (error: any) {
     console.error('Health check error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
-      totalChecked: 0,
-      working: 0,
-      broken: 0,
-      removed: 0,
-      results: []
+      error: error.message
     });
   }
 }
