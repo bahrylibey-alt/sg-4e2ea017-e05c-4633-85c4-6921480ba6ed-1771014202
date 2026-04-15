@@ -10,6 +10,7 @@ import { ProfitDashboard } from "@/components/ProfitDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, TrendingUp, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AutopilotRunner } from "@/components/AutopilotRunner";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -89,6 +90,9 @@ export default function Dashboard() {
           </Tabs>
         </main>
         <Footer />
+      </div>
+      <div className="mt-6">
+        <AutopilotRunner />
       </div>
     </>
   );
