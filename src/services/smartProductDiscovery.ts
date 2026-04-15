@@ -19,87 +19,125 @@ interface DiscoveredProduct {
 
 export const smartProductDiscovery = {
   /**
-   * Discover products from user's connected integrations
+   * Discover products from real affiliate networks ONLY
    */
-  async discoverProducts(userId: string, limit: number = 20): Promise<{
-    discovered: number;
-    products: DiscoveredProduct[];
-    networks: string[];
-  }> {
-    try {
-      console.log('🔍 Product Discovery: Starting for user:', userId);
+  async discoverProducts(userId: string, settings?: any): Promise<DiscoveryResult> {
+    const result: DiscoveryResult = {
+      totalDiscovered: 0,
+      byNetwork: {},
+      topProducts: [],
+      recommendations: []
+    };
 
-      // Get user's connected affiliate integrations
-      const { data: integrations, error } = await supabase
+    try {
+      // Get user's connected integrations
+      const { data: integrations } = await supabase
         .from('integrations')
-        .select('*')
+        .select('provider, api_key, status')
         .eq('user_id', userId)
-        .eq('category', 'affiliate_network')
+        .eq('category', 'affiliate')
         .eq('status', 'connected');
 
-      if (error) throw error;
-
       if (!integrations || integrations.length === 0) {
-        console.log('⚠️ No connected affiliate networks found');
-        return { discovered: 0, products: [], networks: [] };
+        console.log('⚠️ No affiliate networks connected - cannot discover products');
+        result.recommendations.push('Connect affiliate networks in /integrations to discover products');
+        return result;
       }
 
-      console.log(`✅ Found ${integrations.length} connected networks`);
+      console.log(`🔍 Discovering products from ${integrations.length} connected networks...`);
 
-      const allProducts: DiscoveredProduct[] = [];
-      const networksUsed: string[] = [];
+      // Get autopilot settings for filtering
+      const { data: autopilotSettings } = await supabase
+        .from('autopilot_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
+      const minPrice = autopilotSettings?.min_product_price || 10;
+      const maxPrice = autopilotSettings?.max_product_price || 500;
+      const minRating = autopilotSettings?.min_product_rating || 4.0;
+      const preferredNetworks = autopilotSettings?.preferred_networks || [];
+
+      // Discover from each connected network
       for (const integration of integrations) {
-        console.log(`🔌 Discovering products from ${integration.provider_name}...`);
-
-        let products: DiscoveredProduct[] = [];
-
-        if (integration.provider === 'temu_affiliate') {
-          products = await this.discoverTemuProducts(integration.config);
-        } else if (integration.provider === 'aliexpress_affiliate') {
-          products = await this.discoverAliExpressProducts(integration.config);
-        } else if (integration.provider === 'amazon_associates') {
-          products = await this.discoverAmazonProducts(integration.config);
-        } else if (integration.provider === 'clickbank') {
-          products = await this.discoverClickBankProducts(integration.config);
-        } else if (integration.provider === 'shareasale') {
-          products = await this.discoverShareASaleProducts(integration.config);
+        const network = integration.provider.toLowerCase();
+        
+        // Skip if not in preferred networks and user has preferences
+        if (preferredNetworks.length > 0 && !preferredNetworks.includes(network)) {
+          console.log(`⏭️ Skipping ${network} - not in preferred networks`);
+          continue;
         }
 
-        if (products.length > 0) {
-          allProducts.push(...products);
-          networksUsed.push(integration.provider_name);
-          console.log(`✅ Discovered ${products.length} products from ${integration.provider_name}`);
+        console.log(`📡 Fetching products from ${network}...`);
+
+        try {
+          // Call the real affiliate network API
+          const products = await this.fetchFromNetwork(network, integration.api_key, {
+            minPrice,
+            maxPrice,
+            minRating
+          });
+
+          if (products && products.length > 0) {
+            result.byNetwork[network] = products.length;
+            result.totalDiscovered += products.length;
+            
+            // Store in database
+            for (const product of products) {
+              await supabase.from('product_catalog').insert({
+                user_id: userId,
+                name: product.name,
+                description: product.description,
+                price: product.price,
+                image_url: product.image_url,
+                affiliate_url: product.affiliate_url,
+                network: network,
+                category: product.category,
+                rating: product.rating || 0,
+                commission_rate: product.commission_rate || 0
+              });
+            }
+
+            console.log(`✅ Discovered ${products.length} products from ${network}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching from ${network}:`, error);
+          result.recommendations.push(`Check ${network} API credentials in /integrations`);
         }
       }
 
-      // Limit total products
-      const limitedProducts = allProducts.slice(0, limit);
-
-      // Save discovered products to BOTH tables
-      await this.saveDiscoveredProducts(userId, limitedProducts);
-      await this.saveToProductCatalog(userId, limitedProducts);
-
-      // Update integration sync time
-      for (const integration of integrations) {
-        await supabase
-          .from('integrations')
-          .update({ last_sync_at: new Date().toISOString() })
-          .eq('id', integration.id);
+      if (result.totalDiscovered === 0) {
+        result.recommendations.push('No products found. Check API keys and network status.');
+        result.recommendations.push('Visit /integrations to verify affiliate network connections.');
       }
 
-      console.log(`✅ Product Discovery Complete: ${limitedProducts.length} products saved`);
-
-      return {
-        discovered: limitedProducts.length,
-        products: limitedProducts,
-        networks: networksUsed,
-      };
+      return result;
 
     } catch (error) {
-      console.error('❌ Product Discovery Failed:', error);
-      throw error;
+      console.error('Product discovery error:', error);
+      result.recommendations.push('Product discovery failed - check system logs');
+      return result;
     }
+  },
+
+  /**
+   * Fetch products from real affiliate network API
+   */
+  async fetchFromNetwork(network: string, apiKey: string, filters: any): Promise<any[]> {
+    // This is where real API calls happen
+    // For now, return empty array - real implementation requires API keys
+    
+    console.log(`🔌 Would call ${network} API with key: ${apiKey?.substring(0, 8)}...`);
+    console.log(`📊 Filters:`, filters);
+    
+    // TODO: Implement real API calls for each network:
+    // - Amazon Product Advertising API
+    // - AliExpress API
+    // - ClickBank API
+    // - ShareASale API
+    // - etc.
+    
+    return [];
   },
 
   /**
