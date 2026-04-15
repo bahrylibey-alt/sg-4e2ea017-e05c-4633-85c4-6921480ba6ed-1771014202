@@ -61,6 +61,8 @@ export default async function handler(
     // ===== DIAGNOSTIC PHASE =====
     console.log('\n📊 PHASE 1: System Diagnostics...');
 
+    const now = new Date();
+
     // Check 1: Autopilot Status
     const { data: userSettings } = await supabase
       .from('user_settings')
@@ -81,13 +83,12 @@ export default async function handler(
       await supabase.from('user_settings').insert({
         user_id: userId,
         autopilot_enabled: true,
-        last_autopilot_run: new Date().toISOString()
+        last_autopilot_run: now.toISOString()
       });
       report.issuesFixed++;
     } else {
       // Check if autopilot is stale (>1 hour since last run)
       const lastRun = userSettings.last_autopilot_run ? new Date(userSettings.last_autopilot_run) : null;
-      const now = new Date();
       const minutesSinceLastRun = lastRun ? Math.floor((now.getTime() - lastRun.getTime()) / 60000) : 999;
 
       if (!userSettings.autopilot_enabled) {
