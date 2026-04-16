@@ -62,16 +62,19 @@ export const smartProductDiscovery = {
 
       const minPrice = autopilotSettings?.min_product_price || 10;
       const maxPrice = autopilotSettings?.max_product_price || 500;
-      const preferredCategories = autopilotSettings?.preferred_categories || [];
+      
+      // Some properties might be stored in a config/json field depending on exact schema version
+      const settingsAny = autopilotSettings as any;
+      const preferredCategories = settingsAny?.preferred_categories || [];
 
       // Process each connected network
       for (const integration of integrations) {
         const network = integration.provider.toLowerCase();
         console.log(`🔌 Processing ${network}...`);
 
-        // Validate integration has API key
-        const apiKey = integration.settings && typeof integration.settings === 'object'
-          ? (integration.settings as any).api_key
+        // Validate integration has API key - using config field from database schema
+        const apiKey = integration.config && typeof integration.config === 'object'
+          ? (integration.config as any).api_key
           : null;
 
         if (!apiKey || apiKey === 'your_api_key_here') {
@@ -81,7 +84,7 @@ export const smartProductDiscovery = {
         }
 
         // Check if network API is properly configured
-        const networkStatus = this.checkNetworkConfiguration(network, integration.settings);
+        const networkStatus = this.checkNetworkConfiguration(network, integration.config);
         if (!networkStatus.ready) {
           console.log(`⚠️ ${network}: ${networkStatus.reason}`);
           result.recommendations.push(`${network}: ${networkStatus.reason}`);
