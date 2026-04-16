@@ -50,30 +50,18 @@ export async function calculatePerformanceScore(
       ctr * 0.3 + conversionRate * 0.4 + (revenuePerClick > 0 ? 30 : 0)
     );
 
-    // Save score (FAIL-SAFE: if fails, continue)
-    try {
-      await supabase.from("autopilot_scores").upsert({
-        user_id: userId,
-        [`${entityType}_id`]: entityId,
-        ctr: Number(ctr.toFixed(2)),
-        conversion_rate: Number(conversionRate.toFixed(2)),
-        revenue_per_click: Number(revenuePerClick.toFixed(2)),
-        performance_score: Number(score.toFixed(2)),
-        recommendations: [], // Store recommendations in recommendations jsonb column
-        insights: { // Store additional insights here
-          lastCalculated: new Date().toISOString(),
-          metrics: {
-            clicks: metrics.clicks,
-            impressions: metrics.impressions,
-            conversions: metrics.conversions,
-            revenue: metrics.revenue
-          }
-        },
-        updated_at: new Date().toISOString(),
-      });
-    } catch (saveError) {
-      console.error("Failed to save score:", saveError);
-    }
+    // Save the score with CORRECT column names
+    await supabase.from("autopilot_scores").upsert({
+      product_id: productId,
+      user_id: userId,
+      performance_score: score,  // FIXED: Use performance_score not score
+      ctr: metrics.ctr || 0,
+      conversion_rate: metrics.conversionRate || 0,
+      revenue_per_click: metrics.revenuePerClick || 0,
+      status: 'active',
+      last_scored: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
 
     return {
       success: true,
