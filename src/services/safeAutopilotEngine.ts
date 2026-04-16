@@ -52,14 +52,13 @@ export async function calculatePerformanceScore(
 
     // Save the score with CORRECT column names
     await supabase.from("autopilot_scores").upsert({
-      product_id: productId,
+      [entityType === "product" ? "product_id" : "post_id"]: entityId,
       user_id: userId,
-      performance_score: score,  // FIXED: Use performance_score not score
-      ctr: metrics.ctr || 0,
-      conversion_rate: metrics.conversionRate || 0,
-      revenue_per_click: metrics.revenuePerClick || 0,
+      performance_score: score,
+      ctr: Number(ctr.toFixed(2)),
+      conversion_rate: Number(conversionRate.toFixed(2)),
+      revenue_per_click: Number(revenuePerClick.toFixed(2)),
       status: 'active',
-      last_scored: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });
 

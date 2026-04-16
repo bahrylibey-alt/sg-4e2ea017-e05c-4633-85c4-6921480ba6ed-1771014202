@@ -90,22 +90,19 @@ export default async function handler(
       Number((ctr * 0.3 + conversionRate * 0.4 + engagementScore * 0.3).toFixed(2))
     ));
 
-    // Save score (FAIL-SAFE: if fails, just return calculated values)
-    try {
-      await supabase.from("autopilot_scores").upsert({
-        user_id,
-        post_id: post_id || null,
-        product_id: product_id || null,
-        ctr: Number(ctr.toFixed(2)),
-        conversion_rate: Number(conversionRate.toFixed(2)),
-        revenue_per_click: Number(revenuePerClick.toFixed(2)),
-        engagement_score: Number(engagementScore.toFixed(2)),
-        performance_score: performanceScore,
-        updated_at: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error("Failed to save score:", err);
-    }
+    // Store the score with CORRECT column names
+    await supabase.from("autopilot_scores").upsert({
+      product_id: product_id || null,
+      post_id: post_id || null,
+      user_id: user_id,
+      performance_score: performanceScore,
+      ctr: Number(ctr.toFixed(2)),
+      conversion_rate: Number(conversionRate.toFixed(2)),
+      revenue_per_click: Number(revenuePerClick.toFixed(2)),
+      engagement_score: Number(engagementScore.toFixed(2)),
+      status: 'active',
+      updated_at: new Date().toISOString()
+    });
 
     return res.status(200).json({
       success: true,
