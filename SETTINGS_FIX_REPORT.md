@@ -43,6 +43,8 @@ const { error } = await supabase
     user_id: user.id,
     ...settings,
     updated_at: new Date().toISOString()
+  }, {
+    onConflict: 'user_id'  // ✅ CRITICAL: Tell it which column causes conflict
   });
 ```
 
@@ -50,6 +52,11 @@ const { error } = await supabase
 - If settings exist for this user → UPDATE them
 - If settings don't exist → INSERT new record
 - No duplicate key errors!
+
+**What `onConflict: 'user_id'` Does:**
+- Tells Supabase which column to check for conflicts
+- When user_id matches, UPDATE instead of INSERT
+- This is REQUIRED for upsert to work correctly
 
 ---
 
@@ -229,7 +236,7 @@ Once settings are saved and integrations connected:
 
 **What Changed:**
 - ❌ Before: Used `.insert()` → caused duplicate key errors
-- ✅ After: Uses `.upsert()` → updates existing settings
+- ✅ After: Uses `.upsert()` with `onConflict: 'user_id'` → updates existing settings
 
 **What This Means:**
 - ✅ Settings save successfully every time
