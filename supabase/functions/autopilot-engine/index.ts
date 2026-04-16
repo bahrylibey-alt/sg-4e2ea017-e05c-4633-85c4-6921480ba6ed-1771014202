@@ -7,13 +7,14 @@ const corsHeaders = {
 };
 
 /**
- * AUTOPILOT ENGINE v3.0 - REAL DATA ENFORCEMENT
+ * AUTOPILOT ENGINE v4.0 - REAL DATA ONLY
  * 
- * Intelligence Layer:
- * 1. Score posts with real metrics
- * 2. Make decisions based on performance
- * 3. Generate quality content with hooks
- * 4. Track everything in real-time
+ * STRICT RULES:
+ * 1. ONLY query existing database records
+ * 2. NEVER generate mock/fake data
+ * 3. ALL products must come from real affiliate networks
+ * 4. ALL clicks must come from real traffic sources
+ * 5. ALL conversions must come from real postback URLs
  */
 
 serve(async (req) => {
@@ -38,246 +39,186 @@ serve(async (req) => {
       }
     );
 
-    console.log('🚀 Starting Autopilot Engine for user:', userId);
+    console.log('🚀 Autopilot Engine: Starting for user:', userId);
 
-    // Get system state
-    const { data: systemState } = await supabaseClient
-      .from('system_state')
-      .select('*')
+    const results = {
+      products_analyzed: 0,
+      posts_scored: 0,
+      decisions_made: 0,
+      content_scheduled: 0,
+      errors: [] as string[]
+    };
+
+    // STEP 1: Analyze existing products (from real networks only)
+    const { data: products, error: productsError } = await supabaseClient
+      .from('affiliate_links')
+      .select('id, product_name, clicks, impressions, conversions, revenue, network')
       .eq('user_id', userId)
-      .maybeSingle();
+      .eq('status', 'active');
 
-    const currentState = systemState?.state || 'NO_TRAFFIC';
-    const totalViews = systemState?.total_views || 0;
-    const totalClicks = systemState?.total_clicks || 0;
+    if (productsError) {
+      results.errors.push(`Product query failed: ${productsError.message}`);
+    }
 
-    console.log('📊 System State:', { currentState, totalViews, totalClicks });
-
-    // SAFETY: Check daily post limit
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const { count: postsToday } = await supabaseClient
-      .from('posted_content')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('created_at', today.toISOString());
-
-    const MAX_POSTS_PER_DAY = 20;
-    if ((postsToday || 0) >= MAX_POSTS_PER_DAY) {
-      console.log('⚠️ Daily post limit reached (20) - pausing');
+    if (!products || products.length === 0) {
+      console.log('⚠️ No products found - user needs to discover products first');
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          message: 'Daily post limit reached',
-          results: { posts_published: 0 }
+          success: false,
+          message: 'No products found. Run product discovery first.',
+          results,
+          action_required: 'Connect affiliate networks and discover products'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const results = {
-      posts_scored: 0,
-      decisions_applied: 0,
-      products_discovered: 0,
-      content_generated: 0,
-      posts_published: 0
-    };
+    results.products_analyzed = products.length;
+    console.log(`📊 Analyzing ${products.length} real products...`);
 
-    // STEP 1: Score existing posts (only if we have sufficient data)
-    if (totalViews >= 100 && totalClicks >= 10) {
-      console.log('📊 Scoring posts (sufficient data)...');
-      
-      const { data: posts } = await supabaseClient
-        .from('posted_content')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status', 'posted')
-        .limit(20);
+    // STEP 2: Score products based on REAL metrics
+    const scoredProducts = products.map(product => {
+      const clicks = product.clicks || 0;
+      const impressions = product.impressions || 0;
+      const conversions = product.conversions || 0;
+      const revenue = Number(product.revenue || 0);
 
-      if (posts && posts.length > 0) {
-        for (const post of posts) {
-          const impressions = post.impressions || 0;
-          const clicks = post.clicks || 0;
-          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+      const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+      const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+      const revenuePerClick = clicks > 0 ? revenue / clicks : 0;
 
-          // Make decision
-          let decision: 'scale' | 'kill' | 'cooldown' = 'cooldown';
-          let reason = '';
+      // Calculate performance score (0-100)
+      const score = Math.min(100, 
+        (ctr * 0.3) + 
+        (conversionRate * 0.4) + 
+        (revenuePerClick * 0.3)
+      );
 
-          if (ctr >= 2 && clicks >= 20) {
-            decision = 'scale';
-            reason = `High CTR: ${ctr.toFixed(2)}%`;
-          } else if (impressions >= 200 && ctr < 1) {
-            decision = 'kill';
-            reason = `Low CTR after ${impressions} impressions`;
-          } else {
-            decision = 'cooldown';
-            reason = 'Collecting more data';
+      return {
+        ...product,
+        score: Number(score.toFixed(2)),
+        ctr: Number(ctr.toFixed(2)),
+        conversionRate: Number(conversionRate.toFixed(2)),
+        classification: score > 60 ? 'WINNER' : score > 30 ? 'TESTING' : 'WEAK'
+      };
+    });
+
+    results.posts_scored = scoredProducts.length;
+
+    // STEP 3: Make decisions based on performance
+    const decisions = [];
+    for (const product of scoredProducts) {
+      let decision = 'cooldown';
+      let reason = '';
+
+      if (product.classification === 'WINNER') {
+        decision = 'scale';
+        reason = `High performance (score: ${product.score}, CTR: ${product.ctr}%)`;
+      } else if (product.classification === 'WEAK' && product.impressions > 200) {
+        decision = 'kill';
+        reason = `Poor performance after ${product.impressions} impressions`;
+      } else {
+        reason = 'Collecting more data';
+      }
+
+      decisions.push({
+        productId: product.id,
+        productName: product.product_name,
+        decision,
+        reason,
+        metrics: {
+          score: product.score,
+          ctr: product.ctr,
+          conversions: product.conversions,
+          revenue: product.revenue
+        }
+      });
+
+      // Save decision to database
+      await supabaseClient
+        .from('autopilot_decisions')
+        .insert({
+          user_id: userId,
+          entity_type: 'product',
+          entity_id: product.id,
+          decision_type: decision,
+          reason,
+          metrics: {
+            score: product.score,
+            ctr: product.ctr,
+            conversions: product.conversions
           }
+        });
+    }
 
-          // Log decision
-          await supabaseClient
-            .from('autopilot_decisions')
+    results.decisions_made = decisions.length;
+    console.log(`✅ Made ${decisions.length} decisions`);
+
+    // STEP 4: Schedule content for WINNER products only
+    const winners = scoredProducts.filter(p => p.classification === 'WINNER');
+    
+    if (winners.length > 0) {
+      console.log(`🎯 Found ${winners.length} winning products - scheduling content...`);
+
+      for (const winner of winners.slice(0, 3)) { // Max 3 posts per cycle
+        try {
+          // Schedule post for 2 hours from now
+          const scheduledTime = new Date();
+          scheduledTime.setHours(scheduledTime.getHours() + 2);
+
+          const { error: scheduleError } = await supabaseClient
+            .from('posted_content')
             .insert({
               user_id: userId,
-              entity_type: 'post',
-              entity_id: post.id,
-              decision_type: decision,
-              reason,
-              metrics: { impressions, clicks, ctr }
+              link_id: winner.id,
+              platform: 'pinterest',
+              caption: `🔥 ${winner.product_name} - Now available!`,
+              status: 'scheduled',
+              scheduled_for: scheduledTime.toISOString()
             });
 
-          results.posts_scored++;
-          results.decisions_applied++;
+          if (scheduleError) {
+            results.errors.push(`Failed to schedule ${winner.product_name}: ${scheduleError.message}`);
+          } else {
+            results.content_scheduled++;
+          }
+        } catch (error) {
+          console.error('Scheduling error:', error);
         }
       }
-    } else {
-      console.log('⚠️ Insufficient data for decisions (need 100+ views, 10+ clicks)');
     }
 
-    // STEP 2: Discover products (if needed)
-    const { data: existingProducts, count: productCount } = await supabaseClient
-      .from('affiliate_links')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId);
-
-    if ((productCount || 0) < 5) {
-      console.log('🔍 Discovering products...');
-      
-      const { data: campaigns } = await supabaseClient
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', userId)
-        .limit(1);
-
-      if (campaigns && campaigns.length > 0) {
-        // Simulate product discovery (in real system, this would call Amazon API)
-        const mockProduct = {
-          campaign_id: campaigns[0].id,
-          user_id: userId,
-          product_name: 'Kitchen Gadget',
-          original_url: 'https://amazon.com/product',
-          cloaked_url: 'https://go.yourdomain.com/product',
-          status: 'active',
-          performance_score: 0,
-          autopilot_state: 'testing'
-        };
-
-        await supabaseClient
-          .from('affiliate_links')
-          .insert(mockProduct);
-
-        results.products_discovered = 1;
-      }
-    }
-
-    // STEP 3: Generate content (with intelligence filter)
-    const { count: contentCount } = await supabaseClient
-      .from('generated_content')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    if ((contentCount || 0) < 10) {
-      console.log('📝 Generating quality content...');
-
-      const { data: campaigns } = await supabaseClient
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', userId)
-        .limit(1);
-
-      if (campaigns && campaigns.length > 0) {
-        // Generate content with hook scoring
-        const hooks = [
-          { text: "This kitchen gadget changed everything", score: 75 },
-          { text: "Nobody talks about this product", score: 68 },
-          { text: "Made $127 in 1 day with this", score: 82 }
-        ];
-
-        const bestHook = hooks.sort((a, b) => b.score - a.score)[0];
-
-        await supabaseClient
-          .from('generated_content')
-          .insert({
-            user_id: userId,
-            campaign_id: campaigns[0].id,
-            title: bestHook.text,
-            body: `Quality content generated with hook score: ${bestHook.score}`,
-            description: 'SEO-optimized article',
-            type: 'review',
-            category: 'kitchen',
-            status: 'published',
-            performance_score: 0,
-            autopilot_state: 'testing'
-          });
-
-        results.content_generated = 1;
-      }
-    }
-
-    // STEP 4: Publish posts (with safety limits)
-    const canPublish = (postsToday || 0) < MAX_POSTS_PER_DAY;
-
-    if (canPublish) {
-      console.log('📱 Publishing content...');
-
-      const { data: products } = await supabaseClient
-        .from('affiliate_links')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .limit(1);
-
-      if (products && products.length > 0) {
-        const platform = currentState === 'NO_TRAFFIC' ? 'pinterest' : 'tiktok';
-        
-        // Generate hook-based content
-        const caption = currentState === 'NO_TRAFFIC'
-          ? `🔥 Best Kitchen Gadget for 2026 - Click to shop! ${products[0].cloaked_url}`
-          : `This changed everything 👀 Link in bio: ${products[0].cloaked_url}`;
-
-        const scheduledTime = new Date();
-        scheduledTime.setHours(scheduledTime.getHours() + 2);
-
-        await supabaseClient
-          .from('posted_content')
-          .insert({
-            user_id: userId,
-            link_id: products[0].id,
-            platform,
-            caption,
-            status: 'scheduled',
-            scheduled_for: scheduledTime.toISOString()
-          });
-
-        results.posts_published = 1;
-      }
-    }
-
-    // Log automation cycle
+    // Log cycle completion
     await supabaseClient
       .from('activity_logs')
       .insert({
         user_id: userId,
         action: 'autopilot_cycle_completed',
-        details: `Cycle complete: ${results.posts_scored} posts scored, ${results.decisions_applied} decisions, ${results.content_generated} content`,
+        details: `Analyzed ${results.products_analyzed} products, made ${results.decisions_made} decisions, scheduled ${results.content_scheduled} posts`,
         metadata: results,
-        status: 'success'
+        status: results.errors.length > 0 ? 'partial' : 'success'
       });
 
     console.log('✅ Autopilot cycle complete:', results);
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ 
+        success: true, 
+        results,
+        decisions: decisions.slice(0, 5),
+        winners: winners.map(w => w.product_name)
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('❌ Autopilot error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
