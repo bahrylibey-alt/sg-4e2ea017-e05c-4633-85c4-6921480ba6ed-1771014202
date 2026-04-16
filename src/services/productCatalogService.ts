@@ -50,20 +50,23 @@ export const productCatalogService = {
       console.log(`✅ Fetched ${catalogProducts.length} products from database`);
 
       // Convert to AffiliateProduct format
-      return catalogProducts.map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category || 'General',
-        url: p.affiliate_url,
-        commission: `${p.commission_rate}%`,
-        price: `$${p.price}`,
-        conversionRate: p.conversion_rate || 0,
-        network: p.network,
-        rating: p.rating || 4.5,
-        estimatedEPC: `$${((p.price * p.commission_rate / 100) * (p.conversion_rate / 100)).toFixed(2)}`,
-        description: p.description || '',
-        image: p.image_url || undefined
-      }));
+      return catalogProducts.map(p => {
+        const product = p as any;
+        return {
+          id: product.id,
+          name: product.name,
+          category: product.category || 'General',
+          url: product.affiliate_url,
+          commission: `${product.commission_rate}%`,
+          price: `$${product.price}`,
+          conversionRate: product.conversion_rate || 0,
+          network: product.network,
+          rating: product.rating || 4.5,
+          estimatedEPC: `$${((product.price * product.commission_rate / 100) * ((product.conversion_rate || 0) / 100)).toFixed(2)}`,
+          description: product.description || '',
+          image: product.image_url || undefined
+        };
+      });
     } catch (error) {
       console.error("❌ Exception fetching products:", error);
       return [];

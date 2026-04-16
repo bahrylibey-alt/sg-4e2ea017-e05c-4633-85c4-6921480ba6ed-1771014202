@@ -118,7 +118,7 @@ export const affiliateIntegrationService = {
       }
 
       // Get high-converting products from catalog
-      const allProducts = productCatalogService.getHighConvertingProducts();
+      const allProducts = await productCatalogService.getHighConvertingProducts();
       
       let selectedProducts = allProducts;
       
@@ -274,7 +274,7 @@ export const affiliateIntegrationService = {
       console.log(`📦 Getting high-converting products (min rate: ${minConversionRate}%)...`);
       
       // Get high-converting products from catalog
-      const products = productCatalogService.getHighConvertingProducts(minConversionRate);
+      const products = await productCatalogService.getHighConvertingProducts(minConversionRate);
       console.log(`📦 Found ${products.length} high-converting products`);
 
       if (products.length === 0) {
@@ -606,7 +606,8 @@ export const affiliateIntegrationService = {
       console.log("🚀 Setting up affiliate infrastructure...");
 
       // 1. Get high-converting products
-      const products = productCatalogService.getHighConvertingProducts(8).slice(0, 8);
+      const allProducts = await productCatalogService.getHighConvertingProducts(8);
+      const products = allProducts.slice(0, 8);
       console.log(`✅ Selected ${products.length} high-converting products`);
 
       // 2. Generate affiliate links for each product with REAL URLs

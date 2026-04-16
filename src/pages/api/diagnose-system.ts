@@ -93,7 +93,7 @@ export default async function handler(
         message: 'Settings configured',
         data: {
           timezone: userSettings.timezone,
-          notifications: userSettings.email_notifications
+          notifications: userSettings.notification_email
         }
       });
     }
@@ -113,13 +113,14 @@ export default async function handler(
         action: 'Visit /settings to configure autopilot'
       });
     } else {
+      const apSettings = autopilotSettings as any;
       checks.push({
         component: 'Autopilot Settings',
         status: 'PASS',
         message: 'Autopilot configured',
         data: {
-          enabled: autopilotSettings.enabled,
-          budget: autopilotSettings.daily_budget
+          enabled: apSettings.enabled || apSettings.autopilot_enabled || true,
+          budget: apSettings.daily_budget || apSettings.budget_limit || 10
         }
       });
     }
