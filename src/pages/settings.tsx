@@ -142,17 +142,49 @@ export default function Settings() {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Please log in to save settings",
+          variant: "destructive"
+        });
+        setSaving(false);
+        return;
+      }
 
+      // Use upsert with explicit conflict resolution on user_id
       const { error } = await supabase
         .from('autopilot_settings')
         .upsert({
           user_id: user.id,
-          ...settings,
+          autopilot_frequency: settings.autopilot_frequency,
+          content_generation_frequency: settings.content_generation_frequency,
+          product_discovery_frequency: settings.product_discovery_frequency,
+          target_niches: settings.target_niches,
+          excluded_niches: settings.excluded_niches,
+          content_tone: settings.content_tone,
+          content_length: settings.content_length,
+          use_emojis: settings.use_emojis,
+          use_hashtags: settings.use_hashtags,
+          max_hashtags: settings.max_hashtags,
+          enabled_platforms: settings.enabled_platforms,
+          min_product_price: settings.min_product_price,
+          max_product_price: settings.max_product_price,
+          min_product_rating: settings.min_product_rating,
+          preferred_networks: settings.preferred_networks,
+          auto_scale_winners: settings.auto_scale_winners,
+          scale_threshold: settings.scale_threshold,
+          pause_underperformers: settings.pause_underperformers,
+          pause_threshold: settings.pause_threshold,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       toast({
         title: "Success",
