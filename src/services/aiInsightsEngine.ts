@@ -270,7 +270,7 @@ export const aiInsightsEngine = {
         .from("autopilot_scores")
         .upsert({
           user_id: userId,
-          status: trafficState,
+          status: 'active', // FIXED: Use valid status value ('active', 'paused', or 'archived')
           insights: insights,
           next_steps: JSON.stringify(nextSteps),
           updated_at: new Date().toISOString(),
