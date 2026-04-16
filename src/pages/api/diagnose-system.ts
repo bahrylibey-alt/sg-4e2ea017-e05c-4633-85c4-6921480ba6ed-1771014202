@@ -1,197 +1,282 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 
-/**
- * COMPREHENSIVE SYSTEM DIAGNOSTIC
- * Tests ALL components and identifies issues
- * NO AUTH REQUIRED - For testing purposes
- */
+interface DiagnosticCheck {
+  component: string;
+  status: 'PASS' | 'FAIL' | 'WARNING';
+  message: string;
+  action?: string;
+  data?: any;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const diagnostics: any = {
-    timestamp: new Date().toISOString(),
-    userId: 'cd9e03a2-9620-44be-a934-ac2ed69db465',
-    environment: {},
-    database: {},
-    tracking: {},
-    automation: {},
-    issues: [],
-    recommendations: []
-  };
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const checks: DiagnosticCheck[] = [];
 
   try {
-    const userId = diagnostics.userId;
-
-    // 1. ENVIRONMENT CHECK
-    diagnostics.environment = {
-      supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      supabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
-      cronSecret: !!process.env.CRON_SECRET,
-      nodeEnv: process.env.NODE_ENV
-    };
-
-    if (!process.env.CRON_SECRET) {
-      diagnostics.issues.push("❌ CRON_SECRET missing - cron jobs will fail authentication");
-      diagnostics.recommendations.push("Add CRON_SECRET to .env.local");
-    }
-
-    // 2. DATABASE CHECK
-    const { data: profiles } = await supabase.from('profiles').select('id, email');
-    const { data: products } = await supabase.from('affiliate_links').select('id, network').eq('user_id', userId);
-    const { data: integrations } = await supabase.from('integrations').select('provider, status, category').eq('user_id', userId);
-    const { data: systemState } = await supabase.from('system_state').select('*').eq('user_id', userId).maybeSingle();
-
-    const affiliateNetworks = integrations?.filter(i => i.category === 'affiliate') || [];
-    const trafficSources = integrations?.filter(i => i.category === 'tracking') || [];
-
-    diagnostics.database = {
-      totalUsers: profiles?.length || 0,
-      totalProducts: products?.length || 0,
-      affiliateNetworks: affiliateNetworks.length,
-      trafficSources: trafficSources.length,
-      affiliateList: affiliateNetworks.map(i => `${i.provider}:${i.status}`),
-      trafficList: trafficSources.map(i => `${i.provider}:${i.status}`),
-      systemState: systemState || null
-    };
-
-    if (!profiles?.length) {
-      diagnostics.issues.push("❌ No users found - system has no users");
-    }
-    if (!products?.length) {
-      diagnostics.issues.push("⚠️ No products in catalog");
-      diagnostics.recommendations.push("Run product discovery or add products manually");
-    }
-    if (!affiliateNetworks.length) {
-      diagnostics.issues.push("❌ No affiliate networks connected");
-      diagnostics.recommendations.push("Connect affiliate networks in Settings → Integrations");
-    }
-    if (!trafficSources.length) {
-      diagnostics.issues.push("⚠️ No traffic sources connected");
-      diagnostics.recommendations.push("System can work with simulated traffic");
-    }
-
-    // 3. TRACKING CHECK (Last 48 hours)
-    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    const { data: recentClicks } = await supabase
-      .from('click_events')
-      .select('id')
-      .eq('user_id', userId)
-      .gte('tracked_at', cutoff);
-    
-    const { data: recentViews } = await supabase
-      .from('view_events')
-      .select('id')
-      .eq('user_id', userId)
-      .gte('tracked_at', cutoff);
-    
-    const { data: recentConversions } = await supabase
-      .from('conversion_events')
-      .select('id, revenue')
-      .eq('user_id', userId)
-      .gte('tracked_at', cutoff);
-
-    diagnostics.tracking = {
-      clicksLast48h: recentClicks?.length || 0,
-      viewsLast48h: recentViews?.length || 0,
-      conversionsLast48h: recentConversions?.length || 0,
-      revenueLast48h: recentConversions?.reduce((sum, c) => sum + Number(c.revenue), 0) || 0
-    };
-
-    if (!recentClicks?.length && !recentViews?.length) {
-      diagnostics.issues.push("⚠️ No tracking activity in last 48 hours");
-      diagnostics.recommendations.push("Test tracking endpoints with /api/test-tracking-full");
+    if (userError || !user) {
+      checks.push({
+        component: 'Authentication',
+        status: 'FAIL',
+        message: 'No authenticated user',
+        action: 'Please log in to use the system'
+      });
+      
+      return res.status(200).json({
+        status: 'CRITICAL',
+        totalChecks: checks.length,
+        passed: 0,
+        failed: 1,
+        warnings: 0,
+        checks,
+        recommendations: ['Log in to your account to proceed']
+      });
     }
 
-    // 4. AUTOMATION CHECK
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('autopilot_enabled, last_autopilot_run')
-      .eq('user_id', userId)
+    checks.push({
+      component: 'Authentication',
+      status: 'PASS',
+      message: 'User authenticated',
+      data: { userId: user.id, email: user.email }
+    });
+
+    // Check user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
       .maybeSingle();
 
-    const { data: postedContent } = await supabase
-      .from('posted_content')
-      .select('id, platform, clicks, revenue')
-      .eq('user_id', userId)
-      .eq('status', 'posted')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    const timeSinceLastRun = settings?.last_autopilot_run 
-      ? Math.floor((Date.now() - new Date(settings.last_autopilot_run).getTime()) / (1000 * 60))
-      : null;
-
-    diagnostics.automation = {
-      autopilotEnabled: settings?.autopilot_enabled || false,
-      lastAutopilotRun: settings?.last_autopilot_run || 'Never',
-      minutesSinceLastRun: timeSinceLastRun,
-      recentPosts: postedContent?.length || 0,
-      totalClicks: postedContent?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0,
-      totalRevenue: postedContent?.reduce((sum, p) => sum + (p.revenue || 0), 0) || 0
-    };
-
-    if (!settings?.autopilot_enabled) {
-      diagnostics.issues.push("❌ Autopilot is disabled");
-      diagnostics.recommendations.push("Enable autopilot in Dashboard");
-    } else if (timeSinceLastRun && timeSinceLastRun > 60) {
-      diagnostics.issues.push(`⚠️ Autopilot hasn't run in ${timeSinceLastRun} minutes (should run every 30min)`);
-      diagnostics.recommendations.push("Test autopilot with /api/test-cron-autopilot");
+    if (profileError || !profile) {
+      checks.push({
+        component: 'User Profile',
+        status: 'WARNING',
+        message: 'Profile not found or incomplete',
+        action: 'Profile will be created automatically'
+      });
+    } else {
+      checks.push({
+        component: 'User Profile',
+        status: 'PASS',
+        message: 'Profile exists',
+        data: { email: profile.email, created: profile.created_at }
+      });
     }
 
-    // 5. CONTENT CHECK
-    const { data: allPosts } = await supabase
-      .from('posted_content')
-      .select('platform, status')
-      .eq('user_id', userId);
+    // Check user settings
+    const { data: userSettings, error: settingsError } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    const statusBreakdown = allPosts?.reduce((acc, p) => {
-      acc[p.status] = (acc[p.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>) || {};
-
-    diagnostics.content = {
-      totalPosts: allPosts?.length || 0,
-      statusBreakdown,
-      platforms: [...new Set(allPosts?.map(p => p.platform))]
-    };
-
-    // 6. HEALTH SUMMARY
-    diagnostics.health = {
-      score: 100,
-      status: 'HEALTHY',
-      criticalIssues: diagnostics.issues.filter((i: string) => i.startsWith('❌')).length,
-      warnings: diagnostics.issues.filter((i: string) => i.startsWith('⚠️')).length
-    };
-
-    if (diagnostics.health.criticalIssues > 0) {
-      diagnostics.health.status = 'CRITICAL';
-      diagnostics.health.score = Math.max(0, 100 - (diagnostics.health.criticalIssues * 30));
-    } else if (diagnostics.health.warnings > 0) {
-      diagnostics.health.status = 'WARNING';
-      diagnostics.health.score = Math.max(50, 100 - (diagnostics.health.warnings * 15));
+    if (settingsError || !userSettings) {
+      checks.push({
+        component: 'User Settings',
+        status: 'WARNING',
+        message: 'No user settings configured',
+        action: 'Visit /settings to configure preferences'
+      });
+    } else {
+      checks.push({
+        component: 'User Settings',
+        status: 'PASS',
+        message: 'Settings configured',
+        data: {
+          timezone: userSettings.timezone,
+          notifications: userSettings.email_notifications
+        }
+      });
     }
+
+    // Check autopilot settings
+    const { data: autopilotSettings, error: autopilotError } = await supabase
+      .from('autopilot_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (autopilotError || !autopilotSettings) {
+      checks.push({
+        component: 'Autopilot Settings',
+        status: 'WARNING',
+        message: 'Autopilot not configured',
+        action: 'Visit /settings to configure autopilot'
+      });
+    } else {
+      checks.push({
+        component: 'Autopilot Settings',
+        status: 'PASS',
+        message: 'Autopilot configured',
+        data: {
+          enabled: autopilotSettings.enabled,
+          budget: autopilotSettings.daily_budget
+        }
+      });
+    }
+
+    // Check integrations
+    const { data: integrations, error: integrationsError } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'connected');
+
+    if (integrationsError || !integrations || integrations.length === 0) {
+      checks.push({
+        component: 'Affiliate Networks',
+        status: 'FAIL',
+        message: 'No affiliate networks connected',
+        action: 'Visit /integrations to connect Amazon, AliExpress, or other networks'
+      });
+    } else {
+      const networksWithKeys = integrations.filter(i => {
+        const config = i.config as any;
+        return config?.api_key && config.api_key !== 'your_api_key_here';
+      });
+
+      if (networksWithKeys.length === 0) {
+        checks.push({
+          component: 'Affiliate Networks',
+          status: 'WARNING',
+          message: `${integrations.length} networks connected but no valid API keys`,
+          action: 'Add valid API keys in /integrations',
+          data: { networks: integrations.map(i => i.provider) }
+        });
+      } else {
+        checks.push({
+          component: 'Affiliate Networks',
+          status: 'PASS',
+          message: `${networksWithKeys.length} networks with valid API keys`,
+          data: { 
+            connected: networksWithKeys.map(i => i.provider),
+            needsKeys: integrations.filter(i => !networksWithKeys.includes(i)).map(i => i.provider)
+          }
+        });
+      }
+    }
+
+    // Check products
+    const { data: products, error: productsError } = await supabase
+      .from('product_catalog')
+      .select('id, network, status')
+      .eq('status', 'active');
+
+    if (productsError || !products || products.length === 0) {
+      checks.push({
+        component: 'Product Catalog',
+        status: 'FAIL',
+        message: 'No products discovered yet',
+        action: 'Click "Find Products" in dashboard or run /api/run-product-discovery'
+      });
+    } else {
+      const byNetwork = products.reduce((acc, p) => {
+        acc[p.network] = (acc[p.network] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      checks.push({
+        component: 'Product Catalog',
+        status: 'PASS',
+        message: `${products.length} active products`,
+        data: { total: products.length, byNetwork }
+      });
+    }
+
+    // Check affiliate links
+    const { data: links, error: linksError } = await supabase
+      .from('affiliate_links')
+      .select('id, status, clicks, conversions')
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+
+    if (linksError || !links || links.length === 0) {
+      checks.push({
+        component: 'Affiliate Links',
+        status: 'WARNING',
+        message: 'No active affiliate links',
+        action: 'Links are created automatically when products are discovered'
+      });
+    } else {
+      const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
+      const totalConversions = links.reduce((sum, l) => sum + (l.conversions || 0), 0);
+
+      checks.push({
+        component: 'Affiliate Links',
+        status: 'PASS',
+        message: `${links.length} active links`,
+        data: { 
+          total: links.length,
+          clicks: totalClicks,
+          conversions: totalConversions
+        }
+      });
+    }
+
+    // Check Edge Function
+    const { data: edgeFunctionTest, error: edgeError } = await supabase.functions.invoke('autopilot-engine', {
+      body: { userId: user.id, dryRun: true }
+    });
+
+    if (edgeError) {
+      checks.push({
+        component: 'Edge Function',
+        status: 'FAIL',
+        message: 'Autopilot engine not responding',
+        action: 'Edge function may need to be redeployed',
+        data: { error: edgeError.message }
+      });
+    } else {
+      checks.push({
+        component: 'Edge Function',
+        status: 'PASS',
+        message: 'Autopilot engine operational',
+        data: edgeFunctionTest
+      });
+    }
+
+    // Calculate summary
+    const passed = checks.filter(c => c.status === 'PASS').length;
+    const failed = checks.filter(c => c.status === 'FAIL').length;
+    const warnings = checks.filter(c => c.status === 'WARNING').length;
+
+    const recommendations: string[] = checks
+      .filter(c => c.action)
+      .map(c => c.action!);
+
+    const overallStatus = failed > 0 ? 'CRITICAL' : warnings > 0 ? 'PARTIAL' : 'READY';
 
     return res.status(200).json({
-      success: true,
-      ...diagnostics,
-      quickFixes: [
-        "1. Visit /api/test-cron-autopilot to test autopilot",
-        "2. Visit /api/test-cron-discovery to test product discovery",
-        "3. Visit /api/test-tracking-full to test tracking system",
-        "4. Visit /api/health-check for quick system overview"
-      ]
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      totalChecks: checks.length,
+      passed,
+      failed,
+      warnings,
+      checks,
+      recommendations,
+      nextSteps: failed > 0 
+        ? ['Fix critical issues listed above']
+        : warnings > 0
+        ? ['Complete recommended configurations']
+        : ['System ready - enable autopilot in dashboard']
     });
 
   } catch (error: any) {
-    console.error('Diagnostic error:', error);
+    console.error('❌ Diagnostic error:', error);
     return res.status(500).json({
-      success: false,
+      status: 'ERROR',
       error: error.message,
-      diagnostics
+      checks
     });
   }
 }

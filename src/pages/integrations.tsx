@@ -573,14 +573,24 @@ export default function IntegrationsPage() {
 
       console.log(`🔄 Starting product sync for ${providerName}...`);
 
-      // Trigger product discovery
-      const result = await smartProductDiscovery.discoverProducts(userId, 20);
+      // Call the API endpoint to trigger product discovery
+      const response = await fetch('/api/run-product-discovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 20 })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Product discovery failed');
+      }
 
       console.log('✅ Product sync complete:', result);
 
       toast({
-        title: "Manual Sync Complete",
-        description: `Discovered ${result.totalDiscovered || 0} new products across ${Object.keys(result.byNetwork || {}).length} networks.`,
+        title: "Sync Complete",
+        description: `Discovered ${result.totalDiscovered || 0} new products from ${Object.keys(result.byNetwork || {}).length} networks.`,
       });
 
       // Refresh integrations list
@@ -590,7 +600,7 @@ export default function IntegrationsPage() {
       console.error('❌ Product sync failed:', error);
       toast({
         title: "Sync Failed",
-        description: error.message || "Failed to sync products",
+        description: error.message || "Failed to sync products. Make sure you have valid API keys configured.",
         variant: "destructive",
       });
     } finally {
