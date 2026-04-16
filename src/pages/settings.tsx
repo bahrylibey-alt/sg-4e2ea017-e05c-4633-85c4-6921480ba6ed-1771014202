@@ -289,12 +289,11 @@ export default function Settings() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="every_hour">Every Hour</SelectItem>
-                        <SelectItem value="every_2_hours">Every 2 Hours</SelectItem>
+                        <SelectItem value="every_15_minutes">Every 15 Minutes</SelectItem>
+                        <SelectItem value="every_30_minutes">Every 30 Minutes</SelectItem>
+                        <SelectItem value="hourly">Hourly</SelectItem>
                         <SelectItem value="every_6_hours">Every 6 Hours</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="twice_daily">Twice Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
@@ -312,11 +311,9 @@ export default function Settings() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="every_hour">Every Hour</SelectItem>
-                        <SelectItem value="every_2_hours">Every 2 Hours</SelectItem>
+                        <SelectItem value="hourly">Hourly</SelectItem>
                         <SelectItem value="every_6_hours">Every 6 Hours</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="twice_daily">Twice Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                       </SelectContent>
                     </Select>
@@ -336,8 +333,8 @@ export default function Settings() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="twice_daily">Twice Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">
