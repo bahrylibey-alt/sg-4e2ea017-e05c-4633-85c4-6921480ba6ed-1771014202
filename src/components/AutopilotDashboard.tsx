@@ -1,172 +1,135 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Activity, TrendingUp, FileText, Share2, Play, Loader2, Zap, Target, AlertCircle } from "lucide-react";
+import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Zap, Loader2, Package } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface SystemStatus {
+  status: 'READY' | 'NOT_READY' | 'PARTIAL';
+  message: string;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    warnings: number;
+  };
+  results: Array<{
+    step: string;
+    status: 'PASS' | 'FAIL' | 'WARN' | 'INFO';
+    message: string;
+    action?: string;
+  }>;
+  actions: string[];
+}
 
 export function AutopilotDashboard() {
   const { toast } = useToast();
   const [isEnabled, setIsEnabled] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [systemState, setSystemState] = useState<{
-    state: string;
-    total_views: number;
-    total_clicks: number;
-    total_verified_revenue: number;
-  }>({
-    state: 'NO_TRAFFIC',
-    total_views: 0,
-    total_clicks: 0,
-    total_verified_revenue: 0
-  });
-  const [stats, setStats] = useState({
-    products: 0,
-    content: 0,
-    posts: 0,
-    lastSync: new Date().toISOString()
-  });
+  const [isChecking, setIsChecking] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  // Load autopilot status and stats on mount
+  // Get user ID
   useEffect(() => {
-    loadAutopilotStatus();
-    loadStats();
-    loadSystemState();
-    const interval = setInterval(() => {
-      loadStats();
-      loadSystemState();
-    }, 5000);
-    return () => clearInterval(interval);
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    };
+    getUserId();
   }, []);
 
-  const loadSystemState = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: state } = await supabase
-        .from('system_state')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (state) {
-        setSystemState({
-          state: state.state || 'NO_TRAFFIC',
-          total_views: state.total_views || 0,
-          total_clicks: state.total_clicks || 0,
-          total_verified_revenue: Number(state.total_verified_revenue) || 0
-        });
-      }
-    } catch (error) {
-      console.error('Error loading system state:', error);
+  // Load autopilot status
+  useEffect(() => {
+    if (userId) {
+      loadAutopilotStatus();
+      checkSystemStatus();
     }
-  };
+  }, [userId]);
 
   const loadAutopilotStatus = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (!userId) return;
 
+    try {
       const { data: settings } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (settings) {
-        const enabled = settings.autopilot_enabled || false;
-        setIsEnabled(enabled);
-        console.log('✅ Autopilot status loaded:', enabled ? 'RUNNING' : 'STOPPED');
+        setIsEnabled(settings.autopilot_enabled || false);
       }
     } catch (error) {
       console.error('Error loading autopilot status:', error);
     }
   };
 
-  const loadStats = async () => {
+  const checkSystemStatus = async () => {
+    if (!userId) return;
+    
+    setIsChecking(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [productsResult, contentResult, postsResult] = await Promise.all([
-        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-      ]);
-
-      setStats({
-        products: productsResult.count || 0,
-        content: contentResult.count || 0,
-        posts: postsResult.count || 0,
-        lastSync: new Date().toISOString()
-      });
+      const response = await fetch(`/api/test-autopilot-complete?userId=${userId}`);
+      const data = await response.json();
+      setSystemStatus(data);
+      console.log('System status:', data);
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('Error checking system status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check system status",
+        variant: "destructive"
+      });
+    } finally {
+      setIsChecking(false);
     }
   };
 
   const handleToggle = async (enabled: boolean) => {
+    if (!userId) {
+      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
+      return;
+    }
+
     setIsRunning(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-        setIsRunning(false);
-        return;
-      }
+      console.log(`${enabled ? 'STARTING' : 'STOPPING'} autopilot...`);
 
-      console.log(`🔄 ${enabled ? 'STARTING' : 'STOPPING'} autopilot...`);
-
-      // CRITICAL: Update database FIRST before UI
-      const { error: settingsError } = await supabase
+      const { error } = await supabase
         .from('user_settings')
         .update({ autopilot_enabled: enabled })
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
-      if (settingsError) {
-        console.error('❌ Settings update error:', settingsError);
+      if (error) {
+        console.error('Settings update error:', error);
         toast({
           title: "Error",
           description: "Failed to update autopilot status",
           variant: "destructive"
         });
-        setIsRunning(false);
         return;
       }
 
-      // Verify the update was successful
-      const { data: verification } = await supabase
-        .from('user_settings')
-        .select('autopilot_enabled')
-        .eq('user_id', user.id)
-        .single();
+      setIsEnabled(enabled);
+      
+      toast({
+        title: enabled ? "🚀 Autopilot Started" : "⏸️ Autopilot Stopped",
+        description: enabled 
+          ? "System will run automatically every 30 seconds" 
+          : "All automation has been stopped",
+      });
 
-      if (verification && verification.autopilot_enabled === enabled) {
-        console.log(`✅ Autopilot ${enabled ? 'STARTED' : 'STOPPED'} successfully`);
-        setIsEnabled(enabled);
-        
-        toast({
-          title: enabled ? "🚀 Autopilot Started" : "⏸️ Autopilot Stopped",
-          description: enabled 
-            ? "System will run continuously every 30 seconds" 
-            : "All automation has been stopped",
-        });
-
-        if (enabled) {
-          handleRunNow();
-        }
-      } else {
-        console.error('❌ Verification failed - state mismatch');
-        toast({
-          title: "Error",
-          description: "Failed to verify autopilot state change",
-          variant: "destructive"
-        });
+      if (enabled) {
+        handleRunNow();
       }
     } catch (error: any) {
       console.error('Autopilot toggle error:', error);
@@ -181,39 +144,39 @@ export function AutopilotDashboard() {
   };
 
   const handleRunNow = async () => {
+    if (!userId) {
+      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
+      return;
+    }
+
     setIsRunning(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-        return;
+      toast({
+        title: "⚡ Running Autopilot Cycle",
+        description: "Processing products, scoring, and making decisions...",
+      });
+
+      const response = await fetch('/api/autopilot/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to run autopilot');
       }
 
+      console.log('Autopilot result:', data);
+
       toast({
-        title: "⚡ Running Intelligence Cycle",
-        description: "Scoring posts, making decisions, creating content...",
+        title: "✅ Autopilot Cycle Complete!",
+        description: `Processed successfully`,
       });
 
-      const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-        body: { userId: user.id }
-      });
-
-      if (error) {
-        console.error('Autopilot error:', error);
-        throw error;
-      }
-
-      console.log('Autopilot cycle result:', data);
-
-      const results = data?.results || {};
-      toast({
-        title: "✅ Intelligence Cycle Complete!",
-        description: `${results.posts_scored || 0} posts scored, ${results.decisions_applied || 0} decisions made, ${results.products_discovered || 0} products, ${results.content_generated || 0} content, ${results.posts_published || 0} posts`,
-      });
-
-      await loadStats();
-      await loadSystemState();
+      await checkSystemStatus();
     } catch (error: any) {
       console.error('Run now error:', error);
       toast({
@@ -226,59 +189,90 @@ export function AutopilotDashboard() {
     }
   };
 
-  const getStateColor = (state: string) => {
-    switch (state) {
-      case 'NO_TRAFFIC': return 'bg-yellow-500';
-      case 'LOW_SIGNAL': return 'bg-orange-500';
-      case 'TESTING': return 'bg-blue-500';
-      case 'SCALING': return 'bg-green-500';
-      default: return 'bg-gray-500';
+  const handleFindProducts = async () => {
+    if (!userId) {
+      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
+      return;
+    }
+
+    setIsRunning(true);
+
+    try {
+      toast({
+        title: "🔍 Finding Products",
+        description: "Discovering products from connected affiliate networks...",
+      });
+
+      const response = await fetch(`/api/run-product-discovery?userId=${userId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to discover products');
+      }
+
+      console.log('Discovery result:', data);
+
+      toast({
+        title: data.success ? "✅ Products Found!" : "⚠️ No Products Found",
+        description: data.message,
+      });
+
+      await checkSystemStatus();
+    } catch (error: any) {
+      console.error('Product discovery error:', error);
+      toast({
+        title: "Discovery Error",
+        description: error.message || "Failed to find products",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunning(false);
     }
   };
 
-  const getStateMessage = (state: string) => {
-    switch (state) {
-      case 'NO_TRAFFIC': return '⚠️ No traffic yet — optimizing reach';
-      case 'LOW_SIGNAL': return '📊 Low signal — collecting data';
-      case 'TESTING': return '🧪 Testing content performance';
-      case 'SCALING': return '🚀 Scaling winners';
-      default: return 'Initializing...';
+  const getStatusIcon = (status: 'PASS' | 'FAIL' | 'WARN' | 'INFO') => {
+    switch (status) {
+      case 'PASS': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'FAIL': return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'WARN': return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      default: return <Activity className="h-4 w-4 text-blue-500" />;
     }
   };
+
+  const getStatusBadge = (status: 'PASS' | 'FAIL' | 'WARN' | 'INFO') => {
+    const variants = {
+      'PASS': 'default',
+      'FAIL': 'destructive',
+      'WARN': 'secondary',
+      'INFO': 'outline'
+    };
+    return variants[status] as any;
+  };
+
+  if (!userId) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground">Please log in to access autopilot</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* System State Alert */}
-      <Card className="border-2 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${getStateColor(systemState.state)} ${isEnabled ? 'animate-pulse' : ''}`} />
-              <div>
-                <p className="font-semibold text-lg">{getStateMessage(systemState.state)}</p>
-                <p className="text-sm text-muted-foreground">
-                  {systemState.total_views} views · {systemState.total_clicks} clicks · ${systemState.total_verified_revenue.toFixed(2)} verified revenue
-                </p>
-              </div>
-            </div>
-            <Badge variant="outline" className="text-base px-4 py-2">
-              {systemState.state}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* Header Card */}
       <Card className="border-2 border-primary/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2 text-2xl">
                 <Activity className={`h-6 w-6 ${isEnabled ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
-                AI Autopilot Intelligence
+                AI Autopilot System
               </CardTitle>
-              <CardDescription className="mt-2">
-                Profit-seeking system: Track → Score → Decide → Scale
-              </CardDescription>
+              <p className="text-sm text-muted-foreground mt-2">
+                Scans the system for issues and repairs them automatically
+              </p>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 bg-muted/50 p-3 rounded-lg border-2">
@@ -293,112 +287,175 @@ export function AutopilotDashboard() {
                   {isEnabled ? '🟢 RUNNING' : '⚪ STOPPED'}
                 </Label>
               </div>
-              {isEnabled && (
-                <Badge variant="default" className="bg-green-500 animate-pulse px-4 py-2 text-sm">
-                  ⚡ ACTIVE
-                </Badge>
-              )}
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <Card className="border-primary/20">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Products Discovered
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-primary">{stats.products}</div>
-                <p className="text-xs text-muted-foreground mt-1">Being scored & evaluated</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-pink-500/20">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-pink-600" />
-                  Content Generated
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-pink-600">{stats.content}</div>
-                <p className="text-xs text-muted-foreground mt-1">AI-powered with DNA tracking</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-blue-500/20">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Share2 className="h-4 w-4 text-blue-600" />
-                  Posts Published
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-blue-600">{stats.posts}</div>
-                <p className="text-xs text-muted-foreground mt-1">Priority queue based</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className={`h-2 w-2 rounded-full ${isEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-              <span>Last synced: {new Date(stats.lastSync).toLocaleTimeString()}</span>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadStats}
-                disabled={isRunning}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRunNow}
-                disabled={isRunning}
-                className="bg-primary hover:bg-primary/90"
-              >
-                {isRunning ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Run Cycle Now
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
-      {isEnabled && (
-        <Card className="border-2 border-green-500/20 bg-green-50 dark:bg-green-950">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <Target className="h-6 w-6 text-green-600 mt-0.5" />
-              <div className="space-y-2">
-                <p className="text-base font-semibold text-green-900 dark:text-green-100">
-                  Intelligence Layer Active
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  System is scoring posts, making decisions (scale/kill), prioritizing winners, and running continuously every 30 seconds. Navigate anywhere - it keeps running until you stop it.
-                </p>
+      {/* Action Buttons */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Button
+          size="lg"
+          onClick={handleRunNow}
+          disabled={isRunning}
+          className="h-24 text-lg"
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+              Running...
+            </>
+          ) : (
+            <>
+              <Play className="h-6 w-6 mr-2" />
+              Run Autopilot
+            </>
+          )}
+        </Button>
+
+        <Button
+          size="lg"
+          onClick={handleFindProducts}
+          disabled={isRunning}
+          className="h-24 text-lg"
+          variant="outline"
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+              Finding...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-6 w-6 mr-2" />
+              Find Products
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* System Status */}
+      {systemStatus && (
+        <>
+          {/* Status Alert */}
+          <Alert variant={systemStatus.status === 'READY' ? 'default' : 'destructive'}>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">System Status: {systemStatus.status}</p>
+                  <p className="text-sm">{systemStatus.message}</p>
+                </div>
+                <Badge variant={systemStatus.status === 'READY' ? 'default' : 'destructive'}>
+                  {systemStatus.summary.passed} / {systemStatus.summary.total} PASSED
+                </Badge>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </AlertDescription>
+          </Alert>
+
+          {/* Status Summary */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Issues Found</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-red-500">
+                  {systemStatus.summary.failed}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Fixed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-green-500">
+                  {systemStatus.summary.passed}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Failed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold">0</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Issues Detected */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Issues Detected:</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {systemStatus.results.map((result, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 rounded-lg border">
+                    {getStatusIcon(result.status)}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={getStatusBadge(result.status)}>
+                          {result.status}
+                        </Badge>
+                        <span className="font-medium">{result.step}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{result.message}</p>
+                      {result.action && (
+                        <p className="text-sm text-primary mt-1">{result.action}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recommendations */}
+          {systemStatus.actions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recommendations:</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {systemStatus.actions.map((action, index) => (
+                    <li key={index} className="text-sm flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      <span>{action}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
+
+      {/* Refresh Button */}
+      <div className="flex justify-center">
+        <Button
+          variant="outline"
+          onClick={checkSystemStatus}
+          disabled={isChecking}
+        >
+          {isChecking ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Status
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
