@@ -76,10 +76,10 @@ export default async function handler(
         .insert({
           user_id: user.id,
           timezone: 'UTC',
-          notification_email: user.email,
+          notification_email: true,
           conversion_tracking_enabled: true,
           commission_calculations_enabled: true
-        });
+        } as any);
 
       fixes.push({
         issue: 'Missing user settings',
@@ -146,8 +146,9 @@ export default async function handler(
           name: 'Main Campaign',
           status: 'active',
           budget: 10,
+          goal: 'revenue',
           start_date: new Date().toISOString()
-        });
+        } as any);
 
       fixes.push({
         issue: 'No campaigns',

@@ -6,11 +6,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Zap, Loader2, Package, Wrench } from "lucide-react";
+import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Loader2, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SystemStatus {
-  status: 'READY' | 'NOT_READY' | 'PARTIAL';
+  status: 'READY' | 'NOT_READY' | 'PARTIAL' | 'CRITICAL';
   message: string;
   summary: {
     total: number;
@@ -28,51 +28,56 @@ interface SystemStatus {
 }
 
 export function AutopilotDashboard() {
-  const [status, setStatus] = useState<SystemStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Auto-refresh status every 30 seconds
-  useEffect(() => {
-    checkStatus();
-    const interval = setInterval(checkStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const getUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        
+        const { data } = await supabase
+          .from('user_settings')
+          .select('autopilot_enabled')
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        if (data && data.autopilot_enabled !== undefined) {
+          setIsEnabled(data.autopilot_enabled);
+        }
       }
     };
     getUserId();
   }, []);
 
-  const checkStatus = async () => {
+  useEffect(() => {
+    checkSystemStatus();
+    const interval = setInterval(checkSystemStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkSystemStatus = async () => {
     try {
-      setIsLoading(true);
+      setIsChecking(true);
       const response = await fetch("/api/diagnose-system");
       const data = await response.json();
-      setStatus(data);
+      setSystemStatus(data);
     } catch (error) {
       console.error("Failed to check status:", error);
-      toast({
-        title: "Status Check Failed",
-        description: "Could not retrieve system status",
-        variant: "destructive",
-      });
     } finally {
-      setIsLoading(false);
+      setIsChecking(false);
     }
   };
 
   const runQuickFix = async () => {
     try {
-      setIsLoading(true);
+      setIsChecking(true);
       toast({
         title: "Running Quick Fix",
         description: "Automatically configuring your system...",
@@ -86,11 +91,11 @@ export function AutopilotDashboard() {
           title: "Quick Fix Complete",
           description: `Fixed ${result.summary.fixed} issues`,
         });
-        await checkStatus(); // Refresh status
+        await checkSystemStatus();
       } else {
         toast({
           title: "Quick Fix Partial",
-          description: `Fixed ${result.summary.fixed}, failed ${result.summary.failed}`,
+          description: `Fixed ${result.summary?.fixed || 0}, failed ${result.summary?.failed || 0}`,
           variant: "destructive",
         });
       }
@@ -102,144 +107,64 @@ export function AutopilotDashboard() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsChecking(false);
     }
   };
 
-  const handleToggle = async (enabled: boolean) => {
-    if (!userId) {
-      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-      return;
-    }
-
-    setIsRunning(true);
-
+  const handleToggle = async (checked: boolean) => {
+    if (!userId) return;
+    
     try {
-      console.log(`${enabled ? 'STARTING' : 'STOPPING'} autopilot...`);
-
-      const { error } = await supabase
+      setIsEnabled(checked);
+      await supabase
         .from('user_settings')
-        .update({ autopilot_enabled: enabled })
+        .update({ autopilot_enabled: checked })
         .eq('user_id', userId);
-
-      if (error) {
-        console.error('Settings update error:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update autopilot status",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setIsEnabled(enabled);
-      
+        
       toast({
-        title: enabled ? "🚀 Autopilot Started" : "⏸️ Autopilot Stopped",
-        description: enabled 
-          ? "System will run automatically every 30 seconds" 
-          : "All automation has been stopped",
+        title: checked ? "Autopilot Enabled" : "Autopilot Disabled",
+        description: checked ? "System is now running automatically" : "Automation paused",
       });
-
-      if (enabled) {
-        handleRunNow();
-      }
-    } catch (error: any) {
-      console.error('Autopilot toggle error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to toggle autopilot",
-        variant: "destructive"
-      });
-    } finally {
-      setIsRunning(false);
+    } catch (error) {
+      console.error("Toggle error:", error);
     }
   };
 
-  const handleRunNow = async () => {
-    if (!userId) {
-      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-      return;
-    }
-
+  const runAutopilot = async () => {
+    if (!userId) return;
     setIsRunning(true);
-
     try {
-      toast({
-        title: "⚡ Running Autopilot Cycle",
-        description: "Processing products, scoring, and making decisions...",
-      });
-
+      toast({ title: "Running Autopilot", description: "Processing products and campaigns..." });
       const response = await fetch('/api/autopilot/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to run autopilot');
-      }
-
-      console.log('Autopilot result:', data);
-
-      toast({
-        title: "✅ Autopilot Cycle Complete!",
-        description: `Processed successfully`,
-      });
-
+      if (!response.ok) throw new Error(data.error || 'Failed to run autopilot');
+      toast({ title: "Success", description: "Autopilot cycle completed" });
       await checkSystemStatus();
     } catch (error: any) {
-      console.error('Run now error:', error);
-      toast({
-        title: "Autopilot Error",
-        description: error.message || "Failed to run cycle",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsRunning(false);
     }
   };
 
-  const handleFindProducts = async () => {
-    if (!userId) {
-      toast({ title: "Error", description: "Please log in first", variant: "destructive" });
-      return;
-    }
-
-    setIsRunning(true);
-
+  const discoverProducts = async () => {
+    if (!userId) return;
+    setIsDiscovering(true);
     try {
-      toast({
-        title: "🔍 Finding Products",
-        description: "Discovering products from connected affiliate networks...",
-      });
-
+      toast({ title: "Finding Products", description: "Discovering from connected networks..." });
       const response = await fetch(`/api/run-product-discovery?userId=${userId}`);
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to discover products');
-      }
-
-      console.log('Discovery result:', data);
-
-      toast({
-        title: data.success ? "✅ Products Found!" : "⚠️ No Products Found",
-        description: data.message,
-      });
-
+      if (!response.ok) throw new Error(data.error || 'Failed to discover products');
+      toast({ title: "Success", description: data.message });
       await checkSystemStatus();
     } catch (error: any) {
-      console.error('Product discovery error:', error);
-      toast({
-        title: "Discovery Error",
-        description: error.message || "Failed to find products",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
-      setIsRunning(false);
+      setIsDiscovering(false);
     }
   };
 
@@ -274,7 +199,6 @@ export function AutopilotDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header Card */}
       <Card className="border-2 border-primary/20">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -305,72 +229,20 @@ export function AutopilotDashboard() {
         </CardHeader>
       </Card>
 
-      {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Button
-          onClick={handleRunNow}
-          disabled={isRunning || isLoading}
-          size="lg"
-          className="w-full"
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Running...
-            </>
-          ) : (
-            <>
-              <Play className="mr-2 h-4 w-4" />
-              Run Autopilot
-            </>
-          )}
+        <Button onClick={runAutopilot} disabled={isRunning || isChecking} size="lg" className="w-full">
+          {isRunning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running...</> : <><Play className="mr-2 h-4 w-4" /> Run Autopilot</>}
         </Button>
-
-        <Button
-          onClick={handleFindProducts}
-          disabled={isDiscovering || isLoading}
-          size="lg"
-          variant="outline"
-          className="w-full"
-        >
-          {isDiscovering ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Discovering...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Find Products
-            </>
-          )}
+        <Button onClick={discoverProducts} disabled={isDiscovering || isChecking} size="lg" variant="outline" className="w-full">
+          {isDiscovering ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : <><RefreshCw className="mr-2 h-4 w-4" /> Find Products</>}
         </Button>
-
-        <Button
-          onClick={runQuickFix}
-          disabled={isLoading}
-          size="lg"
-          variant="secondary"
-          className="w-full"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Fixing...
-            </>
-          ) : (
-            <>
-              <Wrench className="mr-2 h-4 w-4" />
-              Quick Fix
-            </>
-          )}
+        <Button onClick={runQuickFix} disabled={isChecking} size="lg" variant="secondary" className="w-full">
+          {isChecking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fixing...</> : <><Wrench className="mr-2 h-4 w-4" /> Quick Fix</>}
         </Button>
       </div>
 
-      {/* System Status */}
       {systemStatus && (
         <>
-          {/* Status Alert */}
           <Alert variant={systemStatus.status === 'READY' ? 'default' : 'destructive'}>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -386,45 +258,23 @@ export function AutopilotDashboard() {
             </AlertDescription>
           </Alert>
 
-          {/* Status Summary */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Issues Found</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-red-500">
-                  {systemStatus.summary.failed}
-                </div>
-              </CardContent>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Issues Found</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold text-red-500">{systemStatus.summary.failed + systemStatus.summary.warnings}</div></CardContent>
             </Card>
-
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Fixed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-green-500">
-                  {systemStatus.summary.passed}
-                </div>
-              </CardContent>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Fixed</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold text-green-500">{systemStatus.summary.passed}</div></CardContent>
             </Card>
-
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Failed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold">0</div>
-              </CardContent>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Failed</CardTitle></CardHeader>
+              <CardContent><div className="text-4xl font-bold">{systemStatus.summary.failed}</div></CardContent>
             </Card>
           </div>
 
-          {/* Issues Detected */}
           <Card>
-            <CardHeader>
-              <CardTitle>Issues Detected:</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>System Diagnostics:</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {systemStatus.results.map((result, index) => (
@@ -432,15 +282,11 @@ export function AutopilotDashboard() {
                     {getStatusIcon(result.status)}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant={getStatusBadge(result.status)}>
-                          {result.status}
-                        </Badge>
+                        <Badge variant={getStatusBadge(result.status)}>{result.status}</Badge>
                         <span className="font-medium">{result.step}</span>
                       </div>
                       <p className="text-sm text-muted-foreground">{result.message}</p>
-                      {result.action && (
-                        <p className="text-sm text-primary mt-1">{result.action}</p>
-                      )}
+                      {result.action && <p className="text-sm text-primary mt-1">{result.action}</p>}
                     </div>
                   </div>
                 ))}
@@ -448,12 +294,9 @@ export function AutopilotDashboard() {
             </CardContent>
           </Card>
 
-          {/* Recommendations */}
           {systemStatus.actions.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle>Recommendations:</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Recommendations:</CardTitle></CardHeader>
               <CardContent>
                 <ul className="space-y-2">
                   {systemStatus.actions.map((action, index) => (
@@ -469,24 +312,9 @@ export function AutopilotDashboard() {
         </>
       )}
 
-      {/* Refresh Button */}
       <div className="flex justify-center">
-        <Button
-          variant="outline"
-          onClick={checkSystemStatus}
-          disabled={isChecking}
-        >
-          {isChecking ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Checking...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Status
-            </>
-          )}
+        <Button variant="outline" onClick={checkSystemStatus} disabled={isChecking}>
+          {isChecking ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Checking...</> : <><RefreshCw className="h-4 w-4 mr-2" /> Refresh Status</>}
         </Button>
       </div>
     </div>
