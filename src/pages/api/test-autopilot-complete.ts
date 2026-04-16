@@ -95,9 +95,9 @@ export default async function handler(
         status: 'PASS',
         message: 'Autopilot configured',
         data: {
-          min_price: autopilotConfig.min_product_price,
-          max_price: autopilotConfig.max_product_price,
-          budget: autopilotConfig.daily_budget
+          min_price: (autopilotConfig as any).min_product_price,
+          max_price: (autopilotConfig as any).max_product_price,
+          budget: (autopilotConfig as any).daily_budget || (autopilotConfig as any).budget_limit
         }
       });
     }

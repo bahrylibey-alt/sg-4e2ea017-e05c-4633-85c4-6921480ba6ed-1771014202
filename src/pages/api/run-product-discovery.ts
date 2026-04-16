@@ -42,7 +42,7 @@ export default async function handler(
         user_id: userId,
         action: 'product_discovery_manual',
         details: `Discovered ${result.totalDiscovered} products`,
-        metadata: result,
+        metadata: result as any,
         status: result.totalDiscovered > 0 ? 'success' : 'warning'
       });
 
