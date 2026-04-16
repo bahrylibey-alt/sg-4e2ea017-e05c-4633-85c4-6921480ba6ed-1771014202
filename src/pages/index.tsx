@@ -75,9 +75,10 @@ export default function HomePage() {
                 Launch Your Empire
               </Button>
             </Link>
-            <Link href="#how-it-works">
+            <Link href="/test-complete-system">
               <Button size="lg" variant="outline" className="text-lg h-16 px-10 border-2">
-                See The System
+                <Activity className="w-6 h-6 mr-2" />
+                Test System
               </Button>
             </Link>
           </div>
@@ -180,230 +181,44 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* The Intelligence Layer */}
+        {/* Quick Setup Guide */}
         <section className="mb-20">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 bg-purple-500 text-white">
-              <Brain className="w-3 h-3 mr-1" />
-              Intelligence Layer
-            </Badge>
-            <h2 className="text-4xl font-bold mb-4">7 AI Systems Working 24/7</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Each one handles a specific part of the machine. Together, they run your entire business.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="hover:shadow-xl transition-all border-2 border-primary/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-primary" />
+          <Card className="border-2 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-2xl">🚀 Quick Start - 3 Steps</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">1</div>
+                    <h3 className="font-semibold">Connect Networks</h3>
                   </div>
-                  <Badge variant="outline" className="text-xs">Real-Time</Badge>
-                </div>
-                <CardTitle className="text-lg">Scoring Engine</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Classifies every post as WINNER, TESTING, or LOSER based on real performance data
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-blue-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <Target className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Autonomous</Badge>
-                </div>
-                <CardTitle className="text-lg">Decision Engine</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Makes scaling decisions: amplify, maintain, or kill — all without human input
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-green-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-green-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Intelligent</Badge>
-                </div>
-                <CardTitle className="text-lg">Content DNA</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Analyzes what makes content perform: hooks, timing, platform, product match
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-purple-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <Eye className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Predictive</Badge>
-                </div>
-                <CardTitle className="text-lg">Traffic Intelligence</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Detects traffic states (NO_DATA → TESTING → SCALING) and adapts strategy
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-orange-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
-                    <Shield className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Self-Healing</Badge>
-                </div>
-                <CardTitle className="text-lg">Link Health Monitor</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Validates actual product pages, tracks failures, auto-removes dead links (3-strike system)
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-pink-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-pink-500/10 rounded-lg flex items-center justify-center">
-                    <MousePointerClick className="w-5 h-5 text-pink-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Verified</Badge>
-                </div>
-                <CardTitle className="text-lg">Click Tracker</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Real click tracking via redirect system — every click is logged with platform source
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-xl transition-all border-2 border-cyan-500/20">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-cyan-500/10 rounded-lg flex items-center justify-center">
-                    <Lightbulb className="w-5 h-5 text-cyan-600" />
-                  </div>
-                  <Badge variant="outline" className="text-xs">Actionable</Badge>
-                </div>
-                <CardTitle className="text-lg">AI Insights</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Generates recommendations: best platforms, top hooks, next steps — all data-driven
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        {/* Real-Time Validation */}
-        <section className="mb-20">
-          <Card className="border-2 border-green-500 bg-gradient-to-r from-green-50/50 to-background dark:from-green-950/20">
-            <CardContent className="pt-8">
-              <div className="grid md:grid-cols-3 gap-8">
-                <div className="text-center">
-                  <Shield className="w-12 h-12 mx-auto mb-4 text-green-600" />
-                  <h3 className="text-xl font-bold mb-2">Webhook Verification</h3>
                   <p className="text-sm text-muted-foreground">
-                    Revenue = $0 until affiliate network sends webhook. No estimates. No projections. Only real money.
+                    Go to /integrations and connect Amazon, AliExpress, or other affiliate networks with valid API keys
                   </p>
                 </div>
-                <div className="text-center">
-                  <Activity className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-                  <h3 className="text-xl font-bold mb-2">Live Link Validation</h3>
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+                    <h3 className="font-semibold">Find Products</h3>
+                  </div>
                   <p className="text-sm text-muted-foreground">
-                    Checks actual Amazon/Temu pages. 3 failures = auto-delete. Your database stays clean automatically.
+                    Click "Find Products" in dashboard to discover products from your connected networks
                   </p>
                 </div>
-                <div className="text-center">
-                  <BarChart3 className="w-12 h-12 mx-auto mb-4 text-purple-600" />
-                  <h3 className="text-xl font-bold mb-2">Real Traffic Only</h3>
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+                    <h3 className="font-semibold">Enable Autopilot</h3>
+                  </div>
                   <p className="text-sm text-muted-foreground">
-                    Every view tracked via posted_content. Every click via redirect logs. Zero fake numbers.
+                    Turn on autopilot in /dashboard and let the AI handle everything automatically
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </section>
-
-        {/* Traffic Sources Section */}
-        <section id="traffic-sources" className="mb-20">
-          <div className="text-center mb-12">
-            <Badge className="mb-4">8 Automated Traffic Channels</Badge>
-            <h2 className="text-4xl font-bold mb-4">Free Traffic on Autopilot</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Connect once, post forever. AI handles content creation and distribution.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { name: "Pinterest", icon: Share2, gradient: "from-red-500 to-pink-600", traffic: "100-500/mo" },
-              { name: "Twitter/X", icon: Twitter, gradient: "from-sky-500 to-blue-600", traffic: "100-500/mo" },
-              { name: "Facebook", icon: Facebook, gradient: "from-blue-600 to-blue-800", traffic: "200-1K/mo" },
-              { name: "Instagram", icon: Instagram, gradient: "from-pink-500 to-purple-600", traffic: "300-1.5K/mo" },
-              { name: "YouTube", icon: Youtube, gradient: "from-red-600 to-red-800", traffic: "500-3K/mo" },
-              { name: "Reddit", icon: MessageSquare, gradient: "from-orange-500 to-red-600", traffic: "500-2K/mo" },
-              { name: "LinkedIn", icon: Linkedin, gradient: "from-blue-700 to-blue-900", traffic: "100-800/mo" },
-              { name: "Email", icon: Mail, gradient: "from-blue-500 to-purple-600", traffic: "200-1K/mo" },
-            ].map((platform, idx) => (
-              <Card key={idx} className="hover:shadow-xl transition-all">
-                <CardHeader className="text-center pb-4">
-                  <div className={`w-16 h-16 mx-auto bg-gradient-to-br ${platform.gradient} rounded-2xl flex items-center justify-center mb-4`}>
-                    <platform.icon className="w-8 h-8 text-white" />
-                  </div>
-                  <CardTitle className="text-lg">{platform.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <div className="text-2xl font-bold text-primary mb-2">{platform.traffic}</div>
-                  <div className="text-xs text-muted-foreground">visitors/month</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="text-center mt-8">
-            <Link href="/traffic-channels">
-              <Button size="lg" className="bg-gradient-to-r from-primary to-purple-600">
-                <Settings className="w-5 h-5 mr-2" />
-                Manage Traffic Channels
-              </Button>
-            </Link>
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section id="how-it-works" className="mb-20">
-          <h2 className="text-4xl font-bold mb-4 text-center">How The Machine Works</h2>
-          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Set it up once. The AI handles everything else.
-          </p>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { num: "1", title: "Connect & Configure", desc: "Link affiliate networks and social accounts. Takes 10 minutes.", color: "primary" },
-              { num: "2", title: "AI Discovers Products", desc: "System finds trending products that match your niche automatically.", color: "blue-600" },
-              { num: "3", title: "Content Generation", desc: "Creates optimized posts with hooks, hashtags, and timing intelligence.", color: "purple-600" },
-              { num: "4", title: "Autonomous Optimization", desc: "Tracks performance, scales winners, kills losers — no human decisions needed.", color: "green-600" },
-            ].map((step, idx) => (
-              <Card key={idx} className={`border-2 border-${step.color}/20`}>
-                <CardHeader>
-                  <div className={`w-12 h-12 rounded-full bg-${step.color}/10 flex items-center justify-center mb-4`}>
-                    <span className={`text-2xl font-bold text-${step.color}`}>{step.num}</span>
-                  </div>
-                  <CardTitle className="text-lg">{step.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{step.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </section>
 
         {/* CTA Section */}
@@ -422,10 +237,10 @@ export default function HomePage() {
                     Launch System
                   </Button>
                 </Link>
-                <Link href="/traffic-test">
+                <Link href="/test-complete-system">
                   <Button size="lg" variant="outline" className="h-16 px-12 text-lg font-semibold bg-white/10 border-white/20 text-white hover:bg-white/20">
                     <Activity className="w-6 h-6 mr-2" />
-                    Test Health Monitor
+                    Test System
                   </Button>
                 </Link>
               </div>

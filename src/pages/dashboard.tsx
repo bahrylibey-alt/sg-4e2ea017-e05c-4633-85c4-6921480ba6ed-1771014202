@@ -10,7 +10,6 @@ import { ProfitDashboard } from "@/components/ProfitDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity, TrendingUp, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AutopilotRunner } from "@/components/AutopilotRunner";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -60,15 +59,15 @@ export default function Dashboard() {
       <div className="min-h-screen bg-background flex flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8">
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs defaultValue="autopilot" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Overview
-              </TabsTrigger>
               <TabsTrigger value="autopilot" className="flex items-center gap-2">
                 <Activity className="h-4 w-4" />
                 AI Autopilot
+              </TabsTrigger>
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Overview
               </TabsTrigger>
               <TabsTrigger value="profit" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
@@ -76,23 +75,18 @@ export default function Dashboard() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              <DashboardOverview />
-            </TabsContent>
-
             <TabsContent value="autopilot" className="space-y-6">
               <AutopilotDashboard />
+            </TabsContent>
+
+            <TabsContent value="overview" className="space-y-6">
+              <DashboardOverview />
             </TabsContent>
 
             <TabsContent value="profit" className="space-y-6">
               <ProfitDashboard />
             </TabsContent>
           </Tabs>
-          
-          {/* Auto-Fix System - Always visible at bottom */}
-          <div className="mt-6">
-            <AutopilotRunner />
-          </div>
         </main>
         <Footer />
       </div>
