@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Zap, Loader2, Package } from "lucide-react";
+import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Zap, Loader2, Package, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SystemStatus {
@@ -28,14 +28,20 @@ interface SystemStatus {
 }
 
 export function AutopilotDashboard() {
-  const { toast } = useToast();
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  // Get user ID
+  // Auto-refresh status every 30 seconds
+  useEffect(() => {
+    checkStatus();
+    const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const getUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -46,50 +52,57 @@ export function AutopilotDashboard() {
     getUserId();
   }, []);
 
-  // Load autopilot status
-  useEffect(() => {
-    if (userId) {
-      loadAutopilotStatus();
-      checkSystemStatus();
-    }
-  }, [userId]);
-
-  const loadAutopilotStatus = async () => {
-    if (!userId) return;
-
+  const checkStatus = async () => {
     try {
-      const { data: settings } = await supabase
-        .from('user_settings')
-        .select('autopilot_enabled')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (settings) {
-        setIsEnabled(settings.autopilot_enabled || false);
-      }
+      setIsLoading(true);
+      const response = await fetch("/api/diagnose-system");
+      const data = await response.json();
+      setStatus(data);
     } catch (error) {
-      console.error('Error loading autopilot status:', error);
+      console.error("Failed to check status:", error);
+      toast({
+        title: "Status Check Failed",
+        description: "Could not retrieve system status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const checkSystemStatus = async () => {
-    if (!userId) return;
-    
-    setIsChecking(true);
+  const runQuickFix = async () => {
     try {
-      const response = await fetch(`/api/test-autopilot-complete?userId=${userId}`);
-      const data = await response.json();
-      setSystemStatus(data);
-      console.log('System status:', data);
-    } catch (error) {
-      console.error('Error checking system status:', error);
+      setIsLoading(true);
       toast({
-        title: "Error",
-        description: "Failed to check system status",
-        variant: "destructive"
+        title: "Running Quick Fix",
+        description: "Automatically configuring your system...",
+      });
+
+      const response = await fetch("/api/quick-fix", { method: "POST" });
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Quick Fix Complete",
+          description: `Fixed ${result.summary.fixed} issues`,
+        });
+        await checkStatus(); // Refresh status
+      } else {
+        toast({
+          title: "Quick Fix Partial",
+          description: `Fixed ${result.summary.fixed}, failed ${result.summary.failed}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Quick fix failed:", error);
+      toast({
+        title: "Quick Fix Failed",
+        description: "Could not run automatic fixes",
+        variant: "destructive",
       });
     } finally {
-      setIsChecking(false);
+      setIsLoading(false);
     }
   };
 
@@ -293,42 +306,62 @@ export function AutopilotDashboard() {
       </Card>
 
       {/* Action Buttons */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Button
-          size="lg"
           onClick={handleRunNow}
-          disabled={isRunning}
-          className="h-24 text-lg"
+          disabled={isRunning || isLoading}
+          size="lg"
+          className="w-full"
         >
           {isRunning ? (
             <>
-              <Loader2 className="h-6 w-6 mr-2 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Running...
             </>
           ) : (
             <>
-              <Play className="h-6 w-6 mr-2" />
+              <Play className="mr-2 h-4 w-4" />
               Run Autopilot
             </>
           )}
         </Button>
 
         <Button
-          size="lg"
           onClick={handleFindProducts}
-          disabled={isRunning}
-          className="h-24 text-lg"
+          disabled={isDiscovering || isLoading}
+          size="lg"
           variant="outline"
+          className="w-full"
         >
-          {isRunning ? (
+          {isDiscovering ? (
             <>
-              <Loader2 className="h-6 w-6 mr-2 animate-spin" />
-              Finding...
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Discovering...
             </>
           ) : (
             <>
-              <RefreshCw className="h-6 w-6 mr-2" />
+              <RefreshCw className="mr-2 h-4 w-4" />
               Find Products
+            </>
+          )}
+        </Button>
+
+        <Button
+          onClick={runQuickFix}
+          disabled={isLoading}
+          size="lg"
+          variant="secondary"
+          className="w-full"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Fixing...
+            </>
+          ) : (
+            <>
+              <Wrench className="mr-2 h-4 w-4" />
+              Quick Fix
             </>
           )}
         </Button>
