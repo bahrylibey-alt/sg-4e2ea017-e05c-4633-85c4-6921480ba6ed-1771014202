@@ -20,7 +20,7 @@ export default async function handler(
   }> = [];
 
   try {
-    // Get current user
+    // Get current user from session
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
