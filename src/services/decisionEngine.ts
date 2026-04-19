@@ -162,7 +162,7 @@ export const decisionEngine = {
       const allDecisions: Decision[] = [];
       
       for (const scoreData of scoreResults.scores) {
-        const postDecisions = await this.analyzePost(userId, scoreData.postId);
+        const postDecisions = await this.analyzePost(userId, scoreData.contentId);
         allDecisions.push(...postDecisions);
       }
 

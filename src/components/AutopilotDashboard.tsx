@@ -69,7 +69,10 @@ export function AutopilotDashboard() {
   const checkSystemStatus = async () => {
     try {
       setIsChecking(true);
-      const response = await fetch("/api/diagnose-system");
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch("/api/diagnose-system", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      });
       const data = await response.json();
       
       if (!response.ok || !data.summary) {
@@ -120,17 +123,13 @@ export function AutopilotDashboard() {
         description: "Automatically configuring your system...",
       });
 
-      const response = await fetch("/api/quick-fix", { method: "POST" });
-      const result = await response.json();
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (response.status === 401) {
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to use Quick Fix",
-          variant: "destructive"
-        });
-        return;
-      }
+      const response = await fetch("/api/quick-fix", { 
+        method: "POST",
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      });
+      const result = await response.json();
 
       if (result.success) {
         toast({
@@ -189,9 +188,15 @@ export function AutopilotDashboard() {
     setIsRunning(true);
     try {
       toast({ title: "Running Autopilot", description: "Processing products and campaigns..." });
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch('/api/autopilot/trigger', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+        },
         body: JSON.stringify({ userId })
       });
       const data = await response.json();
@@ -229,7 +234,17 @@ export function AutopilotDashboard() {
     setIsDiscovering(true);
     try {
       toast({ title: "Finding Products", description: "Discovering from connected networks..." });
-      const response = await fetch(`/api/run-product-discovery?userId=${userId}`);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch('/api/run-product-discovery', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+        },
+        body: JSON.stringify({ userId, limit: 50 })
+      });
       const data = await response.json();
       
       if (response.status === 401) {
