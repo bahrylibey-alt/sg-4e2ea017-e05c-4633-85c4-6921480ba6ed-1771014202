@@ -144,7 +144,7 @@ export const aiInsightsEngine = {
       console.log('🤖 AI Insights: Starting analysis for user:', userId);
 
       // Step 1: Score all posts with 20 second timeout (optimized batch processing)
-      const scorePromise = scoringEngine.scoreAllPosts(userId);
+      const scorePromise = scoringEngine.scoreAllContent(userId);
       const scoreTimeout = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Scoring timeout - processing taking longer than expected')), 20000)
       );

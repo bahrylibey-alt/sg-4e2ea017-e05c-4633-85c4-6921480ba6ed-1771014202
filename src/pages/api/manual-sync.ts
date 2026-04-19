@@ -33,7 +33,7 @@ export default async function handler(
     console.log(`📊 Running discovery for user: ${user.id}`);
 
     // Run product discovery
-    const result = await smartProductDiscovery.discoverProducts(user.id, 50);
+    const result = await smartProductDiscovery.discoverProducts(user.id, { limit: 50 });
 
     console.log(`✅ MANUAL SYNC: Complete`);
     console.log(`📦 ${result.totalDiscovered} products discovered`);

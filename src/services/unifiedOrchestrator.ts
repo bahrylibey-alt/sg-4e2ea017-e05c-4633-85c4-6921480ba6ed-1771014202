@@ -99,7 +99,7 @@ export const unifiedOrchestrator = {
       // PHASE 2: SCORING (Analyze all products)
       console.log('📊 PHASE 2: Scoring products...');
       try {
-        const scoreResults = await scoringEngine.scoreAllPosts(userId);
+        const scoreResults = await scoringEngine.scoreAllContent(userId);
         result.execution.phase2_scoring = {
           success: true,
           productsScored: scoreResults.total

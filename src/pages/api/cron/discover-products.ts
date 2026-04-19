@@ -51,8 +51,14 @@ export default async function handler(
           .eq('user_id', user.user_id)
           .maybeSingle();
         
+        const discoverySettings = {
+          limit: 50,
+          minPrice: settings?.min_product_price || undefined,
+          maxPrice: settings?.max_product_price || undefined
+        };
+
         // Discover products from REAL affiliate networks only
-        const discoveryResult = await smartProductDiscovery.discoverProducts(user.user_id, settings);
+        const discoveryResult = await smartProductDiscovery.discoverProducts(user.user_id, discoverySettings);
         
         results.push({
           userId: user.user_id,

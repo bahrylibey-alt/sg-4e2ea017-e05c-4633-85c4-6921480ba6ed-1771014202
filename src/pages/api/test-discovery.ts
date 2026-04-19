@@ -52,7 +52,7 @@ export default async function handler(
 
     // Step 2: Run product discovery
     console.log('🔍 Running product discovery...');
-    const result = await smartProductDiscovery.discoverProducts(user.id, 50);
+    const result = await smartProductDiscovery.discoverProducts(user.id, { limit: 50 });
 
     console.log(`✅ Discovery complete: ${result.totalDiscovered} products`);
 

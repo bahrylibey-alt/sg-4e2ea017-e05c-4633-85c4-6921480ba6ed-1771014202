@@ -40,11 +40,13 @@ export const decisionEngine = {
       }
 
       // Calculate score
-      const scoreResult = scoringEngine.calculateScore({
-        clicks: post.clicks || 0,
-        impressions: post.impressions || 0,
-        conversions: post.conversions || 0,
-        revenue: Number(post.revenue || 0),
+      const scoreResult = scoringEngine.calculateAdvancedScore({
+        current: {
+          clicks: post.clicks || 0,
+          impressions: post.impressions || 0,
+          conversions: post.conversions || 0,
+          revenue: Number(post.revenue || 0),
+        }
       });
 
       // WINNER: Score > 0.08
@@ -143,7 +145,7 @@ export const decisionEngine = {
   }> {
     try {
       // Score all posts first
-      const scoreResults = await scoringEngine.scoreAllPosts(userId);
+      const scoreResults = await scoringEngine.scoreAllContent(userId);
 
       if (scoreResults.total === 0) {
         return {

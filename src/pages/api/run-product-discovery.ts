@@ -32,8 +32,14 @@ export default async function handler(
       .eq('user_id', userId)
       .maybeSingle();
 
+    const discoverySettings = {
+      limit: 50,
+      minPrice: settings?.min_product_price || undefined,
+      maxPrice: settings?.max_product_price || undefined
+    };
+
     // Run discovery
-    const result = await smartProductDiscovery.discoverProducts(userId, settings);
+    const result = await smartProductDiscovery.discoverProducts(userId, discoverySettings);
 
     // Log activity
     await supabase
