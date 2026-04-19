@@ -67,9 +67,34 @@ export function AutopilotDashboard() {
       setIsChecking(true);
       const response = await fetch("/api/diagnose-system");
       const data = await response.json();
+      
+      // If the response is missing the summary object (e.g. an error occurred), provide a safe fallback
+      if (!response.ok || !data.summary) {
+        setSystemStatus({
+          status: 'CRITICAL',
+          message: data.error || 'Diagnostic check failed',
+          summary: { total: 0, passed: 0, failed: 1, warnings: 0 },
+          results: [{ 
+            step: 'System Diagnostic', 
+            status: 'FAIL', 
+            message: data.error || 'Could not fetch system status',
+            action: 'Check server connection'
+          }],
+          actions: ['Check server logs and connection']
+        });
+        return;
+      }
+      
       setSystemStatus(data);
     } catch (error) {
       console.error("Failed to check status:", error);
+      setSystemStatus({
+        status: 'CRITICAL',
+        message: 'Connection failed',
+        summary: { total: 0, passed: 0, failed: 1, warnings: 0 },
+        results: [{ step: 'Connection', status: 'FAIL', message: 'Failed to connect to diagnostic server' }],
+        actions: ['Check internet connection']
+      });
     } finally {
       setIsChecking(false);
     }
@@ -248,11 +273,11 @@ export function AutopilotDashboard() {
             <AlertDescription>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold">System Status: {systemStatus.status}</p>
-                  <p className="text-sm">{systemStatus.message}</p>
+                  <p className="font-semibold">System Status: {systemStatus?.status || 'UNKNOWN'}</p>
+                  <p className="text-sm">{systemStatus?.message || ''}</p>
                 </div>
-                <Badge variant={systemStatus.status === 'READY' ? 'default' : 'destructive'}>
-                  {systemStatus.summary.passed} / {systemStatus.summary.total} PASSED
+                <Badge variant={systemStatus?.status === 'READY' ? 'default' : 'destructive'}>
+                  {systemStatus?.summary?.passed || 0} / {systemStatus?.summary?.total || 0} PASSED
                 </Badge>
               </div>
             </AlertDescription>
@@ -261,15 +286,15 @@ export function AutopilotDashboard() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Issues Found</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-red-500">{systemStatus.summary.failed + systemStatus.summary.warnings}</div></CardContent>
+              <CardContent><div className="text-4xl font-bold text-red-500">{(systemStatus?.summary?.failed || 0) + (systemStatus?.summary?.warnings || 0)}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Fixed</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold text-green-500">{systemStatus.summary.passed}</div></CardContent>
+              <CardContent><div className="text-4xl font-bold text-green-500">{systemStatus?.summary?.passed || 0}</div></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Failed</CardTitle></CardHeader>
-              <CardContent><div className="text-4xl font-bold">{systemStatus.summary.failed}</div></CardContent>
+              <CardContent><div className="text-4xl font-bold">{systemStatus?.summary?.failed || 0}</div></CardContent>
             </Card>
           </div>
 
@@ -277,7 +302,7 @@ export function AutopilotDashboard() {
             <CardHeader><CardTitle>System Diagnostics:</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {systemStatus.results.map((result, index) => (
+                {systemStatus?.results?.map((result, index) => (
                   <div key={index} className="flex items-start gap-3 p-3 rounded-lg border">
                     {getStatusIcon(result.status)}
                     <div className="flex-1">
@@ -294,7 +319,7 @@ export function AutopilotDashboard() {
             </CardContent>
           </Card>
 
-          {systemStatus.actions.length > 0 && (
+          {systemStatus?.actions && systemStatus.actions.length > 0 && (
             <Card>
               <CardHeader><CardTitle>Recommendations:</CardTitle></CardHeader>
               <CardContent>
