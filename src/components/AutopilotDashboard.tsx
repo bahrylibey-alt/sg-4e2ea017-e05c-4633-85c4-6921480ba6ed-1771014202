@@ -34,13 +34,15 @@ export function AutopilotDashboard() {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const getUserId = async () => {
+    const initializeAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        setIsAuthenticated(true);
         
         const { data } = await supabase
           .from('user_settings')
@@ -53,14 +55,16 @@ export function AutopilotDashboard() {
         }
       }
     };
-    getUserId();
+    initializeAuth();
   }, []);
 
   useEffect(() => {
-    checkSystemStatus();
-    const interval = setInterval(checkSystemStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (isAuthenticated) {
+      checkSystemStatus();
+      const interval = setInterval(checkSystemStatus, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
 
   const checkSystemStatus = async () => {
     try {
@@ -68,7 +72,6 @@ export function AutopilotDashboard() {
       const response = await fetch("/api/diagnose-system");
       const data = await response.json();
       
-      // If the response is missing the summary object (e.g. an error occurred), provide a safe fallback
       if (!response.ok || !data.summary) {
         setSystemStatus({
           status: 'CRITICAL',
@@ -101,6 +104,15 @@ export function AutopilotDashboard() {
   };
 
   const runQuickFix = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Not Authenticated",
+        description: "Please log in first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setIsChecking(true);
       toast({
@@ -110,6 +122,15 @@ export function AutopilotDashboard() {
 
       const response = await fetch("/api/quick-fix", { method: "POST" });
       const result = await response.json();
+
+      if (response.status === 401) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to use Quick Fix",
+          variant: "destructive"
+        });
+        return;
+      }
 
       if (result.success) {
         toast({
@@ -137,7 +158,7 @@ export function AutopilotDashboard() {
   };
 
   const handleToggle = async (checked: boolean) => {
-    if (!userId) return;
+    if (!userId || !isAuthenticated) return;
     
     try {
       setIsEnabled(checked);
@@ -156,7 +177,15 @@ export function AutopilotDashboard() {
   };
 
   const runAutopilot = async () => {
-    if (!userId) return;
+    if (!userId || !isAuthenticated) {
+      toast({
+        title: "Not Authenticated",
+        description: "Please log in first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsRunning(true);
     try {
       toast({ title: "Running Autopilot", description: "Processing products and campaigns..." });
@@ -166,7 +195,18 @@ export function AutopilotDashboard() {
         body: JSON.stringify({ userId })
       });
       const data = await response.json();
+      
+      if (response.status === 401) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to run autopilot",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       if (!response.ok) throw new Error(data.error || 'Failed to run autopilot');
+      
       toast({ title: "Success", description: "Autopilot cycle completed" });
       await checkSystemStatus();
     } catch (error: any) {
@@ -177,13 +217,32 @@ export function AutopilotDashboard() {
   };
 
   const discoverProducts = async () => {
-    if (!userId) return;
+    if (!userId || !isAuthenticated) {
+      toast({
+        title: "Not Authenticated",
+        description: "Please log in first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsDiscovering(true);
     try {
       toast({ title: "Finding Products", description: "Discovering from connected networks..." });
       const response = await fetch(`/api/run-product-discovery?userId=${userId}`);
       const data = await response.json();
+      
+      if (response.status === 401) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to discover products",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       if (!response.ok) throw new Error(data.error || 'Failed to discover products');
+      
       toast({ title: "Success", description: data.message });
       await checkSystemStatus();
     } catch (error: any) {
@@ -212,7 +271,7 @@ export function AutopilotDashboard() {
     return variants[status] as any;
   };
 
-  if (!userId) {
+  if (!isAuthenticated) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -299,7 +358,7 @@ export function AutopilotDashboard() {
           </div>
 
           <Card>
-            <CardHeader><CardTitle>System Diagnostics:</CardTitle></CardHeader>
+            <CardHeader><CardTitle>System Diagnostics</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {systemStatus?.results?.map((result, index) => (
@@ -321,7 +380,7 @@ export function AutopilotDashboard() {
 
           {systemStatus?.actions && systemStatus.actions.length > 0 && (
             <Card>
-              <CardHeader><CardTitle>Recommendations:</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Recommendations</CardTitle></CardHeader>
               <CardContent>
                 <ul className="space-y-2">
                   {systemStatus.actions.map((action, index) => (
