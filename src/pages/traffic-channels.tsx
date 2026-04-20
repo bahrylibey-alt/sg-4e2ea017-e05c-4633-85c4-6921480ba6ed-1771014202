@@ -25,13 +25,14 @@ import {
   MessageSquare,
   Share2,
   Mail,
-  BarChart3
+  BarChart3,
+  Power,
+  PowerOff
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/SEO";
 import { trafficAutomationService } from "@/services/trafficAutomationService";
-import { useRouter } from "next/navigation";
 
 const TRAFFIC_CHANNELS = [
   {
@@ -124,11 +125,10 @@ export default function TrafficChannels() {
   const [channelAnalytics, setChannelAnalytics] = useState<ChannelAnalytics[]>([]);
   const [isAutopilotActive, setIsAutopilotActive] = useState(false);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const router = useRouter();
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -143,7 +143,6 @@ export default function TrafficChannels() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // SINGLE SOURCE OF TRUTH: user_settings.autopilot_enabled
       const { data: settings } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
@@ -163,25 +162,20 @@ export default function TrafficChannels() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get REAL data from posted_content table grouped by platform
       const { data: posts } = await supabase
         .from('posted_content')
         .select('platform, impressions, clicks')
         .eq('user_id', user.id)
         .eq('status', 'posted');
 
-      console.log('📊 Loading REAL channel stats from database:', posts);
-
       const channelStatus: Record<string, boolean> = {};
       const stats: Record<string, { views: number; clicks: number }> = {};
 
-      // Initialize all channels
       TRAFFIC_CHANNELS.forEach(channel => {
         channelStatus[channel.id] = false;
         stats[channel.id] = { views: 0, clicks: 0 };
       });
 
-      // Aggregate REAL data by platform
       const platformMap: Record<string, string> = {
         'facebook': 'facebook-groups',
         'instagram': 'instagram-stories',
@@ -202,18 +196,10 @@ export default function TrafficChannels() {
             stats[channelId] = { views: 0, clicks: 0 };
           }
           
-          // REAL DATA ONLY - no multiplication, no fake numbers
           stats[channelId].views += post.impressions || 0;
           stats[channelId].clicks += post.clicks || 0;
-          
-          // Channel is active if it has any posts
           channelStatus[channelId] = true;
         }
-      });
-
-      console.log('✅ REAL channel stats loaded:', {
-        stats,
-        channelStatus
       });
 
       setActiveChannels(channelStatus);
@@ -228,21 +214,17 @@ export default function TrafficChannels() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get REAL data from posted_content table (NO FAKE DATA)
       const { data: posts } = await supabase
         .from('posted_content')
         .select('platform, impressions, clicks, conversions, revenue')
         .eq('user_id', user.id)
         .eq('status', 'posted');
 
-      console.log('📊 Loading REAL analytics from database:', posts);
-
       if (!posts || posts.length === 0) {
         setChannelAnalytics([]);
         return;
       }
 
-      // Aggregate REAL data by platform
       const platformData: Record<string, ChannelAnalytics> = {};
 
       posts.forEach(post => {
@@ -259,20 +241,16 @@ export default function TrafficChannels() {
           };
         }
 
-        // REAL DATA ONLY - straight from database
         platformData[platform].views += post.impressions || 0;
         platformData[platform].clicks += post.clicks || 0;
         platformData[platform].conversions += post.conversions || 0;
         platformData[platform].revenue += Number(post.revenue) || 0;
       });
 
-      // Calculate conversion rates from REAL data
       const analytics = Object.values(platformData).map(data => ({
         ...data,
         conversionRate: data.clicks > 0 ? (data.conversions / data.clicks) * 100 : 0
       }));
-
-      console.log('✅ REAL analytics loaded:', analytics);
 
       setChannelAnalytics(analytics.sort((a, b) => b.conversionRate - a.conversionRate));
     } catch (error) {
@@ -294,8 +272,8 @@ export default function TrafficChannels() {
         if (result.success) {
           setActiveChannels(prev => ({ ...prev, [channelId]: false }));
           toast({
-            title: "Channel Stopped",
-            description: `${channel.name} has been deactivated`,
+            title: "Channel Deactivated",
+            description: `${channel.name} has been stopped`,
           });
         }
       } else {
@@ -440,7 +418,6 @@ export default function TrafficChannels() {
                       </div>
                     </div>
 
-                    {/* Visual progress bar for conversion rate */}
                     <div className="mt-2">
                       <Progress 
                         value={Math.min(analytics.conversionRate * 20, 100)} 
@@ -462,50 +439,91 @@ export default function TrafficChannels() {
             const isLoading = loading[channel.id] || false;
 
             return (
-              <Card key={channel.id} className={`transition-all ${isActive ? 'border-green-500/50' : ''}`}>
+              <Card 
+                key={channel.id} 
+                className={`transition-all relative overflow-hidden ${
+                  isActive 
+                    ? 'border-2 border-green-500 bg-green-50/30 dark:bg-green-950/10' 
+                    : 'border-2 border-gray-200 dark:border-gray-800'
+                }`}
+              >
+                {/* Status Badge - Top Right */}
+                <div className="absolute top-4 right-4 z-10">
+                  {isActive ? (
+                    <Badge className="bg-green-500 hover:bg-green-600 text-white flex items-center gap-1">
+                      <Power className="w-3 h-3" />
+                      ACTIVE
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <PowerOff className="w-3 h-3" />
+                      INACTIVE
+                    </Badge>
+                  )}
+                </div>
+
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-12 h-12 rounded-lg ${channel.color} flex items-center justify-center`}>
-                        <channel.icon className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg">{channel.name}</CardTitle>
-                        <CardDescription className="mt-1">{channel.description}</CardDescription>
-                      </div>
+                  <div className="flex items-start gap-3 pr-24">
+                    <div className={`w-12 h-12 rounded-lg ${channel.color} flex items-center justify-center flex-shrink-0`}>
+                      <channel.icon className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg">{channel.name}</CardTitle>
+                      <CardDescription className="mt-1">{channel.description}</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
+
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">Traffic Potential</div>
-                        <div className="font-semibold">{channel.traffic}</div>
+                    {/* Channel Info */}
+                    <div className="flex items-center justify-between text-sm">
+                      <div>
+                        <div className="text-muted-foreground">Traffic Potential</div>
+                        <div className="font-semibold text-base">{channel.traffic}</div>
                       </div>
-                      <div className="space-y-1 text-right">
-                        <div className="text-sm text-muted-foreground">Type</div>
-                        <Badge variant="outline">{channel.automation}</Badge>
+                      <div className="text-right">
+                        <div className="text-muted-foreground">Type</div>
+                        <Badge variant="outline" className="mt-1">{channel.automation}</Badge>
                       </div>
                     </div>
 
-                    {isActive && (
-                      <div className="grid grid-cols-2 gap-4 pt-3 border-t">
-                        <div>
-                          <div className="text-sm text-muted-foreground">Views</div>
+                    {/* Stats - Only show when active */}
+                    {isActive && stats.views > 0 && (
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                        <div className="text-center">
+                          <div className="text-sm text-muted-foreground mb-1">Views</div>
                           <div className="text-2xl font-bold text-blue-600">{stats.views}</div>
                         </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Clicks</div>
+                        <div className="text-center">
+                          <div className="text-sm text-muted-foreground mb-1">Clicks</div>
                           <div className="text-2xl font-bold text-green-600">{stats.clicks}</div>
                         </div>
                       </div>
                     )}
 
+                    {/* Toggle Switch */}
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <Label htmlFor={`channel-${channel.id}`} className="text-sm font-medium">
+                        {isActive ? 'Channel is running' : 'Click to activate'}
+                      </Label>
+                      <Switch
+                        id={`channel-${channel.id}`}
+                        checked={isActive}
+                        onCheckedChange={() => toggleChannel(channel.id)}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    {/* Action Button */}
                     <Button 
                       onClick={() => toggleChannel(channel.id)}
                       disabled={isLoading}
-                      className={`w-full ${isActive ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                      className={`w-full ${
+                        isActive 
+                          ? 'bg-red-600 hover:bg-red-700 text-white' 
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      }`}
                     >
                       {isLoading ? (
                         <>
