@@ -57,7 +57,7 @@ interface ConversionEvent {
   source: string;
   verified: boolean;
   created_at: string;
-  converted_at: string;
+  converted_at?: string;
 }
 
 interface TrackingStats {
