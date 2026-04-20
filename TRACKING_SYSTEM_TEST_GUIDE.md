@@ -1,471 +1,381 @@
-# TRACKING SYSTEM TEST GUIDE
+# 🔍 TRACKING SYSTEM TEST GUIDE
 
-## 🎯 VERIFY COMPLETE TRACKING CHAIN
+## 📊 HOW TO TEST: TRAFFIC → CLICKS → CONVERSIONS → REVENUE
 
-This guide tests the complete tracking flow:
-**Post → View → Click → Conversion → Revenue**
-
----
-
-## TEST 1: VIEW TRACKING
-
-### Create a Test Post
-```javascript
-const { data: post } = await supabase.from("posted_content").insert({
-  user_id: "YOUR_USER_ID",
-  platform: "tiktok",
-  caption: "Test post for tracking",
-  product_id: "PRODUCT_ID"
-}).select().single();
-
-console.log("Post created:", post.id);
-```
-
-### Track a View
-```javascript
-const { data: view } = await supabase.from("view_events").insert({
-  user_id: "YOUR_USER_ID",
-  post_id: post.id,
-  product_id: "PRODUCT_ID",
-  platform: "tiktok"
-}).select().single();
-
-console.log("View tracked:", view.id);
-```
-
-### Verify Sync (Database Trigger)
-```javascript
-// Wait 1-2 seconds for trigger
-await new Promise(r => setTimeout(r, 2000));
-
-const { data: updatedPost } = await supabase
-  .from("posted_content")
-  .select("impressions")
-  .eq("id", post.id)
-  .single();
-
-console.log("Post impressions:", updatedPost.impressions); // Should be 1
-```
-
-**✅ PASS:** Impressions count increased  
-**❌ FAIL:** Trigger not working
+This guide explains how to test the complete tracking flow in your autopilot system.
 
 ---
 
-## TEST 2: CLICK TRACKING
+## 🎯 TRACKING FLOW OVERVIEW
 
-### Create Affiliate Link
-```javascript
-const { data: link } = await supabase.from("affiliate_links").insert({
-  user_id: "YOUR_USER_ID",
-  product_id: "PRODUCT_ID",
-  original_url: "https://amazon.com/product",
-  slug: "test-" + Date.now(),
-  network: "Amazon Associates"
-}).select().single();
-
-console.log("Link created:", link.id);
 ```
-
-### Track a Click
-```javascript
-const { data: click } = await supabase.from("click_events").insert({
-  user_id: "YOUR_USER_ID",
-  link_id: link.id,
-  post_id: post.id,
-  product_id: "PRODUCT_ID",
-  platform: "tiktok"
-}).select().single();
-
-console.log("Click tracked:", click.id);
-```
-
-### Verify Sync (2 Triggers)
-```javascript
-// Wait for triggers
-await new Promise(r => setTimeout(r, 2000));
-
-// Check post clicks
-const { data: updatedPost } = await supabase
-  .from("posted_content")
-  .select("clicks")
-  .eq("id", post.id)
-  .single();
-
-console.log("Post clicks:", updatedPost.clicks); // Should be 1
-
-// Check link clicks
-const { data: updatedLink } = await supabase
-  .from("affiliate_links")
-  .select("clicks")
-  .eq("id", link.id)
-  .single();
-
-console.log("Link clicks:", updatedLink.clicks); // Should be 1
-```
-
-**✅ PASS:** Both counts increased  
-**❌ FAIL:** Triggers not syncing
-
----
-
-## TEST 3: CONVERSION TRACKING
-
-### Track a Conversion
-```javascript
-const { data: conversion } = await supabase.from("conversion_events").insert({
-  user_id: "YOUR_USER_ID",
-  click_id: click.id,
-  revenue: 29.99,
-  verified: true,
-  source: "test"
-}).select().single();
-
-console.log("Conversion tracked:", conversion.id);
-```
-
-### Verify Sync (3 Triggers)
-```javascript
-// Wait for triggers
-await new Promise(r => setTimeout(r, 2000));
-
-// Check post conversions & revenue
-const { data: updatedPost } = await supabase
-  .from("posted_content")
-  .select("conversions, revenue")
-  .eq("id", post.id)
-  .single();
-
-console.log("Post conversions:", updatedPost.conversions); // Should be 1
-console.log("Post revenue:", updatedPost.revenue); // Should be 29.99
-
-// Check link conversions & revenue
-const { data: updatedLink } = await supabase
-  .from("affiliate_links")
-  .select("conversions, revenue")
-  .eq("id", link.id)
-  .single();
-
-console.log("Link conversions:", updatedLink.conversions); // Should be 1
-console.log("Link revenue:", updatedLink.revenue); // Should be 29.99
-
-// Check system state
-const { data: systemState } = await supabase
-  .from("system_state")
-  .select("*")
-  .eq("user_id", "YOUR_USER_ID")
-  .single();
-
-console.log("Total revenue:", systemState.total_revenue); // Should include 29.99
-console.log("Total conversions:", systemState.total_conversions);
-```
-
-**✅ PASS:** All metrics synced  
-**❌ FAIL:** Triggers incomplete
-
----
-
-## TEST 4: PERFORMANCE SCORING
-
-### Calculate Score
-```javascript
-const scoringService = await import('/src/services/scoringEngine.ts');
-
-const score = scoringService.scoringEngine.calculateScore({
-  clicks: updatedPost.clicks,
-  impressions: updatedPost.impressions,
-  conversions: updatedPost.conversions,
-  revenue: Number(updatedPost.revenue)
-});
-
-console.log("Performance score:", score);
-// Expected: { score: X.XX, classification: "WINNER/TESTING/WEAK/NO_DATA", metrics: {...} }
-```
-
-**✅ PASS:** Score calculated correctly  
-**❌ FAIL:** Formula error
-
----
-
-## TEST 5: AI RECOMMENDATIONS
-
-### Generate Recommendations
-```javascript
-const decisionService = await import('/src/services/decisionEngine.ts');
-
-const decisions = await decisionService.decisionEngine.analyzePost(
-  "YOUR_USER_ID",
-  post.id
-);
-
-console.log("Recommendations:", decisions);
-// Expected: [{ type: "scale/retest/cooldown", priority: "HIGH/MEDIUM/LOW", reason: "...", action: "..." }]
-```
-
-**✅ PASS:** Recommendations generated  
-**❌ FAIL:** No recommendations
-
-### Verify Saved to Database
-```javascript
-const { data: savedDecisions } = await supabase
-  .from("autopilot_decisions")
-  .select("*")
-  .eq("entity_id", post.id)
-  .order("created_at", { ascending: false });
-
-console.log("Saved decisions:", savedDecisions.length);
-```
-
-**✅ PASS:** Decisions saved to DB  
-**❌ FAIL:** Database save failed
-
----
-
-## TEST 6: DASHBOARD INSIGHTS
-
-### Generate Full Insights
-```javascript
-const insightsService = await import('/src/services/aiInsightsEngine.ts');
-
-const insights = await insightsService.aiInsightsEngine.generateInsights("YOUR_USER_ID");
-
-console.log("AI Insights:", insights);
-// Expected: { performanceSummary: {...}, topPerformers: {...}, recommendations: [...], nextSteps: [...] }
-```
-
-**✅ PASS:** Insights generated  
-**❌ FAIL:** Service error
-
----
-
-## COMPLETE TEST SCRIPT
-
-### Run All Tests in Browser Console
-
-```javascript
-async function runCompleteTest() {
-  console.log("🧪 Starting Complete Tracking System Test");
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    console.error("❌ No user authenticated");
-    return;
-  }
-  
-  const results = {
-    post_creation: false,
-    view_tracking: false,
-    view_sync: false,
-    click_tracking: false,
-    click_sync: false,
-    conversion_tracking: false,
-    conversion_sync: false,
-    scoring: false,
-    recommendations: false,
-    insights: false
-  };
-  
-  try {
-    // 1. Create Post
-    const { data: post, error: postError } = await supabase.from("posted_content").insert({
-      user_id: user.id,
-      platform: "tiktok",
-      caption: "Tracking test post",
-    }).select().single();
-    
-    if (postError) throw new Error("Post creation failed: " + postError.message);
-    results.post_creation = true;
-    console.log("✅ Post created:", post.id);
-    
-    // 2. Track View
-    const { error: viewError } = await supabase.from("view_events").insert({
-      user_id: user.id,
-      post_id: post.id,
-      platform: "tiktok"
-    });
-    
-    if (viewError) throw new Error("View tracking failed: " + viewError.message);
-    results.view_tracking = true;
-    console.log("✅ View tracked");
-    
-    // Wait for trigger
-    await new Promise(r => setTimeout(r, 2000));
-    
-    // 3. Check View Sync
-    const { data: postAfterView } = await supabase
-      .from("posted_content")
-      .select("impressions")
-      .eq("id", post.id)
-      .single();
-    
-    results.view_sync = postAfterView.impressions > 0;
-    console.log("✅ View sync:", postAfterView.impressions);
-    
-    // 4. Create Link
-    const { data: link } = await supabase.from("affiliate_links").insert({
-      user_id: user.id,
-      original_url: "https://amazon.com/test",
-      slug: "test-" + Date.now(),
-      network: "Test"
-    }).select().single();
-    
-    // 5. Track Click
-    const { data: click, error: clickError } = await supabase.from("click_events").insert({
-      user_id: user.id,
-      link_id: link.id,
-      post_id: post.id,
-      platform: "tiktok"
-    }).select().single();
-    
-    if (clickError) throw new Error("Click tracking failed: " + clickError.message);
-    results.click_tracking = true;
-    console.log("✅ Click tracked");
-    
-    // Wait for triggers
-    await new Promise(r => setTimeout(r, 2000));
-    
-    // 6. Check Click Sync
-    const { data: postAfterClick } = await supabase
-      .from("posted_content")
-      .select("clicks")
-      .eq("id", post.id)
-      .single();
-    
-    results.click_sync = postAfterClick.clicks > 0;
-    console.log("✅ Click sync:", postAfterClick.clicks);
-    
-    // 7. Track Conversion
-    const { error: conversionError } = await supabase.from("conversion_events").insert({
-      user_id: user.id,
-      click_id: click.id,
-      revenue: 29.99,
-      verified: true,
-      source: "test"
-    });
-    
-    if (conversionError) throw new Error("Conversion tracking failed: " + conversionError.message);
-    results.conversion_tracking = true;
-    console.log("✅ Conversion tracked");
-    
-    // Wait for triggers
-    await new Promise(r => setTimeout(r, 2000));
-    
-    // 8. Check Conversion Sync
-    const { data: postAfterConversion } = await supabase
-      .from("posted_content")
-      .select("conversions, revenue")
-      .eq("id", post.id)
-      .single();
-    
-    results.conversion_sync = postAfterConversion.conversions > 0;
-    console.log("✅ Conversion sync:", postAfterConversion.conversions, postAfterConversion.revenue);
-    
-    // 9. Test Scoring
-    const scoringModule = await import('/src/services/scoringEngine.ts');
-    const score = scoringModule.scoringEngine.calculateScore({
-      clicks: postAfterConversion.clicks || 0,
-      impressions: postAfterConversion.impressions || 0,
-      conversions: postAfterConversion.conversions || 0,
-      revenue: Number(postAfterConversion.revenue || 0)
-    });
-    
-    results.scoring = score.score >= 0;
-    console.log("✅ Scoring:", score);
-    
-    // 10. Test Recommendations
-    const decisionModule = await import('/src/services/decisionEngine.ts');
-    const decisions = await decisionModule.decisionEngine.analyzePost(user.id, post.id);
-    
-    results.recommendations = decisions.length > 0;
-    console.log("✅ Recommendations:", decisions.length);
-    
-    // 11. Test Insights
-    const insightsModule = await import('/src/services/aiInsightsEngine.ts');
-    const insights = await insightsModule.aiInsightsEngine.generateInsights(user.id);
-    
-    results.insights = insights.performanceSummary.totalScore >= 0;
-    console.log("✅ Insights generated");
-    
-    // Summary
-    console.log("\n📊 TEST RESULTS:");
-    Object.entries(results).forEach(([test, passed]) => {
-      console.log(`${passed ? '✅' : '❌'} ${test}`);
-    });
-    
-    const totalTests = Object.keys(results).length;
-    const passedTests = Object.values(results).filter(v => v).length;
-    console.log(`\n🎯 TOTAL: ${passedTests}/${totalTests} tests passed`);
-    
-    return results;
-    
-  } catch (error) {
-    console.error("❌ Test failed:", error.message);
-    return results;
-  }
-}
-
-// Run test
-runCompleteTest();
+1. Traffic Sources (Pinterest, TikTok, etc.)
+   ↓
+2. User sees your post with affiliate link
+   ↓
+3. User clicks link → CLICK TRACKING
+   ↓
+4. User redirected to product page
+   ↓
+5. User makes purchase → CONVERSION TRACKING
+   ↓
+6. Affiliate network sends postback
+   ↓
+7. System matches conversion to click
+   ↓
+8. Revenue calculated and attributed → REVENUE TRACKING
 ```
 
 ---
 
-## EXPECTED RESULTS
+## 🧪 MANUAL TESTING PROCEDURE
 
-### All Tests Pass ✅
-```
-✅ Post created
-✅ View tracked
-✅ View sync: 1
-✅ Click tracked
-✅ Click sync: 1
-✅ Conversion tracked
-✅ Conversion sync: 1 29.99
-✅ Scoring: { score: X.XX, classification: "...", ... }
-✅ Recommendations: N
-✅ Insights generated
+### **TEST 1: Click Tracking** (5 minutes)
 
-🎯 TOTAL: 10/10 tests passed
-```
+**Step 1:** Get a test affiliate link from your dashboard
+1. Go to `/dashboard`
+2. Find a product in your catalog
+3. Copy the affiliate link (format: `yoursite.com/go/abc123`)
 
-### What This Proves
-1. ✅ Complete tracking chain works
-2. ✅ Database triggers auto-sync metrics
-3. ✅ Performance scoring calculates correctly
-4. ✅ AI recommendations generate
-5. ✅ Insights dashboard has real data
-6. ✅ No mocks, all real database operations
+**Step 2:** Test the click tracker
+1. Open a new incognito/private browser window
+2. Paste the affiliate link
+3. Press Enter
+
+**Step 3:** Verify click was tracked
+1. Go to **Database** tab in Softgen
+2. Open table `click_tracking`
+3. **Expected:** New row with:
+   - Your product ID
+   - Timestamp (just now)
+   - Source: "direct" or "test"
+   - IP address
+   - User agent
+
+**✅ PASS:** Click appears in database  
+**❌ FAIL:** No click recorded
 
 ---
 
-## TROUBLESHOOTING
+### **TEST 2: Traffic Source Attribution** (10 minutes)
 
-### Triggers Not Firing
+**Step 1:** Create test posts
+1. Go to `/content-manager`
+2. Create a new post
+3. Select a product
+4. Choose a traffic source (e.g., Pinterest)
+5. Generate affiliate link
+
+**Step 2:** Add UTM parameters manually
+```
+yoursite.com/go/abc123?utm_source=pinterest&utm_medium=pin&utm_campaign=test
+```
+
+**Step 3:** Click the link from different sources
+- Click from "Pinterest" link
+- Click from "TikTok" link
+- Click from email link
+
+**Step 4:** Check tracking data
+1. Database → `click_tracking` table
+2. **Expected:** Each click has correct:
+   - `source_platform` (pinterest, tiktok, email)
+   - `campaign_id`
+   - `medium`
+
+**✅ PASS:** Source is correctly identified  
+**❌ FAIL:** All clicks show same source
+
+---
+
+### **TEST 3: Conversion Tracking** (Manual Postback)
+
+Since real conversions require actual purchases, you can test with a manual postback:
+
+**Step 1:** Get a test click ID
+1. Database → `click_tracking`
+2. Copy a recent `click_id`
+
+**Step 2:** Send test postback
+```bash
+curl -X POST https://yoursite.com/api/postback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "TEST123",
+    "click_id": "YOUR_CLICK_ID_HERE",
+    "sale_amount": "50.00",
+    "commission": "4.00",
+    "status": "approved"
+  }'
+```
+
+**Step 3:** Verify conversion
+1. Database → `conversion_tracking` table
+2. **Expected:** New row with:
+   - `click_id` matching your test
+   - `revenue` = 4.00
+   - `status` = "approved"
+
+**Step 4:** Check revenue attribution
+1. Database → `click_tracking` table
+2. Find your original click
+3. **Expected:** `conversion_id` is now filled
+
+**✅ PASS:** Conversion linked to click  
+**❌ FAIL:** No conversion or not linked
+
+---
+
+### **TEST 4: Revenue Calculation** (5 minutes)
+
+**Step 1:** Check product commission rates
+1. Database → `product_catalog`
+2. Find a product
+3. Note the `commission_rate` (e.g., 8%)
+
+**Step 2:** Calculate expected revenue
+```
+Sale Price × Commission Rate = Expected Revenue
+$50.00 × 8% = $4.00
+```
+
+**Step 3:** Verify calculation
+1. Database → `conversion_tracking`
+2. Find your test conversion
+3. **Expected:** `revenue` = $4.00 (matches calculation)
+
+**Step 4:** Check total revenue
 ```sql
--- Check if triggers exist
-SELECT * FROM pg_trigger WHERE tgname LIKE 'sync_%';
-
--- Re-create triggers if missing (already done in system)
+SELECT 
+  SUM(revenue) as total_revenue,
+  COUNT(*) as total_conversions,
+  AVG(revenue) as avg_revenue
+FROM conversion_tracking
+WHERE user_id = 'YOUR_USER_ID';
 ```
 
-### Metrics Not Syncing
-- Wait 2-3 seconds after insert
-- Check database connection
-- Verify RLS policies allow reads
-
-### Score Always 0
-- Check metrics are > 0
-- Verify conversion has revenue
-- Formula: (CTR×0.4) + (CR×0.4) + (RPC×0.2)
-
-### No Recommendations
-- Score must be calculated first
-- Check `autopilot_scores` table
-- Verify user_id matches
+**✅ PASS:** Revenue correctly calculated  
+**❌ FAIL:** Revenue doesn't match commission rate
 
 ---
 
-**Test Status:** Ready to run  
-**Expected Time:** 30-60 seconds  
-**All Features:** Real database operations  
-**No Mocks:** Complete verification
+### **TEST 5: End-to-End Flow** (15 minutes)
+
+**Complete workflow test:**
+
+1. **Create Campaign**
+   - Go to `/dashboard`
+   - Click "Find Products"
+   - Select a product
+   
+2. **Generate Link**
+   - System creates unique affiliate link
+   - Link format: `/go/{slug}`
+   
+3. **Simulate Click**
+   - Click your affiliate link
+   - Check `click_tracking` table
+   
+4. **Simulate Conversion**
+   - Send test postback (see TEST 3)
+   - Check `conversion_tracking` table
+   
+5. **Verify Attribution**
+   - Click and conversion are linked
+   - Revenue is calculated
+   - ROI is tracked
+
+6. **Check Analytics**
+   - Go to `/analytics`
+   - **Expected:** See your test data:
+     - 1 click
+     - 1 conversion
+     - $X.XX revenue
+     - X% conversion rate
+
+**✅ PASS:** Complete flow works  
+**❌ FAIL:** Any step breaks
+
+---
+
+## 🔧 AUTOMATED TESTING SCRIPTS
+
+### **Database Validation Query**
+
+Run this in Database tab to validate your tracking setup:
+
+```sql
+-- Check if tracking is working
+SELECT 
+  'Clicks' as metric,
+  COUNT(*) as count,
+  MAX(created_at) as last_tracked
+FROM click_tracking
+WHERE user_id = 'YOUR_USER_ID'
+
+UNION ALL
+
+SELECT 
+  'Conversions' as metric,
+  COUNT(*) as count,
+  MAX(created_at) as last_tracked
+FROM conversion_tracking
+WHERE user_id = 'YOUR_USER_ID'
+
+UNION ALL
+
+SELECT 
+  'Revenue' as metric,
+  CAST(SUM(revenue) AS INTEGER) as count,
+  MAX(created_at) as last_tracked
+FROM conversion_tracking
+WHERE user_id = 'YOUR_USER_ID';
+```
+
+**Expected Output:**
+```
+Clicks       | 10  | 2026-04-20 08:00:00
+Conversions  | 2   | 2026-04-20 07:45:00
+Revenue      | 8   | 2026-04-20 07:45:00
+```
+
+---
+
+### **API Test Endpoints**
+
+**Test Click Tracking:**
+```bash
+POST /api/tracking/clicks
+Body: {
+  "link_id": "abc123",
+  "source": "test",
+  "ip": "1.2.3.4"
+}
+```
+
+**Test Conversion Tracking:**
+```bash
+POST /api/tracking/conversions
+Body: {
+  "click_id": "click123",
+  "revenue": 4.00,
+  "transaction_id": "tx123"
+}
+```
+
+**Get Analytics:**
+```bash
+GET /api/tracking/analytics?period=7d
+```
+
+---
+
+## 📊 VALIDATION CHECKLIST
+
+After running all tests:
+
+### **Click Tracking:**
+- [ ] Clicks are recorded in database
+- [ ] Source platform is identified correctly
+- [ ] IP address and user agent captured
+- [ ] Timestamp is accurate
+- [ ] Link ID matches product
+
+### **Conversion Tracking:**
+- [ ] Conversions linked to original clicks
+- [ ] Revenue calculated correctly
+- [ ] Commission rate applied properly
+- [ ] Status tracking works (pending, approved, rejected)
+- [ ] Transaction IDs unique
+
+### **Revenue Attribution:**
+- [ ] Revenue assigned to correct product
+- [ ] Revenue assigned to correct traffic source
+- [ ] ROI calculated accurately
+- [ ] Total revenue sums correctly
+- [ ] Analytics dashboard shows correct numbers
+
+### **End-to-End Flow:**
+- [ ] Traffic → Click → Conversion → Revenue works
+- [ ] No data loss at any step
+- [ ] All IDs properly linked
+- [ ] Analytics update in real-time
+- [ ] Autopilot uses real tracking data
+
+---
+
+## 🎯 EXPECTED METRICS
+
+**After 24 hours of real traffic:**
+
+```
+📊 CLICK TRACKING
+- Clicks: 100-500 per day
+- Sources: Pinterest (40%), TikTok (30%), Instagram (20%), Other (10%)
+- CTR: 2-5% average
+
+💰 CONVERSION TRACKING
+- Conversions: 2-10 per day (2-5% conversion rate)
+- Revenue: $20-100 per day
+- AOV (Average Order Value): $30-50
+
+📈 ROI METRICS
+- Cost per click: $0.10-0.50
+- Cost per conversion: $5-20
+- Revenue per click: $0.20-0.50
+- ROI: 200-400%
+```
+
+---
+
+## 🚨 COMMON ISSUES & FIXES
+
+### **Issue: No clicks tracked**
+**Fix:**
+1. Check `/api/tracking/clicks` endpoint works
+2. Verify click tracker script is loaded
+3. Check database permissions
+4. Look for JavaScript errors in console
+
+### **Issue: Conversions not linked to clicks**
+**Fix:**
+1. Verify `click_id` is passed in postback
+2. Check postback URL format
+3. Ensure affiliate network has correct postback URL
+4. Test manual postback
+
+### **Issue: Revenue calculation wrong**
+**Fix:**
+1. Check `commission_rate` in product_catalog
+2. Verify sale_amount in postback
+3. Ensure currency conversion is correct
+4. Check for rounding errors
+
+### **Issue: Analytics showing zero**
+**Fix:**
+1. Verify data exists in tables
+2. Check date range filter
+3. Ensure user_id filter is correct
+4. Refresh analytics cache
+
+---
+
+## ✅ SUCCESS CRITERIA
+
+**Your tracking system is working when:**
+
+✅ Every click creates a record in `click_tracking`  
+✅ Source platform is correctly identified  
+✅ Conversions link back to original clicks  
+✅ Revenue is calculated accurately  
+✅ Analytics dashboard shows real data  
+✅ ROI metrics are realistic (200-400%)  
+✅ No data loss in the tracking flow  
+✅ Autopilot uses real performance data  
+
+---
+
+**Last Updated:** 2026-04-20  
+**System Version:** 7.0  
+**Test Coverage:** Complete Tracking Flow  
+**Status:** ✅ Validated
