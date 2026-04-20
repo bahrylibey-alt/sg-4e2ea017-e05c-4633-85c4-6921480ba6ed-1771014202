@@ -1,317 +1,320 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
-/**
- * COMPLETE END-TO-END SYSTEM TEST
- * Tests ALL components in order:
- * 1. Database connectivity
- * 2. User data
- * 3. Integrations
- * 4. Products
- * 5. Tracking (views → clicks → conversions)
- * 6. Autopilot scoring
- * 7. Content generation
- * 
- * NO AUTH REQUIRED - For testing purposes
- */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const testResults: any = {
-    timestamp: new Date().toISOString(),
-    userId: 'cd9e03a2-9620-44be-a934-ac2ed69db465',
-    tests: {},
-    summary: {
-      total: 0,
-      passed: 0,
-      failed: 0
-    }
-  };
-
   try {
-    const userId = testResults.userId;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // TEST 1: Database Connectivity
-    console.log('TEST 1: Database Connectivity...');
-    try {
-      const { data, error } = await supabase.from('profiles').select('count').single();
-      testResults.tests.database = {
-        name: 'Database Connectivity',
-        status: error ? '❌ FAILED' : '✅ PASSED',
-        error: error?.message
-      };
-    } catch (e: any) {
-      testResults.tests.database = {
-        name: 'Database Connectivity',
-        status: '❌ FAILED',
-        error: e.message
-      };
+    // Get auth token from header
+    const authHeader = req.headers.authorization;
+    let userId: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
     }
 
-    // TEST 2: User Exists
-    console.log('TEST 2: User Exists...');
-    const { data: user } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .eq('id', userId)
-      .single();
+    const results: any[] = [];
 
-    testResults.tests.user = {
-      name: 'User Exists',
-      status: user ? '✅ PASSED' : '❌ FAILED',
-      data: user ? { email: user.email } : null
-    };
+    // TEST 1: Authentication
+    if (!userId) {
+      results.push({
+        step: '1. Authentication',
+        status: 'FAIL',
+        message: 'Not authenticated - Please log in first',
+        action: 'Visit /dashboard and log in'
+      });
+      return res.status(200).json({
+        status: 'CRITICAL',
+        message: 'Authentication required',
+        summary: { total: 1, passed: 0, failed: 1, warnings: 0 },
+        results,
+        actions: ['Log in to your account to continue']
+      });
+    }
 
-    // TEST 3: Affiliate Networks Connected
-    console.log('TEST 3: Affiliate Networks...');
-    const { data: affiliateNetworks } = await supabase
-      .from('integrations')
-      .select('provider, provider_name, status')
+    results.push({
+      step: '1. Authentication',
+      status: 'PASS',
+      message: `Authenticated as user: ${userId}`,
+      data: { userId }
+    });
+
+    // TEST 2: Database Connectivity
+    try {
+      const { data: testQuery, error: dbError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .limit(1);
+      
+      if (dbError) throw dbError;
+      
+      results.push({
+        step: '2. Database',
+        status: 'PASS',
+        message: 'Database connection successful'
+      });
+    } catch (error: any) {
+      results.push({
+        step: '2. Database',
+        status: 'FAIL',
+        message: `Database error: ${error.message}`
+      });
+    }
+
+    // TEST 3: User Settings
+    const { data: userSettings, error: settingsError } = await supabase
+      .from('user_settings')
+      .select('*')
       .eq('user_id', userId)
-      .eq('category', 'affiliate');
+      .maybeSingle();
 
-    testResults.tests.affiliateNetworks = {
-      name: 'Affiliate Networks',
-      status: affiliateNetworks && affiliateNetworks.length > 0 ? '✅ PASSED' : '❌ FAILED',
-      count: affiliateNetworks?.length || 0,
-      networks: affiliateNetworks?.map(n => n.provider_name)
-    };
+    if (!userSettings) {
+      results.push({
+        step: '3. User Settings',
+        status: 'WARN',
+        message: 'No user settings found',
+        action: 'Click Quick Fix to create default settings'
+      });
+    } else {
+      results.push({
+        step: '3. User Settings',
+        status: 'PASS',
+        message: 'User settings configured'
+      });
+    }
 
-    // TEST 4: Traffic Sources Connected
-    console.log('TEST 4: Traffic Sources...');
-    const { data: trafficSources } = await supabase
-      .from('integrations')
-      .select('provider, provider_name, status')
+    // TEST 4: Autopilot Settings
+    const { data: autopilotConfig } = await supabase
+      .from('autopilot_settings')
+      .select('*')
       .eq('user_id', userId)
-      .eq('category', 'tracking');
+      .maybeSingle();
 
-    testResults.tests.trafficSources = {
-      name: 'Traffic Sources',
-      status: trafficSources && trafficSources.length > 0 ? '✅ PASSED' : '⚠️ WARNING',
-      count: trafficSources?.length || 0,
-      sources: trafficSources?.map(s => s.provider_name)
-    };
+    if (!autopilotConfig) {
+      results.push({
+        step: '4. Autopilot Config',
+        status: 'WARN',
+        message: 'Autopilot not configured',
+        action: 'Click Quick Fix to configure autopilot'
+      });
+    } else {
+      results.push({
+        step: '4. Autopilot Config',
+        status: 'PASS',
+        message: 'Autopilot configured',
+        data: {
+          min_price: (autopilotConfig as any).min_product_price,
+          max_price: (autopilotConfig as any).max_product_price,
+          budget: (autopilotConfig as any).daily_budget || (autopilotConfig as any).budget_limit
+        }
+      });
+    }
 
-    // TEST 5: Products Available
-    console.log('TEST 5: Products...');
+    // TEST 5: Affiliate Networks
+    const { data: integrations } = await supabase
+      .from('affiliate_integrations')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (!integrations || integrations.length === 0) {
+      results.push({
+        step: '5. Affiliate Networks',
+        status: 'WARN',
+        message: 'No integrations connected',
+        action: 'Visit /integrations to add affiliate networks'
+      });
+    } else {
+      results.push({
+        step: '5. Affiliate Networks',
+        status: 'PASS',
+        message: `${integrations.length} network(s) connected`,
+        data: { networks: integrations.map((i: any) => i.provider_name) }
+      });
+    }
+
+    // TEST 6: Product Catalog
     const { data: products } = await supabase
-      .from('affiliate_links')
-      .select('id, product_name, network')
+      .from('product_catalog')
+      .select('id, name, network, commission_rate, price')
       .eq('user_id', userId)
       .limit(5);
 
-    testResults.tests.products = {
-      name: 'Products Available',
-      status: products && products.length > 0 ? '✅ PASSED' : '❌ FAILED',
-      count: products?.length || 0,
-      samples: products?.map(p => p.product_name)
+    if (!products || products.length === 0) {
+      results.push({
+        step: '6. Product Catalog',
+        status: 'WARN',
+        message: 'No products discovered yet',
+        action: 'Click "Find Products" to discover from networks'
+      });
+    } else {
+      results.push({
+        step: '6. Product Catalog',
+        status: 'PASS',
+        message: `${products.length} products in catalog`,
+        data: { sample: products }
+      });
+    }
+
+    // TEST 7: Traffic Sources
+    const { data: trafficSources } = await supabase
+      .from('traffic_sources')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (!trafficSources || trafficSources.length === 0) {
+      results.push({
+        step: '7. Traffic Sources',
+        status: 'WARN',
+        message: 'No traffic sources configured',
+        action: 'Visit /integrations to connect traffic sources'
+      });
+    } else {
+      results.push({
+        step: '7. Traffic Sources',
+        status: 'PASS',
+        message: `${trafficSources.length} traffic source(s) active`,
+        data: { sources: trafficSources.map((t: any) => t.platform) }
+      });
+    }
+
+    // TEST 8: Click Tracking
+    const { data: clicks, count: clickCount } = await supabase
+      .from('click_tracking')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .limit(5);
+
+    if (!clicks || clicks.length === 0) {
+      results.push({
+        step: '8. Click Tracking',
+        status: 'INFO',
+        message: 'No clicks tracked yet (normal for new setup)',
+        action: 'Clicks will appear after traffic starts flowing'
+      });
+    } else {
+      results.push({
+        step: '8. Click Tracking',
+        status: 'PASS',
+        message: `${clickCount || 0} total clicks tracked`,
+        data: { recentClicks: clicks.slice(0, 3) }
+      });
+    }
+
+    // TEST 9: Conversions
+    const { data: conversions, count: conversionCount } = await supabase
+      .from('conversion_tracking')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .limit(5);
+
+    if (!conversions || conversions.length === 0) {
+      results.push({
+        step: '9. Conversions',
+        status: 'INFO',
+        message: 'No conversions yet (normal for new setup)',
+        action: 'Conversions will appear after sales occur'
+      });
+    } else {
+      const totalRevenue = conversions.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0);
+      results.push({
+        step: '9. Conversions',
+        status: 'PASS',
+        message: `${conversionCount || 0} conversions tracked`,
+        data: { 
+          conversions: conversionCount,
+          totalRevenue: `$${totalRevenue.toFixed(2)}`
+        }
+      });
+    }
+
+    // TEST 10: AI Autopilot Scores
+    const { data: scores } = await supabase
+      .from('performance_scores')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (!scores || scores.length === 0) {
+      results.push({
+        step: '10. AI Scores',
+        status: 'INFO',
+        message: 'No AI scores yet',
+        action: 'Click "Run Autopilot" to generate scores'
+      });
+    } else {
+      const avgScore = scores.reduce((sum: number, s: any) => sum + (Number(s.score) || 0), 0) / scores.length;
+      results.push({
+        step: '10. AI Scores',
+        status: 'PASS',
+        message: `${scores.length} items scored`,
+        data: { 
+          averageScore: avgScore.toFixed(3),
+          recentScores: scores.slice(0, 3).map((s: any) => ({
+            id: s.content_id,
+            score: Number(s.score).toFixed(3),
+            classification: s.classification
+          }))
+        }
+      });
+    }
+
+    // Calculate summary
+    const summary = {
+      total: results.length,
+      passed: results.filter((r: any) => r.status === 'PASS').length,
+      failed: results.filter((r: any) => r.status === 'FAIL').length,
+      warnings: results.filter((r: any) => r.status === 'WARN').length
     };
 
-    // TEST 6: Tracking - Views
-    console.log('TEST 6: View Tracking...');
-    const testContentId = 'test-complete-' + Date.now();
-    const viewResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/tracking/views`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content_id: testContentId,
-        platform: 'test',
-        views: 100,
-        user_id: userId
-      })
+    // Determine overall status
+    let status = 'READY';
+    if (summary.failed > 0) {
+      status = 'CRITICAL';
+    } else if (summary.warnings > 2) {
+      status = 'PARTIAL';
+    }
+
+    // Generate actions
+    const actions: string[] = [];
+    results.forEach((r: any) => {
+      if (r.action) actions.push(r.action);
     });
-    const viewData = await viewResponse.json();
-
-    testResults.tests.viewTracking = {
-      name: 'View Tracking',
-      status: viewData.tracked ? '✅ PASSED' : '⚠️ WARNING',
-      tracked: viewData.tracked
-    };
-
-    // Wait for DB write
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // TEST 7: Tracking - Clicks
-    console.log('TEST 7: Click Tracking...');
-    const testClickId = 'test-click-' + Date.now();
-    const linkId = products?.[0]?.id;
-
-    if (linkId) {
-      const clickResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/tracking/clicks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          link_id: linkId,
-          content_id: testContentId,
-          platform: 'test',
-          user_id: userId,
-          click_id: testClickId,
-          ip_address: '192.168.1.1'
-        })
-      });
-      const clickData = await clickResponse.json();
-
-      testResults.tests.clickTracking = {
-        name: 'Click Tracking',
-        status: clickData.tracked ? '✅ PASSED' : '⚠️ WARNING',
-        tracked: clickData.tracked
-      };
-
-      // Wait for DB write
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // TEST 8: Tracking - Conversions
-      console.log('TEST 8: Conversion Tracking...');
-      const conversionResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/tracking/conversions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          click_id: testClickId,
-          content_id: testContentId,
-          user_id: userId,
-          revenue: 25.99,
-          source: 'webhook',
-          verified: true
-        })
-      });
-      const conversionData = await conversionResponse.json();
-
-      testResults.tests.conversionTracking = {
-        name: 'Conversion Tracking',
-        status: conversionData.tracked ? '✅ PASSED' : '⚠️ WARNING',
-        tracked: conversionData.tracked,
-        verified: conversionData.verified
-      };
-    } else {
-      testResults.tests.clickTracking = {
-        name: 'Click Tracking',
-        status: '⚠️ SKIPPED',
-        reason: 'No products available'
-      };
-      testResults.tests.conversionTracking = {
-        name: 'Conversion Tracking',
-        status: '⚠️ SKIPPED',
-        reason: 'No products available'
-      };
-    }
-
-    // TEST 9: Verify Tracking in Database
-    console.log('TEST 9: Database Verification...');
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const { data: viewEvents } = await supabase
-      .from('view_events')
-      .select('id')
-      .eq('content_id', testContentId);
-
-    const { data: clickEvents } = await supabase
-      .from('click_events')
-      .select('id')
-      .eq('click_id', testClickId);
-
-    const { data: conversionEvents } = await supabase
-      .from('conversion_events')
-      .select('id, revenue')
-      .eq('click_id', testClickId);
-
-    testResults.tests.databaseVerification = {
-      name: 'Database Verification',
-      status: viewEvents && viewEvents.length > 0 ? '✅ PASSED' : '⚠️ WARNING',
-      viewEvents: viewEvents?.length || 0,
-      clickEvents: clickEvents?.length || 0,
-      conversionEvents: conversionEvents?.length || 0
-    };
-
-    // TEST 10: Posted Content Exists
-    console.log('TEST 10: Posted Content...');
-    const { data: postedContent } = await supabase
-      .from('posted_content')
-      .select('id, platform, clicks, revenue')
-      .eq('user_id', userId)
-      .eq('status', 'posted')
-      .limit(10);
-
-    testResults.tests.postedContent = {
-      name: 'Posted Content',
-      status: postedContent && postedContent.length > 0 ? '✅ PASSED' : '⚠️ WARNING',
-      count: postedContent?.length || 0,
-      totalClicks: postedContent?.reduce((sum, p) => sum + (p.clicks || 0), 0) || 0,
-      totalRevenue: postedContent?.reduce((sum, p) => sum + (p.revenue || 0), 0) || 0
-    };
-
-    // TEST 11: Autopilot Status
-    console.log('TEST 11: Autopilot Status...');
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('autopilot_enabled, last_autopilot_run')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    testResults.tests.autopilot = {
-      name: 'Autopilot Status',
-      status: settings?.autopilot_enabled ? '✅ PASSED' : '⚠️ WARNING',
-      enabled: settings?.autopilot_enabled || false,
-      lastRun: settings?.last_autopilot_run || 'Never'
-    };
-
-    // TEST 12: System State
-    console.log('TEST 12: System State...');
-    const { data: systemState } = await supabase
-      .from('system_state')
-      .select('state, total_views, total_clicks, last_post_at')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    testResults.tests.systemState = {
-      name: 'System State',
-      status: systemState ? '✅ PASSED' : '⚠️ WARNING',
-      state: systemState?.state || 'UNKNOWN',
-      metrics: systemState || null
-    };
-
-    // Calculate Summary
-    const tests = Object.values(testResults.tests);
-    testResults.summary.total = tests.length;
-    testResults.summary.passed = tests.filter((t: any) => t.status.includes('✅')).length;
-    testResults.summary.failed = tests.filter((t: any) => t.status.includes('❌')).length;
-    testResults.summary.warnings = tests.filter((t: any) => t.status.includes('⚠️')).length;
-
-    // Overall Status
-    if (testResults.summary.failed === 0) {
-      testResults.overallStatus = '✅ ALL SYSTEMS OPERATIONAL';
-    } else if (testResults.summary.failed <= 2) {
-      testResults.overallStatus = '⚠️ MOSTLY WORKING - MINOR ISSUES';
-    } else {
-      testResults.overallStatus = '❌ CRITICAL ISSUES DETECTED';
-    }
-
-    // Recommendations
-    testResults.recommendations = [];
-    
-    if (!testResults.tests.affiliateNetworks?.status?.includes('✅')) {
-      testResults.recommendations.push('Connect affiliate networks in Settings → Integrations');
-    }
-    if (!testResults.tests.products?.status?.includes('✅')) {
-      testResults.recommendations.push('Add products or run product discovery');
-    }
-    if (!testResults.tests.autopilot?.status?.includes('✅')) {
-      testResults.recommendations.push('Enable autopilot in Dashboard');
-    }
-
-    console.log('All tests complete!');
 
     return res.status(200).json({
-      success: true,
-      ...testResults
+      status,
+      message: status === 'READY' 
+        ? 'System fully operational' 
+        : status === 'PARTIAL'
+        ? 'System partially configured - some features need setup'
+        : 'System needs configuration',
+      summary,
+      results,
+      actions: [...new Set(actions)] // Remove duplicates
     });
 
   } catch (error: any) {
-    console.error('System test error:', error);
+    console.error('Test system error:', error);
     return res.status(500).json({
-      success: false,
-      error: error.message,
-      partialResults: testResults
+      status: 'ERROR',
+      message: error.message,
+      summary: { total: 0, passed: 0, failed: 1, warnings: 0 },
+      results: [{
+        step: 'System Test',
+        status: 'FAIL',
+        message: error.message
+      }],
+      actions: ['Check server logs for details']
     });
   }
 }
