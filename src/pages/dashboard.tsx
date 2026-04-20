@@ -66,8 +66,8 @@ export default function Dashboard() {
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal 
-          isOpen={showAuthModal} 
-          onClose={() => setShowAuthModal(false)}
+          open={showAuthModal} 
+          onOpenChange={(open) => setShowAuthModal(open)}
           onSuccess={handleAuthSuccess}
         />
       )}
