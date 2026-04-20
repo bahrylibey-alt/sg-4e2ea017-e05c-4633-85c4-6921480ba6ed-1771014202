@@ -1,148 +1,132 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
-/**
- * Quick Fix Endpoint - Automatically fixes common configuration issues
- */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const fixes: Array<{
-    issue: string;
-    action: string;
-    status: 'FIXED' | 'SKIPPED' | 'FAILED';
-    message: string;
-  }> = [];
-
   try {
-    // Get current user from session
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
+    // Use service role key for admin operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get authorization header
+    const authHeader = req.headers.authorization;
+    let userId: string | null = null;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+    }
+
+    if (!userId) {
       return res.status(401).json({ 
-        error: 'Not authenticated',
-        message: 'Please log in first'
+        success: false,
+        error: "Not authenticated",
+        message: "Please log in first"
       });
     }
 
-    console.log(`🔧 Running quick fixes for user ${user.id}`);
+    console.log(`🔧 Running Quick Fix for user: ${userId}`);
 
-    // FIX 1: Ensure user profile exists
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle();
+    const fixes: any[] = [];
+    let fixedCount = 0;
+    let failedCount = 0;
 
-    if (!profile) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email,
-          full_name: user.email?.split('@')[0] || 'User'
-        });
-
-      fixes.push({
-        issue: 'Missing user profile',
-        action: 'Created profile',
-        status: profileError ? 'FAILED' : 'FIXED',
-        message: profileError ? profileError.message : 'Profile created successfully'
-      });
-    } else {
-      fixes.push({
-        issue: 'User profile',
-        action: 'Check profile',
-        status: 'SKIPPED',
-        message: 'Profile already exists'
-      });
-    }
-
-    // FIX 2: Create default user settings if missing
-    const { data: settings } = await supabase
+    // FIX 1: User Settings
+    const { data: settings, error: settingsError } = await supabase
       .from('user_settings')
-      .select('id')
-      .eq('user_id', user.id)
+      .select('*')
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (!settings) {
-      const { error: settingsError } = await supabase
+      const { error: createSettingsError } = await supabase
         .from('user_settings')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           timezone: 'UTC',
           notification_email: true,
           conversion_tracking_enabled: true,
           commission_calculations_enabled: true
         } as any);
 
-      fixes.push({
-        issue: 'Missing user settings',
-        action: 'Created default settings',
-        status: settingsError ? 'FAILED' : 'FIXED',
-        message: settingsError ? settingsError.message : 'Settings created'
-      });
-    } else {
-      fixes.push({
-        issue: 'User settings',
-        action: 'Check settings',
-        status: 'SKIPPED',
-        message: 'Settings already configured'
-      });
+      if (createSettingsError) {
+        console.error('Failed to create user settings:', createSettingsError);
+        failedCount++;
+        fixes.push({
+          issue: 'Missing user settings',
+          action: 'Attempted to create',
+          status: 'FAILED',
+          error: createSettingsError.message
+        });
+      } else {
+        fixedCount++;
+        fixes.push({
+          issue: 'Missing user settings',
+          action: 'Created default settings',
+          status: 'FIXED'
+        });
+      }
     }
 
-    // FIX 3: Create default autopilot settings if missing
-    const { data: autopilot } = await supabase
+    // FIX 2: Autopilot Settings
+    const { data: autopilotSettings, error: autopilotError } = await supabase
       .from('autopilot_settings')
-      .select('id')
-      .eq('user_id', user.id)
+      .select('*')
+      .eq('user_id', userId)
       .maybeSingle();
 
-    if (!autopilot) {
-      const { error: autopilotError } = await supabase
+    if (!autopilotSettings) {
+      const { error: createAutopilotError } = await supabase
         .from('autopilot_settings')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           enabled: true,
-          daily_budget: 10,
           min_product_price: 10,
           max_product_price: 500,
-          auto_optimize: true,
-          auto_pause_low_performers: true
-        });
+          budget_limit: 100,
+          daily_budget: 10
+        } as any);
 
-      fixes.push({
-        issue: 'Missing autopilot settings',
-        action: 'Created default autopilot config',
-        status: autopilotError ? 'FAILED' : 'FIXED',
-        message: autopilotError ? autopilotError.message : 'Autopilot configured'
-      });
-    } else {
-      fixes.push({
-        issue: 'Autopilot settings',
-        action: 'Check autopilot',
-        status: 'SKIPPED',
-        message: 'Autopilot already configured'
-      });
+      if (createAutopilotError) {
+        console.error('Failed to create autopilot settings:', createAutopilotError);
+        failedCount++;
+        fixes.push({
+          issue: 'Missing autopilot settings',
+          action: 'Attempted to create',
+          status: 'FAILED',
+          error: createAutopilotError.message
+        });
+      } else {
+        fixedCount++;
+        fixes.push({
+          issue: 'Missing autopilot settings',
+          action: 'Created default autopilot config',
+          status: 'FIXED'
+        });
+      }
     }
 
-    // FIX 4: Create default campaign if none exists
-    const { data: campaigns } = await supabase
+    // FIX 3: Default Campaign
+    const { data: campaigns, error: campaignsError } = await supabase
       .from('campaigns')
-      .select('id')
-      .eq('user_id', user.id)
+      .select('*')
+      .eq('user_id', userId)
       .limit(1);
 
     if (!campaigns || campaigns.length === 0) {
-      const { error: campaignError } = await supabase
+      const { error: createCampaignError } = await supabase
         .from('campaigns')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           name: 'Main Campaign',
           status: 'active',
           budget: 10,
@@ -150,48 +134,79 @@ export default async function handler(
           start_date: new Date().toISOString()
         } as any);
 
-      fixes.push({
-        issue: 'No campaigns',
-        action: 'Created default campaign',
-        status: campaignError ? 'FAILED' : 'FIXED',
-        message: campaignError ? campaignError.message : 'Campaign created'
-      });
-    } else {
-      fixes.push({
-        issue: 'Campaigns',
-        action: 'Check campaigns',
-        status: 'SKIPPED',
-        message: 'Campaigns already exist'
-      });
+      if (createCampaignError) {
+        console.error('Failed to create campaign:', createCampaignError);
+        failedCount++;
+        fixes.push({
+          issue: 'No campaigns',
+          action: 'Attempted to create',
+          status: 'FAILED',
+          error: createCampaignError.message
+        });
+      } else {
+        fixedCount++;
+        fixes.push({
+          issue: 'No campaigns',
+          action: 'Created default campaign',
+          status: 'FIXED'
+        });
+      }
     }
 
-    // Summary
-    const fixed = fixes.filter(f => f.status === 'FIXED').length;
-    const failed = fixes.filter(f => f.status === 'FAILED').length;
-    const skipped = fixes.filter(f => f.status === 'SKIPPED').length;
+    // FIX 4: Traffic Sources
+    const { data: trafficSources, error: trafficError } = await supabase
+      .from('traffic_sources')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (!trafficSources || trafficSources.length === 0) {
+      const defaultSources = [
+        { user_id: userId, name: 'Pinterest', platform: 'pinterest', status: 'active' },
+        { user_id: userId, name: 'TikTok', platform: 'tiktok', status: 'active' },
+      ];
+
+      const { error: createTrafficError } = await supabase
+        .from('traffic_sources')
+        .insert(defaultSources as any);
+
+      if (createTrafficError) {
+        console.error('Failed to create traffic sources:', createTrafficError);
+        failedCount++;
+        fixes.push({
+          issue: 'No traffic sources',
+          action: 'Attempted to create',
+          status: 'FAILED',
+          error: createTrafficError.message
+        });
+      } else {
+        fixedCount++;
+        fixes.push({
+          issue: 'No traffic sources',
+          action: 'Created default traffic sources',
+          status: 'FIXED'
+        });
+      }
+    }
+
+    console.log(`✅ Quick Fix complete: ${fixedCount} fixed, ${failedCount} failed`);
 
     return res.status(200).json({
-      success: failed === 0,
+      success: failedCount === 0,
+      message: `Quick Fix ${failedCount === 0 ? 'complete' : 'partial'}`,
       summary: {
-        total: fixes.length,
-        fixed,
-        failed,
-        skipped
+        fixed: fixedCount,
+        failed: failedCount,
+        total: fixes.length
       },
-      fixes,
-      nextSteps: failed > 0 
-        ? ['Check failed fixes and try again']
-        : fixed > 0
-        ? ['Configuration updated! Visit /integrations to connect affiliate networks']
-        : ['Everything is already configured! Visit /dashboard to start']
+      fixes
     });
 
   } catch (error: any) {
-    console.error('❌ Quick fix error:', error);
+    console.error('❌ Quick Fix error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
-      fixes
+      error: error.message
     });
   }
 }
