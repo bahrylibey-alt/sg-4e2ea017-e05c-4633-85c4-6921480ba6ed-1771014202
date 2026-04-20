@@ -2,234 +2,251 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    // Use service role key for diagnostics
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if user is authenticated
+    // Get auth token from header
     const authHeader = req.headers.authorization;
-    let userId: string | null = null;
-    let isAuthenticated = false;
+    let user = null;
 
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
-      isAuthenticated = !!user;
+      const { data: { user: authUser } } = await supabase.auth.getUser(token);
+      user = authUser;
     }
 
-    const results: any[] = [];
-    let passCount = 0;
-    let failCount = 0;
-    let warnCount = 0;
+    const checks: any[] = [];
 
-    // CHECK 1: Authentication
-    if (!isAuthenticated || !userId) {
-      failCount++;
-      results.push({
-        step: 'Authentication',
+    // TEST 1: Database Connection
+    try {
+      const { error: dbError } = await supabase
+        .from('user_settings')
+        .select('id')
+        .limit(1);
+      
+      if (dbError) throw dbError;
+      
+      checks.push({
+        component: 'Database',
+        status: 'PASS',
+        message: 'Database connection successful'
+      });
+    } catch (error: any) {
+      checks.push({
+        component: 'Database',
         status: 'FAIL',
-        message: 'Not authenticated - please log in',
-        action: 'Click "Log In" button to authenticate'
+        message: `Database error: ${error.message}`
+      });
+    }
+
+    // If not authenticated, return early with limited info
+    if (!user) {
+      checks.push({
+        component: 'Authentication',
+        status: 'FAIL',
+        message: 'Not authenticated',
+        action: 'Please log in to continue'
       });
 
       return res.status(200).json({
         status: 'CRITICAL',
         message: 'Authentication required',
-        summary: { total: 1, passed: 0, failed: 1, warnings: 0 },
-        results,
-        actions: ['Log in to access dashboard features']
+        summary: {
+          total: checks.length,
+          passed: checks.filter(c => c.status === 'PASS').length,
+          failed: checks.filter(c => c.status === 'FAIL').length,
+          warnings: 0
+        },
+        checks,
+        actions: ['Log in to access full system diagnostics']
       });
     }
 
-    passCount++;
-    results.push({
-      step: 'Authentication',
+    checks.push({
+      component: 'Authentication',
       status: 'PASS',
       message: 'User authenticated'
     });
 
-    // CHECK 2: User Settings
-    const { data: userSettings, error: settingsError } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // TEST 2: User Settings
+    try {
+      const { data: settings, error: settingsError } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    if (!userSettings) {
-      failCount++;
-      results.push({
-        step: 'User Settings',
-        status: 'FAIL',
-        message: 'User settings missing',
-        action: 'Click "Quick Fix" to create default settings'
-      });
-    } else {
-      passCount++;
-      results.push({
-        step: 'User Settings',
-        status: 'PASS',
-        message: 'Settings configured'
-      });
-    }
+      if (settingsError) throw settingsError;
 
-    // CHECK 3: Autopilot Settings
-    const { data: autopilotSettings, error: autopilotError } = await supabase
-      .from('autopilot_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!autopilotSettings) {
-      failCount++;
-      results.push({
-        step: 'Autopilot Settings',
-        status: 'FAIL',
-        message: 'Autopilot settings not configured',
-        action: 'Click "Quick Fix" to create default autopilot settings'
-      });
-    } else {
-      passCount++;
-      results.push({
-        step: 'Autopilot Settings',
-        status: 'PASS',
-        message: 'Autopilot configured'
-      });
-    }
-
-    // CHECK 4: Integrations
-    const { data: integrations, error: integrationsError } = await supabase
-      .from('integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'connected');
-
-    if (!integrations || integrations.length === 0) {
-      warnCount++;
-      results.push({
-        step: 'Integrations',
-        status: 'WARN',
-        message: 'No integrations connected',
-        action: 'Visit /integrations to connect affiliate networks (Amazon, AliExpress, etc.)'
-      });
-    } else {
-      passCount++;
-      results.push({
-        step: 'Integrations',
-        status: 'PASS',
-        message: `${integrations.length} network(s) connected`
-      });
-    }
-
-    // CHECK 5: Products
-    const { data: products, error: productsError } = await supabase
-      .from('product_catalog')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (!products || products.length === 0) {
-      warnCount++;
-      results.push({
-        step: 'Products',
-        status: 'WARN',
-        message: 'No products in catalog',
-        action: 'Click "Find Products" to discover products from connected networks'
-      });
-    } else {
-      passCount++;
-      results.push({
-        step: 'Products',
-        status: 'PASS',
-        message: 'Products available in catalog'
-      });
-    }
-
-    // CHECK 6: Campaigns
-    const { data: campaigns, error: campaignsError } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (!campaigns || campaigns.length === 0) {
-      warnCount++;
-      results.push({
-        step: 'Campaigns',
-        status: 'WARN',
-        message: 'No campaigns created',
-        action: 'Click "Quick Fix" to create a default campaign'
-      });
-    } else {
-      passCount++;
-      results.push({
-        step: 'Campaigns',
-        status: 'PASS',
-        message: 'Campaign(s) configured'
-      });
-    }
-
-    // Determine overall status
-    let overallStatus = 'READY';
-    if (failCount > 0) {
-      overallStatus = 'CRITICAL';
-    } else if (warnCount > 0) {
-      overallStatus = 'PARTIAL';
-    }
-
-    // Generate recommendations
-    const actions: string[] = [];
-    if (failCount > 0) {
-      actions.push('Click "Quick Fix" to automatically resolve configuration issues');
-    }
-    if (warnCount > 0) {
-      if (results.some(r => r.step === 'Integrations' && r.status === 'WARN')) {
-        actions.push('Visit /integrations to connect affiliate networks (Amazon, AliExpress, etc.)');
+      if (!settings) {
+        checks.push({
+          component: 'User Settings',
+          status: 'WARNING',
+          message: 'No user settings configured',
+          action: 'Click Quick Fix to create settings'
+        });
+      } else {
+        checks.push({
+          component: 'User Settings',
+          status: 'PASS',
+          message: 'Settings configured'
+        });
       }
-      if (results.some(r => r.step === 'Products' && r.status === 'WARN')) {
-        actions.push('Click "Find Products" to discover products from connected networks');
-      }
+    } catch (error: any) {
+      checks.push({
+        component: 'User Settings',
+        status: 'WARNING',
+        message: error.message,
+        action: 'Click Quick Fix to create settings'
+      });
     }
+
+    // TEST 3: Autopilot Settings
+    try {
+      const { data: autopilotSettings, error: autopilotError } = await supabase
+        .from('autopilot_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (autopilotError) throw autopilotError;
+
+      if (!autopilotSettings) {
+        checks.push({
+          component: 'Autopilot Settings',
+          status: 'WARNING',
+          message: 'Autopilot not configured',
+          action: 'Click Quick Fix to configure autopilot'
+        });
+      } else {
+        checks.push({
+          component: 'Autopilot Settings',
+          status: 'PASS',
+          message: 'Autopilot configured'
+        });
+      }
+    } catch (error: any) {
+      checks.push({
+        component: 'Autopilot Settings',
+        status: 'WARNING',
+        message: error.message,
+        action: 'Click Quick Fix to configure autopilot'
+      });
+    }
+
+    // TEST 4: Integrations
+    try {
+      const { data: integrations, count } = await supabase
+        .from('affiliate_integrations')
+        .select('*', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (!integrations || integrations.length === 0) {
+        checks.push({
+          component: 'Integrations',
+          status: 'WARNING',
+          message: 'No affiliate networks connected',
+          action: 'Visit /integrations to connect networks'
+        });
+      } else {
+        checks.push({
+          component: 'Integrations',
+          status: 'PASS',
+          message: `${integrations.length} network(s) connected`
+        });
+      }
+    } catch (error: any) {
+      checks.push({
+        component: 'Integrations',
+        status: 'WARNING',
+        message: 'Could not check integrations',
+        action: 'Visit /integrations page'
+      });
+    }
+
+    // TEST 5: Products
+    try {
+      const { data: products, count } = await supabase
+        .from('product_catalog')
+        .select('*', { count: 'exact' })
+        .eq('user_id', user.id)
+        .limit(1);
+
+      if (!products || products.length === 0) {
+        checks.push({
+          component: 'Products',
+          status: 'WARNING',
+          message: 'No products discovered yet',
+          action: 'Click "Find Products" to discover'
+        });
+      } else {
+        checks.push({
+          component: 'Products',
+          status: 'PASS',
+          message: `${count || 0} products in catalog`
+        });
+      }
+    } catch (error: any) {
+      checks.push({
+        component: 'Products',
+        status: 'WARNING',
+        message: 'Could not check products',
+        action: 'Click "Find Products" button'
+      });
+    }
+
+    // Calculate summary
+    const summary = {
+      total: checks.length,
+      passed: checks.filter(c => c.status === 'PASS').length,
+      failed: checks.filter(c => c.status === 'FAIL').length,
+      warnings: checks.filter(c => c.status === 'WARNING').length
+    };
+
+    // Determine status
+    let status = 'READY';
+    if (summary.failed > 0) {
+      status = 'CRITICAL';
+    } else if (summary.warnings > 2) {
+      status = 'PARTIAL';
+    }
+
+    // Collect actions
+    const actions = checks
+      .filter(c => c.action)
+      .map(c => c.action);
 
     return res.status(200).json({
-      status: overallStatus,
-      message: overallStatus === 'READY' 
-        ? 'All systems operational' 
-        : overallStatus === 'PARTIAL'
-        ? 'System partially configured - some features need setup'
-        : 'Critical issues detected - click Quick Fix',
-      summary: {
-        total: results.length,
-        passed: passCount,
-        failed: failCount,
-        warnings: warnCount
-      },
-      results,
-      actions
+      status,
+      message: status === 'READY' 
+        ? 'System fully operational' 
+        : status === 'PARTIAL'
+        ? 'System needs configuration'
+        : 'Critical issues detected',
+      summary,
+      checks,
+      actions: [...new Set(actions)]
     });
 
   } catch (error: any) {
-    console.error('❌ Diagnostic error:', error);
+    console.error('Diagnose system error:', error);
     return res.status(500).json({
       status: 'ERROR',
-      message: 'Diagnostic check failed',
-      summary: { total: 0, passed: 0, failed: 1, warnings: 0 },
-      results: [{
-        step: 'System Diagnostic',
+      message: 'System diagnostic failed',
+      error: error.message,
+      checks: [{
+        component: 'System',
         status: 'FAIL',
         message: error.message
       }],
-      actions: ['Check server logs for details']
+      actions: ['Check server logs', 'Try refreshing the page']
     });
   }
 }
