@@ -20,6 +20,7 @@ import {
   Search
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
 import { useToast } from "@/hooks/use-toast";
 import { SEO } from "@/components/SEO";
 
@@ -62,24 +63,34 @@ export default function ContentManager() {
   const loadContent = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use authService to prevent lock timeout
+      const user = await authService.getCurrentUser();
       if (!user) {
-        toast({ title: "Please sign in", variant: "destructive" });
+        console.log('No user found in loadContent');
+        setLoading(false);
         return;
       }
 
       const { data, error } = await supabase
         .from('generated_content')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading content:', error);
+        throw error;
+      }
 
       setContent(data || []);
       toast({ title: "✅ Content Loaded", description: `Found ${data?.length || 0} content pieces` });
     } catch (error: any) {
-      console.error('Error loading content:', error);
-      toast({ title: "Error loading content", description: error.message, variant: "destructive" });
+      console.error('Error in loadContent:', error);
+      toast({ 
+        title: "Error loading content", 
+        description: error.message || "Failed to load content",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
@@ -88,17 +99,14 @@ export default function ContentManager() {
   const filterContent = () => {
     let filtered = [...content];
 
-    // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter(c => c.status === statusFilter);
     }
 
-    // Type filter
     if (typeFilter !== "all") {
       filtered = filtered.filter(c => c.type === typeFilter);
     }
 
-    // Search filter
     if (searchQuery) {
       filtered = filtered.filter(c => 
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -209,7 +217,7 @@ export default function ContentManager() {
             <p className="text-muted-foreground">Review, edit, and manage AI-generated content</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={loadContent} variant="outline" size="sm">
+            <Button onClick={loadContent} variant="outline" size="sm" disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
