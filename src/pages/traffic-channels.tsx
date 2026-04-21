@@ -140,33 +140,62 @@ export default function TrafficChannels() {
 
   const loadAutopilotStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error in loadAutopilotStatus:', authError);
+        return;
+      }
+      
+      if (!user) {
+        console.log('No user found, skipping autopilot status load');
+        return;
+      }
 
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsError } = await supabase
         .from('user_settings')
         .select('autopilot_enabled')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      if (settingsError) {
+        console.error('Settings error:', settingsError);
+        return;
+      }
 
       if (settings) {
         setIsAutopilotActive(settings.autopilot_enabled || false);
       }
     } catch (error) {
       console.error('Error loading autopilot status:', error);
+      // Silently fail - don't show error to user
     }
   };
 
   const loadChannelStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error in loadChannelStatus:', authError);
+        return;
+      }
+      
+      if (!user) {
+        console.log('No user found, skipping channel status load');
+        return;
+      }
 
-      const { data: posts } = await supabase
+      const { data: posts, error: postsError } = await supabase
         .from('posted_content')
         .select('platform, impressions, clicks')
         .eq('user_id', user.id)
         .eq('status', 'posted');
+
+      if (postsError) {
+        console.error('Posts error:', postsError);
+        return;
+      }
 
       const channelStatus: Record<string, boolean> = {};
       const stats: Record<string, { views: number; clicks: number }> = {};
@@ -206,19 +235,34 @@ export default function TrafficChannels() {
       setChannelStats(stats);
     } catch (error) {
       console.error('Error loading channel status:', error);
+      // Silently fail - don't show error to user
     }
   };
 
   const loadChannelAnalytics = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error in loadChannelAnalytics:', authError);
+        return;
+      }
+      
+      if (!user) {
+        console.log('No user found, skipping analytics load');
+        return;
+      }
 
-      const { data: posts } = await supabase
+      const { data: posts, error: postsError } = await supabase
         .from('posted_content')
         .select('platform, impressions, clicks, conversions, revenue')
         .eq('user_id', user.id)
         .eq('status', 'posted');
+
+      if (postsError) {
+        console.error('Posts error:', postsError);
+        return;
+      }
 
       if (!posts || posts.length === 0) {
         setChannelAnalytics([]);
@@ -255,6 +299,7 @@ export default function TrafficChannels() {
       setChannelAnalytics(analytics.sort((a, b) => b.conversionRate - a.conversionRate));
     } catch (error) {
       console.error('Error loading channel analytics:', error);
+      // Silently fail - don't show error to user
     }
   };
 
@@ -265,6 +310,18 @@ export default function TrafficChannels() {
     setLoading(prev => ({ ...prev, [channelId]: true }));
 
     try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to manage traffic channels",
+          variant: "destructive"
+        });
+        setLoading(prev => ({ ...prev, [channelId]: false }));
+        return;
+      }
+
       const isCurrentlyActive = activeChannels[channelId];
       
       if (isCurrentlyActive) {
@@ -289,9 +346,10 @@ export default function TrafficChannels() {
 
       await loadChannelStatus();
     } catch (error: any) {
+      console.error('Error toggling channel:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to toggle channel. Please try again.",
         variant: "destructive"
       });
     } finally {
