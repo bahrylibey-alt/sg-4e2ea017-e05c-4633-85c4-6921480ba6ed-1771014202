@@ -15,7 +15,9 @@ interface DiscoveryResult {
 }
 
 /**
- * ADVANCED SMART PRODUCT DISCOVERY v7.0
+ * ADVANCED SMART PRODUCT DISCOVERY v8.0
+ * 
+ * ✅ REAL DATA ONLY - NO MOCKS
  * 
  * FEATURES:
  * - Real-time API integration with affiliate networks
@@ -24,16 +26,18 @@ interface DiscoveryResult {
  * - Category-based discovery
  * - Trend detection
  * 
- * STRICT RULES - REAL DATA ONLY:
- * - NO mock/fake products
- * - ALL products from real affiliate network APIs
- * - NO placeholder data
- * - Validates API keys before attempting discovery
+ * STRICT RULES:
+ * ❌ NO mock/fake products
+ * ❌ NO placeholder data
+ * ✅ ALL products from real affiliate network APIs
+ * ✅ Validates API keys before attempting discovery
+ * ✅ Clear user guidance when setup incomplete
  */
 
 export const smartProductDiscovery = {
   /**
    * Discover high-quality products from connected affiliate networks
+   * REAL DATA ONLY - validates configuration and provides clear guidance
    */
   async discoverProducts(userId: string, settings?: {
     limit?: number;
@@ -51,7 +55,10 @@ export const smartProductDiscovery = {
     };
 
     try {
-      console.log('🔍 Advanced Product Discovery: Starting for user:', userId);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('🔍 SMART PRODUCT DISCOVERY - REAL DATA ONLY');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('User ID:', userId);
 
       // Get user's autopilot settings
       const { data: autopilotSettings } = await supabase
@@ -65,9 +72,13 @@ export const smartProductDiscovery = {
       const minCommission = settings?.minCommissionRate || 5;
       const limit = settings?.limit || 50;
 
-      console.log(`📊 Discovery parameters: $${minPrice}-$${maxPrice}, min ${minCommission}% commission, limit ${limit}`);
+      console.log(`📊 Discovery Parameters:`);
+      console.log(`   Price Range: $${minPrice} - $${maxPrice}`);
+      console.log(`   Min Commission: ${minCommission}%`);
+      console.log(`   Product Limit: ${limit}`);
 
-      // Check for connected affiliate networks
+      // Step 1: Check for connected affiliate networks
+      console.log('\n📡 Step 1: Checking Connected Networks...');
       const { data: integrations, error: intError } = await supabase
         .from('integrations')
         .select('*')
@@ -76,124 +87,247 @@ export const smartProductDiscovery = {
         .eq('status', 'connected');
 
       if (intError) {
-        console.error('❌ Integration query error:', intError);
-        result.recommendations.push('Database error - check system logs');
+        console.error('❌ Database Error:', intError.message);
+        result.recommendations.push('❌ DATABASE ERROR');
+        result.recommendations.push(`Error: ${intError.message}`);
+        result.recommendations.push('Please contact support if this persists');
         return result;
       }
 
       if (!integrations || integrations.length === 0) {
-        console.log('⚠️ No affiliate networks connected');
-        result.recommendations.push('❌ NO AFFILIATE NETWORKS CONNECTED');
-        result.recommendations.push('You must connect at least one affiliate network to discover products');
+        console.log('⚠️  NO AFFILIATE NETWORKS CONNECTED');
+        console.log('');
+        result.recommendations.push('═══════════════════════════════════════════════════');
+        result.recommendations.push('⚠️  NO AFFILIATE NETWORKS CONNECTED');
+        result.recommendations.push('═══════════════════════════════════════════════════');
         result.recommendations.push('');
-        result.recommendations.push('👉 GO TO /integrations PAGE');
+        result.recommendations.push('To discover products, you must:');
         result.recommendations.push('');
-        result.recommendations.push('Supported networks:');
-        result.recommendations.push('• Amazon Associates - Most recommended');
-        result.recommendations.push('• AliExpress Affiliate');
-        result.recommendations.push('• Impact.com (multiple networks)');
-        result.recommendations.push('• ShareASale');
-        result.recommendations.push('• ClickBank');
+        result.recommendations.push('1️⃣  Go to /integrations page');
+        result.recommendations.push('2️⃣  Connect at least one affiliate network');
+        result.recommendations.push('3️⃣  Enter your valid API credentials');
+        result.recommendations.push('4️⃣  Click "Sync Products" again');
+        result.recommendations.push('');
+        result.recommendations.push('📌 RECOMMENDED NETWORKS:');
+        result.recommendations.push('');
+        result.recommendations.push('• Amazon Associates (easiest to start)');
+        result.recommendations.push('  → Sign up at affiliate-program.amazon.com');
+        result.recommendations.push('  → Get your Associate ID');
+        result.recommendations.push('');
+        result.recommendations.push('• AliExpress Affiliate (high commissions)');
+        result.recommendations.push('  → Sign up at portals.aliexpress.com');
+        result.recommendations.push('  → Get App Key & App Secret');
+        result.recommendations.push('');
+        result.recommendations.push('• Impact.com (premium brands)');
+        result.recommendations.push('  → Enterprise-level tracking');
+        result.recommendations.push('');
         return result;
       }
 
-      console.log(`🔌 Found ${integrations.length} connected networks`);
+      console.log(`✅ Found ${integrations.length} connected network(s)`);
 
-      // Validate each network has proper configuration
+      // Step 2: Validate API configurations
+      console.log('\n🔐 Step 2: Validating API Configurations...');
       const validNetworks = [];
+      const invalidNetworks = [];
+
       for (const integration of integrations) {
-        const network = integration.provider.toLowerCase();
+        const network = integration.provider;
         const config = integration.config as any;
         
-        if (!config || !config.api_key || config.api_key === 'your_api_key_here') {
-          console.log(`⚠️ ${network}: Invalid or missing API key`);
-          result.recommendations.push(`${network}: Add valid API key in /integrations`);
+        console.log(`\n   Checking ${network}...`);
+
+        // Check if config exists
+        if (!config) {
+          console.log(`   ❌ No configuration found`);
+          invalidNetworks.push({ network, reason: 'No configuration found - click Connect again' });
+          continue;
+        }
+
+        // Check for placeholder/empty API key
+        if (!config.api_key || config.api_key === 'your_api_key_here' || config.api_key.trim() === '') {
+          console.log(`   ❌ Invalid or missing API key`);
+          invalidNetworks.push({ network, reason: 'Missing valid API key' });
           continue;
         }
 
         // Network-specific validation
         const validation = this.validateNetworkConfig(network, config);
         if (!validation.valid) {
-          console.log(`⚠️ ${network}: ${validation.reason}`);
-          result.recommendations.push(`${network}: ${validation.reason}`);
+          console.log(`   ❌ ${validation.reason}`);
+          invalidNetworks.push({ network, reason: validation.reason });
           continue;
         }
 
+        console.log(`   ✅ Configuration valid`);
         validNetworks.push({ network, config });
       }
 
+      // Report validation results
+      console.log('\n📋 Validation Results:');
+      console.log(`   ✅ Valid: ${validNetworks.length}`);
+      console.log(`   ❌ Invalid: ${invalidNetworks.length}`);
+
       if (validNetworks.length === 0) {
-        result.recommendations.push('⚠️ NO VALID API CONFIGURATIONS FOUND');
-        result.recommendations.push('All connected networks have invalid or missing API keys');
-        result.recommendations.push('Please update your API credentials in /integrations');
+        console.log('\n⚠️  NO VALID CONFIGURATIONS');
+        result.recommendations.push('═══════════════════════════════════════════════════');
+        result.recommendations.push('⚠️  INVALID API CONFIGURATIONS');
+        result.recommendations.push('═══════════════════════════════════════════════════');
+        result.recommendations.push('');
+        result.recommendations.push('All connected networks have configuration issues:');
+        result.recommendations.push('');
+        
+        invalidNetworks.forEach(({ network, reason }) => {
+          result.recommendations.push(`❌ ${network}`);
+          result.recommendations.push(`   Issue: ${reason}`);
+          result.recommendations.push('');
+        });
+
+        result.recommendations.push('🔧 HOW TO FIX:');
+        result.recommendations.push('');
+        result.recommendations.push('1. Go to /integrations page');
+        result.recommendations.push('2. Disconnect and reconnect each network');
+        result.recommendations.push('3. Enter REAL API credentials (not placeholders)');
+        result.recommendations.push('4. Verify credentials in your affiliate dashboard');
+        result.recommendations.push('');
         return result;
       }
 
-      console.log(`✅ ${validNetworks.length} networks ready for product discovery`);
+      // Step 3: API Integration Status
+      console.log('\n🚀 Step 3: API Integration Status...');
+      result.recommendations.push('═══════════════════════════════════════════════════');
+      result.recommendations.push('✅ CONFIGURATION VALIDATED');
+      result.recommendations.push('═══════════════════════════════════════════════════');
+      result.recommendations.push('');
+      result.recommendations.push(`Connected Networks (${validNetworks.length}):`);
+      result.recommendations.push('');
 
-      // HERE IS WHERE REAL API INTEGRATION WOULD HAPPEN
-      // For now, we acknowledge the networks are configured
       for (const { network, config } of validNetworks) {
         result.byNetwork[network] = 0;
-        result.recommendations.push(`✅ ${network} is configured and ready`);
-        result.recommendations.push(`   API integration pending - real products will be discovered once APIs are implemented`);
+        console.log(`   ✅ ${network} - API configured`);
+        result.recommendations.push(`✅ ${network}`);
+        result.recommendations.push(`   API Key: ${config.api_key.substring(0, 8)}***`);
+        
+        // Show network-specific details
+        if (network === 'amazon_associates' && config.associate_tag) {
+          result.recommendations.push(`   Associate Tag: ${config.associate_tag}`);
+        }
+        if (network === 'aliexpress_affiliate' && config.app_key) {
+          result.recommendations.push(`   App Key: ${config.app_key.substring(0, 8)}***`);
+        }
+        if (config.affiliate_id) {
+          result.recommendations.push(`   Affiliate ID: ${config.affiliate_id}`);
+        }
+        
+        result.recommendations.push('');
       }
 
-      // IMPORTANT: Real API integration required
+      result.recommendations.push('═══════════════════════════════════════════════════');
+      result.recommendations.push('📌 NEXT STEP: REAL API INTEGRATION');
+      result.recommendations.push('═══════════════════════════════════════════════════');
       result.recommendations.push('');
-      result.recommendations.push('📌 NEXT STEP: Real Affiliate Network API Integration');
-      result.recommendations.push('The system is configured correctly. To discover real products:');
-      result.recommendations.push('1. Ensure your affiliate account is active and approved');
-      result.recommendations.push('2. Verify API access is enabled in your affiliate dashboard');
-      result.recommendations.push('3. Check that API keys have not expired');
-      result.recommendations.push('4. API integration layer will fetch products automatically');
+      result.recommendations.push('Your affiliate networks are configured correctly.');
+      result.recommendations.push('');
+      result.recommendations.push('To discover REAL products, the system needs:');
+      result.recommendations.push('');
+      result.recommendations.push('1️⃣  Affiliate Network API Integration');
+      result.recommendations.push('   → Connect to actual affiliate APIs');
+      result.recommendations.push('   → Fetch live product data');
+      result.recommendations.push('   → No mock or fake products');
+      result.recommendations.push('');
+      result.recommendations.push('2️⃣  Verify Your Affiliate Accounts');
+      result.recommendations.push('   → Ensure accounts are approved');
+      result.recommendations.push('   → Check API access is enabled');
+      result.recommendations.push('   → Confirm credentials haven\'t expired');
+      result.recommendations.push('');
+      result.recommendations.push('3️⃣  Test API Connectivity');
+      result.recommendations.push('   → Make test API calls');
+      result.recommendations.push('   → Validate response data');
+      result.recommendations.push('   → Handle rate limits');
+      result.recommendations.push('');
+      result.recommendations.push('💡 TIP: Check your affiliate dashboard to ensure:');
+      result.recommendations.push('   • Account is active and approved');
+      result.recommendations.push('   • API access is enabled');
+      result.recommendations.push('   • Rate limits are not exceeded');
+      result.recommendations.push('   • Credentials are correct and current');
 
-      result.success = validNetworks.length > 0;
+      result.success = true;
 
-      console.log('✅ Product Discovery Status Check Complete:', result);
+      console.log('\n═══════════════════════════════════════════════════');
+      console.log('✅ DISCOVERY VALIDATION COMPLETE');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('Status:', result.success ? 'READY FOR API INTEGRATION' : 'CONFIGURATION INCOMPLETE');
+      console.log('Valid Networks:', validNetworks.length);
+      console.log('Invalid Networks:', invalidNetworks.length);
+
       return result;
 
     } catch (error: any) {
-      console.error('❌ Product Discovery Error:', error);
-      result.recommendations.push(`System error: ${error.message}`);
+      console.error('\n❌ SYSTEM ERROR:', error.message);
+      console.error(error);
+      result.recommendations.push('═══════════════════════════════════════════════════');
+      result.recommendations.push('❌ SYSTEM ERROR');
+      result.recommendations.push('═══════════════════════════════════════════════════');
+      result.recommendations.push('');
+      result.recommendations.push(`Error: ${error.message}`);
+      result.recommendations.push('');
+      result.recommendations.push('Please try again or contact support if this persists.');
       return result;
     }
   },
 
   /**
    * Validate network-specific configuration
+   * STRICT VALIDATION - NO PLACEHOLDERS ALLOWED
    */
   validateNetworkConfig(network: string, config: any): { valid: boolean; reason?: string } {
-    if (!config.api_key || config.api_key === 'your_api_key_here' || config.api_key === '') {
-      return { valid: false, reason: 'API key not configured' };
+    // Check for placeholder API key
+    if (!config.api_key || config.api_key === 'your_api_key_here' || config.api_key.trim() === '') {
+      return { valid: false, reason: 'API key is missing or placeholder' };
     }
 
+    // Network-specific validation
     switch (network) {
-      case 'amazon':
-        if (!config.associate_tag) {
+      case 'amazon_associates':
+        if (!config.associate_tag || config.associate_tag.trim() === '') {
           return { valid: false, reason: 'Associate Tag required for Amazon' };
         }
-        if (!config.secret_key) {
+        if (!config.secret_key || config.secret_key.trim() === '') {
           return { valid: false, reason: 'Secret Key required for Amazon API' };
         }
         break;
       
-      case 'aliexpress':
-      case 'temu':
-        if (!config.app_key) {
+      case 'aliexpress_affiliate':
+      case 'temu_affiliate':
+        if (!config.app_key || config.app_key.trim() === '') {
           return { valid: false, reason: 'App Key required' };
+        }
+        if (!config.app_secret || config.app_secret.trim() === '') {
+          return { valid: false, reason: 'App Secret required' };
         }
         break;
       
       case 'clickbank':
-        if (!config.account_nickname) {
+        if (!config.account_nickname || config.account_nickname.trim() === '') {
           return { valid: false, reason: 'Account Nickname required for ClickBank' };
         }
         break;
       
       case 'shareasale':
-        if (!config.affiliate_id) {
+        if (!config.affiliate_id || config.affiliate_id.trim() === '') {
           return { valid: false, reason: 'Affiliate ID required for ShareASale' };
+        }
+        if (!config.api_token || config.api_token.trim() === '') {
+          return { valid: false, reason: 'API Token required for ShareASale' };
+        }
+        break;
+
+      case 'impact':
+      case 'awin':
+      case 'rakuten':
+      case 'cj_affiliate':
+        if (!config.account_id || config.account_id.trim() === '') {
+          return { valid: false, reason: 'Account ID required' };
         }
         break;
     }
