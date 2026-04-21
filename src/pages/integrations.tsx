@@ -561,7 +561,14 @@ export default function IntegrationsPage() {
   };
 
   const handleSyncProducts = async (integrationId: string, providerName: string) => {
-    if (!userId) return;
+    if (!userId) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to sync products",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -573,11 +580,14 @@ export default function IntegrationsPage() {
 
       console.log(`🔄 Starting product sync for ${providerName}...`);
 
-      // Call the API endpoint to trigger product discovery
+      // FIXED: Pass userId in request body
       const response = await fetch('/api/run-product-discovery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 20 })
+        body: JSON.stringify({ 
+          userId: userId,
+          limit: 20 
+        })
       });
 
       const result = await response.json();
