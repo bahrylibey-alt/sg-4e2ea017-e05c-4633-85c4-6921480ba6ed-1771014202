@@ -15,13 +15,17 @@ export default async function handler(
     console.log('═══════════════════════════════════════════════════');
     const report: string[] = [];
 
-    // Get user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    // Get first user from profiles (no auth required)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .limit(1);
+
+    if (!profiles || profiles.length === 0) {
+      return res.status(400).json({ error: 'No users found' });
     }
 
-    const userId = user.id;
+    const userId = profiles[0].id;
 
     // STEP 1: Publish ALL stuck drafts from the past 12 days
     console.log('\n📦 STEP 1: Publishing stuck drafts...');
