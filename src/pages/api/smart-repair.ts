@@ -261,7 +261,7 @@ export default async function handler(
 
     // ===== REPAIR 5: Check and add products if missing =====
     const { data: products, error: productsError } = await supabase
-      .from('affiliate_products')
+      .from('product_catalog')
       .select('id')
       .eq('user_id', userId)
       .limit(1);
