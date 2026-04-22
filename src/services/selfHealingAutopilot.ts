@@ -155,12 +155,13 @@ class SelfHealingAutopilot {
     let issuesFixed = 0;
     let failedFixes = 0;
     let userId: string | null = null;
+    const db = supabase as any;
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await db.auth.getUser();
 
       if (authError || !user) {
-        const { data: allUsers } = await supabase.auth.admin.listUsers();
+        const { data: allUsers } = await db.auth.admin.listUsers();
 
         if (!allUsers || allUsers.users.length === 0) {
           issuesFound++;
@@ -178,7 +179,7 @@ class SelfHealingAutopilot {
         userId = user.id;
       }
 
-      const { data: settings, error: settingsError } = await supabase
+      const { data: settings, error: settingsError } = await db
         .from('user_settings')
         .select('*')
         .eq('user_id', userId)
@@ -197,7 +198,7 @@ class SelfHealingAutopilot {
 
       if (!settings) {
         issuesFound++;
-        const { error: createError } = await supabase
+        const { error: createError } = await db
           .from('user_settings')
           .insert({
             user_id: userId,
@@ -223,7 +224,7 @@ class SelfHealingAutopilot {
         }
       } else if (!settings.autopilot_enabled) {
         issuesFound++;
-        const { error: updateError } = await supabase
+        const { error: updateError } = await db
           .from('user_settings')
           .update({
             autopilot_enabled: true,
@@ -272,9 +273,10 @@ class SelfHealingAutopilot {
     let issuesFound = 0;
     let issuesFixed = 0;
     let failedFixes = 0;
+    const db = supabase as any;
 
     try {
-      const { data: systemState } = await supabase
+      const { data: systemState } = await db
         .from('system_state')
         .select('*')
         .eq('user_id', userId)
@@ -282,7 +284,7 @@ class SelfHealingAutopilot {
 
       if (!systemState) {
         issuesFound++;
-        const { error: stateError } = await supabase
+        const { error: stateError } = await db
           .from('system_state')
           .insert({
             user_id: userId,
@@ -337,9 +339,9 @@ class SelfHealingAutopilot {
     let issuesFound = 0;
     let issuesFixed = 0;
     let failedFixes = 0;
+    const db = supabase as any;
 
     try {
-      const db = supabase as any;
       const { data: stuckContent } = await db
         .from('content_queue')
         .select('id, status, created_at')
@@ -399,15 +401,16 @@ class SelfHealingAutopilot {
     let issuesFound = 0;
     let issuesFixed = 0;
     let failedFixes = 0;
+    const db = supabase as any;
 
     try {
-      const { data: networkStats } = await supabase
+      const { data: networkStats } = await db
         .from('affiliate_links')
         .select('network')
         .eq('user_id', userId)
         .eq('status', 'active');
 
-      const networks = new Set(networkStats?.map(p => p.network) || []);
+      const networks = new Set(networkStats?.map((p: any) => p.network) || []);
       const networkCount = networks.size;
 
       if (networkCount === 0) {
@@ -452,9 +455,10 @@ class SelfHealingAutopilot {
     let issuesFound = 0;
     let issuesFixed = 0;
     let failedFixes = 0;
+    const db = supabase as any;
 
     try {
-      const { data: trending } = await supabase
+      const { data: trending } = await db
         .from('affiliate_links')
         .select('id, product_name, clicks')
         .eq('user_id', userId)
@@ -467,7 +471,7 @@ class SelfHealingAutopilot {
         let unpublished = 0;
 
         for (const product of trending) {
-          const { data: content } = await supabase
+          const { data: content } = await db
             .from('generated_content')
             .select('id')
             .eq('link_id', product.id)
@@ -525,9 +529,10 @@ class SelfHealingAutopilot {
     let issuesFound = 0;
     let issuesFixed = 0;
     let failedFixes = 0;
+    const db = supabase as any;
 
     try {
-      const { data: settings } = await supabase
+      const { data: settings } = await db
         .from('user_settings')
         .select('last_autopilot_run, autopilot_enabled')
         .eq('user_id', userId)
@@ -542,7 +547,6 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
-      const db = supabase as any;
       const { data: stuckDrafts } = await db
         .from('generated_content')
         .select('id')
@@ -581,7 +585,7 @@ class SelfHealingAutopilot {
         try {
           const result = await unifiedOrchestrator.execute(userId);
           
-          await supabase
+          await db
             .from('user_settings')
             .update({
               last_autopilot_run: new Date().toISOString(),
