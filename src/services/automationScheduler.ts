@@ -27,6 +27,8 @@ import {
   checkTrafficWarnings
 } from "./notificationService";
 import { smartCampaignService } from "./smartCampaignService";
+import { trafficAutomationService } from "./trafficAutomationService";
+import { unifiedOrchestrator } from "./unifiedOrchestrator";
 
 type AutopilotTask = Database["public"]["Tables"]["autopilot_tasks"]["Row"];
 

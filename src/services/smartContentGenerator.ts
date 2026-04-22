@@ -1,51 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { generateHooks, generateFinalPost, trackContentPerformance } from "./contentIntelligence";
 
 /**
- * REAL CONTENT GENERATOR SERVICE v2.0
- * Generates SEO-optimized articles with quality scoring
+ * Smart Content Generator - Creates AI-powered content
  */
-
-const CONTENT_TEMPLATES = {
-  review: [
-    "Top 10 {products} of {year} for {benefit}",
-    "Best {product} Reviews: Expert Picks & Buying Guide {year}",
-    "{product} Reviewed - Is It Worth the Money?",
-    "The Ultimate {product} Comparison & Review Guide"
-  ],
-  "best-under-price": [
-    "Best {products} Under ${price} - Budget-Friendly Options {year}",
-    "Top {products} Under ${price} That Actually Work",
-    "Affordable {products} Under ${price} - Best Value Picks",
-    "{count} Amazing {products} You Can Buy for Under ${price}"
-  ],
-  comparison: [
-    "{product1} vs {product2}: Which One Should You Buy?",
-    "Comparing the Best {products}: Side-by-Side Analysis",
-    "{product} Comparison Guide: Find Your Perfect Match",
-    "Battle of the {products}: In-Depth Comparison {year}"
-  ],
-  guide: [
-    "The Complete Buying Guide for {products} {year}",
-    "How to Choose the Perfect {product}: Expert Guide",
-    "{product} Buying Guide: Everything You Need to Know",
-    "Your Ultimate Guide to Buying {products} in {year}"
-  ]
-};
-
-const NICHES_MAP: Record<string, string> = {
-  "Kitchen Gadgets": "kitchen",
-  "Home Organization": "organization",
-  "Car Accessories": "car",
-  "Pet Accessories": "pet",
-  "Beauty Tools": "beauty",
-  "Phone & Tech Accessories": "tech",
-  "Fitness at Home": "fitness",
-  "Tools & DIY": "tools",
-  "Office & Desk Setup": "office",
-  "Travel Accessories": "travel"
-};
-
 export const smartContentGenerator = {
   /**
    * Generate a single SEO article with intelligence filter
