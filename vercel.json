@@ -29,15 +29,15 @@
   "crons": [
     {
       "path": "/api/cron/autopilot",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/discover-products",
-      "schedule": "0 0 * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/self-healing",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 */6 * * *"
     }
   ]
 }

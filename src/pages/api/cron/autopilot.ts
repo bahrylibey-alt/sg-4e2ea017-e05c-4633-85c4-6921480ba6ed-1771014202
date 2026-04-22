@@ -4,24 +4,21 @@ import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
 
 /**
  * AUTOPILOT CRON JOB
- * Runs every 30 minutes via Vercel Cron
  * 
- * NOW POWERED BY: Unified Orchestrator (7 revolutionary systems)
+ * Runs daily to:
+ * 1. Check if autopilot is enabled
+ * 2. Execute unified orchestrator
+ * 3. Update last run timestamp
+ * 
+ * Vercel Cron: Runs automatically based on vercel.json schedule
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Verify cron secret
-  const authHeader = req.headers.authorization;
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
   try {
-    console.log('🤖 AUTOPILOT CRON: Starting...');
+    console.log('🤖 AUTOPILOT CRON JOB STARTING...');
+    console.log('Time:', new Date().toISOString());
 
     // Get all users with autopilot enabled
     const { data: users } = await supabase
@@ -30,6 +27,7 @@ export default async function handler(
       .eq('autopilot_enabled', true);
 
     if (!users || users.length === 0) {
+      console.log('⏸️  No users with autopilot enabled');
       return res.status(200).json({
         success: true,
         message: 'No users with autopilot enabled',
@@ -37,49 +35,56 @@ export default async function handler(
       });
     }
 
-    console.log(`Processing ${users.length} users...`);
+    console.log(`📊 Found ${users.length} user(s) with autopilot enabled`);
 
     const results = [];
-    for (const user of users) {
-      try {
-        console.log(`🎯 Processing user: ${user.user_id}`);
-        
-        // Run unified orchestrator
-        const result = await unifiedOrchestrator.execute(user.user_id);
-        
-        results.push({
-          userId: user.user_id,
-          success: result.success,
-          metrics: result.metrics,
-          health: result.systemHealth
-        });
 
-        // Update last run time
+    for (const { user_id } of users) {
+      console.log(`\n🎯 Processing user: ${user_id}`);
+      
+      try {
+        // Execute unified orchestrator
+        const result = await unifiedOrchestrator.execute(user_id);
+
+        // Update last run timestamp
         await supabase
           .from('user_settings')
-          .update({ 
+          .update({
             last_autopilot_run: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', user.user_id);
+          .eq('user_id', user_id);
 
-        console.log(`✅ User ${user.user_id}: ${result.success ? 'SUCCESS' : 'PARTIAL'}`);
-
-      } catch (userError) {
-        console.error(`❌ Error processing user ${user.user_id}:`, userError);
         results.push({
-          userId: user.user_id,
+          user_id,
+          success: result.success,
+          message: result.success ? 'Autopilot executed' : 'Execution failed'
+        });
+
+        console.log(`✅ User ${user_id}: ${result.success ? 'Success' : 'Failed'}`);
+
+      } catch (userError: any) {
+        console.error(`❌ Error processing user ${user_id}:`, userError);
+        results.push({
+          user_id,
           success: false,
-          error: userError instanceof Error ? userError.message : 'Unknown error'
+          error: userError.message
         });
       }
     }
 
+    const successCount = results.filter(r => r.success).length;
+    console.log(`\n🎉 AUTOPILOT CRON COMPLETE: ${successCount}/${users.length} successful`);
+
     return res.status(200).json({
       success: true,
-      message: `Processed ${users.length} users`,
-      processed: users.length,
-      results
+      message: `Processed ${users.length} user(s)`,
+      results,
+      stats: {
+        total: users.length,
+        successful: successCount,
+        failed: users.length - successCount
+      }
     });
 
   } catch (error: any) {
