@@ -2,88 +2,83 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * EMERGENCY BACKLOG FIX
- * Processes the 12-day backlog of stuck drafts
+ * FIX BACKLOG - Clear stuck queue and restart content generation
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    console.log('🚨 EMERGENCY BACKLOG FIX STARTING...');
+    console.log('🧹 FIXING BACKLOG: Starting cleanup...');
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Count stuck drafts
-    const { count: totalDrafts } = await supabase
-      .from('generated_content')
-      .select('id', { count: 'exact' })
-      .eq('user_id', user.id)
-      .eq('status', 'draft');
+    const userId = user.id;
+    const fixes: string[] = [];
 
-    console.log(`📊 Found ${totalDrafts} total drafts`);
+    // 1. Clear stuck content queue
+    const { data: stuckQueue } = await supabase
+      .from('content_queue')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    if (!totalDrafts || totalDrafts === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No drafts to process',
-        processed: 0
-      });
+    if (stuckQueue && stuckQueue.length > 0) {
+      await supabase
+        .from('content_queue')
+        .update({
+          status: 'failed',
+          error_message: 'Cleared during backlog fix',
+          updated_at: new Date().toISOString()
+        })
+        .in('id', stuckQueue.map(q => q.id));
+
+      fixes.push(`✅ Cleared ${stuckQueue.length} stuck queue items`);
     }
 
-    // Process in batches to avoid timeout
-    const batchSize = 100;
-    const maxToProcess = Math.min(totalDrafts, 1000); // Cap at 1000
-    let totalProcessed = 0;
+    // 2. Publish old drafts
+    const { data: oldDrafts } = await supabase
+      .from('generated_content')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'draft')
+      .lt('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
 
-    for (let i = 0; i < maxToProcess; i += batchSize) {
-      const { data: batch } = await supabase
+    if (oldDrafts && oldDrafts.length > 0) {
+      await supabase
         .from('generated_content')
-        .select('id, title, body')
-        .eq('user_id', user.id)
-        .eq('status', 'draft')
-        .order('created_at', { ascending: true })
-        .limit(batchSize);
-
-      if (!batch || batch.length === 0) break;
-
-      // Publish batch
-      const { error: updateError } = await supabase
-        .from('generated_content')
-        .update({ 
+        .update({
           status: 'published',
           updated_at: new Date().toISOString()
         })
-        .in('id', batch.map(d => d.id));
+        .in('id', oldDrafts.map(d => d.id));
 
-      if (updateError) {
-        console.error('Batch update error:', updateError);
-        continue;
-      }
-
-      totalProcessed += batch.length;
-      console.log(`✅ Processed batch ${Math.floor(i / batchSize) + 1}: ${totalProcessed}/${maxToProcess}`);
-
-      // Small delay between batches
-      await new Promise(resolve => setTimeout(resolve, 100));
+      fixes.push(`✅ Published ${oldDrafts.length} old drafts`);
     }
 
-    console.log(`🎉 BACKLOG FIX COMPLETE: ${totalProcessed} drafts published`);
+    // 3. Update system state last_run
+    await supabase
+      .from('user_settings')
+      .update({
+        last_autopilot_run: new Date().toISOString(),
+        autopilot_enabled: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    fixes.push('✅ Reset autopilot timestamp');
+
+    console.log('✅ BACKLOG FIX COMPLETE');
 
     return res.status(200).json({
       success: true,
-      message: `Successfully processed ${totalProcessed} drafts`,
-      totalDrafts,
-      processed: totalProcessed,
-      remaining: totalDrafts - totalProcessed
+      fixes,
+      message: 'Backlog cleared - system ready to run'
     });
 
   } catch (error: any) {
