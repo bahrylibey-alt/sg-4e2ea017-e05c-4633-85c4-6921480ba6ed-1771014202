@@ -603,41 +603,25 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
-      const { data: stuckDrafts, count } = await supabase
+      const { data: stuckDrafts } = await supabase
         .from('generated_content')
-        .select('id', { count: 'exact' })
+        .select('id')
         .eq('user_id', userId)
         .eq('status', 'draft')
-        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(500);
 
-      if (count && count > 100) {
+      if (stuckDrafts && stuckDrafts.length > 100) {
         issuesFound++;
         const batchSize = 50;
         let processed = 0;
 
-        for (let i = 0; i < Math.min(count, 500); i += batchSize) {
-          const { data: batch } = await supabase
-            .from('generated_content')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('status', 'draft')
-            .order('created_at', { ascending: true })
-            .limit(batchSize);
-
-          if (batch && batch.length > 0) {
-            const ids = batch.map(d => d.id);
-            const { error: updateError } = await supabase
-              .from('generated_content')
-              .update({ 
-                status: 'published',
-                updated_at: new Date().toISOString()
-              })
-              .in('id', ids);
-
-            if (!updateError) {
-              processed += batch.length;
-            }
-          }
+        for (let i = 0; i < stuckDrafts.length; i += batchSize) {
+          const batch = stuckDrafts.slice(i, i + batchSize);
+          const ids = batch.map(d => d.id);
+          
+          await supabase.rpc('publish_drafts', { draft_ids: ids });
+          processed += batch.length;
         }
 
         issuesFixed++;

@@ -3,72 +3,64 @@ import { supabase } from "@/integrations/supabase/client";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * RUN PRODUCT DISCOVERY MANUALLY
- * 
- * Discovers products from connected affiliate networks
- * REAL DATA ONLY - No mock products
+ * Manual trigger for cross-network product discovery
+ * Discovers products from Amazon, Temu, AliExpress and auto-publishes trending ones
  */
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    const userId = req.query.userId as string || req.body?.userId;
+    console.log('🚀 MANUAL PRODUCT DISCOVERY TRIGGER');
+
+    // Get first user
+    const { data: users } = await supabase.auth.admin.listUsers();
     
-    if (!userId) {
-      return res.status(400).json({ 
-        error: 'userId required',
-        example: '/api/run-product-discovery?userId=YOUR_USER_ID'
+    if (!users || users.users.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No users found. Please sign up first.'
       });
     }
 
-    console.log('🔍 Starting product discovery for user:', userId);
+    const userId = users.users[0].id;
+    console.log(`👤 User ID: ${userId}`);
 
-    // Get autopilot settings
-    const { data: settings } = await supabase
-      .from('autopilot_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // Discover products from ALL networks
+    const discoveryResult = await smartProductDiscovery.discoverProducts(
+      userId,
+      { 
+        limit: 50,
+        networks: ['Amazon', 'Temu', 'AliExpress']
+      }
+    );
 
-    const discoverySettings = {
-      limit: 50,
-      minPrice: settings?.min_product_price || undefined,
-      maxPrice: settings?.max_product_price || undefined
-    };
+    console.log('\n📊 DISCOVERY RESULTS:');
+    console.log(`Total Discovered: ${discoveryResult.totalDiscovered}`);
+    console.log('By Network:', discoveryResult.byNetwork);
 
-    // Run discovery
-    const result = await smartProductDiscovery.discoverProducts(userId, discoverySettings);
+    // Auto-publish trending products
+    const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 5);
 
-    // Log activity
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: userId,
-        action: 'product_discovery_manual',
-        details: `Discovered ${result.totalDiscovered} products`,
-        metadata: result as any,
-        status: result.totalDiscovered > 0 ? 'success' : 'warning'
-      });
+    console.log('\n📢 PUBLISHING RESULTS:');
+    console.log(`Published: ${publishResult.published}`);
+    console.log('Products:', publishResult.products);
 
     return res.status(200).json({
-      success: result.totalDiscovered > 0,
-      message: result.totalDiscovered > 0 
-        ? `Discovered ${result.totalDiscovered} products from ${Object.keys(result.byNetwork).length} networks`
-        : 'No products discovered',
-      result,
-      next_steps: result.totalDiscovered > 0
-        ? [
-            'Products added to your catalog',
-            'Check them in your dashboard',
-            'Autopilot will analyze and promote them automatically'
-          ]
-        : result.recommendations
+      success: true,
+      discovery: {
+        total: discoveryResult.totalDiscovered,
+        byNetwork: discoveryResult.byNetwork,
+        topProducts: discoveryResult.topProducts
+      },
+      publishing: {
+        published: publishResult.published,
+        products: publishResult.products
+      }
     });
 
   } catch (error: any) {
-    console.error('❌ Discovery error:', error);
+    console.error('❌ ERROR:', error);
     return res.status(500).json({
       success: false,
       error: error.message
