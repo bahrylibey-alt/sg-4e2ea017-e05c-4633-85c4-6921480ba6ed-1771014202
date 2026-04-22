@@ -626,14 +626,17 @@ class SelfHealingAutopilot {
 
           if (batch && batch.length > 0) {
             const ids = batch.map(d => d.id);
-            await (supabase.from('generated_content') as any)
+            const { error: updateError } = await supabase
+              .from('generated_content')
               .update({ 
                 status: 'published',
                 updated_at: new Date().toISOString()
               })
               .in('id', ids);
 
-            processed += batch.length;
+            if (!updateError) {
+              processed += batch.length;
+            }
           }
         }
 
