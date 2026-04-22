@@ -132,8 +132,13 @@ export default async function handler(
       if (autopilotResult.success) {
         console.log('✅ Autopilot executed successfully');
         report.push('✅ Autopilot executed successfully');
-        report.push(`Generated: ${autopilotResult.metrics?.contentGenerated || 0} new posts`);
-        report.push(`Platforms: ${autopilotResult.metrics?.platformsActive || 0} active`);
+        // Safely access metrics since types might vary
+        const generated = (autopilotResult.metrics as any)?.contentGenerated || 
+                         (autopilotResult.metrics as any)?.contentVariations || 0;
+        const platforms = (autopilotResult.metrics as any)?.platformsActive || 1;
+        
+        report.push(`Generated: ${generated} new posts`);
+        report.push(`Platforms: ${platforms} active`);
       } else {
         console.log('⚠️ Autopilot partial success');
         report.push('⚠️ Autopilot started but needs monitoring');
