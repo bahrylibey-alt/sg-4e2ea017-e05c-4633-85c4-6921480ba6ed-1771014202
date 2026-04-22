@@ -339,7 +339,7 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      const db: any = supabase;
+      const db = supabase as any;
       const { data: stuckContent } = await db
         .from('content_queue')
         .select('id, status, created_at')
@@ -350,10 +350,9 @@ class SelfHealingAutopilot {
       if (stuckContent && stuckContent.length > 0) {
         issuesFound++;
         
-        const ids: string[] = stuckContent.map((c: any) => String(c.id));
-        const table: any = supabase.from('content_queue');
+        const ids = stuckContent.map((c: any) => c.id);
         
-        const { error: clearError } = await table.update({
+        const { error: clearError } = await db.from('content_queue').update({
           status: 'failed',
           error_message: 'Auto-cleared by self-healing (stuck >24h)',
           updated_at: new Date().toISOString()
@@ -543,7 +542,7 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
-      const db: any = supabase;
+      const db = supabase as any;
       const { data: stuckDrafts } = await db
         .from('generated_content')
         .select('id')
@@ -559,10 +558,9 @@ class SelfHealingAutopilot {
 
         for (let i = 0; i < stuckDrafts.length; i += batchSize) {
           const batch = stuckDrafts.slice(i, i + batchSize);
-          const ids: string[] = batch.map((d: any) => String(d.id));
+          const ids = batch.map((d: any) => d.id);
           
-          const table: any = supabase.from('generated_content');
-          await table
+          await db.from('generated_content')
             .update({ status: 'published', updated_at: new Date().toISOString() })
             .in('id', ids);
             
