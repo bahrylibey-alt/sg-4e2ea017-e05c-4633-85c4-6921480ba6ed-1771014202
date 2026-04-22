@@ -518,6 +518,57 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
+      // Check for stuck draft backlog
+      const { data: stuckDrafts, count } = await supabase
+        .from('generated_content')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId)
+        .eq('status', 'draft')
+        .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+      if (count && count > 100) {
+        issuesFound++;
+        details.push({
+          issue: `Massive Draft Backlog (${count} items)`,
+          status: 'FIXED',
+          action: 'Processing backlog in batches...'
+        });
+
+        // Process in batches of 50
+        const batchSize = 50;
+        let processed = 0;
+
+        for (let i = 0; i < Math.min(count, 500); i += batchSize) {
+          const { data: batch } = await supabase
+            .from('generated_content')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('status', 'draft')
+            .order('created_at', { ascending: true })
+            .limit(batchSize);
+
+          if (batch && batch.length > 0) {
+            await supabase
+              .from('generated_content')
+              .update({ 
+                status: 'published',
+                updated_at: new Date().toISOString()
+              })
+              .in('id', batch.map(d => d.id));
+
+            processed += batch.length;
+            console.log(`📦 Batch processed: ${processed}/${Math.min(count, 500)}`);
+          }
+        }
+
+        issuesFixed++;
+        details.push({
+          issue: 'Draft Publishing',
+          status: 'FIXED',
+          action: `Published ${processed} stuck drafts`
+        });
+      }
+
       // If autopilot hasn't run in 6+ hours, trigger it
       if (hoursSinceLastRun > 6) {
         issuesFound++;

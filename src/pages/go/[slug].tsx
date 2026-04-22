@@ -19,79 +19,82 @@ export default function RedirectPage() {
 
     const trackAndRedirect = async () => {
       try {
-        console.log(`🔍 [TRACKING] Starting for slug: ${slug}`);
+        console.log(`🔍 [REDIRECT] Starting for slug: ${slug}`);
 
-        // Get the affiliate link
-        const { data: link, error: linkError } = await supabase
+        // STEP 1: Try to find the link in affiliate_links table
+        const { data: affiliateLink } = await supabase
           .from('affiliate_links')
           .select('*')
           .eq('slug', slug)
           .eq('status', 'active')
           .maybeSingle();
 
-        if (linkError || !link) {
-          console.error("❌ Link not found:", linkError);
-          setError("This link doesn't exist");
-          return;
-        }
+        // STEP 2: If not found, try generated_content table
+        let link = affiliateLink;
+        let isGeneratedContent = false;
 
-        console.log(`✅ Link found: ${link.product_name}`);
-        setLinkData(link);
-
-        // STEP 1: Update affiliate link click count
-        const newClicks = (link.clicks || 0) + 1;
-        const { error: clickError } = await supabase
-          .from('affiliate_links')
-          .update({ 
-            clicks: newClicks,
-            click_count: newClicks,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', link.id);
-
-        if (clickError) {
-          console.error("❌ Click count update failed:", clickError);
-        } else {
-          console.log(`✅ Affiliate link clicks: ${link.clicks || 0} → ${newClicks}`);
-        }
-
-        // STEP 2: Detect platform from referrer
-        const referrer = document.referrer.toLowerCase();
-        let platform = null;
-        if (referrer.includes('twitter.com') || referrer.includes('t.co')) platform = 'twitter';
-        else if (referrer.includes('facebook.com') || referrer.includes('fb.com')) platform = 'facebook';
-        else if (referrer.includes('linkedin.com')) platform = 'linkedin';
-        else if (referrer.includes('instagram.com')) platform = 'instagram';
-        else if (referrer.includes('pinterest.com')) platform = 'pinterest';
-
-        console.log(`📱 Platform detected: ${platform || 'direct'}`);
-
-        // STEP 3: Update posted_content clicks
-        if (platform) {
-          const { data: postData } = await supabase
-            .from('posted_content')
-            .select('id, clicks')
-            .eq('link_id', link.id)
-            .eq('platform', platform)
-            .order('posted_at', { ascending: false })
-            .limit(1)
+        if (!link) {
+          console.log('Link not in affiliate_links, checking generated_content...');
+          const { data: generatedContent } = await supabase
+            .from('generated_content')
+            .select('*')
+            .eq('id', slug)
+            .eq('status', 'published')
             .maybeSingle();
 
-          if (postData) {
-            const newPostClicks = (postData.clicks || 0) + 1;
-            const { error: postUpdateError } = await supabase
-              .from('posted_content')
-              .update({ clicks: newPostClicks })
-              .eq('id', postData.id);
-
-            if (!postUpdateError) {
-              console.log(`✅ Posted content clicks: ${postData.clicks || 0} → ${newPostClicks}`);
+          if (generatedContent && generatedContent.body) {
+            // Extract URL from content body (look for first http/https link)
+            const urlMatch = generatedContent.body.match(/https?:\/\/[^\s<>"]+/);
+            if (urlMatch) {
+              link = {
+                id: generatedContent.id,
+                product_name: generatedContent.title,
+                original_url: urlMatch[0],
+                user_id: generatedContent.user_id,
+                network: 'Generated',
+                clicks: generatedContent.clicks || 0
+              };
+              isGeneratedContent = true;
+              console.log('✅ Found link in generated_content');
             }
           }
         }
 
-        // STEP 4: Record click_event
-        const { error: eventError } = await supabase
+        if (!link || !link.original_url) {
+          console.error("❌ Link not found in any table");
+          setError("This link doesn't exist or has expired");
+          return;
+        }
+
+        console.log(`✅ Link found: ${link.product_name || 'Unknown'}`);
+        setLinkData(link);
+
+        // STEP 3: Update click count
+        const newClicks = (link.clicks || 0) + 1;
+        
+        if (isGeneratedContent) {
+          await supabase
+            .from('generated_content')
+            .update({ 
+              clicks: newClicks,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', link.id);
+        } else {
+          await supabase
+            .from('affiliate_links')
+            .update({ 
+              clicks: newClicks,
+              click_count: newClicks,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', link.id);
+        }
+
+        console.log(`✅ Click count updated: ${link.clicks || 0} → ${newClicks}`);
+
+        // STEP 4: Record click event
+        await supabase
           .from('click_events')
           .insert({
             link_id: link.id,
@@ -105,9 +108,7 @@ export default function RedirectPage() {
             fraud_score: 0
           });
 
-        if (!eventError) {
-          console.log("✅ Click event recorded");
-        }
+        console.log("✅ Click event recorded");
 
         // STEP 5: Update system_state
         const { data: systemState } = await supabase
@@ -117,7 +118,7 @@ export default function RedirectPage() {
           .maybeSingle();
 
         if (systemState) {
-          const { error: stateError } = await supabase
+          await supabase
             .from('system_state')
             .update({ 
               total_clicks: (systemState.total_clicks || 0) + 1,
@@ -125,12 +126,10 @@ export default function RedirectPage() {
             })
             .eq('user_id', link.user_id);
 
-          if (!stateError) {
-            console.log(`✅ System state clicks: ${systemState.total_clicks || 0} → ${(systemState.total_clicks || 0) + 1}`);
-          }
+          console.log(`✅ System state updated`);
         }
 
-        console.log('🎉 All tracking complete - redirecting...');
+        console.log('🎉 Tracking complete - redirecting...');
 
         // Start countdown
         const timer = setInterval(() => {
@@ -147,7 +146,7 @@ export default function RedirectPage() {
         return () => clearInterval(timer);
       } catch (err: any) {
         console.error("💥 Redirect error:", err);
-        setError("An error occurred");
+        setError("An error occurred while redirecting");
       }
     };
 
