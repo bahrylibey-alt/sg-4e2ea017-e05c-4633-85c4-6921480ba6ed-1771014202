@@ -21,7 +21,7 @@ export default function RedirectPage() {
       try {
         console.log(`🔍 [REDIRECT] Starting for slug: ${slug}`);
 
-        // STEP 1: Try to find the link in affiliate_links table
+        // STEP 1: Try affiliate_links table first (proper affiliate links)
         const { data: affiliateLink } = await supabase
           .from('affiliate_links')
           .select('*')
@@ -29,50 +29,84 @@ export default function RedirectPage() {
           .eq('status', 'active')
           .maybeSingle();
 
-        // STEP 2: If not found, try generated_content table
-        let link: any = affiliateLink;
-        let isGeneratedContent = false;
+        let link: any = null;
+        let sourceTable = '';
 
+        if (affiliateLink && affiliateLink.original_url) {
+          link = affiliateLink;
+          sourceTable = 'affiliate_links';
+          console.log('✅ Found in affiliate_links');
+        }
+
+        // STEP 2: Try generated_content (using ID as slug)
         if (!link) {
-          console.log('Link not in affiliate_links, checking generated_content...');
-          const { data: generatedContent } = await supabase
+          console.log('Checking generated_content...');
+          const { data: content } = await supabase
             .from('generated_content')
             .select('*')
             .eq('id', slug)
             .eq('status', 'published')
             .maybeSingle();
 
-          if (generatedContent && generatedContent.body) {
-            // Extract URL from content body (look for first http/https link)
-            const urlMatch = generatedContent.body.match(/https?:\/\/[^\s<>"]+/);
+          if (content) {
+            // Extract URL from body - try multiple patterns
+            let extractedUrl = null;
+            
+            // Pattern 1: Standard http(s) URL
+            const urlMatch = content.body?.match(/https?:\/\/[^\s<>"']+/);
             if (urlMatch) {
+              extractedUrl = urlMatch[0];
+            }
+            
+            // Pattern 2: Check if there's a product_id we can use
+            if (!extractedUrl && content.campaign_id) {
+              // Try to find affiliate link by campaign
+              const { data: relatedLink } = await supabase
+                .from('affiliate_links')
+                .select('original_url, product_name')
+                .eq('campaign_id', content.campaign_id)
+                .eq('status', 'active')
+                .maybeSingle();
+              
+              if (relatedLink?.original_url) {
+                extractedUrl = relatedLink.original_url;
+              }
+            }
+
+            // Pattern 3: Generic product search fallback
+            if (!extractedUrl) {
+              // Extract product name from title and search Amazon
+              const productName = content.title.replace(/^Review:\s*/, '').replace(/\s*-\s*\d+$/, '');
+              extractedUrl = `https://www.amazon.com/s?k=${encodeURIComponent(productName)}`;
+            }
+
+            if (extractedUrl) {
               link = {
-                id: generatedContent.id,
-                product_name: generatedContent.title,
-                original_url: urlMatch[0],
-                user_id: generatedContent.user_id,
-                network: 'Generated',
-                clicks: generatedContent.clicks || 0
+                id: content.id,
+                product_name: content.title,
+                original_url: extractedUrl,
+                user_id: content.user_id,
+                clicks: content.clicks || 0
               };
-              isGeneratedContent = true;
-              console.log('✅ Found link in generated_content');
+              sourceTable = 'generated_content';
+              console.log('✅ Found in generated_content');
             }
           }
         }
 
         if (!link || !link.original_url) {
-          console.error("❌ Link not found in any table");
+          console.error("❌ No valid redirect URL found");
           setError("This link doesn't exist or has expired");
           return;
         }
 
-        console.log(`✅ Link found: ${link.product_name || 'Unknown'}`);
+        console.log(`✅ Redirecting to: ${link.original_url}`);
         setLinkData(link);
 
         // STEP 3: Update click count
         const newClicks = (link.clicks || 0) + 1;
         
-        if (isGeneratedContent) {
+        if (sourceTable === 'generated_content') {
           await supabase
             .from('generated_content')
             .update({ 
@@ -93,40 +127,43 @@ export default function RedirectPage() {
 
         console.log(`✅ Click count updated: ${link.clicks || 0} → ${newClicks}`);
 
-        // STEP 4: Record click event
-        await supabase
-          .from('click_events')
-          .insert({
-            link_id: link.id,
-            user_id: link.user_id,
-            ip_address: "browser",
-            user_agent: navigator.userAgent,
-            referrer: document.referrer || 'direct',
-            clicked_at: new Date().toISOString(),
-            converted: false,
-            is_bot: false,
-            fraud_score: 0
-          });
-
-        console.log("✅ Click event recorded");
-
-        // STEP 5: Update system_state
-        const { data: systemState } = await supabase
-          .from('system_state')
-          .select('total_clicks')
-          .eq('user_id', link.user_id)
-          .maybeSingle();
-
-        if (systemState) {
+        // STEP 4: Record click event (try, don't fail if it errors)
+        try {
           await supabase
-            .from('system_state')
-            .update({ 
-              total_clicks: (systemState.total_clicks || 0) + 1,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', link.user_id);
+            .from('click_events')
+            .insert({
+              link_id: link.id,
+              user_id: link.user_id,
+              ip_address: "browser",
+              user_agent: navigator.userAgent,
+              referrer: document.referrer || 'direct',
+              clicked_at: new Date().toISOString()
+            });
+          console.log("✅ Click event recorded");
+        } catch (eventError) {
+          console.log("⚠️ Click event skipped:", eventError);
+        }
 
-          console.log(`✅ System state updated`);
+        // STEP 5: Update system_state (try, don't fail if it errors)
+        try {
+          const { data: systemState } = await supabase
+            .from('system_state')
+            .select('total_clicks')
+            .eq('user_id', link.user_id)
+            .maybeSingle();
+
+          if (systemState) {
+            await supabase
+              .from('system_state')
+              .update({ 
+                total_clicks: (systemState.total_clicks || 0) + 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', link.user_id);
+            console.log(`✅ System state updated`);
+          }
+        } catch (stateError) {
+          console.log("⚠️ System state update skipped:", stateError);
         }
 
         console.log('🎉 Tracking complete - redirecting...');
@@ -193,7 +230,6 @@ export default function RedirectPage() {
           
           <h1 className="text-2xl font-bold mb-2">Redirecting to Product</h1>
           <p className="text-lg font-semibold mb-4">{linkData.product_name}</p>
-          <p className="text-sm text-muted-foreground mb-6">{linkData.network}</p>
           
           <div className="text-6xl font-bold text-primary mb-4">{countdown}</div>
           <p className="text-muted-foreground mb-6">
