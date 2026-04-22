@@ -152,7 +152,7 @@ export default function Settings() {
         return;
       }
 
-      // Use upsert with explicit conflict resolution on user_id
+      // Save to autopilot_settings
       const { error } = await supabase
         .from('autopilot_settings')
         .upsert({
@@ -184,6 +184,22 @@ export default function Settings() {
       if (error) {
         console.error('Supabase error:', error);
         throw error;
+      }
+
+      // CRITICAL: Also update user_settings.autopilot_enabled so the cron jobs can find you
+      const { error: userSettingsError } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          autopilot_enabled: true, // Always enable when saving settings
+          last_autopilot_run: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (userSettingsError) {
+        console.error('User settings error:', userSettingsError);
       }
 
       toast({
@@ -281,6 +297,40 @@ export default function Settings() {
               Customize how your autopilot system discovers products, generates content, and scales campaigns
             </p>
           </div>
+
+          <Card className="mb-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                Autopilot Status
+              </CardTitle>
+              <CardDescription>
+                Master switch to enable or disable the entire autopilot system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 bg-background rounded-lg border">
+                <div className="space-y-1">
+                  <div className="font-semibold text-lg">Autopilot Engine</div>
+                  <div className="text-sm text-muted-foreground">
+                    {settings.autopilot_frequency === 'every_15_minutes' ? 'Runs every 15 minutes' : 
+                     settings.autopilot_frequency === 'every_30_minutes' ? 'Runs every 30 minutes' :
+                     settings.autopilot_frequency === 'hourly' ? 'Runs every hour' :
+                     settings.autopilot_frequency === 'every_6_hours' ? 'Runs every 6 hours' :
+                     'Runs daily'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Badge variant={settings.autopilot_frequency ? "default" : "secondary"} className="text-sm px-3 py-1">
+                    {settings.autopilot_frequency ? "ACTIVE" : "INACTIVE"}
+                  </Badge>
+                  <div className="text-sm text-muted-foreground">
+                    Auto-enabled when you save settings
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Tabs defaultValue="frequency" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
