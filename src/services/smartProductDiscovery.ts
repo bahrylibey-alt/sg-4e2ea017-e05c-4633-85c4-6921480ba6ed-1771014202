@@ -149,7 +149,7 @@ export const smartProductDiscovery = {
       const published: string[] = [];
 
       for (const product of trending) {
-        // We identify if the product content was already published based on the product name in title
+        // Check if content already exists for this product (by matching title)
         const { data: existing } = await supabase
           .from('generated_content')
           .select('id')
@@ -164,14 +164,14 @@ export const smartProductDiscovery = {
 
         const content = this.generateProductContent(product);
         
-        // Removed problematic properties from insertion to adhere strictly to schema
+        // Insert content with proper affiliate link embedded
         const { error } = await supabase
           .from('generated_content')
           .insert({
             user_id: userId,
             title: content.title,
             body: content.body,
-            type: 'review', // Required field by schema
+            type: 'review',
             status: 'published',
             clicks: 0
           });
@@ -199,10 +199,11 @@ export const smartProductDiscovery = {
   generateProductContent(product: any): { title: string; body: string } {
     const network = product.network || 'Online Store';
     const name = product.product_name || 'Amazing Product';
+    const trackingUrl = `/go/${product.slug}`;
     
     return {
-      title: `${name} - Trending Now on ${network}`,
-      body: `Check out this trending product from ${network}!\n\n${name}\n\nClick below to get it now with our exclusive affiliate link:\n\n${product.original_url || ''}\n\n🔥 Trending with ${product.clicks || 0} clicks!`
+      title: `${name} - Trending on ${network}`,
+      body: `🔥 Check out this amazing trending product from ${network}!\n\n**${name}**\n\nThis product is getting a lot of attention right now with ${product.clicks || 0} clicks!\n\n👉 [Get ${name} Now](${trackingUrl})\n\nDon't miss out on this deal!`
     };
   },
 
