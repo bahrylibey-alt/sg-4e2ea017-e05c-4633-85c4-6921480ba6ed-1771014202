@@ -2,20 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { unifiedOrchestrator } from "./unifiedOrchestrator";
 import { smartProductDiscovery } from "./smartProductDiscovery";
 
-/**
- * SELF-HEALING AUTOPILOT ENGINE
- * 
- * Automatically detects and fixes system issues:
- * - Missing user_settings → Creates with autopilot enabled
- * - Disabled autopilot → Auto-enables
- * - Stuck content queue → Clears automatically
- * - Missing system_state → Initializes
- * - No products → Triggers cross-network discovery
- * - Low network diversity → Recommends additional networks
- * - Orphaned data → Cleans up
- * - Failed executions → Retries with exponential backoff
- */
-
 export interface HealingResult {
   success: boolean;
   issuesFound: number;
@@ -33,10 +19,6 @@ class SelfHealingAutopilot {
   private isHealing: boolean = false;
   private healingInterval: NodeJS.Timeout | null = null;
 
-  /**
-   * Start continuous self-healing monitoring
-   * Runs health check every 5 minutes
-   */
   public startContinuousHealing(): void {
     if (this.healingInterval) {
       console.log('⚕️ Self-healing already running');
@@ -44,19 +26,13 @@ class SelfHealingAutopilot {
     }
 
     console.log('🚀 Starting continuous self-healing autopilot...');
-    
-    // Run immediately
     this.runHealthCheckAndHeal();
 
-    // Then run every 5 minutes
     this.healingInterval = setInterval(() => {
       this.runHealthCheckAndHeal();
     }, 5 * 60 * 1000);
   }
 
-  /**
-   * Stop continuous healing
-   */
   public stopContinuousHealing(): void {
     if (this.healingInterval) {
       clearInterval(this.healingInterval);
@@ -65,9 +41,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Run health check and auto-heal issues
-   */
   private async runHealthCheckAndHeal(): Promise<void> {
     if (this.isHealing) {
       console.log('⏳ Healing already in progress, skipping...');
@@ -95,9 +68,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Main diagnostic and healing logic
-   */
   public async diagnoseAndHeal(): Promise<HealingResult> {
     const details: HealingResult['details'] = [];
     let issuesFound = 0;
@@ -105,7 +75,6 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      // ===== HEAL 1: Ensure user exists and autopilot is enabled =====
       const userHealing = await this.healUserSettings();
       details.push(...userHealing.details);
       issuesFound += userHealing.issuesFound;
@@ -113,46 +82,35 @@ class SelfHealingAutopilot {
       failedFixes += userHealing.failedFixes;
 
       if (!userHealing.userId) {
-        return {
-          success: false,
-          issuesFound,
-          issuesFixed,
-          failedFixes,
-          details
-        };
+        return { success: false, issuesFound, issuesFixed, failedFixes, details };
       }
 
       const userId = userHealing.userId;
 
-      // ===== HEAL 2: Initialize system_state if missing =====
       const stateHealing = await this.healSystemState(userId);
       details.push(...stateHealing.details);
       issuesFound += stateHealing.issuesFound;
       issuesFixed += stateHealing.issuesFixed;
       failedFixes += stateHealing.failedFixes;
 
-      // ===== HEAL 3: Clear stuck content queue =====
       const queueHealing = await this.healContentQueue(userId);
       details.push(...queueHealing.details);
       issuesFound += queueHealing.issuesFound;
       issuesFixed += queueHealing.issuesFixed;
       failedFixes += queueHealing.failedFixes;
 
-      // ===== HEAL 4: Verify cross-network products =====
       const productsHealing = await this.healProducts(userId);
       details.push(...productsHealing.details);
       issuesFound += productsHealing.issuesFound;
       issuesFixed += productsHealing.issuesFixed;
       failedFixes += productsHealing.failedFixes;
 
-      // ===== HEAL 5: Auto-publish trending products =====
       const publishHealing = await this.healTrendingPublishing(userId);
       details.push(...publishHealing.details);
       issuesFound += publishHealing.issuesFound;
       issuesFixed += publishHealing.issuesFixed;
       failedFixes += publishHealing.failedFixes;
 
-      // ===== HEAL 6: Check if autopilot needs to run =====
       const autopilotHealing = await this.healAutopilotExecution(userId);
       details.push(...autopilotHealing.details);
       issuesFound += autopilotHealing.issuesFound;
@@ -185,9 +143,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal user settings - ensure user exists and autopilot is enabled
-   */
   private async healUserSettings(): Promise<{
     userId: string | null;
     issuesFound: number;
@@ -307,9 +262,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal system state - ensure tracking tables exist
-   */
   private async healSystemState(userId: string): Promise<{
     issuesFound: number;
     issuesFixed: number;
@@ -375,9 +327,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal content queue - clear stuck items
-   */
   private async healContentQueue(userId: string): Promise<{
     issuesFound: number;
     issuesFixed: number;
@@ -390,7 +339,8 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      const { data: stuckContent } = await (supabase as any)
+      const db: any = supabase;
+      const { data: stuckContent } = await db
         .from('content_queue')
         .select('id, status, created_at')
         .eq('user_id', userId)
@@ -400,15 +350,14 @@ class SelfHealingAutopilot {
       if (stuckContent && stuckContent.length > 0) {
         issuesFound++;
         
-        // @ts-ignore - Bypass TS2589 deep type instantiation
-        const query = supabase.from('content_queue').update({
+        const ids: string[] = stuckContent.map((c: any) => String(c.id));
+        const table: any = supabase.from('content_queue');
+        
+        const { error: clearError } = await table.update({
           status: 'failed',
           error_message: 'Auto-cleared by self-healing (stuck >24h)',
           updated_at: new Date().toISOString()
-        });
-        
-        // @ts-ignore
-        const { error: clearError } = await query.in('id', stuckContent.map((c: any) => c.id));
+        }).in('id', ids);
 
         if (clearError) {
           failedFixes++;
@@ -441,9 +390,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal products - verify cross-network diversity
-   */
   private async healProducts(userId: string): Promise<{
     issuesFound: number;
     issuesFixed: number;
@@ -456,7 +402,6 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      // Check network diversity
       const { data: networkStats } = await supabase
         .from('affiliate_links')
         .select('network')
@@ -498,9 +443,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal trending product publishing
-   */
   private async healTrendingPublishing(userId: string): Promise<{
     issuesFound: number;
     issuesFixed: number;
@@ -513,7 +455,6 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      // Check if there are trending products not published
       const { data: trending } = await supabase
         .from('affiliate_links')
         .select('id, product_name, clicks')
@@ -575,9 +516,6 @@ class SelfHealingAutopilot {
     }
   }
 
-  /**
-   * Heal autopilot execution - trigger if stale
-   */
   private async healAutopilotExecution(userId: string): Promise<{
     issuesFound: number;
     issuesFixed: number;
@@ -605,7 +543,8 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
-      const { data: stuckDrafts } = await (supabase as any)
+      const db: any = supabase;
+      const { data: stuckDrafts } = await db
         .from('generated_content')
         .select('id')
         .eq('user_id', userId)
@@ -620,12 +559,12 @@ class SelfHealingAutopilot {
 
         for (let i = 0; i < stuckDrafts.length; i += batchSize) {
           const batch = stuckDrafts.slice(i, i + batchSize);
-          const ids = batch.map((d: any) => d.id);
+          const ids: string[] = batch.map((d: any) => String(d.id));
           
-          // @ts-ignore - Bypass TS2589 deep type instantiation
-          const updateQuery = supabase.from('generated_content').update({ status: 'published', updated_at: new Date().toISOString() });
-          // @ts-ignore
-          await updateQuery.in('id', ids);
+          const table: any = supabase.from('generated_content');
+          await table
+            .update({ status: 'published', updated_at: new Date().toISOString() })
+            .in('id', ids);
             
           processed += batch.length;
         }
