@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { generateHooks, NICHES_MAP, trackContentPerformance } from "./contentIntelligence";
 
 /**
  * Smart Content Generator - Creates AI-powered content
