@@ -14,9 +14,14 @@ export default async function handler(
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // Get user
-    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1);
-    const userId = settings?.[0]?.user_id;
+    // Get user - try multiple methods
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).maybeSingle();
+    let userId = settings?.user_id;
+
+    if (!userId) {
+      const { data: links } = await supabaseAdmin.from('affiliate_links').select('user_id').limit(1).maybeSingle();
+      userId = links?.user_id;
+    }
 
     if (!userId) {
       return res.status(400).json({ error: 'No user found' });
