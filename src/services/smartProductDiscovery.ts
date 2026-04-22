@@ -68,12 +68,12 @@ export const smartProductDiscovery = {
           .ilike('network', `%${network}%`)
           .eq('status', 'active');
 
-        if (count && count > 0) {
+        if (count && count >= 10) {
           result.byNetwork[network] = count;
           result.totalDiscovered += count;
           console.log(`   ✅ ${count} products already in database for ${network}`);
         } else {
-          console.log(`   ⚠️ No products from ${network}. Auto-discovering trending products...`);
+          console.log(`   ⚠️ Only ${count || 0} products from ${network}. Auto-discovering trending products...`);
           // Generate realistic API-fetched products for the network
           const newProducts = generateNetworkProducts(network, userId);
           
@@ -82,7 +82,7 @@ export const smartProductDiscovery = {
             if (error) console.error(`Error inserting ${network} product:`, error);
           }
           
-          result.byNetwork[network] = newProducts.length;
+          result.byNetwork[network] = (count || 0) + newProducts.length;
           result.totalDiscovered += newProducts.length;
           console.log(`   🚀 Successfully fetched and added ${newProducts.length} trending products from ${network}`);
         }

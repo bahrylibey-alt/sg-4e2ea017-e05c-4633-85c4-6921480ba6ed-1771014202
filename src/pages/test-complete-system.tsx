@@ -113,83 +113,89 @@ export default function TestCompleteSystem() {
 
         {testResults && (
           <>
-            <Alert variant={testResults.status === 'READY' ? 'default' : 'destructive'}>
+            <Alert variant={testResults.status === 'READY' || testResults.status === 'PASS' ? 'default' : 'destructive'}>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold">Status: {testResults.status}</p>
-                    <p className="text-sm">{testResults.message}</p>
+                    <p className="font-semibold">Status: {testResults.status || (testResults.error ? 'ERROR' : 'FINISHED')}</p>
+                    <p className="text-sm">{testResults.message || testResults.error || 'System test execution completed.'}</p>
                   </div>
-                  <Badge variant={testResults.status === 'READY' ? 'default' : 'destructive'}>
-                    {testResults.summary.passed} / {testResults.summary.total} PASSED
-                  </Badge>
+                  {testResults.summary && (
+                    <Badge variant={testResults.status === 'READY' || testResults.status === 'PASS' ? 'default' : 'destructive'}>
+                      {testResults.summary.passed} / {testResults.summary.total} PASSED
+                    </Badge>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Total Tests</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold">{testResults.summary.total}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Passed</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold text-green-500">
-                    {testResults.summary.passed}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Failed</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-4xl font-bold text-red-500">
-                    {testResults.summary.failed}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Test Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {testResults.results.map((result: TestResult, index: number) => (
-                    <div key={index} className="flex items-start gap-3 p-4 rounded-lg border">
-                      {getStatusIcon(result.status)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant={getStatusBadge(result.status)}>
-                            {result.status}
-                          </Badge>
-                          <span className="font-medium">{result.step}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{result.message}</p>
-                        {result.action && (
-                          <p className="text-sm text-primary mt-2">→ {result.action}</p>
-                        )}
-                        {result.data && (
-                          <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto">
-                            {JSON.stringify(result.data, null, 2)}
-                          </pre>
-                        )}
-                      </div>
+            {testResults.summary && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Total Tests</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-4xl font-bold">{testResults.summary.total}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Passed</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-4xl font-bold text-green-500">
+                      {testResults.summary.passed}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Failed</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-4xl font-bold text-red-500">
+                      {testResults.summary.failed}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {testResults.results && Array.isArray(testResults.results) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Test Results</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {testResults.results.map((result: TestResult, index: number) => (
+                      <div key={index} className="flex items-start gap-3 p-4 rounded-lg border">
+                        {getStatusIcon(result.status)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant={getStatusBadge(result.status)}>
+                              {result.status}
+                            </Badge>
+                            <span className="font-medium">{result.step}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{result.message}</p>
+                          {result.action && (
+                            <p className="text-sm text-primary mt-2">→ {result.action}</p>
+                          )}
+                          {result.data && (
+                            <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto">
+                              {JSON.stringify(result.data, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {testResults.actions && testResults.actions.length > 0 && (
               <Card>
