@@ -1,6 +1,8 @@
+import { supabase } from "@/integrations/supabase/client";
+
 /**
  * Product Database for Affiliate Links
- * Add your products here with their tracking slugs
+ * Now connected to real database - auto-discovered products
  */
 
 export interface Product {
@@ -9,44 +11,165 @@ export interface Product {
   slug: string;
   buttonText?: string;
   description?: string;
+  originalUrl?: string;
+  clicks?: number;
+  conversions?: number;
+  status?: string;
 }
 
-export const PRODUCTS: Record<string, Product> = {
-  prod_001: {
-    id: "prod_001",
-    name: "Product One",
-    slug: "fd590482-b702-40b6-874f-15660f71ddc5",
-    buttonText: "Get This Product Now →",
-    description: "Amazing product description"
-  },
-  prod_002: {
-    id: "prod_002",
-    name: "Product Two",
-    slug: "2cdabf72-cbc7-4723-a624-62fb3854c283",
-    buttonText: "Get This Product Now →",
-    description: "Another great product"
+/**
+ * Get product from database by slug
+ */
+export async function getProductBySlug(slug: string): Promise<Product | null> {
+  try {
+    // Try affiliate_links first
+    const { data: affiliateLink } = await supabase
+      .from('affiliate_links')
+      .select('*')
+      .eq('slug', slug)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (affiliateLink) {
+      return {
+        id: affiliateLink.id,
+        name: affiliateLink.product_name || 'Product',
+        slug: affiliateLink.slug,
+        buttonText: `Get ${affiliateLink.product_name || 'This Product'} Now →`,
+        description: affiliateLink.network ? `From ${affiliateLink.network}` : undefined,
+        originalUrl: affiliateLink.original_url,
+        clicks: affiliateLink.clicks || 0,
+        conversions: affiliateLink.conversions || 0,
+        status: affiliateLink.status
+      };
+    }
+
+    // Try generated_content as fallback
+    const { data: content } = await supabase
+      .from('generated_content')
+      .select('*')
+      .eq('id', slug)
+      .eq('status', 'published')
+      .maybeSingle();
+
+    if (content) {
+      const urlMatch = content.body?.match(/https?:\/\/[^\s<>"']+/);
+      return {
+        id: content.id,
+        name: content.title,
+        slug: content.id,
+        buttonText: `Get ${content.title} →`,
+        description: content.body?.substring(0, 150),
+        originalUrl: urlMatch?.[0],
+        clicks: content.clicks || 0,
+        status: content.status
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return null;
   }
-};
-
-/**
- * Get product by ID
- */
-export function getProduct(productId: string): Product | undefined {
-  return PRODUCTS[productId];
 }
 
 /**
- * Get all products
+ * Get all active products from database
  */
-export function getAllProducts(): Product[] {
-  return Object.values(PRODUCTS);
+export async function getAllProducts(limit: number = 50): Promise<Product[]> {
+  try {
+    const { data: links } = await supabase
+      .from('affiliate_links')
+      .select('*')
+      .eq('status', 'active')
+      .order('clicks', { ascending: false })
+      .limit(limit);
+
+    if (!links) return [];
+
+    return links.map(link => ({
+      id: link.id,
+      name: link.product_name || 'Product',
+      slug: link.slug,
+      buttonText: `Get ${link.product_name || 'This Product'} Now →`,
+      description: link.network ? `From ${link.network}` : undefined,
+      originalUrl: link.original_url,
+      clicks: link.clicks || 0,
+      conversions: link.conversions || 0,
+      status: link.status
+    }));
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    return [];
+  }
+}
+
+/**
+ * Get trending products (most clicks)
+ */
+export async function getTrendingProducts(limit: number = 10): Promise<Product[]> {
+  try {
+    const { data: links } = await supabase
+      .from('affiliate_links')
+      .select('*')
+      .eq('status', 'active')
+      .order('clicks', { ascending: false })
+      .limit(limit);
+
+    if (!links) return [];
+
+    return links.map(link => ({
+      id: link.id,
+      name: link.product_name || 'Product',
+      slug: link.slug,
+      buttonText: `Get ${link.product_name || 'This Product'} Now →`,
+      description: link.network ? `From ${link.network}` : undefined,
+      originalUrl: link.original_url,
+      clicks: link.clicks || 0,
+      conversions: link.conversions || 0,
+      status: link.status
+    }));
+  } catch (error) {
+    console.error('Error fetching trending products:', error);
+    return [];
+  }
 }
 
 /**
  * Get product URL (integrates with existing /go/[slug] routing)
  */
-export function getProductUrl(productId: string): string {
-  const product = PRODUCTS[productId];
-  if (!product) return "#";
-  return `/go/${product.slug}`;
+export function getProductUrl(slug: string): string {
+  if (!slug) return "#";
+  return `/go/${slug}`;
+}
+
+/**
+ * Search products by name
+ */
+export async function searchProducts(query: string): Promise<Product[]> {
+  try {
+    const { data: links } = await supabase
+      .from('affiliate_links')
+      .select('*')
+      .eq('status', 'active')
+      .ilike('product_name', `%${query}%`)
+      .limit(20);
+
+    if (!links) return [];
+
+    return links.map(link => ({
+      id: link.id,
+      name: link.product_name || 'Product',
+      slug: link.slug,
+      buttonText: `Get ${link.product_name || 'This Product'} Now →`,
+      description: link.network ? `From ${link.network}` : undefined,
+      originalUrl: link.original_url,
+      clicks: link.clicks || 0,
+      conversions: link.conversions || 0,
+      status: link.status
+    }));
+  } catch (error) {
+    console.error('Error searching products:', error);
+    return [];
+  }
 }

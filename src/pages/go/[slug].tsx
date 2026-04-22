@@ -1,27 +1,63 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { GetServerSideProps } from "next";
 import { supabase } from "@/integrations/supabase/client";
+import { SEO } from "@/components/SEO";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 
-export default function RedirectPage() {
+interface ProductData {
+  id: string;
+  product_name: string;
+  original_url: string;
+  user_id: string;
+  clicks: number;
+  network?: string;
+  description?: string;
+}
+
+interface RedirectPageProps {
+  productData?: ProductData;
+  error?: string;
+}
+
+export default function RedirectPage({ productData: initialData, error: serverError }: RedirectPageProps) {
   const router = useRouter();
   const { slug } = router.query;
-  const [error, setError] = useState<string | null>(null);
-  const [linkData, setLinkData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(serverError || null);
+  const [linkData, setLinkData] = useState<ProductData | null>(initialData || null);
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    if (!slug || typeof slug !== 'string') {
+    if (serverError || !slug || typeof slug !== 'string') {
       return;
     }
 
+    // If we already have data from SSR, just start countdown
+    if (initialData) {
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            window.location.href = initialData.original_url;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Track click on client side
+      trackClick(initialData);
+
+      return () => clearInterval(timer);
+    }
+
+    // Fallback: fetch on client if SSR didn't provide data
     const trackAndRedirect = async () => {
       try {
         console.log(`🔍 [REDIRECT] Starting for slug: ${slug}`);
 
-        // STEP 1: Try affiliate_links table first (proper affiliate links)
         const { data: affiliateLink } = await supabase
           .from('affiliate_links')
           .select('*')
@@ -29,18 +65,19 @@ export default function RedirectPage() {
           .eq('status', 'active')
           .maybeSingle();
 
-        let link: any = null;
-        let sourceTable = '';
+        let link: ProductData | null = null;
 
         if (affiliateLink && affiliateLink.original_url) {
-          link = affiliateLink;
-          sourceTable = 'affiliate_links';
+          link = {
+            id: affiliateLink.id,
+            product_name: affiliateLink.product_name || 'Product',
+            original_url: affiliateLink.original_url,
+            user_id: affiliateLink.user_id,
+            clicks: affiliateLink.clicks || 0,
+            network: affiliateLink.network
+          };
           console.log('✅ Found in affiliate_links');
-        }
-
-        // STEP 2: Try generated_content (using ID as slug)
-        if (!link) {
-          console.log('Checking generated_content...');
+        } else {
           const { data: content } = await supabase
             .from('generated_content')
             .select('*')
@@ -49,46 +86,16 @@ export default function RedirectPage() {
             .maybeSingle();
 
           if (content) {
-            // Extract URL from body - try multiple patterns
-            let extractedUrl = null;
-            
-            // Pattern 1: Standard http(s) URL
             const urlMatch = content.body?.match(/https?:\/\/[^\s<>"']+/);
             if (urlMatch) {
-              extractedUrl = urlMatch[0];
-            }
-            
-            // Pattern 2: Check if there's a product_id we can use
-            if (!extractedUrl && content.campaign_id) {
-              // Try to find affiliate link by campaign
-              const { data: relatedLink } = await supabase
-                .from('affiliate_links')
-                .select('original_url, product_name')
-                .eq('campaign_id', content.campaign_id)
-                .eq('status', 'active')
-                .maybeSingle();
-              
-              if (relatedLink?.original_url) {
-                extractedUrl = relatedLink.original_url;
-              }
-            }
-
-            // Pattern 3: Generic product search fallback
-            if (!extractedUrl) {
-              // Extract product name from title and search Amazon
-              const productName = content.title.replace(/^Review:\s*/, '').replace(/\s*-\s*\d+$/, '');
-              extractedUrl = `https://www.amazon.com/s?k=${encodeURIComponent(productName)}`;
-            }
-
-            if (extractedUrl) {
               link = {
                 id: content.id,
                 product_name: content.title,
-                original_url: extractedUrl,
+                original_url: urlMatch[0],
                 user_id: content.user_id,
-                clicks: content.clicks || 0
+                clicks: content.clicks || 0,
+                description: content.body?.substring(0, 150)
               };
-              sourceTable = 'generated_content';
               console.log('✅ Found in generated_content');
             }
           }
@@ -103,72 +110,8 @@ export default function RedirectPage() {
         console.log(`✅ Redirecting to: ${link.original_url}`);
         setLinkData(link);
 
-        // STEP 3: Update click count
-        const newClicks = (link.clicks || 0) + 1;
-        
-        if (sourceTable === 'generated_content') {
-          await supabase
-            .from('generated_content')
-            .update({ 
-              clicks: newClicks,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', link.id);
-        } else {
-          await supabase
-            .from('affiliate_links')
-            .update({ 
-              clicks: newClicks,
-              click_count: newClicks,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', link.id);
-        }
+        await trackClick(link);
 
-        console.log(`✅ Click count updated: ${link.clicks || 0} → ${newClicks}`);
-
-        // STEP 4: Record click event (try, don't fail if it errors)
-        try {
-          await supabase
-            .from('click_events')
-            .insert({
-              link_id: link.id,
-              user_id: link.user_id,
-              ip_address: "browser",
-              user_agent: navigator.userAgent,
-              referrer: document.referrer || 'direct',
-              clicked_at: new Date().toISOString()
-            });
-          console.log("✅ Click event recorded");
-        } catch (eventError) {
-          console.log("⚠️ Click event skipped:", eventError);
-        }
-
-        // STEP 5: Update system_state (try, don't fail if it errors)
-        try {
-          const { data: systemState } = await supabase
-            .from('system_state')
-            .select('total_clicks')
-            .eq('user_id', link.user_id)
-            .maybeSingle();
-
-          if (systemState) {
-            await supabase
-              .from('system_state')
-              .update({ 
-                total_clicks: (systemState.total_clicks || 0) + 1,
-                updated_at: new Date().toISOString()
-              })
-              .eq('user_id', link.user_id);
-            console.log(`✅ System state updated`);
-          }
-        } catch (stateError) {
-          console.log("⚠️ System state update skipped:", stateError);
-        }
-
-        console.log('🎉 Tracking complete - redirecting...');
-
-        // Start countdown
         const timer = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
@@ -188,64 +131,235 @@ export default function RedirectPage() {
     };
 
     trackAndRedirect();
-  }, [slug]);
+  }, [slug, initialData, serverError]);
+
+  async function trackClick(link: ProductData) {
+    try {
+      const newClicks = (link.clicks || 0) + 1;
+
+      await supabase
+        .from('affiliate_links')
+        .update({ 
+          clicks: newClicks,
+          click_count: newClicks,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', link.id);
+
+      console.log(`✅ Click count updated: ${link.clicks || 0} → ${newClicks}`);
+
+      try {
+        await supabase
+          .from('click_events')
+          .insert({
+            link_id: link.id,
+            user_id: link.user_id,
+            ip_address: "browser",
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'ssr',
+            referrer: typeof document !== 'undefined' ? (document.referrer || 'direct') : 'ssr',
+            clicked_at: new Date().toISOString()
+          });
+        console.log("✅ Click event recorded");
+      } catch (eventError) {
+        console.log("⚠️ Click event skipped:", eventError);
+      }
+
+      try {
+        const { data: systemState } = await supabase
+          .from('system_state')
+          .select('total_clicks')
+          .eq('user_id', link.user_id)
+          .maybeSingle();
+
+        if (systemState) {
+          await supabase
+            .from('system_state')
+            .update({ 
+              total_clicks: (systemState.total_clicks || 0) + 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', link.user_id);
+          console.log(`✅ System state updated`);
+        }
+      } catch (stateError) {
+        console.log("⚠️ System state update skipped:", stateError);
+      }
+
+      console.log('🎉 Tracking complete');
+    } catch (err) {
+      console.error("Error tracking click:", err);
+    }
+  }
+
+  // Dynamic SEO based on product data
+  const seoTitle = linkData 
+    ? `${linkData.product_name} - Get It Now` 
+    : "Product Redirect";
+  const seoDescription = linkData
+    ? `Check out ${linkData.product_name}${linkData.network ? ` from ${linkData.network}` : ''}. Click to view product details and get the best deal.`
+    : "Redirecting to product page...";
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
-            <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
-            <h1 className="text-2xl font-bold mb-2">Link Error</h1>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Button onClick={() => router.push('/dashboard')} className="w-full">
-              Return to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <>
+        <SEO 
+          title="Link Error"
+          description="This link could not be found or has expired"
+        />
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
+              <h1 className="text-2xl font-bold mb-2">Link Error</h1>
+              <p className="text-muted-foreground mb-6">{error}</p>
+              <Button onClick={() => router.push('/dashboard')} className="w-full">
+                Return to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </>
     );
   }
 
   if (!linkData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+      <>
+        <SEO title="Loading Product..." description="Please wait while we load the product information" />
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading product...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="max-w-md w-full">
-        <CardContent className="pt-6 text-center">
-          <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          
-          <h1 className="text-2xl font-bold mb-2">Redirecting to Product</h1>
-          <p className="text-lg font-semibold mb-4">{linkData.product_name}</p>
-          
-          <div className="text-6xl font-bold text-primary mb-4">{countdown}</div>
-          <p className="text-muted-foreground mb-6">
-            You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}...
-          </p>
-          
-          <Button
-            onClick={() => window.location.href = linkData.original_url}
-            className="w-full"
-            size="lg"
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Go Now
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <SEO 
+        title={seoTitle}
+        description={seoDescription}
+        url={`/go/${slug}`}
+      />
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            
+            <h1 className="text-2xl font-bold mb-2">Redirecting to Product</h1>
+            <p className="text-lg font-semibold mb-4">{linkData.product_name}</p>
+            {linkData.network && (
+              <p className="text-sm text-muted-foreground mb-4">From {linkData.network}</p>
+            )}
+            
+            <div className="text-6xl font-bold text-primary mb-4">{countdown}</div>
+            <p className="text-muted-foreground mb-6">
+              You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}...
+            </p>
+            
+            <Button
+              onClick={() => window.location.href = linkData.original_url}
+              className="w-full"
+              size="lg"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Go Now
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { slug } = context.params as { slug: string };
+
+  try {
+    // Create a Supabase client for server-side
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+    // Simple fetch instead of using the client
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/affiliate_links?slug=eq.${slug}&status=eq.active&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data && data.length > 0) {
+      const link = data[0];
+      return {
+        props: {
+          productData: {
+            id: link.id,
+            product_name: link.product_name || 'Product',
+            original_url: link.original_url,
+            user_id: link.user_id,
+            clicks: link.clicks || 0,
+            network: link.network || null,
+            description: null
+          }
+        }
+      };
+    }
+
+    // Try generated_content as fallback
+    const contentResponse = await fetch(
+      `${supabaseUrl}/rest/v1/generated_content?id=eq.${slug}&status=eq.published&select=*`,
+      {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`
+        }
+      }
+    );
+
+    const contentData = await contentResponse.json();
+
+    if (contentData && contentData.length > 0) {
+      const content = contentData[0];
+      const urlMatch = content.body?.match(/https?:\/\/[^\s<>"']+/);
+      
+      if (urlMatch) {
+        return {
+          props: {
+            productData: {
+              id: content.id,
+              product_name: content.title,
+              original_url: urlMatch[0],
+              user_id: content.user_id,
+              clicks: content.clicks || 0,
+              description: content.body?.substring(0, 150) || null
+            }
+          }
+        };
+      }
+    }
+
+    return {
+      props: {
+        error: "This link doesn't exist or has expired"
+      }
+    };
+  } catch (error) {
+    console.error('SSR Error:', error);
+    return {
+      props: {
+        error: "An error occurred loading this product"
+      }
+    };
+  }
+};
