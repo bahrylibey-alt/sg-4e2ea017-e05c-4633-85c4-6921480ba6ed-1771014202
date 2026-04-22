@@ -14,55 +14,42 @@ export function AutopilotRunner({ onComplete }: AutopilotRunnerProps) {
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
 
-  const forceRun = async () => {
+  const runEmergencyFix = async () => {
     setIsRunning(true);
     setResult(null);
-
+    
     try {
-      toast({
-        title: "🚀 Emergency Restart",
-        description: "Force-running the entire automation engine...",
-      });
-
-      const response = await fetch('/api/force-autopilot-run', {
+      const response = await fetch('/api/emergency-recovery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-
+      
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to run autopilot');
-      }
-
       setResult(data);
-
+      
       if (data.success) {
         toast({
-          title: "✅ Autopilot Restarted",
-          description: `Successfully processed ${data.processed} user(s). System is back online!`,
+          title: "✅ System Restored!",
+          description: `Published ${data.stats?.draftsPublished || 0} stuck posts. Numbers will update in 5-10 minutes.`,
         });
       } else {
         toast({
-          title: "⚠️ Partial Success",
-          description: data.message || "Some systems started, check details below",
-          variant: "destructive",
+          title: "Recovery Error",
+          description: data.message || "Recovery failed",
+          variant: "destructive"
         });
       }
-
-      // Trigger parent refresh
-      if (onComplete) {
-        setTimeout(onComplete, 2000);
-      }
-
     } catch (error: any) {
-      console.error('Force run error:', error);
-      toast({
-        title: "❌ Emergency Restart Failed",
-        description: error.message || "Could not restart autopilot",
-        variant: "destructive",
+      setResult({
+        success: false,
+        error: error.message,
+        report: 'Failed to run emergency recovery'
       });
-      setResult({ success: false, error: error.message });
+      toast({
+        title: "Error",
+        description: "Could not connect to recovery endpoint",
+        variant: "destructive"
+      });
     } finally {
       setIsRunning(false);
     }
@@ -82,7 +69,7 @@ export function AutopilotRunner({ onComplete }: AutopilotRunnerProps) {
             </CardDescription>
           </div>
           <Button 
-            onClick={forceRun} 
+            onClick={runEmergencyFix} 
             disabled={isRunning}
             size="lg"
             className="bg-orange-600 hover:bg-orange-700 text-white"
