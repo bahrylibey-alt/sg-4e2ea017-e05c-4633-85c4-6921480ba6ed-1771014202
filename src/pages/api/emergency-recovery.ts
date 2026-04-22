@@ -5,6 +5,8 @@ import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
 /**
  * EMERGENCY RECOVERY - Restore system to working state
  * Publishes stuck drafts, clears backlog, restarts automation
+ * 
+ * NO AUTH REQUIRED - This is a recovery endpoint
  */
 export default async function handler(
   req: NextApiRequest,
