@@ -1,174 +1,119 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
-import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
+import { createClient } from "@supabase/supabase-js";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * FORCE AUTOPILOT RUN
- * 
- * Manually trigger autopilot execution for testing/debugging
+ * Force-run the complete autopilot cycle:
+ * 1. Discover products from all networks
+ * 2. Publish trending products with affiliate links
+ * 3. Return detailed results
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    console.log('🚀 FORCE AUTOPILOT RUN: Starting...');
+    console.log('🚀 FORCE AUTOPILOT RUN - Starting...');
 
-    // Get all users with autopilot enabled
-    const { data: users, error: usersError } = await supabase
-      .from('user_settings')
-      .select('user_id, autopilot_enabled')
-      .eq('autopilot_enabled', true);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    if (usersError) {
-      throw usersError;
+    // Get first available user
+    let userId: string | null = null;
+    
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1);
+    if (settings && settings.length > 0) {
+      userId = settings[0].user_id;
     }
 
-    if (!users || users.length === 0) {
-      // AUTO-FIX: No users with autopilot enabled
-      // Try to get the current user and enable it
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        // Check if ANY users exist
-        const { data: allUsers } = await supabase.auth.admin.listUsers();
-        
-        if (!allUsers || allUsers.users.length === 0) {
-          return res.status(200).json({
-            success: false,
-            message: 'No users found in system',
-            action: 'Sign up first, then click "Smart Repair"'
-          });
-        }
-        
-        // Use first user
-        const userId = allUsers.users[0].id;
-        
-        // Check if user_settings exists
-        const { data: existingSettings } = await supabase
-          .from('user_settings')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-        
-        if (!existingSettings) {
-          // Create settings with autopilot enabled
-          await supabase
-            .from('user_settings')
-            .insert({
-              user_id: userId,
-              autopilot_enabled: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-        } else {
-          // Enable autopilot
-          await supabase
-            .from('user_settings')
-            .update({ 
-              autopilot_enabled: true,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', userId);
-        }
-        
-        // Retry with the fixed user
-        return handler(req, res);
-      }
-      
-      // Enable autopilot for current user
-      const { data: currentUserSettings } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (!currentUserSettings) {
-        await supabase
-          .from('user_settings')
-          .insert({
-            user_id: user.id,
-            autopilot_enabled: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-      } else {
-        await supabase
-          .from('user_settings')
-          .update({ 
-            autopilot_enabled: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-      }
-      
-      // Retry now that autopilot is enabled
-      return handler(req, res);
-    }
-
-    console.log(`Processing ${users.length} users...`);
-
-    const results = [];
-    for (const user of users) {
-      try {
-        console.log(`🎯 Processing user: ${user.user_id}`);
-        
-        // Run unified orchestrator
-        const result = await unifiedOrchestrator.execute(user.user_id);
-        
-        results.push({
-          userId: user.user_id,
-          success: result.success,
-          metrics: result.metrics,
-          health: result.systemHealth,
-          executedSystems: (result as any).executedSystems || []
-        });
-
-        // Update last run time
-        await supabase
-          .from('user_settings')
-          .update({ 
-            last_autopilot_run: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.user_id);
-
-        // Log execution
-        await supabase
-          .from('autopilot_cron_log')
-          .insert({
-            user_id: user.user_id,
-            execution_time: new Date().toISOString(),
-            status: result.success ? 'success' : 'partial',
-            results: result as any
-          });
-
-        console.log(`✅ User ${user.user_id}: ${result.success ? 'SUCCESS' : 'PARTIAL'}`);
-
-      } catch (userError) {
-        console.error(`❌ Error processing user ${user.user_id}:`, userError);
-        results.push({
-          userId: user.user_id,
-          success: false,
-          error: userError instanceof Error ? userError.message : 'Unknown error'
-        });
+    if (!userId) {
+      const { data: links } = await supabaseAdmin.from('affiliate_links').select('user_id').limit(1);
+      if (links && links.length > 0) {
+        userId = links[0].user_id;
       }
     }
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'No user account found. Please sign up first.',
+        action: 'Visit /dashboard and create an account'
+      });
+    }
+
+    console.log(`👤 Running autopilot for user: ${userId}`);
+
+    // Step 1: Discover products from all networks
+    console.log('\n🔍 STEP 1: Product Discovery');
+    const discoveryResult = await smartProductDiscovery.discoverProducts(
+      userId,
+      { 
+        limit: 50,
+        networks: ['Amazon', 'Temu', 'AliExpress']
+      }
+    );
+
+    console.log('Discovery Results:', discoveryResult);
+
+    // Step 2: Auto-publish trending products
+    console.log('\n📢 STEP 2: Auto-Publishing Trending Products');
+    const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 10);
+
+    console.log('Publishing Results:', publishResult);
+
+    // Step 3: Verify published content
+    console.log('\n✅ STEP 3: Verification');
+    const { data: publishedContent, count: contentCount } = await supabaseAdmin
+      .from('generated_content')
+      .select('id, title, status, created_at', { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const { data: activeProducts, count: productCount } = await supabaseAdmin
+      .from('affiliate_links')
+      .select('network', { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    // Network breakdown
+    const networkStats = activeProducts?.reduce((acc, p) => {
+      const network = p.network || 'Unknown';
+      acc[network] = (acc[network] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
 
     return res.status(200).json({
       success: true,
-      message: `Processed ${users.length} users`,
-      processed: users.length,
-      results,
-      timestamp: new Date().toISOString()
+      userId,
+      summary: {
+        productsDiscovered: discoveryResult.totalDiscovered,
+        contentPublished: publishResult.published,
+        totalProducts: productCount || 0,
+        totalContent: contentCount || 0
+      },
+      discovery: {
+        byNetwork: discoveryResult.byNetwork,
+        topProducts: discoveryResult.topProducts.slice(0, 5)
+      },
+      publishing: {
+        published: publishResult.published,
+        products: publishResult.products
+      },
+      verification: {
+        networkBreakdown: networkStats,
+        recentContent: publishedContent?.map(c => ({
+          title: c.title,
+          created: c.created_at
+        }))
+      },
+      message: `✅ Autopilot completed! ${publishResult.published} products published with affiliate links`
     });
 
   } catch (error: any) {
-    console.error('❌ FORCE AUTOPILOT ERROR:', error);
+    console.error('❌ AUTOPILOT ERROR:', error);
     return res.status(500).json({
       success: false,
       error: error.message,
