@@ -625,13 +625,13 @@ class SelfHealingAutopilot {
             .limit(batchSize);
 
           if (batch && batch.length > 0) {
-            await supabase
-              .from('generated_content')
+            const ids = batch.map(d => d.id);
+            await (supabase.from('generated_content') as any)
               .update({ 
                 status: 'published',
                 updated_at: new Date().toISOString()
               })
-              .in('id', batch.map(d => d.id));
+              .in('id', ids);
 
             processed += batch.length;
           }
