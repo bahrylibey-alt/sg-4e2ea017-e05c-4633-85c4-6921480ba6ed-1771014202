@@ -51,7 +51,7 @@ export default async function handler(
           success: result.success,
           metrics: result.metrics,
           health: result.systemHealth,
-          executedSystems: result.executedSystems || []
+          executedSystems: (result as any).executedSystems || []
         });
 
         // Update last run time
@@ -70,7 +70,7 @@ export default async function handler(
             user_id: user.user_id,
             execution_time: new Date().toISOString(),
             status: result.success ? 'success' : 'partial',
-            results: result
+            results: result as any
           });
 
         console.log(`✅ User ${user.user_id}: ${result.success ? 'SUCCESS' : 'PARTIAL'}`);
