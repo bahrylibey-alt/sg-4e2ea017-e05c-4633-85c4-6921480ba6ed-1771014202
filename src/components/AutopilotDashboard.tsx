@@ -120,13 +120,13 @@ export function AutopilotDashboard() {
     try {
       setIsChecking(true);
       toast({
-        title: "Running Quick Fix",
-        description: "Automatically configuring your system...",
+        title: "Running Smart Repair",
+        description: "Scanning and fixing all system issues...",
       });
 
       const { data: { session } } = await supabase.auth.getSession();
 
-      const response = await fetch("/api/quick-fix", { 
+      const response = await fetch("/api/smart-repair", { 
         method: "POST",
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
       });
@@ -134,22 +134,22 @@ export function AutopilotDashboard() {
 
       if (result.success) {
         toast({
-          title: "Quick Fix Complete",
-          description: `Fixed ${result.summary.fixed} issues`,
+          title: "✅ System Repaired!",
+          description: `Fixed ${result.summary.fixed} issue(s). ${result.next_action}`,
         });
         await checkSystemStatus();
       } else {
         toast({
-          title: "Quick Fix Partial",
-          description: `Fixed ${result.summary?.fixed || 0}, failed ${result.summary?.failed || 0}`,
+          title: "Partial Repair",
+          description: result.message || `Fixed ${result.summary?.fixed || 0}, failed ${result.summary?.failed || 0}`,
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("Quick fix failed:", error);
+      console.error("Smart repair failed:", error);
       toast({
-        title: "Quick Fix Failed",
-        description: "Could not run automatic fixes",
+        title: "Repair Failed",
+        description: "Could not run smart repair",
         variant: "destructive",
       });
     } finally {
@@ -339,8 +339,8 @@ export function AutopilotDashboard() {
         <Button onClick={discoverProducts} disabled={isDiscovering || isChecking} size="lg" variant="outline" className="w-full">
           {isDiscovering ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : <><RefreshCw className="mr-2 h-4 w-4" /> Find Products</>}
         </Button>
-        <Button onClick={runQuickFix} disabled={isChecking} size="lg" variant="secondary" className="w-full">
-          {isChecking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fixing...</> : <><Wrench className="mr-2 h-4 w-4" /> Quick Fix</>}
+        <Button onClick={runQuickFix} disabled={isChecking} size="lg" variant="secondary" className="w-full bg-green-600 hover:bg-green-700 text-white">
+          {isChecking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Repairing...</> : <><Wrench className="mr-2 h-4 w-4" /> Smart Repair</>}
         </Button>
       </div>
 

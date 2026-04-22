@@ -29,11 +29,85 @@ export default async function handler(
     }
 
     if (!users || users.length === 0) {
-      return res.status(200).json({
-        success: false,
-        message: 'No users with autopilot enabled',
-        action: 'Enable autopilot in settings first'
-      });
+      // AUTO-FIX: No users with autopilot enabled
+      // Try to get the current user and enable it
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        // Check if ANY users exist
+        const { data: allUsers } = await supabase.auth.admin.listUsers();
+        
+        if (!allUsers || allUsers.users.length === 0) {
+          return res.status(200).json({
+            success: false,
+            message: 'No users found in system',
+            action: 'Sign up first, then click "Smart Repair"'
+          });
+        }
+        
+        // Use first user
+        const userId = allUsers.users[0].id;
+        
+        // Check if user_settings exists
+        const { data: existingSettings } = await supabase
+          .from('user_settings')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (!existingSettings) {
+          // Create settings with autopilot enabled
+          await supabase
+            .from('user_settings')
+            .insert({
+              user_id: userId,
+              autopilot_enabled: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+        } else {
+          // Enable autopilot
+          await supabase
+            .from('user_settings')
+            .update({ 
+              autopilot_enabled: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+        }
+        
+        // Retry with the fixed user
+        return handler(req, res);
+      }
+      
+      // Enable autopilot for current user
+      const { data: currentUserSettings } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (!currentUserSettings) {
+        await supabase
+          .from('user_settings')
+          .insert({
+            user_id: user.id,
+            autopilot_enabled: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+      } else {
+        await supabase
+          .from('user_settings')
+          .update({ 
+            autopilot_enabled: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+      }
+      
+      // Retry now that autopilot is enabled
+      return handler(req, res);
     }
 
     console.log(`Processing ${users.length} users...`);
