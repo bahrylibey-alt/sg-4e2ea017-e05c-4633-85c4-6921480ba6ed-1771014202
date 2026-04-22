@@ -30,7 +30,7 @@ export default function RedirectPage() {
           .maybeSingle();
 
         // STEP 2: If not found, try generated_content table
-        let link = affiliateLink;
+        let link: any = affiliateLink;
         let isGeneratedContent = false;
 
         if (!link) {
