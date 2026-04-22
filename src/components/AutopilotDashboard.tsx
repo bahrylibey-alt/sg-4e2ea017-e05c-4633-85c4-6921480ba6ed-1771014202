@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Activity, AlertCircle, CheckCircle, Play, Loader2, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AutopilotRunner } from "./AutopilotRunner";
 
 interface SystemStatus {
   status: 'READY' | 'NOT_READY' | 'PARTIAL' | 'CRITICAL';
@@ -327,6 +328,9 @@ export function AutopilotDashboard() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Emergency Restart Button */}
+      <AutopilotRunner onComplete={checkSystemStatus} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Button onClick={runAutopilot} disabled={isRunning || isChecking} size="lg" className="w-full">

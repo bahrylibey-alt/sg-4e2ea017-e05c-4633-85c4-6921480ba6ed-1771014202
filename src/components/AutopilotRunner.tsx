@@ -1,183 +1,132 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PlayCircle, AlertTriangle, CheckCircle, RefreshCw, Wrench } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Zap, Loader2, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-/**
- * AUTOPILOT RUNNER COMPONENT
- * 
- * One-click system repair and activation
- */
-export function AutopilotRunner() {
-  const [running, setRunning] = useState(false);
+interface AutopilotRunnerProps {
+  onComplete?: () => void;
+}
+
+export function AutopilotRunner({ onComplete }: AutopilotRunnerProps) {
+  const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const { toast } = useToast();
 
-  const runSmartRepair = async () => {
-    setRunning(true);
+  const forceRun = async () => {
+    setIsRunning(true);
     setResult(null);
 
     try {
-      const response = await fetch('/api/smart-repair');
-      const data = await response.json();
-      setResult(data);
-    } catch (error: any) {
-      setResult({
-        success: false,
-        error: error.message,
-        systemStatus: 'CRITICAL'
+      toast({
+        title: "🚀 Emergency Restart",
+        description: "Force-running the entire automation engine...",
       });
-    } finally {
-      setRunning(false);
-    }
-  };
 
-  const runAutopilot = async () => {
-    setRunning(true);
-    try {
-      const response = await fetch('/api/test-cron-autopilot');
-      const data = await response.json();
-      alert(data.success ? '✅ Autopilot executed successfully!' : '❌ Autopilot failed');
-    } catch (error) {
-      alert('❌ Error running autopilot');
-    } finally {
-      setRunning(false);
-    }
-  };
+      const response = await fetch('/api/force-autopilot-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
 
-  const runProductDiscovery = async () => {
-    setRunning(true);
-    try {
-      const response = await fetch('/api/test-cron-discovery');
       const data = await response.json();
-      alert(data.success ? '✅ Product discovery executed!' : '❌ Discovery failed');
-    } catch (error) {
-      alert('❌ Error running discovery');
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to run autopilot');
+      }
+
+      setResult(data);
+
+      if (data.success) {
+        toast({
+          title: "✅ Autopilot Restarted",
+          description: `Successfully processed ${data.processed} user(s). System is back online!`,
+        });
+      } else {
+        toast({
+          title: "⚠️ Partial Success",
+          description: data.message || "Some systems started, check details below",
+          variant: "destructive",
+        });
+      }
+
+      // Trigger parent refresh
+      if (onComplete) {
+        setTimeout(onComplete, 2000);
+      }
+
+    } catch (error: any) {
+      console.error('Force run error:', error);
+      toast({
+        title: "❌ Emergency Restart Failed",
+        description: error.message || "Could not restart autopilot",
+        variant: "destructive",
+      });
+      setResult({ success: false, error: error.message });
     } finally {
-      setRunning(false);
+      setIsRunning(false);
     }
   };
 
   return (
-    <Card>
+    <Card className="border-2 border-orange-500/30 bg-orange-50 dark:bg-orange-950/20">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wrench className="h-5 w-5" />
-          System Auto-Fix & Runner
-        </CardTitle>
-        <CardDescription>
-          Scan for problems and fix them automatically, or manually run autopilot tasks
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Auto-Fix Button */}
-        <div className="space-y-2">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+              <AlertTriangle className="h-5 w-5" />
+              Emergency Restart
+            </CardTitle>
+            <CardDescription className="mt-2">
+              If your system appears stuck (numbers not changing), use this to force the automation engine to restart immediately.
+            </CardDescription>
+          </div>
           <Button 
-            onClick={runSmartRepair}
-            disabled={running}
-            className="w-full"
+            onClick={forceRun} 
+            disabled={isRunning}
             size="lg"
-            variant="default"
+            className="bg-orange-600 hover:bg-orange-700 text-white"
           >
-            {running ? (
+            {isRunning ? (
               <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Scanning & Fixing...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Restarting...
               </>
             ) : (
               <>
-                <Wrench className="mr-2 h-4 w-4" />
-                🔧 Auto-Fix All Problems
+                <Zap className="mr-2 h-4 w-4" />
+                Force Restart Now
               </>
             )}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            Scans the system for issues and repairs them automatically
-          </p>
         </div>
+      </CardHeader>
 
-        {/* Manual Controls */}
-        <div className="grid grid-cols-2 gap-2">
-          <Button 
-            onClick={runAutopilot}
-            disabled={running}
-            variant="outline"
-          >
-            <PlayCircle className="mr-2 h-4 w-4" />
-            Run Autopilot
-          </Button>
-          <Button 
-            onClick={runProductDiscovery}
-            disabled={running}
-            variant="outline"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Find Products
-          </Button>
-        </div>
-
-        {/* Results Display */}
-        {result && (
-          <div className="mt-4 space-y-3 border-t pt-4">
-            <div className="flex items-center gap-2">
-              {result.systemStatus === 'HEALTHY' ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : result.systemStatus === 'DEGRADED' ? (
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-              )}
-              <span className="font-semibold">
-                System Status: {result.systemStatus}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center">
-                <div className="text-2xl font-bold">{result.totalIssues}</div>
-                <div className="text-xs text-muted-foreground">Issues Found</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{result.issuesFixed}</div>
-                <div className="text-xs text-muted-foreground">Fixed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{result.issuesFailed}</div>
-                <div className="text-xs text-muted-foreground">Failed</div>
-              </div>
-            </div>
-
-            {result.details && result.details.length > 0 && (
+      {result && (
+        <CardContent>
+          <Alert variant={result.success ? "default" : "destructive"}>
+            <AlertDescription>
               <div className="space-y-2">
-                <div className="text-sm font-semibold">Issues Detected:</div>
-                {result.details.slice(0, 5).map((detail: any, i: number) => (
-                  <div key={i} className="flex items-start gap-2 text-xs border-l-2 pl-2" style={{
-                    borderColor: detail.severity === 'CRITICAL' ? '#ef4444' : 
-                                 detail.severity === 'HIGH' ? '#f59e0b' : '#10b981'
-                  }}>
-                    <Badge variant={detail.status === 'FIXED' ? 'default' : 'destructive'}>
-                      {detail.status}
-                    </Badge>
-                    <div>
-                      <div className="font-semibold">{detail.issue}</div>
-                      <div className="text-muted-foreground">{detail.action}</div>
-                    </div>
+                <p className="font-semibold">
+                  {result.success ? "✅ Success" : "❌ Failed"}
+                </p>
+                <p className="text-sm">{result.message}</p>
+                {result.results && result.results.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {result.results.map((r: any, i: number) => (
+                      <div key={i} className="text-xs bg-background/50 p-2 rounded">
+                        <p><strong>User:</strong> {r.userId}</p>
+                        <p><strong>Status:</strong> {r.success ? '✅ Success' : '❌ Failed'}</p>
+                        {r.error && <p className="text-destructive"><strong>Error:</strong> {r.error}</p>}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-
-            {result.recommendations && result.recommendations.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-sm font-semibold">Recommendations:</div>
-                {result.recommendations.map((rec: string, i: number) => (
-                  <div key={i} className="text-xs text-muted-foreground">• {rec}</div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      )}
     </Card>
   );
 }
