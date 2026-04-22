@@ -3,16 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * PRODUCT DISCOVERY CRON JOB
- * Runs daily to discover new products from REAL affiliate network APIs
- * 
- * NO FAKE DATA - Only calls real affiliate APIs with valid credentials
+ * CROSS-NETWORK PRODUCT DISCOVERY CRON JOB
+ * Discovers trending products from Amazon, Temu, AliExpress and other networks
+ * Auto-publishes trending products as content
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Verify cron secret
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
 
@@ -21,9 +19,8 @@ export default async function handler(
   }
 
   try {
-    console.log('🔍 PRODUCT DISCOVERY: Starting...');
+    console.log('🌐 CROSS-NETWORK PRODUCT DISCOVERY: Starting...');
 
-    // Get all users with autopilot enabled
     const { data: users } = await supabase
       .from('user_settings')
       .select('user_id, autopilot_enabled')
@@ -37,38 +34,36 @@ export default async function handler(
       });
     }
 
-    console.log(`Discovering products for ${users.length} users...`);
+    console.log(`Processing ${users.length} users...`);
 
     const results = [];
     for (const user of users) {
       try {
-        console.log(`🎯 Processing user: ${user.user_id}`);
+        console.log(`\n🎯 User: ${user.user_id}`);
         
-        // Get user's autopilot settings
-        const { data: settings } = await supabase
-          .from('autopilot_settings')
-          .select('*')
-          .eq('user_id', user.user_id)
-          .maybeSingle();
+        // Discover products from ALL networks
+        const discoveryResult = await smartProductDiscovery.discoverProducts(
+          user.user_id,
+          { 
+            limit: 50,
+            networks: ['Amazon', 'Temu', 'AliExpress', 'Amazon Associates', 'Temu Affiliate']
+          }
+        );
         
-        const discoverySettings = {
-          limit: 50,
-          minPrice: settings?.min_product_price || undefined,
-          maxPrice: settings?.max_product_price || undefined
-        };
-
-        // Discover products from REAL affiliate networks only
-        const discoveryResult = await smartProductDiscovery.discoverProducts(user.user_id, discoverySettings);
+        // Auto-publish trending products
+        const publishResult = await smartProductDiscovery.publishTrendingProducts(user.user_id, 5);
         
         results.push({
           userId: user.user_id,
-          success: discoveryResult.totalDiscovered > 0,
           discovered: discoveryResult.totalDiscovered,
           byNetwork: discoveryResult.byNetwork,
-          recommendations: discoveryResult.recommendations
+          published: publishResult.published,
+          publishedProducts: publishResult.products
         });
 
-        console.log(`✅ User ${user.user_id}: Discovered ${discoveryResult.totalDiscovered} products`);
+        console.log(`✅ User ${user.user_id}:`);
+        console.log(`   Discovered: ${discoveryResult.totalDiscovered}`);
+        console.log(`   Published: ${publishResult.published}`);
 
       } catch (userError) {
         console.error(`❌ Error processing user ${user.user_id}:`, userError);
@@ -88,7 +83,7 @@ export default async function handler(
     });
 
   } catch (error: any) {
-    console.error('❌ PRODUCT DISCOVERY ERROR:', error);
+    console.error('❌ DISCOVERY ERROR:', error);
     return res.status(500).json({
       success: false,
       error: error.message

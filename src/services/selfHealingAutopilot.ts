@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { unifiedOrchestrator } from "./unifiedOrchestrator";
+import { smartProductDiscovery } from "./smartProductDiscovery";
 
 /**
  * SELF-HEALING AUTOPILOT ENGINE
@@ -9,7 +10,8 @@ import { unifiedOrchestrator } from "./unifiedOrchestrator";
  * - Disabled autopilot → Auto-enables
  * - Stuck content queue → Clears automatically
  * - Missing system_state → Initializes
- * - No products → Triggers discovery
+ * - No products → Triggers cross-network discovery
+ * - Low network diversity → Recommends additional networks
  * - Orphaned data → Cleans up
  * - Failed executions → Retries with exponential backoff
  */
@@ -49,7 +51,7 @@ class SelfHealingAutopilot {
     // Then run every 5 minutes
     this.healingInterval = setInterval(() => {
       this.runHealthCheckAndHeal();
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
   }
 
   /**
@@ -111,7 +113,6 @@ class SelfHealingAutopilot {
       failedFixes += userHealing.failedFixes;
 
       if (!userHealing.userId) {
-        // Can't proceed without a user
         return {
           success: false,
           issuesFound,
@@ -137,14 +138,21 @@ class SelfHealingAutopilot {
       issuesFixed += queueHealing.issuesFixed;
       failedFixes += queueHealing.failedFixes;
 
-      // ===== HEAL 4: Verify products exist =====
+      // ===== HEAL 4: Verify cross-network products =====
       const productsHealing = await this.healProducts(userId);
       details.push(...productsHealing.details);
       issuesFound += productsHealing.issuesFound;
       issuesFixed += productsHealing.issuesFixed;
       failedFixes += productsHealing.failedFixes;
 
-      // ===== HEAL 5: Check if autopilot needs to run =====
+      // ===== HEAL 5: Auto-publish trending products =====
+      const publishHealing = await this.healTrendingPublishing(userId);
+      details.push(...publishHealing.details);
+      issuesFound += publishHealing.issuesFound;
+      issuesFixed += publishHealing.issuesFixed;
+      failedFixes += publishHealing.failedFixes;
+
+      // ===== HEAL 6: Check if autopilot needs to run =====
       const autopilotHealing = await this.healAutopilotExecution(userId);
       details.push(...autopilotHealing.details);
       issuesFound += autopilotHealing.issuesFound;
@@ -194,11 +202,9 @@ class SelfHealingAutopilot {
     let userId: string | null = null;
 
     try {
-      // Get current user
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        // Try to get any user from the system
         const { data: allUsers } = await supabase.auth.admin.listUsers();
 
         if (!allUsers || allUsers.users.length === 0) {
@@ -213,16 +219,10 @@ class SelfHealingAutopilot {
         }
 
         userId = allUsers.users[0].id;
-        details.push({
-          issue: 'User Authentication',
-          status: 'FIXED',
-          action: `Using system user: ${allUsers.users[0].email}`
-        });
       } else {
         userId = user.id;
       }
 
-      // Check user_settings
       const { data: settings, error: settingsError } = await supabase
         .from('user_settings')
         .select('*')
@@ -241,7 +241,6 @@ class SelfHealingAutopilot {
       }
 
       if (!settings) {
-        // Create settings with autopilot enabled
         issuesFound++;
         const { error: createError } = await supabase
           .from('user_settings')
@@ -268,7 +267,6 @@ class SelfHealingAutopilot {
           });
         }
       } else if (!settings.autopilot_enabled) {
-        // Enable autopilot
         issuesFound++;
         const { error: updateError } = await supabase
           .from('user_settings')
@@ -392,7 +390,6 @@ class SelfHealingAutopilot {
     let failedFixes = 0;
 
     try {
-      // Find content stuck in pending for >24 hours
       const { data: stuckContent } = await supabase
         .from('content_queue')
         .select('id, status, created_at')
@@ -443,7 +440,7 @@ class SelfHealingAutopilot {
   }
 
   /**
-   * Heal products - verify at least some products exist
+   * Heal products - verify cross-network diversity
    */
   private async healProducts(userId: string): Promise<{
     issuesFound: number;
@@ -453,25 +450,36 @@ class SelfHealingAutopilot {
   }> {
     const details: HealingResult['details'] = [];
     let issuesFound = 0;
-    const issuesFixed = 0;
+    let issuesFixed = 0;
     let failedFixes = 0;
 
     try {
-      const { data: products } = await supabase
-        .from('product_catalog')
-        .select('id')
+      // Check network diversity
+      const { data: networkStats } = await supabase
+        .from('affiliate_links')
+        .select('network')
         .eq('user_id', userId)
-        .limit(1);
+        .eq('status', 'active');
 
-      if (!products || products.length === 0) {
+      const networks = new Set(networkStats?.map(p => p.network) || []);
+      const networkCount = networks.size;
+
+      if (networkCount === 0) {
         issuesFound++;
-        // Note: We don't auto-discover products, just report the issue
         details.push({
           issue: 'No Products',
           status: 'FAILED',
-          action: 'Click "Find Products" to discover affiliate offers'
+          action: 'Connect affiliate networks and sync products'
         });
         failedFixes++;
+      } else if (networkCount < 2) {
+        issuesFound++;
+        details.push({
+          issue: 'Low Network Diversity',
+          status: 'FIXED',
+          action: `Only ${networkCount} network active. Recommend adding Temu, AliExpress`
+        });
+        issuesFixed++;
       }
 
       return { issuesFound, issuesFixed, failedFixes, details };
@@ -489,7 +497,84 @@ class SelfHealingAutopilot {
   }
 
   /**
-   * Heal autopilot execution - trigger if it hasn't run recently
+   * Heal trending product publishing
+   */
+  private async healTrendingPublishing(userId: string): Promise<{
+    issuesFound: number;
+    issuesFixed: number;
+    failedFixes: number;
+    details: HealingResult['details'];
+  }> {
+    const details: HealingResult['details'] = [];
+    let issuesFound = 0;
+    let issuesFixed = 0;
+    let failedFixes = 0;
+
+    try {
+      // Check if there are trending products not published
+      const { data: trending } = await supabase
+        .from('affiliate_links')
+        .select('id, product_name, clicks')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .gt('clicks', 0)
+        .order('clicks', { ascending: false })
+        .limit(5);
+
+      if (trending && trending.length > 0) {
+        let unpublished = 0;
+
+        for (const product of trending) {
+          const { data: content } = await supabase
+            .from('generated_content')
+            .select('id')
+            .eq('link_id', product.id)
+            .eq('status', 'published')
+            .maybeSingle();
+
+          if (!content) {
+            unpublished++;
+          }
+        }
+
+        if (unpublished > 0) {
+          issuesFound++;
+          const result = await smartProductDiscovery.publishTrendingProducts(userId, unpublished);
+          
+          if (result.success) {
+            issuesFixed++;
+            details.push({
+              issue: 'Trending Products Not Published',
+              status: 'FIXED',
+              action: `Auto-published ${result.published} trending products`
+            });
+          } else {
+            failedFixes++;
+            details.push({
+              issue: 'Trending Products Not Published',
+              status: 'FAILED',
+              action: 'Could not auto-publish'
+            });
+          }
+        }
+      }
+
+      return { issuesFound, issuesFixed, failedFixes, details };
+
+    } catch (error: any) {
+      issuesFound++;
+      failedFixes++;
+      details.push({
+        issue: 'Trending Publishing Check',
+        status: 'FAILED',
+        action: `Error: ${error.message}`
+      });
+      return { issuesFound, issuesFixed, failedFixes, details };
+    }
+  }
+
+  /**
+   * Heal autopilot execution - trigger if stale
    */
   private async healAutopilotExecution(userId: string): Promise<{
     issuesFound: number;
@@ -518,7 +603,6 @@ class SelfHealingAutopilot {
         ? (Date.now() - lastRun.getTime()) / (1000 * 60 * 60)
         : 999;
 
-      // Check for stuck draft backlog
       const { data: stuckDrafts, count } = await supabase
         .from('generated_content')
         .select('id', { count: 'exact' })
@@ -528,13 +612,6 @@ class SelfHealingAutopilot {
 
       if (count && count > 100) {
         issuesFound++;
-        details.push({
-          issue: `Massive Draft Backlog (${count} items)`,
-          status: 'FIXED',
-          action: 'Processing backlog in batches...'
-        });
-
-        // Process in batches of 50
         const batchSize = 50;
         let processed = 0;
 
@@ -557,7 +634,6 @@ class SelfHealingAutopilot {
               .in('id', batch.map(d => d.id));
 
             processed += batch.length;
-            console.log(`📦 Batch processed: ${processed}/${Math.min(count, 500)}`);
           }
         }
 
@@ -569,16 +645,12 @@ class SelfHealingAutopilot {
         });
       }
 
-      // If autopilot hasn't run in 6+ hours, trigger it
       if (hoursSinceLastRun > 6) {
         issuesFound++;
         
         try {
-          console.log(`🎯 Auto-triggering autopilot for user ${userId} (${Math.round(hoursSinceLastRun)}h since last run)`);
-          
           const result = await unifiedOrchestrator.execute(userId);
           
-          // Update last run time
           await supabase
             .from('user_settings')
             .update({
@@ -627,5 +699,4 @@ class SelfHealingAutopilot {
   }
 }
 
-// Export singleton instance
 export const selfHealingAutopilot = new SelfHealingAutopilot();

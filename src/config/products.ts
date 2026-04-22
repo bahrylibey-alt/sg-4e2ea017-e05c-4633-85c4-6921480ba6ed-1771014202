@@ -15,6 +15,7 @@ export interface Product {
   clicks?: number;
   conversions?: number;
   status?: string;
+  network?: string;
 }
 
 /**
@@ -40,7 +41,8 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         originalUrl: affiliateLink.original_url,
         clicks: affiliateLink.clicks || 0,
         conversions: affiliateLink.conversions || 0,
-        status: affiliateLink.status
+        status: affiliateLink.status,
+        network: affiliateLink.network
       };
     }
 
@@ -74,14 +76,27 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 }
 
 /**
- * Get all active products from database
+ * Get all active products from database with optional network filter
  */
-export async function getAllProducts(limit: number = 50): Promise<Product[]> {
+export async function getAllProducts(limit: number = 50, options?: { 
+  network?: string;
+  excludeNetworks?: string[];
+}): Promise<Product[]> {
   try {
-    const { data: links } = await supabase
+    let query = supabase
       .from('affiliate_links')
       .select('*')
-      .eq('status', 'active')
+      .eq('status', 'active');
+
+    if (options?.network) {
+      query = query.eq('network', options.network);
+    }
+
+    if (options?.excludeNetworks && options.excludeNetworks.length > 0) {
+      query = query.not('network', 'in', `(${options.excludeNetworks.join(',')})`);
+    }
+
+    const { data: links } = await query
       .order('clicks', { ascending: false })
       .limit(limit);
 
@@ -96,7 +111,8 @@ export async function getAllProducts(limit: number = 50): Promise<Product[]> {
       originalUrl: link.original_url,
       clicks: link.clicks || 0,
       conversions: link.conversions || 0,
-      status: link.status
+      status: link.status,
+      network: link.network
     }));
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -105,7 +121,14 @@ export async function getAllProducts(limit: number = 50): Promise<Product[]> {
 }
 
 /**
- * Get trending products (most clicks)
+ * Get products by network
+ */
+export async function getProductsByNetwork(network: string, limit: number = 20): Promise<Product[]> {
+  return getAllProducts(limit, { network });
+}
+
+/**
+ * Get trending products (most clicks) from all networks
  */
 export async function getTrendingProducts(limit: number = 10): Promise<Product[]> {
   try {
@@ -127,7 +150,8 @@ export async function getTrendingProducts(limit: number = 10): Promise<Product[]
       originalUrl: link.original_url,
       clicks: link.clicks || 0,
       conversions: link.conversions || 0,
-      status: link.status
+      status: link.status,
+      network: link.network
     }));
   } catch (error) {
     console.error('Error fetching trending products:', error);
@@ -166,10 +190,40 @@ export async function searchProducts(query: string): Promise<Product[]> {
       originalUrl: link.original_url,
       clicks: link.clicks || 0,
       conversions: link.conversions || 0,
-      status: link.status
+      status: link.status,
+      network: link.network
     }));
   } catch (error) {
     console.error('Error searching products:', error);
+    return [];
+  }
+}
+
+/**
+ * Get network statistics
+ */
+export async function getNetworkStats(): Promise<Array<{ network: string; count: number; clicks: number }>> {
+  try {
+    const { data: links } = await supabase
+      .from('affiliate_links')
+      .select('network, clicks')
+      .eq('status', 'active');
+
+    if (!links) return [];
+
+    const stats = links.reduce((acc, link) => {
+      const network = link.network || 'Unknown';
+      if (!acc[network]) {
+        acc[network] = { network, count: 0, clicks: 0 };
+      }
+      acc[network].count++;
+      acc[network].clicks += link.clicks || 0;
+      return acc;
+    }, {} as Record<string, { network: string; count: number; clicks: number }>);
+
+    return Object.values(stats).sort((a, b) => b.count - a.count);
+  } catch (error) {
+    console.error('Error fetching network stats:', error);
     return [];
   }
 }
