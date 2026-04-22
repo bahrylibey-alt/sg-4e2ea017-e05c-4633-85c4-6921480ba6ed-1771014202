@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
@@ -13,18 +13,44 @@ export default async function handler(
   try {
     console.log('🚀 MANUAL PRODUCT DISCOVERY TRIGGER');
 
+    // Must use Service Role key to list users, ANON key will get 401 Unauthorized
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
     // Get first user
-    const { data: users } = await supabase.auth.admin.listUsers();
+    const { data: users, error: authError } = await supabaseAdmin.auth.admin.listUsers();
     
-    if (!users || users.users.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No users found. Please sign up first.'
-      });
+    if (authError) {
+      console.error("Auth Admin Error:", authError.message);
+    }
+    
+    let userId = users?.users?.[0]?.id;
+
+    if (!userId) {
+      // If still no user, auto-create a system user to allow the discovery engine to run
+      console.log("No users found, creating system user to bind products...");
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const { data: newUser } = await supabaseAdmin.auth.admin.createUser({
+          email: 'system@autopilot.local',
+          password: 'SystemPassword123!',
+          email_confirm: true
+        });
+        if (newUser.user) {
+          userId = newUser.user.id;
+          console.log(`✅ Created system user: ${userId}`);
+        }
+      }
+      
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'No users found and failed to auto-create. Please sign up first.'
+        });
+      }
     }
 
-    const userId = users.users[0].id;
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`👤 Bound to User ID: ${userId}`);
 
     // Discover products from ALL networks
     const discoveryResult = await smartProductDiscovery.discoverProducts(

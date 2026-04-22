@@ -399,14 +399,16 @@ class SelfHealingAutopilot {
 
       if (stuckContent && stuckContent.length > 0) {
         issuesFound++;
-        const { error: clearError } = await (supabase as any)
-          .from('content_queue')
-          .update({
-            status: 'failed',
-            error_message: 'Auto-cleared by self-healing (stuck >24h)',
-            updated_at: new Date().toISOString()
-          })
-          .in('id', stuckContent.map((c: any) => c.id));
+        
+        // @ts-ignore - Bypass TS2589 deep type instantiation
+        const query = supabase.from('content_queue').update({
+          status: 'failed',
+          error_message: 'Auto-cleared by self-healing (stuck >24h)',
+          updated_at: new Date().toISOString()
+        });
+        
+        // @ts-ignore
+        const { error: clearError } = await query.in('id', stuckContent.map((c: any) => c.id));
 
         if (clearError) {
           failedFixes++;
@@ -620,9 +622,10 @@ class SelfHealingAutopilot {
           const batch = stuckDrafts.slice(i, i + batchSize);
           const ids = batch.map((d: any) => d.id);
           
-          await (supabase as any).from('generated_content')
-            .update({ status: 'published', updated_at: new Date().toISOString() })
-            .in('id', ids);
+          // @ts-ignore - Bypass TS2589 deep type instantiation
+          const updateQuery = supabase.from('generated_content').update({ status: 'published', updated_at: new Date().toISOString() });
+          // @ts-ignore
+          await updateQuery.in('id', ids);
             
           processed += batch.length;
         }

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
@@ -21,15 +21,24 @@ export default async function handler(
   try {
     console.log('🌐 CROSS-NETWORK PRODUCT DISCOVERY: Starting...');
 
-    const { data: users } = await supabase
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch users with autopilot enabled
+    const { data: users, error: dbError } = await supabaseAdmin
       .from('user_settings')
       .select('user_id, autopilot_enabled')
       .eq('autopilot_enabled', true);
 
+    if (dbError) {
+      console.error("Database error fetching user settings:", dbError);
+    }
+
     if (!users || users.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No users with autopilot enabled',
+        message: 'No users with autopilot enabled. Waiting for signups.',
         processed: 0
       });
     }
@@ -46,7 +55,7 @@ export default async function handler(
           user.user_id,
           { 
             limit: 50,
-            networks: ['Amazon', 'Temu', 'AliExpress', 'Amazon Associates', 'Temu Affiliate']
+            networks: ['Amazon', 'Temu', 'AliExpress']
           }
         );
         
