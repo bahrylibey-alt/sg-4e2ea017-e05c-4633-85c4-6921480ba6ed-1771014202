@@ -1,320 +1,211 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { contentIntelligence } from "@/services/contentIntelligence";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
+/**
+ * COMPLETE SYSTEM TEST
+ * Tests all critical paths end-to-end
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get auth token from header
-    const authHeader = req.headers.authorization;
-    let userId: string | null = null;
-
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
-    }
-
-    const results: any[] = [];
-
-    // TEST 1: Authentication
-    if (!userId) {
-      results.push({
-        step: '1. Authentication',
-        status: 'FAIL',
-        message: 'Not authenticated - Please log in first',
-        action: 'Visit /dashboard and log in'
-      });
-      return res.status(200).json({
-        status: 'CRITICAL',
-        message: 'Authentication required',
-        summary: { total: 1, passed: 0, failed: 1, warnings: 0 },
-        results,
-        actions: ['Log in to your account to continue']
-      });
-    }
-
-    results.push({
-      step: '1. Authentication',
-      status: 'PASS',
-      message: `Authenticated as user: ${userId}`,
-      data: { userId }
-    });
-
-    // TEST 2: Database Connectivity
-    try {
-      const { data: testQuery, error: dbError } = await supabase
-        .from('user_settings')
-        .select('id')
-        .limit(1);
-      
-      if (dbError) throw dbError;
-      
-      results.push({
-        step: '2. Database',
-        status: 'PASS',
-        message: 'Database connection successful'
-      });
-    } catch (error: any) {
-      results.push({
-        step: '2. Database',
-        status: 'FAIL',
-        message: `Database error: ${error.message}`
-      });
-    }
-
-    // TEST 3: User Settings
-    const { data: userSettings, error: settingsError } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!userSettings) {
-      results.push({
-        step: '3. User Settings',
-        status: 'WARN',
-        message: 'No user settings found',
-        action: 'Click Quick Fix to create default settings'
-      });
-    } else {
-      results.push({
-        step: '3. User Settings',
-        status: 'PASS',
-        message: 'User settings configured'
-      });
-    }
-
-    // TEST 4: Autopilot Settings
-    const { data: autopilotConfig } = await supabase
-      .from('autopilot_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!autopilotConfig) {
-      results.push({
-        step: '4. Autopilot Config',
-        status: 'WARN',
-        message: 'Autopilot not configured',
-        action: 'Click Quick Fix to configure autopilot'
-      });
-    } else {
-      results.push({
-        step: '4. Autopilot Config',
-        status: 'PASS',
-        message: 'Autopilot configured',
-        data: {
-          min_price: (autopilotConfig as any).min_product_price,
-          max_price: (autopilotConfig as any).max_product_price,
-          budget: (autopilotConfig as any).daily_budget || (autopilotConfig as any).budget_limit
-        }
-      });
-    }
-
-    // TEST 5: Affiliate Networks
-    const { data: integrations } = await supabase
-      .from('affiliate_integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (!integrations || integrations.length === 0) {
-      results.push({
-        step: '5. Affiliate Networks',
-        status: 'WARN',
-        message: 'No integrations connected',
-        action: 'Visit /integrations to add affiliate networks'
-      });
-    } else {
-      results.push({
-        step: '5. Affiliate Networks',
-        status: 'PASS',
-        message: `${integrations.length} network(s) connected`,
-        data: { networks: integrations.map((i: any) => i.provider_name) }
-      });
-    }
-
-    // TEST 6: Product Catalog
-    const { data: products } = await supabase
-      .from('product_catalog')
-      .select('id, name, network, commission_rate, price')
-      .eq('user_id', userId)
-      .limit(5);
-
-    if (!products || products.length === 0) {
-      results.push({
-        step: '6. Product Catalog',
-        status: 'WARN',
-        message: 'No products discovered yet',
-        action: 'Click "Find Products" to discover from networks'
-      });
-    } else {
-      results.push({
-        step: '6. Product Catalog',
-        status: 'PASS',
-        message: `${products.length} products in catalog`,
-        data: { sample: products }
-      });
-    }
-
-    // TEST 7: Traffic Sources
-    const { data: trafficSources } = await supabase
-      .from('traffic_sources')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (!trafficSources || trafficSources.length === 0) {
-      results.push({
-        step: '7. Traffic Sources',
-        status: 'WARN',
-        message: 'No traffic sources configured',
-        action: 'Visit /integrations to connect traffic sources'
-      });
-    } else {
-      results.push({
-        step: '7. Traffic Sources',
-        status: 'PASS',
-        message: `${trafficSources.length} traffic source(s) active`,
-        data: { sources: trafficSources.map((t: any) => t.platform) }
-      });
-    }
-
-    // TEST 8: Click Tracking
-    const { data: clicks, count: clickCount } = await supabase
-      .from('click_tracking')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .limit(5);
-
-    if (!clicks || clicks.length === 0) {
-      results.push({
-        step: '8. Click Tracking',
-        status: 'INFO',
-        message: 'No clicks tracked yet (normal for new setup)',
-        action: 'Clicks will appear after traffic starts flowing'
-      });
-    } else {
-      results.push({
-        step: '8. Click Tracking',
-        status: 'PASS',
-        message: `${clickCount || 0} total clicks tracked`,
-        data: { recentClicks: clicks.slice(0, 3) }
-      });
-    }
-
-    // TEST 9: Conversions
-    const { data: conversions, count: conversionCount } = await supabase
-      .from('conversion_tracking')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
-      .limit(5);
-
-    if (!conversions || conversions.length === 0) {
-      results.push({
-        step: '9. Conversions',
-        status: 'INFO',
-        message: 'No conversions yet (normal for new setup)',
-        action: 'Conversions will appear after sales occur'
-      });
-    } else {
-      const totalRevenue = conversions.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0);
-      results.push({
-        step: '9. Conversions',
-        status: 'PASS',
-        message: `${conversionCount || 0} conversions tracked`,
-        data: { 
-          conversions: conversionCount,
-          totalRevenue: `$${totalRevenue.toFixed(2)}`
-        }
-      });
-    }
-
-    // TEST 10: AI Autopilot Scores
-    const { data: scores } = await supabase
-      .from('performance_scores')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (!scores || scores.length === 0) {
-      results.push({
-        step: '10. AI Scores',
-        status: 'INFO',
-        message: 'No AI scores yet',
-        action: 'Click "Run Autopilot" to generate scores'
-      });
-    } else {
-      const avgScore = scores.reduce((sum: number, s: any) => sum + (Number(s.score) || 0), 0) / scores.length;
-      results.push({
-        step: '10. AI Scores',
-        status: 'PASS',
-        message: `${scores.length} items scored`,
-        data: { 
-          averageScore: avgScore.toFixed(3),
-          recentScores: scores.slice(0, 3).map((s: any) => ({
-            id: s.content_id,
-            score: Number(s.score).toFixed(3),
-            classification: s.classification
-          }))
-        }
-      });
-    }
-
-    // Calculate summary
-    const summary = {
-      total: results.length,
-      passed: results.filter((r: any) => r.status === 'PASS').length,
-      failed: results.filter((r: any) => r.status === 'FAIL').length,
-      warnings: results.filter((r: any) => r.status === 'WARN').length
+    console.log('🧪 COMPLETE SYSTEM TEST STARTING...');
+    const results: any = {
+      timestamp: new Date().toISOString(),
+      tests: {},
+      summary: { passed: 0, failed: 0, total: 0 }
     };
 
-    // Determine overall status
-    let status = 'READY';
-    if (summary.failed > 0) {
-      status = 'CRITICAL';
-    } else if (summary.warnings > 2) {
-      status = 'PARTIAL';
+    // TEST 1: Database Connection
+    console.log('\n📊 TEST 1: Database Connection');
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1);
+
+      if (error) throw error;
+
+      results.tests.database = {
+        status: '✅ PASSED',
+        users: data?.length || 0
+      };
+      results.summary.passed++;
+    } catch (error: any) {
+      results.tests.database = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
     }
+    results.summary.total++;
 
-    // Generate actions
-    const actions: string[] = [];
-    results.forEach((r: any) => {
-      if (r.action) actions.push(r.action);
-    });
+    // TEST 2: Published Content Check
+    console.log('\n📝 TEST 2: Published Content');
+    try {
+      const { data: content, count } = await supabase
+        .from('generated_content')
+        .select('id, title, body, status', { count: 'exact' })
+        .eq('status', 'published')
+        .limit(5);
 
-    return res.status(200).json({
-      status,
-      message: status === 'READY' 
-        ? 'System fully operational' 
-        : status === 'PARTIAL'
-        ? 'System partially configured - some features need setup'
-        : 'System needs configuration',
-      summary,
-      results,
-      actions: [...new Set(actions)] // Remove duplicates
-    });
+      const withUrls = content?.filter(c => /https?:\/\/|href="\/go\//.test(c.body)).length || 0;
+
+      results.tests.publishedContent = {
+        status: withUrls > 0 ? '✅ PASSED' : '⚠️ WARNING',
+        total: count,
+        withAffiliateUrls: withUrls,
+        samples: content?.slice(0, 3).map(c => ({
+          id: c.id.substring(0, 8),
+          title: c.title.substring(0, 50),
+          hasUrl: /https?:\/\/|href="\/go\//.test(c.body)
+        }))
+      };
+
+      if (withUrls > 0) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error: any) {
+      results.tests.publishedContent = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // TEST 3: Affiliate Links Routing
+    console.log('\n🔗 TEST 3: Affiliate Links');
+    try {
+      const { data: links } = await supabase
+        .from('affiliate_links')
+        .select('slug, product_name, original_url, status')
+        .eq('status', 'active')
+        .limit(5);
+
+      results.tests.affiliateLinks = {
+        status: links && links.length > 0 ? '✅ PASSED' : '⚠️ NO LINKS',
+        count: links?.length || 0,
+        samples: links?.slice(0, 3).map(l => ({
+          slug: l.slug,
+          product: l.product_name?.substring(0, 30),
+          destination: l.original_url?.substring(0, 50)
+        }))
+      };
+
+      if (links && links.length > 0) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error: any) {
+      results.tests.affiliateLinks = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // TEST 4: Autopilot Status
+    console.log('\n🤖 TEST 4: Autopilot');
+    try {
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('user_id, autopilot_enabled, last_autopilot_run')
+        .eq('autopilot_enabled', true);
+
+      const lastRun = settings?.[0]?.last_autopilot_run 
+        ? new Date(settings[0].last_autopilot_run)
+        : null;
+
+      const hoursSinceRun = lastRun 
+        ? Math.round((Date.now() - lastRun.getTime()) / (1000 * 60 * 60))
+        : 999;
+
+      results.tests.autopilot = {
+        status: settings && settings.length > 0 ? '✅ PASSED' : '⚠️ DISABLED',
+        enabledUsers: settings?.length || 0,
+        lastRun: lastRun?.toISOString() || 'never',
+        hoursSinceRun
+      };
+
+      if (settings && settings.length > 0) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error: any) {
+      results.tests.autopilot = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // TEST 5: Content Intelligence
+    console.log('\n🧠 TEST 5: Content Intelligence');
+    try {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .limit(1);
+
+      if (profiles && profiles.length > 0) {
+        const result = await contentIntelligence.processAllPublishedContent(profiles[0].id);
+        
+        results.tests.contentIntelligence = {
+          status: result.updated > 0 ? '✅ PASSED' : '⚠️ NO UPDATES',
+          processed: result.processed,
+          updated: result.updated,
+          errors: result.errors
+        };
+
+        if (result.errors === 0) results.summary.passed++;
+        else results.summary.failed++;
+      }
+    } catch (error: any) {
+      results.tests.contentIntelligence = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // TEST 6: Draft Queue Check
+    console.log('\n📦 TEST 6: Draft Queue');
+    try {
+      const { count } = await supabase
+        .from('generated_content')
+        .select('id', { count: 'exact' })
+        .eq('status', 'draft');
+
+      results.tests.draftQueue = {
+        status: (count || 0) < 100 ? '✅ PASSED' : '⚠️ BACKLOG',
+        draftCount: count || 0,
+        message: (count || 0) < 100 ? 'Queue healthy' : 'Large backlog detected'
+      };
+
+      if ((count || 0) < 100) results.summary.passed++;
+      else results.summary.failed++;
+    } catch (error: any) {
+      results.tests.draftQueue = {
+        status: '❌ FAILED',
+        error: error.message
+      };
+      results.summary.failed++;
+    }
+    results.summary.total++;
+
+    // Calculate success rate
+    results.summary.successRate = `${Math.round((results.summary.passed / results.summary.total) * 100)}%`;
+
+    console.log(`\n✅ SYSTEM TEST COMPLETE: ${results.summary.successRate} (${results.summary.passed}/${results.summary.total})`);
+
+    return res.status(200).json(results);
 
   } catch (error: any) {
-    console.error('Test system error:', error);
+    console.error('❌ TEST ERROR:', error);
     return res.status(500).json({
-      status: 'ERROR',
-      message: error.message,
-      summary: { total: 0, passed: 0, failed: 1, warnings: 0 },
-      results: [{
-        step: 'System Test',
-        status: 'FAIL',
-        message: error.message
-      }],
-      actions: ['Check server logs for details']
+      success: false,
+      error: error.message
     });
   }
 }

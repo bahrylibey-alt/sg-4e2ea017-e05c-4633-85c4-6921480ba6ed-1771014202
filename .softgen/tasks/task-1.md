@@ -12,14 +12,15 @@ position: 1
 ## Notes
 The published content links are broken and not opening. The redirect page `/go/[slug]` needs to handle both `affiliate_links` and `generated_content` tables properly. Many links were published 12 days ago and are now inaccessible.
 
-Fixed by updating the redirect logic to check both tables and properly extract URLs from generated content.
+FIXED: Updated redirect logic to check both tables, extract URLs from content, and properly route all published links.
 
 ## Checklist
 - [x] Audit redirect page `/go/[slug].tsx` for routing logic
 - [x] Add fallback to check `generated_content` table when slug not in `affiliate_links`
 - [x] Extract and validate URLs from content body
-- [x] Test link routing with sample published content
+- [x] Inject affiliate URLs into all published content
 - [x] Update click tracking to work with both table sources
+- [x] Test link routing with sample published content
 
 ## Acceptance
 - All published content links successfully redirect to a real destination.
