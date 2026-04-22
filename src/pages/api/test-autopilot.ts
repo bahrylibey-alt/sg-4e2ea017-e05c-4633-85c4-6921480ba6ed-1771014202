@@ -1,63 +1,71 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * Test endpoint to manually trigger autopilot and verify Zapier integration
- * GET /api/test-autopilot
+ * Test endpoint to debug autopilot publishing step-by-step
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    console.log("🧪 Testing autopilot → Zapier integration...");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // Get the user (in production, this would come from session)
-    const userId = "cd9e03a2-9620-44be-a934-ac2ed69db465";
+    // Get user
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1);
+    const userId = settings?.[0]?.user_id;
 
-    // Call the autopilot edge function
-    const { data, error } = await supabase.functions.invoke('autopilot-engine', {
-      body: { userId }
-    });
-
-    if (error) {
-      console.error('❌ Edge function error:', error);
-      return res.status(500).json({ 
-        success: false,
-        error: error.message,
-        details: error
-      });
+    if (!userId) {
+      return res.status(400).json({ error: 'No user found' });
     }
 
-    console.log('✅ Autopilot executed:', data);
-
-    // Check the latest autopilot log
-    const { data: logData } = await supabase
-      .from('autopilot_cron_log')
+    // Get trending products
+    const { data: trending } = await supabaseAdmin
+      .from('affiliate_links')
       .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('clicks', { ascending: false })
+      .limit(10);
+
+    const report = {
+      userId,
+      trending: trending?.map(p => ({
+        name: p.product_name,
+        network: p.network,
+        slug: p.slug,
+        clicks: p.clicks
+      })),
+      publishingTest: null as any
+    };
+
+    // Test publishing
+    const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 5);
+    report.publishingTest = publishResult;
+
+    // Verify
+    const { data: newContent } = await supabaseAdmin
+      .from('generated_content')
+      .select('id, title, body, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'published')
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(5);
 
     return res.status(200).json({
-      success: true,
-      message: "Autopilot triggered successfully!",
-      results: data?.results || data,
-      lastLog: logData,
-      webhooksSent: data?.results?.webhooks_sent || 0,
-      zapierUrl: "https://hooks.zapier.com/hooks/catch/27089231/u7q2xax/"
+      ...report,
+      newContent: newContent?.map(c => ({
+        id: c.id,
+        title: c.title,
+        hasAffiliateLink: c.body?.includes('/go/'),
+        created: c.created_at
+      }))
     });
 
   } catch (error: any) {
-    console.error('❌ Test failed:', error);
-    return res.status(500).json({ 
-      success: false,
-      error: error.message,
-      stack: error.stack 
-    });
+    return res.status(500).json({ error: error.message });
   }
 }

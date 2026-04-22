@@ -146,26 +146,32 @@ export const smartProductDiscovery = {
         return { published: 0, products: [], success: false };
       }
 
+      console.log(`   Found ${trending.length} trending products to review`);
+
       const published: string[] = [];
 
       for (const product of trending) {
-        // Check if content already exists for this product (by matching title)
+        console.log(`\n   Checking: ${product.product_name} (${product.network})`);
+        
+        // Check if content already exists for this specific product slug
         const { data: existing } = await supabase
           .from('generated_content')
-          .select('id')
-          .ilike('title', `%${product.product_name}%`)
+          .select('id, title')
+          .eq('user_id', userId)
+          .or(`title.ilike.%${product.slug}%,body.ilike.%/go/${product.slug}%`)
           .eq('status', 'published')
           .maybeSingle();
 
         if (existing) {
-          console.log(`   ⏭️  ${product.product_name} - Already published`);
+          console.log(`   ⏭️  Already published (found: "${existing.title}")`);
           continue;
         }
 
         const content = this.generateProductContent(product);
+        console.log(`   📝 Creating content: "${content.title}"`);
         
         // Insert content with proper affiliate link embedded
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('generated_content')
           .insert({
             user_id: userId,
@@ -174,15 +180,19 @@ export const smartProductDiscovery = {
             type: 'review',
             status: 'published',
             clicks: 0
-          });
+          })
+          .select()
+          .single();
 
-        if (!error) {
+        if (!error && inserted) {
           published.push(product.product_name || 'Product');
-          console.log(`   ✅ Published: ${product.product_name} (${product.network})`);
+          console.log(`   ✅ Published successfully (ID: ${inserted.id})`);
         } else {
-          console.error(`   ❌ Failed to publish ${product.product_name}:`, error);
+          console.error(`   ❌ Failed to publish:`, error);
         }
       }
+
+      console.log(`\n📊 PUBLISHING SUMMARY: ${published.length}/${trending.length} products published`);
 
       return {
         published: published.length,
