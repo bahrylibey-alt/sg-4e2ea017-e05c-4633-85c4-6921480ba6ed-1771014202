@@ -399,8 +399,7 @@ class SelfHealingAutopilot {
 
       if (stuckContent && stuckContent.length > 0) {
         issuesFound++;
-        const { error: clearError } = await supabase
-          .from('content_queue')
+        const { error: clearError } = await (supabase.from('content_queue') as any)
           .update({
             status: 'failed',
             error_message: 'Auto-cleared by self-healing (stuck >24h)',
@@ -620,7 +619,10 @@ class SelfHealingAutopilot {
           const batch = stuckDrafts.slice(i, i + batchSize);
           const ids = batch.map(d => d.id);
           
-          await supabase.rpc('publish_drafts', { draft_ids: ids });
+          await (supabase.from('generated_content') as any)
+            .update({ status: 'published', updated_at: new Date().toISOString() })
+            .in('id', ids);
+            
           processed += batch.length;
         }
 
