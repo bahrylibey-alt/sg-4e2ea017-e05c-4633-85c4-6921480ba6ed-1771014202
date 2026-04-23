@@ -37,11 +37,17 @@ export default function TrendingProductsPage() {
         .order("clicks", { ascending: false })
         .limit(50);
 
+      console.log('Raw content from database:', content);
+
       if (content) {
         const productsWithMeta = content.map(item => {
           // Extract slug from markdown link format: [Get Product Now](/go/slug)
           const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
           const slug = linkMatch ? linkMatch[1] : "";
+          
+          console.log(`Processing: ${item.title}`);
+          console.log(`  Body excerpt: ${item.body?.substring(0, 150)}`);
+          console.log(`  Extracted slug: ${slug}`);
           
           let network = "Unknown";
           if (item.body?.includes("Amazon")) network = "Amazon";
@@ -58,6 +64,9 @@ export default function TrendingProductsPage() {
             created_at: item.created_at
           };
         });
+
+        console.log('Processed products:', productsWithMeta);
+        console.log('Products with slugs:', productsWithMeta.filter(p => p.slug));
 
         setProducts(productsWithMeta.filter(p => p.slug));
       }
