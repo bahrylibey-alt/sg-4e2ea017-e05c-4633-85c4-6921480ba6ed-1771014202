@@ -164,12 +164,12 @@ export default function AutoPilotCenter() {
   async function loadStats() {
     try {
       const [productsRes, articlesRes, conversionsRes] = await Promise.all([
-        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("product_catalog").select("id", { count: "exact", head: true }),
         supabase.from("generated_content").select("id", { count: "exact", head: true }),
-        supabase.from("conversions").select("commission_amount")
+        supabase.from("commissions").select("amount")
       ]);
 
-      const revenue = conversionsRes.data?.reduce((sum, c) => sum + (c.commission_amount || 0), 0) || 0;
+      const revenue = conversionsRes.data?.reduce((sum, c) => sum + (Number(c.amount) || 0), 0) || 0;
 
       setStats({
         products: productsRes.count || 0,

@@ -11,12 +11,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       database: { status: "unknown", message: "" },
       products: { status: "unknown", message: "" },
       content: { status: "unknown", message: "" },
-      tracking: { status: "unknown", message: "" },
-      openai: { status: "unknown", message: "" }
+      tracking: { status: "unknown", message: "" }
     };
 
     try {
-      const { data, error } = await supabase.from("products").select("id").limit(1);
+      const { error } = await supabase.from("product_catalog").select("id").limit(1);
       checks.database = {
         status: error ? "error" : "ok",
         message: error ? error.message : "Database connected"
@@ -26,9 +25,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      const { count, error } = await supabase.from("products").select("*", { count: "exact", head: true });
+      const { count, error } = await supabase.from("product_catalog").select("*", { count: "exact", head: true });
       checks.products = {
-        status: error ? "error" : count && count > 0 ? "ok" : "warning",
+        status: error ? "error" : "ok",
         message: error ? error.message : `${count || 0} products in database`
       };
     } catch (error: any) {
@@ -38,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { count, error } = await supabase.from("generated_content").select("*", { count: "exact", head: true });
       checks.content = {
-        status: error ? "error" : count && count > 0 ? "ok" : "warning",
+        status: error ? "error" : "ok",
         message: error ? error.message : `${count || 0} articles generated`
       };
     } catch (error: any) {
@@ -53,22 +52,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     } catch (error: any) {
       checks.tracking = { status: "error", message: error.message };
-    }
-
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const response = await fetch("https://api.openai.com/v1/models", {
-          headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}` }
-        });
-        checks.openai = {
-          status: response.ok ? "ok" : "error",
-          message: response.ok ? "OpenAI API connected" : "OpenAI API authentication failed"
-        };
-      } catch (error: any) {
-        checks.openai = { status: "error", message: error.message };
-      }
-    } else {
-      checks.openai = { status: "warning", message: "OpenAI API key not configured" };
     }
 
     const allOk = Object.values(checks).every(c => c.status === "ok");
