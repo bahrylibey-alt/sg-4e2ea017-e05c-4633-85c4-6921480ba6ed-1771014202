@@ -7,16 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Get REAL content that needs SEO optimization
+    // Get REAL content that needs SEO optimization (no auth required)
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
       .select("id, title, body, autopilot_state")
-      .eq("user_id", user.id)
       .eq("status", "published")
       .limit(10);
 
