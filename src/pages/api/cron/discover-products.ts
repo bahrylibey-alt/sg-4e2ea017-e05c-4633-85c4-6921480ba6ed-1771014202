@@ -55,12 +55,13 @@ export default async function handler(
           user.user_id,
           { 
             limit: 50,
-            networks: ['Amazon', 'Temu', 'AliExpress']
+            networks: ['Amazon', 'Temu', 'AliExpress'],
+            supabaseClient: supabaseAdmin
           }
         );
         
         // Auto-publish trending products
-        const publishResult = await smartProductDiscovery.publishTrendingProducts(user.user_id, 5);
+        const publishResult = await smartProductDiscovery.publishTrendingProducts(user.user_id, 5, supabaseAdmin);
         
         results.push({
           userId: user.user_id,

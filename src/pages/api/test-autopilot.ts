@@ -48,7 +48,7 @@ export default async function handler(
     };
 
     // Test publishing
-    const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 5);
+    const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 5, supabaseAdmin);
     report.publishingTest = publishResult;
 
     // Verify

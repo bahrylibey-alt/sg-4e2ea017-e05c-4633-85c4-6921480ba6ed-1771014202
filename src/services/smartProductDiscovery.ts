@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface DiscoveryResult {
   totalDiscovered: number;
@@ -46,7 +47,9 @@ export const smartProductDiscovery = {
   async discoverProducts(userId: string, settings?: {
     limit?: number;
     networks?: string[];
+    supabaseClient?: SupabaseClient;
   }): Promise<DiscoveryResult> {
+    const db = settings?.supabaseClient || supabase;
     const result: DiscoveryResult = {
       totalDiscovered: 0,
       byNetwork: {},
@@ -61,7 +64,7 @@ export const smartProductDiscovery = {
       const targetNetworks = settings?.networks || ['Amazon', 'Temu', 'AliExpress'];
       
       for (const network of targetNetworks) {
-        const { data: existingProducts, count } = await supabase
+        const { data: existingProducts, count } = await db
           .from('affiliate_links')
           .select('id', { count: 'exact' })
           .eq('user_id', userId)
@@ -74,11 +77,10 @@ export const smartProductDiscovery = {
           console.log(`   ✅ ${count} products already in database for ${network}`);
         } else {
           console.log(`   ⚠️ Only ${count || 0} products from ${network}. Auto-discovering trending products...`);
-          // Generate realistic API-fetched products for the network
           const newProducts = generateNetworkProducts(network, userId);
           
           for (const p of newProducts) {
-            const { error } = await supabase.from('affiliate_links').insert(p);
+            const { error } = await db.from('affiliate_links').insert(p);
             if (error) console.error(`Error inserting ${network} product:`, error);
           }
           
@@ -88,8 +90,7 @@ export const smartProductDiscovery = {
         }
       }
 
-      // Step 3: Identify trending items across networks
-      const { data: trendingLinks } = await supabase
+      const { data: trendingLinks } = await db
         .from('affiliate_links')
         .select('*')
         .eq('user_id', userId)
@@ -103,7 +104,7 @@ export const smartProductDiscovery = {
           result.topProducts.push({
             name: link.product_name || 'Product',
             network: network,
-            price: 0, // Placeholder
+            price: 0,
             commission: link.commission_rate || 15,
             estimatedEPC: (link.clicks || 0) * 0.5
           });
@@ -125,16 +126,18 @@ export const smartProductDiscovery = {
   /**
    * Auto-publish trending products as content
    */
-  async publishTrendingProducts(userId: string, limit: number = 5): Promise<{
+  async publishTrendingProducts(userId: string, limit: number = 5, supabaseClient?: SupabaseClient): Promise<{
     published: number;
     products: string[];
     success: boolean;
   }> {
+    const db = supabaseClient || supabase;
+    
     try {
       console.log('📢 AUTO-PUBLISHING TRENDING PRODUCTS...');
       console.log(`   User ID: ${userId}, Limit: ${limit}`);
 
-      const { data: trending, error: fetchError } = await supabase
+      const { data: trending, error: fetchError } = await db
         .from('affiliate_links')
         .select('*')
         .eq('user_id', userId)
@@ -162,8 +165,7 @@ export const smartProductDiscovery = {
         console.log(`      Slug: ${product.slug}`);
         console.log(`      Clicks: ${product.clicks}`);
         
-        // Check if content already exists for this specific product slug
-        const { data: existing, error: checkError } = await supabase
+        const { data: existing, error: checkError } = await db
           .from('generated_content')
           .select('id, title')
           .eq('user_id', userId)
@@ -185,8 +187,7 @@ export const smartProductDiscovery = {
         console.log(`      📝 Creating content: "${content.title}"`);
         console.log(`      📄 Preview: ${content.body.substring(0, 100)}...`);
         
-        // Insert content with proper affiliate link embedded
-        const { data: inserted, error: insertError } = await supabase
+        const { data: inserted, error: insertError } = await db
           .from('generated_content')
           .insert({
             user_id: userId,
