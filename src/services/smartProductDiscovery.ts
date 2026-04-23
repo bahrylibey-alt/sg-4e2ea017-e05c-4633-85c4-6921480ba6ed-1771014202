@@ -132,8 +132,9 @@ export const smartProductDiscovery = {
   }> {
     try {
       console.log('📢 AUTO-PUBLISHING TRENDING PRODUCTS...');
+      console.log(`   User ID: ${userId}, Limit: ${limit}`);
 
-      const { data: trending } = await supabase
+      const { data: trending, error: fetchError } = await supabase
         .from('affiliate_links')
         .select('*')
         .eq('user_id', userId)
@@ -141,20 +142,28 @@ export const smartProductDiscovery = {
         .order('clicks', { ascending: false })
         .limit(limit);
 
-      if (!trending || trending.length === 0) {
-        console.log('⚠️ No trending products to publish');
+      if (fetchError) {
+        console.error('❌ Error fetching trending products:', fetchError);
         return { published: 0, products: [], success: false };
       }
 
-      console.log(`   Found ${trending.length} trending products to review`);
+      if (!trending || trending.length === 0) {
+        console.log('⚠️ No trending products found in database');
+        return { published: 0, products: [], success: false };
+      }
+
+      console.log(`   Found ${trending.length} trending products to publish`);
+      console.log(`   Top 3: ${trending.slice(0, 3).map(p => p.product_name).join(', ')}`);
 
       const published: string[] = [];
 
       for (const product of trending) {
-        console.log(`\n   Checking: ${product.product_name} (${product.network})`);
+        console.log(`\n   📦 Processing: ${product.product_name} (${product.network})`);
+        console.log(`      Slug: ${product.slug}`);
+        console.log(`      Clicks: ${product.clicks}`);
         
         // Check if content already exists for this specific product slug
-        const { data: existing } = await supabase
+        const { data: existing, error: checkError } = await supabase
           .from('generated_content')
           .select('id, title')
           .eq('user_id', userId)
@@ -162,16 +171,22 @@ export const smartProductDiscovery = {
           .eq('status', 'published')
           .maybeSingle();
 
+        if (checkError) {
+          console.error(`      ❌ Error checking duplicates:`, checkError);
+          continue;
+        }
+
         if (existing) {
-          console.log(`   ⏭️  Already published (found: "${existing.title}")`);
+          console.log(`      ⏭️  Already published: "${existing.title}"`);
           continue;
         }
 
         const content = this.generateProductContent(product);
-        console.log(`   📝 Creating content: "${content.title}"`);
+        console.log(`      📝 Creating content: "${content.title}"`);
+        console.log(`      📄 Preview: ${content.body.substring(0, 100)}...`);
         
         // Insert content with proper affiliate link embedded
-        const { data: inserted, error } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from('generated_content')
           .insert({
             user_id: userId,
@@ -184,24 +199,31 @@ export const smartProductDiscovery = {
           .select()
           .single();
 
-        if (!error && inserted) {
+        if (insertError) {
+          console.error(`      ❌ Insert failed:`, insertError);
+          continue;
+        }
+
+        if (inserted) {
           published.push(product.product_name || 'Product');
-          console.log(`   ✅ Published successfully (ID: ${inserted.id})`);
-        } else {
-          console.error(`   ❌ Failed to publish:`, error);
+          console.log(`      ✅ Published! Content ID: ${inserted.id}`);
         }
       }
 
-      console.log(`\n📊 PUBLISHING SUMMARY: ${published.length}/${trending.length} products published`);
+      console.log(`\n📊 FINAL SUMMARY: ${published.length}/${trending.length} products published`);
+      if (published.length > 0) {
+        console.log(`   ✅ Successfully published: ${published.join(', ')}`);
+      }
 
       return {
         published: published.length,
         products: published,
-        success: true
+        success: published.length > 0
       };
 
     } catch (error: any) {
-      console.error('❌ Auto-publish error:', error);
+      console.error('❌ Critical auto-publish error:', error);
+      console.error('   Stack:', error.stack);
       return { published: 0, products: [], success: false };
     }
   },
