@@ -19,6 +19,7 @@ Complete database-connected affiliate link system that:
 - Zero crashes, backward compatible
 - Auto-discovery engine finds trending products daily
 - Publishing engine creates content with affiliate links automatically
+- Public trending page at /trending displays all published products
 
 ## Checklist
 - [x] Create ProductLink component (database-connected)
@@ -32,6 +33,9 @@ Complete database-connected affiliate link system that:
 - [x] Clear test data and verify clean publishing
 - [x] Add detailed error logging to publishing
 - [x] Test end-to-end: Discovery → Publishing → Tracking
+- [x] Create public trending page with grid layout
+- [x] Fix RLS policies for public access to published content
+- [x] Verify all redirect links work correctly
 
 ## Acceptance
 - Product links fetch and render from database (all networks) ✅
@@ -40,3 +44,4 @@ Complete database-connected affiliate link system that:
 - No crashes or conflicts with existing features ✅
 - Trending products auto-published with affiliate links ✅
 - Content generation works for Amazon, Temu, AliExpress products ✅
+- Public trending page displays all products with working links ✅
