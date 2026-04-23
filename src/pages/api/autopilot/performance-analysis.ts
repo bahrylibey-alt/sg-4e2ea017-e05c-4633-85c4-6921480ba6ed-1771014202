@@ -1,38 +1,64 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Get REAL content from database
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
-      .select("id, title, views, created_at")
-      .order("views", { ascending: false })
-      .limit(20);
+      .select("id, title, status, created_at, view_count, click_count")
+      .eq("user_id", user.id)
+      .order("view_count", { ascending: false });
 
     if (contentError) throw contentError;
 
-    const { data: clicks, error: clicksError } = await supabase
-      .from("click_events")
-      .select("content_id, created_at");
+    if (!content || content.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No content yet to analyze",
+        analysis: { total: 0, top_performers: [], needs_improvement: [] }
+      });
+    }
 
-    if (clicksError) throw clicksError;
+    // Real analysis based on actual data
+    const topPerformers = content.slice(0, 5);
+    const needsImprovement = content
+      .filter(c => (c.view_count || 0) < 50)
+      .slice(0, 5);
+
+    const analysis = {
+      total: content.length,
+      top_performers: topPerformers.map(c => ({
+        id: c.id,
+        title: c.title,
+        views: c.view_count || 0,
+        clicks: c.click_count || 0
+      })),
+      needs_improvement: needsImprovement.map(c => ({
+        id: c.id,
+        title: c.title,
+        views: c.view_count || 0,
+        suggestion: "Optimize title and add more keywords"
+      }))
+    };
+
+    console.log("📊 Performance Analysis (REAL DATA):", analysis);
 
     return res.status(200).json({
-      message: "Performance analysis complete",
-      insights: {
-        top_performers: Math.min(5, content?.length || 0),
-        low_performers: Math.min(5, content?.length || 0),
-        avg_ctr: "2.45",
-        total_clicks_30d: clicks?.length || 0
-      }
+      success: true,
+      message: `Analyzed ${content.length} real articles`,
+      analysis
     });
+
   } catch (error: any) {
     console.error("Performance analysis error:", error);
     return res.status(500).json({ error: error.message });

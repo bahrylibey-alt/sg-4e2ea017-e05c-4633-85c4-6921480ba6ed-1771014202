@@ -1,47 +1,65 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Get REAL content that needs SEO optimization
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
-      .select("id, title, description, body")
-      .order("created_at", { ascending: false })
+      .select("id, title, content, seo_keywords")
+      .eq("user_id", user.id)
+      .eq("status", "published")
       .limit(10);
 
     if (contentError) throw contentError;
 
-    let optimized = 0;
-    if (content && content.length > 0) {
-      for (const item of content) {
-        const optimizedTitle = item.title && item.title.length > 60 
-          ? `${item.title.substring(0, 57)}...`
-          : `${item.title || 'Product'} - Best Deal 2026`;
+    if (!content || content.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No published content to optimize",
+        optimized: 0
+      });
+    }
 
-        const { error: updateError } = await supabase
+    let optimized = 0;
+
+    // Optimize existing content
+    for (const item of content) {
+      // Add SEO keywords if missing
+      if (!item.seo_keywords || item.seo_keywords.length === 0) {
+        const keywords = [
+          "affiliate marketing",
+          "best products",
+          "product review",
+          "top picks"
+        ];
+
+        await supabase
           .from("generated_content")
-          .update({
-            title: optimizedTitle,
-            updated_at: new Date().toISOString()
-          })
+          .update({ seo_keywords: keywords })
           .eq("id", item.id);
 
-        if (!updateError) optimized++;
+        optimized++;
       }
     }
 
+    console.log(`✅ SEO Optimizer: Enhanced ${optimized} real articles`);
+
     return res.status(200).json({
-      message: `SEO optimized ${optimized} articles`,
-      optimized,
-      improvements: ["title optimization", "meta description", "keyword density"]
+      success: true,
+      message: `Optimized ${optimized} existing articles`,
+      optimized
     });
+
   } catch (error: any) {
     console.error("SEO optimizer error:", error);
     return res.status(500).json({ error: error.message });
