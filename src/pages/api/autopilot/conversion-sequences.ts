@@ -7,16 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Get real click data to analyze conversion paths
+    // Get real click data to analyze conversion paths (no auth required)
     const { data: clicks, error: clicksError } = await supabase
       .from("click_events")
       .select("product_id, created_at, user_ip")
-      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(100);
 

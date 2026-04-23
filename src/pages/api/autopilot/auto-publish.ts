@@ -7,16 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Get REAL draft content ready to publish
+    // Get REAL draft content ready to publish (no auth required)
     const { data: drafts, error: draftError } = await supabase
       .from("generated_content")
-      .select("id, title, body, status")
-      .eq("user_id", user.id)
+      .select("id, title, body, status, product_id, product_catalog(affiliate_url)")
       .eq("status", "draft")
       .limit(5);
 
@@ -32,25 +26,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let published = 0;
 
-    // Publish draft content
+    // Publish draft content with affiliate links
     for (const item of drafts) {
+      const product = item.product_catalog as any;
+      const affiliateUrl = product?.affiliate_url || "";
+      
+      // Ensure content has affiliate link embedded
+      let bodyWithLink = item.body || "";
+      if (affiliateUrl && !bodyWithLink.includes(affiliateUrl)) {
+        bodyWithLink += `\n\n[Get it here](${affiliateUrl})`;
+      }
+
       const { error: updateError } = await supabase
         .from("generated_content")
         .update({ 
           status: "published",
-          updated_at: new Date().toISOString() // Assuming published_at might not exist, using updated_at
+          body: bodyWithLink,
+          updated_at: new Date().toISOString()
         })
         .eq("id", item.id);
 
       if (!updateError) {
         published++;
-        console.log(`✅ Published: ${item.title}`);
+        console.log(`✅ Published with affiliate link: ${item.title}`);
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: `Published ${published} draft articles`,
+      message: `Published ${published} articles with affiliate links`,
       published
     });
 

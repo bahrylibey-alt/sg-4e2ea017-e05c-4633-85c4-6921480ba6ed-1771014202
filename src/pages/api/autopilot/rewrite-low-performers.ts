@@ -7,16 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Find REAL low-performing content
+    // Find REAL low-performing content (no auth required)
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
       .select("id, title, body, views, clicks")
-      .eq("user_id", user.id)
       .eq("status", "published")
       .order("views", { ascending: true })
       .limit(5);
