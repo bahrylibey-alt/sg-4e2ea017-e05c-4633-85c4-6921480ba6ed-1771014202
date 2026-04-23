@@ -75,18 +75,18 @@ export default function Dashboard() {
       <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-8">
-          <Tabs defaultValue="autopilot" className="space-y-6">
+          <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="autopilot">AI Autopilot</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="autopilot">AI Autopilot</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="autopilot" className="space-y-6">
-              <AutopilotDashboard />
-            </TabsContent>
 
             <TabsContent value="overview" className="space-y-6">
               <DashboardOverview />
+            </TabsContent>
+
+            <TabsContent value="autopilot" className="space-y-6">
+              <AutopilotDashboard />
             </TabsContent>
           </Tabs>
         </main>
