@@ -58,12 +58,14 @@ export default function RedirectPage({ productData: initialData, error: serverEr
       try {
         console.log(`🔍 [REDIRECT] Starting for slug: ${slug}`);
 
-        const { data: affiliateLink } = await supabase
+        const { data: affiliateLink, error: linkError } = await supabase
           .from('affiliate_links')
           .select('*')
           .eq('slug', slug)
           .eq('status', 'active')
           .maybeSingle();
+
+        console.log('🔍 [REDIRECT] affiliate_links query result:', { affiliateLink, linkError });
 
         let link: ProductData | null = null;
 
@@ -78,12 +80,15 @@ export default function RedirectPage({ productData: initialData, error: serverEr
           };
           console.log('✅ Found in affiliate_links');
         } else {
-          const { data: content } = await supabase
+          console.log('⚠️ Not found in affiliate_links, trying generated_content...');
+          const { data: content, error: contentError } = await supabase
             .from('generated_content')
             .select('*')
             .eq('id', slug)
             .eq('status', 'published')
             .maybeSingle();
+
+          console.log('🔍 [REDIRECT] generated_content query result:', { content, contentError });
 
           if (content) {
             const urlMatch = content.body?.match(/https?:\/\/[^\s<>"']+/);
