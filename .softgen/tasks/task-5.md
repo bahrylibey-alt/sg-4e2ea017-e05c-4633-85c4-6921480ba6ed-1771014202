@@ -4,7 +4,7 @@ title: Complete Affiliate Marketing Autopilot System
 status: done
 priority: urgent
 type: feature
-tags: [affiliate, autopilot, trending, revenue, testing]
+tags: [affiliate, autopilot, trending, revenue, testing, cron]
 created_by: agent
 created_at: 2026-04-22
 position: 5
@@ -18,10 +18,12 @@ Production-ready affiliate marketing system with:
 - Revenue tracking (Clicks → Conversions → $ - $4,575.75 estimated)
 - Public trending products page (/trending)
 - Complete end-to-end testing (All 5 steps passing)
+- Vercel Cron Jobs for daily auto-refresh
 
 ## Checklist
 - [x] Seed database with realistic products (all networks)
 - [x] Auto-generate content with proper affiliate links
+- [x] Fix Temu and AliExpress redirect URLs
 - [x] Create trending discovery API endpoint
 - [x] Create traffic simulation API endpoint  
 - [x] Build end-to-end test suite
@@ -29,11 +31,17 @@ Production-ready affiliate marketing system with:
 - [x] Test complete flow: Discovery → Traffic → Revenue
 - [x] Simulate realistic traffic patterns
 - [x] Validate revenue calculations (100% accuracy)
+- [x] Configure Vercel Cron Jobs (daily at 2 AM UTC)
+- [x] Test all redirect links (Amazon, Temu, AliExpress)
 
 ## Acceptance
 - Trending page shows products from Amazon, Temu, AliExpress ✅
 - All affiliate links work and track clicks correctly ✅
+- Amazon links redirect to amazon.com/dp/[ASIN] ✅
+- Temu links redirect to temu.com with proper tracking ✅
+- AliExpress links redirect to aliexpress.com/item/[ID] ✅
 - Traffic simulation generates realistic metrics ✅
 - Revenue tracking shows: clicks → conversions → earnings ✅
 - End-to-end test passes all 5 steps ✅
+- Vercel cron jobs configured and ready for deployment ✅
 ]]></
