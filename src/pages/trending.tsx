@@ -43,10 +43,18 @@ export default function TrendingProductsPage() {
           const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
           const slug = linkMatch ? linkMatch[1] : "";
           
+          // Detect network from title or body
           let network = "Unknown";
-          if (item.body?.includes("Amazon")) network = "Amazon";
-          else if (item.body?.includes("Temu")) network = "Temu";
-          else if (item.body?.includes("AliExpress")) network = "AliExpress";
+          const titleLower = item.title.toLowerCase();
+          const bodyLower = item.body?.toLowerCase() || "";
+          
+          if (titleLower.includes('amazon') || bodyLower.includes('amazon')) {
+            network = "Amazon";
+          } else if (titleLower.includes('temu') || bodyLower.includes('temu')) {
+            network = "Temu";
+          } else if (titleLower.includes('aliexpress') || bodyLower.includes('aliexpress')) {
+            network = "AliExpress";
+          }
 
           return {
             id: item.id,
