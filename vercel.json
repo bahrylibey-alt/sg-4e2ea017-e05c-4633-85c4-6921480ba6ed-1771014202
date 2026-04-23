@@ -1,43 +1,46 @@
 {
-  "framework": "nextjs",
-  "redirects": [
+  "crons": [
     {
-      "source": "/old-path",
-      "destination": "/new-path",
-      "permanent": true
+      "path": "/api/cron/discover-products",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/autopilot",
+      "schedule": "0 */6 * * *"
     }
   ],
   "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
         }
       ]
     }
   ],
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "functions": {
-    "src/pages/api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
-  "crons": [
+  "rewrites": [
     {
-      "path": "/api/cron/autopilot",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/discover-products",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/self-healing",
-      "schedule": "0 */6 * * *"
+      "source": "/go/:slug",
+      "destination": "/go/:slug"
     }
   ]
 }

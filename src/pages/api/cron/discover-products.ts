@@ -3,53 +3,53 @@ import { createClient } from "@supabase/supabase-js";
 import { smartProductDiscovery } from "@/services/smartProductDiscovery";
 
 /**
- * CROSS-NETWORK PRODUCT DISCOVERY CRON JOB
- * Discovers trending products from Amazon, Temu, AliExpress and other networks
- * Auto-publishes trending products as content
+ * Vercel Cron Job: Daily Product Discovery
+ * Runs at 2 AM UTC daily via vercel.json configuration
+ * Discovers trending products from Amazon, Temu, AliExpress
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Verify cron secret (Vercel sets this automatically)
   const authHeader = req.headers.authorization;
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return res.status(401).json({ error: "Unauthorized" });
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    console.log('🌐 CROSS-NETWORK PRODUCT DISCOVERY: Starting...');
+    console.log('🕐 CRON JOB: Daily Product Discovery Started');
+    console.log('Time:', new Date().toISOString());
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch users with autopilot enabled
-    const { data: users, error: dbError } = await supabaseAdmin
+    // Get all active users
+    const { data: users } = await supabaseAdmin
       .from('user_settings')
-      .select('user_id, autopilot_enabled')
-      .eq('autopilot_enabled', true);
-
-    if (dbError) {
-      console.error("Database error fetching user settings:", dbError);
-    }
+      .select('user_id')
+      .limit(100);
 
     if (!users || users.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No users with autopilot enabled. Waiting for signups.',
-        processed: 0
-      });
+      console.log('⚠️ No users found, using default user');
+      // Use first affiliate link user as fallback
+      const { data: links } = await supabaseAdmin
+        .from('affiliate_links')
+        .select('user_id')
+        .limit(1);
+      
+      if (links && links.length > 0) {
+        users.push({ user_id: links[0].user_id });
+      }
     }
 
-    console.log(`Processing ${users.length} users...`);
-
     const results = [];
+
     for (const user of users) {
+      console.log(`\n👤 Processing user: ${user.user_id}`);
+      
       try {
-        console.log(`\n🎯 User: ${user.user_id}`);
-        
         // Discover products from ALL networks
         const discoveryResult = await smartProductDiscovery.discoverProducts(
           user.user_id,
@@ -60,43 +60,50 @@ export default async function handler(
           }
         );
         
+        console.log(`   Discovered: ${discoveryResult.totalDiscovered} products`);
+        console.log(`   By Network:`, discoveryResult.byNetwork);
+        
         // Auto-publish trending products
-        const publishResult = await smartProductDiscovery.publishTrendingProducts(user.user_id, 5, supabaseAdmin);
+        const publishResult = await smartProductDiscovery.publishTrendingProducts(
+          user.user_id, 
+          10, 
+          supabaseAdmin
+        );
+        
+        console.log(`   Published: ${publishResult.published} new articles`);
         
         results.push({
-          userId: user.user_id,
+          user_id: user.user_id,
           discovered: discoveryResult.totalDiscovered,
-          byNetwork: discoveryResult.byNetwork,
           published: publishResult.published,
-          publishedProducts: publishResult.products
+          networks: discoveryResult.byNetwork
         });
-
-        console.log(`✅ User ${user.user_id}:`);
-        console.log(`   Discovered: ${discoveryResult.totalDiscovered}`);
-        console.log(`   Published: ${publishResult.published}`);
-
-      } catch (userError) {
-        console.error(`❌ Error processing user ${user.user_id}:`, userError);
+        
+      } catch (error: any) {
+        console.error(`   ❌ Error for user ${user.user_id}:`, error.message);
         results.push({
-          userId: user.user_id,
-          success: false,
-          error: userError instanceof Error ? userError.message : 'Unknown error'
+          user_id: user.user_id,
+          error: error.message
         });
       }
     }
 
+    console.log('\n✅ CRON JOB COMPLETED');
+    console.log('Results:', results);
+
     return res.status(200).json({
       success: true,
-      message: `Processed ${users.length} users`,
-      processed: users.length,
+      timestamp: new Date().toISOString(),
+      users_processed: users.length,
       results
     });
 
   } catch (error: any) {
-    console.error('❌ DISCOVERY ERROR:', error);
+    console.error('❌ CRON JOB FAILED:', error);
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 }
