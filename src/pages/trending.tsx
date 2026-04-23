@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { GetServerSideProps } from "next";
+import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SEO } from "@/components/SEO";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { TrendingUp, ExternalLink, ShoppingCart, Loader2 } from "lucide-react";
+import { TrendingUp, ExternalLink, ShoppingCart } from "lucide-react";
 
 interface TrendingProduct {
   id: string;
@@ -18,79 +19,14 @@ interface TrendingProduct {
   created_at: string;
 }
 
-export default function TrendingProductsPage() {
-  const [products, setProducts] = useState<TrendingProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface TrendingPageProps {
+  products: TrendingProduct[];
+  totalCount: number;
+}
+
+export default function TrendingProductsPage({ products: initialProducts, totalCount }: TrendingPageProps) {
+  const [products] = useState<TrendingProduct[]>(initialProducts);
   const [filter, setFilter] = useState<string>("all");
-
-  useEffect(() => {
-    fetchTrendingProducts();
-  }, []);
-
-  const fetchTrendingProducts = async () => {
-    setIsLoading(true);
-    try {
-      const { data: content, error } = await supabase
-        .from("generated_content")
-        .select("id, title, body, clicks, created_at")
-        .eq("status", "published")
-        .order("clicks", { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error("Database error:", error);
-        setIsLoading(false);
-        return;
-      }
-
-      if (!content || content.length === 0) {
-        console.log("No published content found");
-        setProducts([]);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log(`Found ${content.length} published items`);
-
-      const productsWithMeta = content.map(item => {
-        // Extract slug from markdown link format: [Get Product Now](/go/slug)
-        const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
-        const slug = linkMatch ? linkMatch[1] : "";
-        
-        // Detect network from title or body
-        let network = "Unknown";
-        const titleLower = item.title.toLowerCase();
-        const bodyLower = item.body?.toLowerCase() || "";
-        
-        if (titleLower.includes('amazon') || bodyLower.includes('amazon')) {
-          network = "Amazon";
-        } else if (titleLower.includes('temu') || bodyLower.includes('temu')) {
-          network = "Temu";
-        } else if (titleLower.includes('aliexpress') || bodyLower.includes('aliexpress')) {
-          network = "AliExpress";
-        }
-
-        return {
-          id: item.id,
-          title: item.title,
-          body: item.body || "",
-          network,
-          slug,
-          clicks: item.clicks || 0,
-          created_at: item.created_at
-        };
-      });
-
-      const validProducts = productsWithMeta.filter(p => p.slug);
-      console.log(`${validProducts.length} products with valid slugs`);
-      
-      setProducts(validProducts);
-    } catch (error) {
-      console.error("Error fetching trending products:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const filteredProducts = filter === "all" 
     ? products 
@@ -134,6 +70,9 @@ export default function TrendingProductsPage() {
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Discover the hottest deals from Amazon, Temu, and AliExpress. Updated daily with products people are loving right now.
               </p>
+              <div className="mt-4 text-sm text-muted-foreground">
+                {totalCount} trending products • {filteredProducts.length} showing
+              </div>
             </div>
           </section>
 
@@ -147,28 +86,28 @@ export default function TrendingProductsPage() {
                   onClick={() => setFilter("all")}
                   size="sm"
                 >
-                  All Networks
+                  All Networks ({products.length})
                 </Button>
                 <Button
                   variant={filter === "amazon" ? "default" : "outline"}
                   onClick={() => setFilter("amazon")}
                   size="sm"
                 >
-                  Amazon
+                  Amazon ({products.filter(p => p.network.toLowerCase() === "amazon").length})
                 </Button>
                 <Button
                   variant={filter === "temu" ? "default" : "outline"}
                   onClick={() => setFilter("temu")}
                   size="sm"
                 >
-                  Temu
+                  Temu ({products.filter(p => p.network.toLowerCase() === "temu").length})
                 </Button>
                 <Button
                   variant={filter === "aliexpress" ? "default" : "outline"}
                   onClick={() => setFilter("aliexpress")}
                   size="sm"
                 >
-                  AliExpress
+                  AliExpress ({products.filter(p => p.network.toLowerCase() === "aliexpress").length})
                 </Button>
               </div>
             </div>
@@ -177,19 +116,12 @@ export default function TrendingProductsPage() {
           {/* Products Grid */}
           <section className="py-16">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : filteredProducts.length === 0 ? (
+              {products.length === 0 ? (
                 <div className="text-center py-20">
                   <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-2xl font-semibold mb-2">No products found</h3>
                   <p className="text-muted-foreground">
-                    {filter === "all" 
-                      ? "No trending products available yet. Check back soon!"
-                      : `No ${filter} products available. Try another filter.`
-                    }
+                    Check back soon for trending products!
                   </p>
                 </div>
               ) : (
@@ -215,14 +147,14 @@ export default function TrendingProductsPage() {
                             {product.clicks > 0 && (
                               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <TrendingUp className="h-3 w-3" />
-                                {product.clicks} clicks
+                                {product.clicks.toLocaleString()} clicks
                               </div>
                             )}
                           </div>
 
                           {/* Product Title */}
                           <h3 className="text-lg font-semibold mb-3 line-clamp-2 group-hover:text-primary transition-colors">
-                            {product.title.replace(` - Trending on ${product.network}`, "")}
+                            {product.title.replace(/ - Trending on .+$/, "")}
                           </h3>
 
                           {/* Description */}
@@ -283,3 +215,51 @@ export default function TrendingProductsPage() {
     </>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data: content } = await supabase
+    .from("generated_content")
+    .select("id, title, body, clicks, created_at")
+    .eq("status", "published")
+    .order("clicks", { ascending: false })
+    .limit(50);
+
+  const products: TrendingProduct[] = (content || []).map(item => {
+    const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
+    const slug = linkMatch ? linkMatch[1] : "";
+    
+    let network = "Unknown";
+    const titleLower = item.title.toLowerCase();
+    const bodyLower = item.body?.toLowerCase() || "";
+    
+    if (titleLower.includes("amazon") || bodyLower.includes("amazon")) {
+      network = "Amazon";
+    } else if (titleLower.includes("temu") || bodyLower.includes("temu")) {
+      network = "Temu";
+    } else if (titleLower.includes("aliexpress") || bodyLower.includes("aliexpress")) {
+      network = "AliExpress";
+    }
+
+    return {
+      id: item.id,
+      title: item.title,
+      body: item.body || "",
+      network,
+      slug,
+      clicks: item.clicks || 0,
+      created_at: item.created_at
+    };
+  }).filter(p => p.slug);
+
+  return {
+    props: {
+      products,
+      totalCount: products.length
+    }
+  };
+};

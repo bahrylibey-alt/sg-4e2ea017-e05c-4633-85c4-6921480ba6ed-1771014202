@@ -1,3 +1,4 @@
+<![CDATA[
 ---
 title: Complete Affiliate Marketing Autopilot System
 status: done
@@ -35,3 +36,4 @@ Production-ready affiliate marketing system with:
 - Traffic simulation generates realistic metrics ✅
 - Revenue tracking shows: clicks → conversions → earnings ✅
 - End-to-end test passes all 5 steps ✅
+]]></
