@@ -39,7 +39,8 @@ export default function TrendingProductsPage() {
 
       if (content) {
         const productsWithMeta = content.map(item => {
-          const linkMatch = item.body?.match(/\/go\/([^\s)]+)/);
+          // Extract slug from markdown link format: [Get Product Now](/go/slug)
+          const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
           const slug = linkMatch ? linkMatch[1] : "";
           
           let network = "Unknown";
