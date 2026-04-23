@@ -57,6 +57,10 @@ export function Header() {
                 <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
                   Dashboard
                 </Link>
+                <Link href="/autopilot-center" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <Zap className="h-4 w-4" />
+                  AutoPilot
+                </Link>
                 <Link href="/trending" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                   <TrendingUp className="h-4 w-4" />
                   Trending
@@ -119,6 +123,9 @@ export function Header() {
               <>
                 <Link href="/dashboard" className="block text-sm font-medium hover:text-primary transition-colors">
                   Dashboard
+                </Link>
+                <Link href="/autopilot-center" className="block text-sm font-medium hover:text-primary transition-colors">
+                  AutoPilot Center
                 </Link>
                 <Link href="/trending" className="block text-sm font-medium hover:text-primary transition-colors">
                   Trending Products
