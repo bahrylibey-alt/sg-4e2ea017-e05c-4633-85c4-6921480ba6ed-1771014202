@@ -11,6 +11,15 @@ export function Header() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
+  const navigationItems = [
+    { name: "Dashboard", href: "/dashboard" },
+    { name: "AutoPilot", href: "/autopilot-center" },
+    { name: "Analytics", href: "/tracking-dashboard" },
+    { name: "Content", href: "/content-manager" },
+    { name: "Integrations", href: "/integrations" },
+    { name: "Settings", href: "/settings" }
+  ];
+
   useEffect(() => {
     checkAuth();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
