@@ -7,16 +7,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // Get existing products to create traffic tactics for
+    // Get active products (no auth required - public endpoint)
     const { data: products, error: productsError } = await supabase
       .from("product_catalog")
       .select("id, name, category, affiliate_url")
-      .eq("user_id", user.id)
       .eq("status", "active")
       .limit(5);
 
@@ -37,15 +31,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tactics: [
         {
           platform: "Reddit",
-          tactic: `Post in r/${product.category || 'products'} with review and discussion`
+          tactic: `Post in r/${product.category || 'products'} with review and discussion`,
+          affiliate_link: product.affiliate_url
         },
         {
           platform: "Quora",
-          tactic: `Answer questions about ${product.name} alternatives`
+          tactic: `Answer questions about ${product.name} alternatives`,
+          affiliate_link: product.affiliate_url
         },
         {
           platform: "YouTube",
-          tactic: `Create 60-second review short for ${product.name}`
+          tactic: `Create 60-second review short for ${product.name}`,
+          affiliate_link: product.affiliate_url
         }
       ]
     }));
