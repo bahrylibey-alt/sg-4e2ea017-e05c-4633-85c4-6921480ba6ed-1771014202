@@ -56,7 +56,7 @@ export default async function handler(
 
     console.log('Discovery Results:', discoveryResult);
 
-    // Step 2: Auto-publish trending products
+    // Step 2: Auto-publish trending products from ALL networks
     console.log('\n📢 STEP 2: Auto-Publishing Trending Products');
     const publishResult = await smartProductDiscovery.publishTrendingProducts(userId, 10);
 

@@ -158,7 +158,7 @@ export const smartProductDiscovery = {
           .from('generated_content')
           .select('id, title')
           .eq('user_id', userId)
-          .or(`title.ilike.%${product.slug}%,body.ilike.%/go/${product.slug}%`)
+          .ilike('body', `%/go/${product.slug}%`)
           .eq('status', 'published')
           .maybeSingle();
 
