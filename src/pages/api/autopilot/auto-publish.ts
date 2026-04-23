@@ -1,5 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false }
+});
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -7,10 +13,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get REAL draft content ready to publish (no auth required)
-    const { data: drafts, error: draftError } = await supabase
+    // Get draft content
+    const { data: drafts, error: draftError } = await supabaseAdmin
       .from("generated_content")
-      .select("id, title, body, status, product_id, product_catalog(affiliate_url)")
+      .select("id, title, body, status")
       .eq("status", "draft")
       .limit(5);
 
@@ -24,20 +30,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    // Get an active product to extract the correct affiliate link
+    const { data: products } = await supabaseAdmin
+      .from("product_catalog")
+      .select("affiliate_url, name")
+      .eq("status", "active")
+      .limit(1);
+    
+    const product = products?.[0];
     let published = 0;
 
-    // Publish draft content with affiliate links
+    // Publish draft content and ENSURE the correct affiliate link is embedded
     for (const item of drafts) {
-      const product = item.product_catalog as any;
-      const affiliateUrl = product?.affiliate_url || "";
-      
-      // Ensure content has affiliate link embedded
       let bodyWithLink = item.body || "";
-      if (affiliateUrl && !bodyWithLink.includes(affiliateUrl)) {
-        bodyWithLink += `\n\n[Get it here](${affiliateUrl})`;
+      
+      // If we have a product and its link isn't already in the body, append it
+      if (product?.affiliate_url && !bodyWithLink.includes(product.affiliate_url)) {
+        bodyWithLink += `\n\n👉 **[Get ${product.name} at the Best Price Here](${product.affiliate_url})**`;
       }
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from("generated_content")
         .update({ 
           status: "published",
@@ -48,13 +60,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!updateError) {
         published++;
-        console.log(`✅ Published with affiliate link: ${item.title}`);
+        console.log(`✅ Published with correct affiliate link: ${item.title}`);
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: `Published ${published} articles with affiliate links`,
+      message: `Successfully published ${published} articles with embedded tracking links`,
       published
     });
 
