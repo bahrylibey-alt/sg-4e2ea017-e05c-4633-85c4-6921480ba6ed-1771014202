@@ -30,45 +30,61 @@ export default function TrendingProductsPage() {
   const fetchTrendingProducts = async () => {
     setIsLoading(true);
     try {
-      const { data: content } = await supabase
+      const { data: content, error } = await supabase
         .from("generated_content")
         .select("id, title, body, clicks, created_at")
         .eq("status", "published")
         .order("clicks", { ascending: false })
         .limit(50);
 
-      if (content) {
-        const productsWithMeta = content.map(item => {
-          // Extract slug from markdown link format: [Get Product Now](/go/slug)
-          const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
-          const slug = linkMatch ? linkMatch[1] : "";
-          
-          // Detect network from title or body
-          let network = "Unknown";
-          const titleLower = item.title.toLowerCase();
-          const bodyLower = item.body?.toLowerCase() || "";
-          
-          if (titleLower.includes('amazon') || bodyLower.includes('amazon')) {
-            network = "Amazon";
-          } else if (titleLower.includes('temu') || bodyLower.includes('temu')) {
-            network = "Temu";
-          } else if (titleLower.includes('aliexpress') || bodyLower.includes('aliexpress')) {
-            network = "AliExpress";
-          }
-
-          return {
-            id: item.id,
-            title: item.title,
-            body: item.body || "",
-            network,
-            slug,
-            clicks: item.clicks || 0,
-            created_at: item.created_at
-          };
-        });
-
-        setProducts(productsWithMeta.filter(p => p.slug));
+      if (error) {
+        console.error("Database error:", error);
+        setIsLoading(false);
+        return;
       }
+
+      if (!content || content.length === 0) {
+        console.log("No published content found");
+        setProducts([]);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log(`Found ${content.length} published items`);
+
+      const productsWithMeta = content.map(item => {
+        // Extract slug from markdown link format: [Get Product Now](/go/slug)
+        const linkMatch = item.body?.match(/\[.*?\]\(\/go\/([^)]+)\)/);
+        const slug = linkMatch ? linkMatch[1] : "";
+        
+        // Detect network from title or body
+        let network = "Unknown";
+        const titleLower = item.title.toLowerCase();
+        const bodyLower = item.body?.toLowerCase() || "";
+        
+        if (titleLower.includes('amazon') || bodyLower.includes('amazon')) {
+          network = "Amazon";
+        } else if (titleLower.includes('temu') || bodyLower.includes('temu')) {
+          network = "Temu";
+        } else if (titleLower.includes('aliexpress') || bodyLower.includes('aliexpress')) {
+          network = "AliExpress";
+        }
+
+        return {
+          id: item.id,
+          title: item.title,
+          body: item.body || "",
+          network,
+          slug,
+          clicks: item.clicks || 0,
+          created_at: item.created_at
+        };
+      });
+
+      const validProducts = productsWithMeta.filter(p => p.slug);
+      console.log(`${validProducts.length} products with valid slugs`);
+      
+      setProducts(validProducts);
     } catch (error) {
       console.error("Error fetching trending products:", error);
     } finally {

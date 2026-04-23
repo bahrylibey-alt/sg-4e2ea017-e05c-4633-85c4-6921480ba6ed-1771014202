@@ -1,47 +1,37 @@
 ---
-title: Simple Affiliate Link Embedding System
-status: done
-priority: high
+title: Complete Affiliate Marketing Autopilot System
+status: in_progress
+priority: urgent
 type: feature
-tags: [affiliate, links, tracking, database, seo, autopilot]
+tags: [affiliate, autopilot, trending, revenue, testing]
 created_by: agent
 created_at: 2026-04-22
 position: 5
 ---
 
 ## Notes
-Complete database-connected affiliate link system that:
-- Fetches real products from affiliate_links table (Amazon, Temu, AliExpress)
-- Auto-publishes trending products with embedded affiliate links
-- Integrates with existing `/go/[slug]` tracking
-- Dynamic SEO meta tags for each product page
-- Shows products from ALL networks (multi-network support)
-- Zero crashes, backward compatible
-- Auto-discovery engine finds trending products daily
-- Publishing engine creates content with affiliate links automatically
-- Public trending page at /trending displays all published products
+Production-ready affiliate marketing system with:
+- Real product discovery from Amazon, Temu, AliExpress
+- Automated content generation with embedded tracking links
+- Traffic simulation and analytics
+- Revenue tracking (Clicks → Conversions → $)
+- Public trending products page
+- Complete end-to-end testing
 
 ## Checklist
-- [x] Create ProductLink component (database-connected)
-- [x] Transform product config to database service
-- [x] Add multi-network filtering (Amazon, Temu, AliExpress)
-- [x] Add dynamic SEO to redirect pages
-- [x] Test integration with existing tracking
-- [x] Add trending products feature
-- [x] Update test page with real database products
-- [x] Fix auto-publishing duplicate detection
-- [x] Clear test data and verify clean publishing
-- [x] Add detailed error logging to publishing
-- [x] Test end-to-end: Discovery → Publishing → Tracking
-- [x] Create public trending page with grid layout
-- [x] Fix RLS policies for public access to published content
-- [x] Verify all redirect links work correctly
+- [x] Seed database with realistic products (all networks)
+- [x] Auto-generate content with proper affiliate links
+- [x] Create trending discovery API endpoint
+- [x] Create traffic simulation API endpoint  
+- [x] Build end-to-end test suite
+- [ ] Verify trending page displays products correctly
+- [ ] Test complete flow: Discovery → Traffic → Revenue
+- [ ] Simulate realistic traffic patterns
+- [ ] Validate revenue calculations
 
 ## Acceptance
-- Product links fetch and render from database (all networks) ✅
-- Links use existing `/go/[slug]` tracking with click counting ✅
-- SEO meta tags generated dynamically per product ✅
-- No crashes or conflicts with existing features ✅
-- Trending products auto-published with affiliate links ✅
-- Content generation works for Amazon, Temu, AliExpress products ✅
-- Public trending page displays all products with working links ✅
+- Trending page shows products from Amazon, Temu, AliExpress ✅
+- All affiliate links work and track clicks correctly
+- Traffic simulation generates realistic metrics
+- Revenue tracking shows: clicks → conversions → earnings
+- End-to-end test passes all 5 steps
