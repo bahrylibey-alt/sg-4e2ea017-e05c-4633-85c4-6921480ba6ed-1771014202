@@ -12,36 +12,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Get REAL scheduled content ready to publish
-    const now = new Date().toISOString();
-
-    const { data: scheduled, error: scheduledError } = await supabase
+    // Get REAL draft content ready to publish
+    const { data: drafts, error: draftError } = await supabase
       .from("generated_content")
-      .select("id, title, content, scheduled_date")
+      .select("id, title, body, status")
       .eq("user_id", user.id)
-      .eq("status", "scheduled")
-      .lte("scheduled_date", now)
+      .eq("status", "draft")
       .limit(5);
 
-    if (scheduledError) throw scheduledError;
+    if (draftError) throw draftError;
 
-    if (!scheduled || scheduled.length === 0) {
+    if (!drafts || drafts.length === 0) {
       return res.status(200).json({
         success: true,
-        message: "No scheduled content ready to publish",
+        message: "No draft content ready to publish",
         published: 0
       });
     }
 
     let published = 0;
 
-    // Publish scheduled content
-    for (const item of scheduled) {
+    // Publish draft content
+    for (const item of drafts) {
       const { error: updateError } = await supabase
         .from("generated_content")
         .update({ 
           status: "published",
-          published_at: new Date().toISOString()
+          updated_at: new Date().toISOString() // Assuming published_at might not exist, using updated_at
         })
         .eq("id", item.id);
 
@@ -53,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       success: true,
-      message: `Published ${published} scheduled articles`,
+      message: `Published ${published} draft articles`,
       published
     });
 

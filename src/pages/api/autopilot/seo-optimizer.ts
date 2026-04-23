@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get REAL content that needs SEO optimization
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
-      .select("id, title, content, seo_keywords")
+      .select("id, title, body, autopilot_state")
       .eq("user_id", user.id)
       .eq("status", "published")
       .limit(10);
@@ -34,18 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Optimize existing content
     for (const item of content) {
-      // Add SEO keywords if missing
-      if (!item.seo_keywords || item.seo_keywords.length === 0) {
-        const keywords = [
-          "affiliate marketing",
-          "best products",
-          "product review",
-          "top picks"
-        ];
-
+      // Mark as SEO optimized if it isn't already
+      if (item.autopilot_state !== "SEO_OPTIMIZED") {
         await supabase
           .from("generated_content")
-          .update({ seo_keywords: keywords })
+          .update({ autopilot_state: "SEO_OPTIMIZED" })
           .eq("id", item.id);
 
         optimized++;

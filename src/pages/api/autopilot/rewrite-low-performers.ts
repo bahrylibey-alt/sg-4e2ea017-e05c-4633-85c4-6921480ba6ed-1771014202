@@ -15,10 +15,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Find REAL low-performing content
     const { data: content, error: contentError } = await supabase
       .from("generated_content")
-      .select("id, title, content, view_count, click_count")
+      .select("id, title, body, views, clicks")
       .eq("user_id", user.id)
       .eq("status", "published")
-      .order("view_count", { ascending: true })
+      .order("views", { ascending: true })
       .limit(5);
 
     if (contentError) throw contentError;
@@ -31,12 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Filter truly low performers (less than 20 views after 7+ days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+    // Filter truly low performers (less than 20 views)
     const lowPerformers = content.filter(c => 
-      (c.view_count || 0) < 20
+      (c.views || 0) < 20
     );
 
     let rewritten = 0;
@@ -63,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       details: lowPerformers.map(c => ({
         id: c.id,
         title: c.title,
-        views: c.view_count || 0
+        views: c.views || 0
       }))
     });
 
