@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { supabase } from "@/integrations/supabase/client";
-import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2 } from "lucide-react";
+import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp } from "lucide-react";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -48,6 +48,10 @@ export function Header() {
                 <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
                   Dashboard
                 </Link>
+                <Link href="/trending" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <TrendingUp className="h-4 w-4" />
+                  Trending
+                </Link>
                 <Link href="/traffic-channels" className="text-sm font-medium hover:text-primary transition-colors">
                   Traffic
                 </Link>
@@ -68,6 +72,10 @@ export function Header() {
               <>
                 <Link href="/#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
                   How It Works
+                </Link>
+                <Link href="/trending" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <TrendingUp className="h-4 w-4" />
+                  Trending
                 </Link>
                 <Link href="/traffic-sources" className="text-sm font-medium hover:text-primary transition-colors">
                   Traffic Sources
@@ -103,6 +111,9 @@ export function Header() {
                 <Link href="/dashboard" className="block text-sm font-medium hover:text-primary transition-colors">
                   Dashboard
                 </Link>
+                <Link href="/trending" className="block text-sm font-medium hover:text-primary transition-colors">
+                  Trending Products
+                </Link>
                 <Link href="/traffic-channels" className="block text-sm font-medium hover:text-primary transition-colors">
                   Traffic
                 </Link>
@@ -121,6 +132,9 @@ export function Header() {
               <>
                 <Link href="/#how-it-works" className="block text-sm font-medium hover:text-primary transition-colors">
                   How It Works
+                </Link>
+                <Link href="/trending" className="block text-sm font-medium hover:text-primary transition-colors">
+                  Trending Products
                 </Link>
                 <Link href="/traffic-sources" className="block text-sm font-medium hover:text-primary transition-colors">
                   Traffic Sources
