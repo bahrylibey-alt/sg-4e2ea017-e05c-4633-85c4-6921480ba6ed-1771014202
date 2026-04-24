@@ -73,6 +73,10 @@ export function Header() {
                   <User className="h-4 w-4" />
                   Profile
                 </Link>
+                <Link href="/test-auth-system" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <Settings className="h-4 w-4" />
+                  Test Auth
+                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
@@ -93,6 +97,10 @@ export function Header() {
                 <Link href="/integration-hub" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                   <Link2 className="h-4 w-4" />
                   Integrations
+                </Link>
+                <Link href="/test-auth-system" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <Settings className="h-4 w-4" />
+                  Test Auth
                 </Link>
                 <ThemeSwitch />
                 <Link href="/dashboard">
@@ -133,6 +141,9 @@ export function Header() {
                 <Link href="/profile" className="block text-sm font-medium hover:text-primary transition-colors">
                   My Profile
                 </Link>
+                <Link href="/test-auth-system" className="block text-sm font-medium hover:text-primary transition-colors">
+                  Test Auth System
+                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full">
                   Logout
                 </Button>
@@ -150,6 +161,9 @@ export function Header() {
                 </Link>
                 <Link href="/integration-hub" className="block text-sm font-medium hover:text-primary transition-colors">
                   Integrations
+                </Link>
+                <Link href="/test-auth-system" className="block text-sm font-medium hover:text-primary transition-colors">
+                  Test Auth System
                 </Link>
                 <Link href="/dashboard">
                   <Button size="sm" className="w-full">
