@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -18,6 +18,10 @@ interface Product {
   description: string;
   category: string;
   trend_score: number;
+  price: number;
+  rating: number;
+  platform: string;
+  affiliate_link: string;
 }
 
 interface Content {
@@ -42,11 +46,13 @@ export default function AIWorkflowTest() {
   const [results, setResults] = useState<any>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  useState(() => {
-    // Check if OpenAI API key is set
-    const key = localStorage.getItem('openai_api_key');
-    setHasApiKey(!!key);
-  });
+  // Check for OpenAI API key on mount (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const key = localStorage.getItem('openai_api_key');
+      setHasApiKey(!!key);
+    }
+  }, []);
 
   // Simulated AI results (used when no API key or offline mode)
   const simulateProductDiscovery = () => {
@@ -56,21 +62,55 @@ export default function AIWorkflowTest() {
         name: `Smart ${niche} Organizer Pro`,
         description: `Revolutionary ${niche.toLowerCase()} organizer with AI-powered features and automatic sorting`,
         category: niche,
-        trend_score: 92
+        trend_score: 92,
+        price: 79.99,
+        rating: 4.8,
+        platform: "Amazon",
+        affiliate_link: "https://amazon.com/example1"
       },
       {
         id: `prod-${Date.now()}-2`,
         name: `Ultra Premium ${niche} Set`,
         description: `Professional-grade ${niche.toLowerCase()} collection with ergonomic design and premium materials`,
         category: niche,
-        trend_score: 88
+        trend_score: 88,
+        price: 149.99,
+        rating: 4.7,
+        platform: "AliExpress",
+        affiliate_link: "https://aliexpress.com/example2"
       },
       {
         id: `prod-${Date.now()}-3`,
         name: `Eco-Friendly ${niche} Bundle`,
         description: `Sustainable ${niche.toLowerCase()} made from recycled materials with zero-waste packaging`,
         category: niche,
-        trend_score: 85
+        trend_score: 85,
+        price: 59.99,
+        rating: 4.6,
+        platform: "Amazon",
+        affiliate_link: "https://amazon.com/example3"
+      },
+      {
+        id: `prod-${Date.now()}-4`,
+        name: `Deluxe ${niche} Kit`,
+        description: `Complete ${niche.toLowerCase()} kit with premium accessories and lifetime warranty`,
+        category: niche,
+        trend_score: 83,
+        price: 199.99,
+        rating: 4.9,
+        platform: "AliExpress",
+        affiliate_link: "https://aliexpress.com/example4"
+      },
+      {
+        id: `prod-${Date.now()}-5`,
+        name: `Compact ${niche} Solution`,
+        description: `Space-saving ${niche.toLowerCase()} perfect for small spaces with maximum functionality`,
+        category: niche,
+        trend_score: 81,
+        price: 39.99,
+        rating: 4.5,
+        platform: "Amazon",
+        affiliate_link: "https://amazon.com/example5"
       }
     ];
 
