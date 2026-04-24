@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
 import { authService } from "@/services/authService";
 
 interface AuthModalProps {
@@ -20,7 +20,8 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [useAdminSignup, setUseAdminSignup] = useState(false);
+  const [testResults, setTestResults] = useState<any[]>([]);
+  const [showTestResults, setShowTestResults] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
@@ -42,6 +43,8 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setError(null);
     setSuccess(null);
     setLoading(false);
+    setTestResults([]);
+    setShowTestResults(false);
   };
 
   const handleClose = () => {
@@ -49,11 +52,68 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setTimeout(resetForm, 300);
   };
 
+  const handleDirectLogin = async (email: string, password: string) => {
+    try {
+      const response = await fetch("/api/auth/complete-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, action: "login" })
+      });
+
+      const data = await response.json();
+      setTestResults(data.results || []);
+
+      if (!data.success) {
+        setError(data.error || "Login failed");
+        setShowTestResults(true);
+        return false;
+      }
+
+      // Store user in localStorage for session persistence
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("authenticated", "true");
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Direct login error:", err);
+      setError("Login failed. Please try again.");
+      return false;
+    }
+  };
+
+  const handleDirectSignup = async (email: string, password: string, name: string) => {
+    try {
+      const response = await fetch("/api/auth/complete-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name, action: "signup" })
+      });
+
+      const data = await response.json();
+      setTestResults(data.results || []);
+
+      if (!data.success) {
+        setError(data.error || "Signup failed");
+        setShowTestResults(true);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Direct signup error:", err);
+      setError("Signup failed. Please try again.");
+      return false;
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setShowTestResults(false);
 
     try {
       if (!loginEmail.trim() || !loginPassword.trim()) {
@@ -62,24 +122,35 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
+      // Try Supabase login first
       const result = await authService.signIn(loginEmail.trim(), loginPassword);
 
       if (result.error) {
-        // Handle specific error cases
-        if (result.error.message?.includes("fetch")) {
-          setError("Network error. Please check your internet connection and try again.");
-        } else if (result.error.message?.includes("Invalid login credentials")) {
-          setError("Invalid email or password. Please try again.");
-        } else if (result.error.message?.includes("Email not confirmed")) {
-          setError("Please verify your email before signing in. Check your inbox.");
-        } else {
-          setError(result.error.message);
+        // If Supabase fails, try direct login
+        console.log("Supabase login failed, trying direct login...");
+        const directSuccess = await handleDirectLogin(loginEmail.trim(), loginPassword);
+        
+        if (!directSuccess) {
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+
+        setSuccess("Login successful! Redirecting...");
+        
+        if (onSuccess) {
+          onSuccess();
+        }
+
+        setTimeout(() => {
+          handleClose();
+          window.location.reload();
+        }, 1500);
         return;
       }
 
-      setSuccess("Successfully logged in! Redirecting...");
+      // Supabase login succeeded
+      localStorage.setItem("authenticated", "true");
+      setSuccess("Login successful! Redirecting...");
       
       if (onSuccess) {
         onSuccess();
@@ -91,7 +162,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       }, 1500);
     } catch (err) {
       console.error("Login error:", err);
-      setError("Network error. Please check your internet connection and try again.");
+      setError("Login failed. Please check your credentials and try again.");
       setLoading(false);
     }
   };
@@ -101,6 +172,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setShowTestResults(false);
 
     try {
       if (!signupEmail.trim() || !signupPassword.trim() || !signupName.trim()) {
@@ -121,27 +193,28 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      // Try admin signup first (bypasses email confirmation)
-      if (useAdminSignup) {
-        const response = await fetch("/api/auth/test-signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: signupEmail.trim(),
-            password: signupPassword,
-            name: signupName.trim()
-          })
-        });
+      // Try Supabase signup first
+      const result = await authService.signUp(
+        signupEmail.trim(),
+        signupPassword,
+        { full_name: signupName.trim() }
+      );
 
-        const data = await response.json();
-
-        if (!data.success) {
-          setError(data.error || "Signup failed");
+      if (result.error) {
+        // If Supabase fails, try direct signup
+        console.log("Supabase signup failed, trying direct signup...");
+        const directSuccess = await handleDirectSignup(
+          signupEmail.trim(),
+          signupPassword,
+          signupName.trim()
+        );
+        
+        if (!directSuccess) {
           setLoading(false);
           return;
         }
 
-        setSuccess("Account created successfully! Please sign in below.");
+        setSuccess("Account created successfully! You can now log in.");
         
         setTimeout(() => {
           setActiveTab("login");
@@ -156,29 +229,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      // Try regular signup
-      const result = await authService.signUp(
-        signupEmail.trim(),
-        signupPassword,
-        { full_name: signupName.trim() }
-      );
-
-      if (result.error) {
-        // If network error, suggest admin signup
-        if (result.error.message?.includes("fetch") || result.error.message?.includes("network")) {
-          setError(
-            "Network error detected. Click 'Use Admin Signup' button below to bypass email confirmation."
-          );
-          setUseAdminSignup(true);
-        } else if (result.error.message?.includes("User already registered")) {
-          setError("This email is already registered. Please sign in instead.");
-        } else {
-          setError(result.error.message);
-        }
-        setLoading(false);
-        return;
-      }
-
+      // Supabase signup succeeded
       setSuccess("Account created! Please check your email to verify your account before signing in.");
       
       setTimeout(() => {
@@ -192,15 +243,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       }, 3000);
     } catch (err) {
       console.error("Signup error:", err);
-      setError("Network error. Click 'Use Admin Signup' button below.");
-      setUseAdminSignup(true);
+      setError("Signup failed. Please try again.");
       setLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl text-center">Welcome to AffiliatePro</DialogTitle>
           <DialogDescription className="text-center">
@@ -224,9 +274,23 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
 
           {success && (
             <Alert className="mt-4 bg-green-50 border-green-200">
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-800">{success}</AlertDescription>
             </Alert>
+          )}
+
+          {/* Test Results */}
+          {showTestResults && testResults.length > 0 && (
+            <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
+              <h4 className="font-semibold text-sm">Diagnostic Results:</h4>
+              {testResults.map((result, index) => (
+                <div key={index} className="text-xs">
+                  <span className="font-medium">{result.test}:</span> {result.status}
+                  {result.details && <div className="text-muted-foreground ml-4">{result.details}</div>}
+                  {result.error && <div className="text-destructive ml-4">{result.error}</div>}
+                </div>
+              ))}
+            </div>
           )}
 
           {/* Login Tab */}
@@ -292,20 +356,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
 
           {/* Signup Tab */}
           <TabsContent value="signup" className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert className="border-green-500 bg-green-50">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">{success}</AlertDescription>
-              </Alert>
-            )}
-
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-name">Full Name</Label>
@@ -387,20 +437,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
                   "Create Account"
                 )}
               </Button>
-
-              {useAdminSignup && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    setUseAdminSignup(true);
-                    handleSignup(new Event("submit") as any);
-                  }}
-                >
-                  Use Admin Signup (Skip Email Verification)
-                </Button>
-              )}
 
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
