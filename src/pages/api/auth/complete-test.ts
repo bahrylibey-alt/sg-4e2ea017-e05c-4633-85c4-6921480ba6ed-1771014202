@@ -43,7 +43,7 @@ export default async function handler(
     results.push({ test: "Check Existing User", status: "Testing..." });
     try {
       const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
-      const userExists = existingUser.users.find(u => u.email === email);
+      const userExists = existingUser.users.find((u: any) => u.email === email);
       
       if (userExists) {
         results[1].status = "✅ User Exists";
@@ -115,7 +115,7 @@ export default async function handler(
       results.push({ test: "Verify User", status: "Testing..." });
       try {
         const { data: users } = await supabaseAdmin.auth.admin.listUsers();
-        const user = users.users.find(u => u.email === email);
+        const user = users.users.find((u: any) => u.email === email);
 
         if (!user) {
           results[2].status = "❌ User Not Found";

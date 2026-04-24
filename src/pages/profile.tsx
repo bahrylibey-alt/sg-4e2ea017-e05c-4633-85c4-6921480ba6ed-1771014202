@@ -80,17 +80,17 @@ export default function ProfilePage() {
       // Get total products
       const { count: productsCount } = await supabase
         .from("product_catalog")
-        .select("*", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true });
 
       // Get total content
       const { count: contentCount } = await supabase
         .from("generated_content")
-        .select("*", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true });
 
       // Get total clicks
       const { count: clicksCount } = await supabase
         .from("click_events")
-        .select("*", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true });
 
       // Get total revenue
       const { data: commissions } = await supabase
