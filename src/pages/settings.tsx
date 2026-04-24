@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
 import { mockAuthService } from "@/services/mockAuthService";
 import { SEO } from "@/components/SEO";
 import { Header } from "@/components/Header";
@@ -39,12 +38,34 @@ interface AutopilotSettings {
   pause_threshold: number;
 }
 
+const DEFAULT_SETTINGS: AutopilotSettings = {
+  autopilot_frequency: 'every_30_minutes',
+  content_generation_frequency: 'daily',
+  product_discovery_frequency: 'daily',
+  target_niches: [],
+  excluded_niches: [],
+  content_tone: 'conversational',
+  content_length: 'medium',
+  use_emojis: true,
+  use_hashtags: true,
+  max_hashtags: 5,
+  enabled_platforms: ['pinterest', 'tiktok', 'twitter', 'facebook', 'instagram'],
+  min_product_price: 10.00,
+  max_product_price: 500.00,
+  min_product_rating: 4.0,
+  preferred_networks: ['amazon', 'aliexpress'],
+  auto_scale_winners: true,
+  scale_threshold: 100,
+  pause_underperformers: true,
+  pause_threshold: 20
+};
+
 export default function Settings() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<AutopilotSettings | null>(null);
+  const [settings, setSettings] = useState<AutopilotSettings>(DEFAULT_SETTINGS);
   const [newNiche, setNewNiche] = useState("");
   const [newExcludedNiche, setNewExcludedNiche] = useState("");
 
@@ -58,81 +79,23 @@ export default function Settings() {
     checkAuth();
   }, []);
 
-  const checkAuth = async () => {
-    try {
-      if (!mockAuthService.isAuthenticated()) {
-        router.push('/dashboard');
-        return;
-      }
-      await loadSettings();
-    } catch (error) {
-      console.error('Auth check error:', error);
+  const checkAuth = () => {
+    if (!mockAuthService.isAuthenticated()) {
       router.push('/dashboard');
+      return;
     }
+    loadSettings();
   };
 
-  const loadSettings = async () => {
+  const loadSettings = () => {
     try {
-      const user = mockAuthService.getCurrentUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('autopilot_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data) {
-        setSettings({
-          autopilot_frequency: data.autopilot_frequency,
-          content_generation_frequency: data.content_generation_frequency,
-          product_discovery_frequency: data.product_discovery_frequency,
-          target_niches: Array.isArray(data.target_niches) ? (data.target_niches as unknown as string[]) : [],
-          excluded_niches: Array.isArray(data.excluded_niches) ? (data.excluded_niches as unknown as string[]) : [],
-          content_tone: data.content_tone,
-          content_length: data.content_length,
-          use_emojis: data.use_emojis,
-          use_hashtags: data.use_hashtags,
-          max_hashtags: data.max_hashtags,
-          enabled_platforms: Array.isArray(data.enabled_platforms) ? (data.enabled_platforms as unknown as string[]) : [],
-          min_product_price: data.min_product_price,
-          max_product_price: data.max_product_price,
-          min_product_rating: data.min_product_rating,
-          preferred_networks: Array.isArray(data.preferred_networks) ? (data.preferred_networks as unknown as string[]) : [],
-          auto_scale_winners: data.auto_scale_winners,
-          scale_threshold: data.scale_threshold,
-          pause_underperformers: data.pause_underperformers,
-          pause_threshold: data.pause_threshold
-        });
-      } else {
-        // Create default settings
-        const defaultSettings: AutopilotSettings = {
-          autopilot_frequency: 'every_30_minutes',
-          content_generation_frequency: 'daily',
-          product_discovery_frequency: 'daily',
-          target_niches: [],
-          excluded_niches: [],
-          content_tone: 'conversational',
-          content_length: 'medium',
-          use_emojis: true,
-          use_hashtags: true,
-          max_hashtags: 5,
-          enabled_platforms: ['pinterest', 'tiktok', 'twitter', 'facebook', 'instagram'],
-          min_product_price: 10.00,
-          max_product_price: 500.00,
-          min_product_rating: 4.0,
-          preferred_networks: ['amazon', 'aliexpress'],
-          auto_scale_winners: true,
-          scale_threshold: 100,
-          pause_underperformers: true,
-          pause_threshold: 20
-        };
-        setSettings(defaultSettings);
+      // Load settings from localStorage
+      const savedSettings = localStorage.getItem('autopilot_settings');
+      if (savedSettings) {
+        setSettings(JSON.parse(savedSettings));
       }
 
-      // Load OpenAI API key from localStorage
+      // Load OpenAI API key
       const savedKey = localStorage.getItem('openai_api_key');
       if (savedKey) {
         setOpenaiApiKey(savedKey);
@@ -228,72 +191,12 @@ export default function Settings() {
     return key.slice(0, 7) + '****' + '****' + '****' + key.slice(-4);
   };
 
-  const saveSettings = async () => {
-    if (!settings) return;
-
+  const saveSettings = () => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "Please log in to save settings",
-          variant: "destructive"
-        });
-        setSaving(false);
-        return;
-      }
-
-      // Save to autopilot_settings
-      const { error } = await supabase
-        .from('autopilot_settings')
-        .upsert({
-          user_id: user.id,
-          autopilot_frequency: settings.autopilot_frequency,
-          content_generation_frequency: settings.content_generation_frequency,
-          product_discovery_frequency: settings.product_discovery_frequency,
-          target_niches: settings.target_niches,
-          excluded_niches: settings.excluded_niches,
-          content_tone: settings.content_tone,
-          content_length: settings.content_length,
-          use_emojis: settings.use_emojis,
-          use_hashtags: settings.use_hashtags,
-          max_hashtags: settings.max_hashtags,
-          enabled_platforms: settings.enabled_platforms,
-          min_product_price: settings.min_product_price,
-          max_product_price: settings.max_product_price,
-          min_product_rating: settings.min_product_rating,
-          preferred_networks: settings.preferred_networks,
-          auto_scale_winners: settings.auto_scale_winners,
-          scale_threshold: settings.scale_threshold,
-          pause_underperformers: settings.pause_underperformers,
-          pause_threshold: settings.pause_threshold,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      // CRITICAL: Also update user_settings.autopilot_enabled so the cron jobs can find you
-      const { error: userSettingsError } = await supabase
-        .from('user_settings')
-        .upsert({
-          user_id: user.id,
-          autopilot_enabled: true, // Always enable when saving settings
-          last_autopilot_run: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (userSettingsError) {
-        console.error('User settings error:', userSettingsError);
-      }
-
+      // Save to localStorage
+      localStorage.setItem('autopilot_settings', JSON.stringify(settings));
+      
       toast({
         title: "Success",
         description: "Settings saved successfully"
@@ -311,7 +214,7 @@ export default function Settings() {
   };
 
   const addNiche = () => {
-    if (!newNiche.trim() || !settings) return;
+    if (!newNiche.trim()) return;
     setSettings({
       ...settings,
       target_niches: [...settings.target_niches, newNiche.trim()]
@@ -320,7 +223,6 @@ export default function Settings() {
   };
 
   const removeNiche = (niche: string) => {
-    if (!settings) return;
     setSettings({
       ...settings,
       target_niches: settings.target_niches.filter(n => n !== niche)
@@ -328,7 +230,7 @@ export default function Settings() {
   };
 
   const addExcludedNiche = () => {
-    if (!newExcludedNiche.trim() || !settings) return;
+    if (!newExcludedNiche.trim()) return;
     setSettings({
       ...settings,
       excluded_niches: [...settings.excluded_niches, newExcludedNiche.trim()]
@@ -337,7 +239,6 @@ export default function Settings() {
   };
 
   const removeExcludedNiche = (niche: string) => {
-    if (!settings) return;
     setSettings({
       ...settings,
       excluded_niches: settings.excluded_niches.filter(n => n !== niche)
@@ -345,7 +246,6 @@ export default function Settings() {
   };
 
   const togglePlatform = (platform: string) => {
-    if (!settings) return;
     const platforms = settings.enabled_platforms.includes(platform)
       ? settings.enabled_platforms.filter(p => p !== platform)
       : [...settings.enabled_platforms, platform];
@@ -353,14 +253,13 @@ export default function Settings() {
   };
 
   const toggleNetwork = (network: string) => {
-    if (!settings) return;
     const networks = settings.preferred_networks.includes(network)
       ? settings.preferred_networks.filter(n => n !== network)
       : [...settings.preferred_networks, network];
     setSettings({ ...settings, preferred_networks: networks });
   };
 
-  if (loading || !settings) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -413,8 +312,8 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <Badge variant={settings.autopilot_frequency ? "default" : "secondary"} className="text-sm px-3 py-1">
-                    {settings.autopilot_frequency ? "ACTIVE" : "INACTIVE"}
+                  <Badge variant="default" className="text-sm px-3 py-1">
+                    ACTIVE
                   </Badge>
                   <div className="text-sm text-muted-foreground">
                     Auto-enabled when you save settings
@@ -465,7 +364,7 @@ export default function Settings() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       Your API key is stored securely in your browser's local storage and is never sent to our servers.
-                      Get your API key from <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a>
+                      Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a>
                     </AlertDescription>
                   </Alert>
 
@@ -477,7 +376,7 @@ export default function Settings() {
                         <Input
                           id="openai-key"
                           type={showApiKey ? "text" : "password"}
-                          placeholder="sk-..."
+                          placeholder="sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                           className="pl-10 pr-10"
                           value={openaiApiKey}
                           onChange={(e) => setOpenaiApiKey(e.target.value)}
@@ -550,7 +449,7 @@ export default function Settings() {
                       <li>Visit <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a> and sign up/login</li>
                       <li>Navigate to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">API Keys</a> section</li>
                       <li>Click "Create new secret key"</li>
-                      <li>Copy the key (starts with "sk-") and paste it above</li>
+                      <li>Copy the key (starts with "sk-proj-") and paste it above</li>
                       <li>Click "Save" then "Test" to verify</li>
                     </ol>
                   </div>
@@ -565,7 +464,7 @@ export default function Settings() {
               </Card>
             </TabsContent>
 
-            {/* Existing Tabs (Frequency, Niches, Content, Advanced) */}
+            {/* Frequency Tab */}
             <TabsContent value="frequency" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -641,6 +540,7 @@ export default function Settings() {
               </Card>
             </TabsContent>
 
+            {/* Niches Tab */}
             <TabsContent value="niches" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -750,6 +650,7 @@ export default function Settings() {
               </Card>
             </TabsContent>
 
+            {/* Content Tab */}
             <TabsContent value="content" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -853,6 +754,7 @@ export default function Settings() {
               </Card>
             </TabsContent>
 
+            {/* Advanced Tab */}
             <TabsContent value="advanced" className="space-y-6">
               <Card>
                 <CardHeader>
