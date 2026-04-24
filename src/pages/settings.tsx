@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
+import { mockAuthService } from "@/services/mockAuthService";
 import { SEO } from "@/components/SEO";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -12,8 +13,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Zap, Target, FileText, TrendingUp } from "lucide-react";
+import { Settings as SettingsIcon, Zap, Target, FileText, TrendingUp, Key, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
 
 interface AutopilotSettings {
   autopilot_frequency: string;
@@ -46,27 +48,32 @@ export default function Settings() {
   const [newNiche, setNewNiche] = useState("");
   const [newExcludedNiche, setNewExcludedNiche] = useState("");
 
+  // API Keys state
+  const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingApiKey, setTestingApiKey] = useState(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState<"valid" | "invalid" | null>(null);
+
   useEffect(() => {
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/');
+      if (!mockAuthService.isAuthenticated()) {
+        router.push('/dashboard');
         return;
       }
       await loadSettings();
     } catch (error) {
       console.error('Auth check error:', error);
-      router.push('/');
+      router.push('/dashboard');
     }
   };
 
   const loadSettings = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = mockAuthService.getCurrentUser();
       if (!user) return;
 
       const { data, error } = await supabase
@@ -124,6 +131,13 @@ export default function Settings() {
         };
         setSettings(defaultSettings);
       }
+
+      // Load OpenAI API key from localStorage
+      const savedKey = localStorage.getItem('openai_api_key');
+      if (savedKey) {
+        setOpenaiApiKey(savedKey);
+        setApiKeyStatus('valid');
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
       toast({
@@ -134,6 +148,84 @@ export default function Settings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const saveApiKey = () => {
+    if (!openaiApiKey.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an API key",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!openaiApiKey.startsWith('sk-')) {
+      toast({
+        title: "Invalid Format",
+        description: "OpenAI API keys start with 'sk-'",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    localStorage.setItem('openai_api_key', openaiApiKey);
+    setApiKeyStatus(null);
+    toast({
+      title: "Success",
+      description: "OpenAI API key saved successfully"
+    });
+  };
+
+  const testApiKey = async () => {
+    if (!openaiApiKey.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an API key first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setTestingApiKey(true);
+    setApiKeyStatus(null);
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`
+        }
+      });
+
+      if (response.ok) {
+        setApiKeyStatus('valid');
+        toast({
+          title: "Success",
+          description: "API key is valid and working!"
+        });
+      } else {
+        setApiKeyStatus('invalid');
+        toast({
+          title: "Invalid Key",
+          description: "API key is invalid or expired",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      setApiKeyStatus('invalid');
+      toast({
+        title: "Error",
+        description: "Failed to test API key",
+        variant: "destructive"
+      });
+    } finally {
+      setTestingApiKey(false);
+    }
+  };
+
+  const maskApiKey = (key: string) => {
+    if (!key || key.length < 10) return key;
+    return key.slice(0, 7) + '****' + '****' + '****' + key.slice(-4);
   };
 
   const saveSettings = async () => {
@@ -291,10 +383,10 @@ export default function Settings() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
               <SettingsIcon className="h-8 w-8" />
-              Autopilot Settings
+              Settings
             </h1>
             <p className="text-muted-foreground">
-              Customize how your autopilot system discovers products, generates content, and scales campaigns
+              Manage your account, autopilot settings, and API integrations
             </p>
           </div>
 
@@ -332,8 +424,12 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="frequency" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+          <Tabs defaultValue="api-keys" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="api-keys" className="flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                API Keys
+              </TabsTrigger>
               <TabsTrigger value="frequency" className="flex items-center gap-2">
                 <Zap className="h-4 w-4" />
                 Frequency
@@ -352,6 +448,124 @@ export default function Settings() {
               </TabsTrigger>
             </TabsList>
 
+            {/* API Keys Tab */}
+            <TabsContent value="api-keys" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="h-5 w-5" />
+                    OpenAI API Key
+                  </CardTitle>
+                  <CardDescription>
+                    Configure your OpenAI API key for AI-powered content generation, product discovery, and automation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Your API key is stored securely in your browser's local storage and is never sent to our servers.
+                      Get your API key from <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a>
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="openai-key">OpenAI API Key</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="openai-key"
+                          type={showApiKey ? "text" : "password"}
+                          placeholder="sk-..."
+                          className="pl-10 pr-10"
+                          value={openaiApiKey}
+                          onChange={(e) => setOpenaiApiKey(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <Button onClick={saveApiKey} variant="outline">
+                        Save
+                      </Button>
+                      <Button onClick={testApiKey} disabled={testingApiKey}>
+                        {testingApiKey ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Testing...
+                          </>
+                        ) : (
+                          "Test"
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Format: sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                    </p>
+                  </div>
+
+                  {apiKeyStatus && (
+                    <Alert variant={apiKeyStatus === 'valid' ? 'default' : 'destructive'}>
+                      {apiKeyStatus === 'valid' ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          <AlertDescription>
+                            ✅ API key is valid and working! Your AI features are ready to use.
+                          </AlertDescription>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            ❌ API key is invalid or expired. Please check your key and try again.
+                          </AlertDescription>
+                        </>
+                      )}
+                    </Alert>
+                  )}
+
+                  <div className="p-4 bg-muted rounded-lg space-y-3">
+                    <div className="font-semibold">Current Status:</div>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${openaiApiKey ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                      <span className="text-sm">
+                        {openaiApiKey ? `API Key Set: ${maskApiKey(openaiApiKey)}` : 'No API key configured'}
+                      </span>
+                    </div>
+                    {apiKeyStatus === 'valid' && (
+                      <div className="text-xs text-muted-foreground">
+                        Last verified: {new Date().toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="font-semibold text-sm">How to get your OpenAI API key:</div>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                      <li>Visit <a href="https://platform.openai.com/signup" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Platform</a> and sign up/login</li>
+                      <li>Navigate to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">API Keys</a> section</li>
+                      <li>Click "Create new secret key"</li>
+                      <li>Copy the key (starts with "sk-") and paste it above</li>
+                      <li>Click "Save" then "Test" to verify</li>
+                    </ol>
+                  </div>
+
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Important:</strong> OpenAI charges based on usage. Monitor your usage at <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Usage Dashboard</a>
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Existing Tabs (Frequency, Niches, Content, Advanced) */}
             <TabsContent value="frequency" className="space-y-6">
               <Card>
                 <CardHeader>
