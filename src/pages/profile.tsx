@@ -201,6 +201,7 @@ export default function ProfilePage() {
       .slice(0, 2);
   };
 
+  // Loading state - show spinner
   if (loading) {
     return (
       <>
@@ -212,22 +213,30 @@ export default function ProfilePage() {
     );
   }
 
-  if (showAuthModal) {
+  // Not authenticated - show ONLY auth modal, no page content
+  if (showAuthModal && !user) {
     return (
       <>
         <SEO title="Sign In - AffiliatePro" />
-        <AuthModal 
-          open={showAuthModal} 
-          onOpenChange={setShowAuthModal}
-          onSuccess={() => {
-            setShowAuthModal(false);
-            checkAuth();
-          }}
-        />
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <AuthModal 
+            open={true} 
+            onOpenChange={(open) => {
+              if (!open) {
+                router.push("/");
+              }
+            }}
+            onSuccess={() => {
+              setShowAuthModal(false);
+              checkAuth();
+            }}
+          />
+        </div>
       </>
     );
   }
 
+  // Authenticated - show profile page
   return (
     <>
       <SEO title="Profile Settings - AffiliatePro" />
