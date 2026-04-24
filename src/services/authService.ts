@@ -93,11 +93,22 @@ class AuthService {
 
   async getCurrentUser(): Promise<User | null> {
     try {
+      // First check if there's a session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.log("No active session");
+        return null;
+      }
+
+      // If session exists, get the user
       const { data: { user }, error } = await supabase.auth.getUser();
+      
       if (error) {
         console.error("Get user error:", error);
         return null;
       }
+      
       return user;
     } catch (err) {
       console.error("Get user exception:", err);

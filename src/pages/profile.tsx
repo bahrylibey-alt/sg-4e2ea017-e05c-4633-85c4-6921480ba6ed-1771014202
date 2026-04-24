@@ -58,21 +58,28 @@ export default function ProfilePage() {
 
   const checkAuth = async () => {
     setLoading(true);
-    const currentUser = await authService.getCurrentUser();
     
-    if (!currentUser) {
+    try {
+      const currentUser = await authService.getCurrentUser();
+      
+      if (!currentUser) {
+        setShowAuthModal(true);
+        setLoading(false);
+        return;
+      }
+
+      setUser(currentUser);
+      setFullName(currentUser.user_metadata?.full_name || "");
+      setEmail(currentUser.email || "");
+      setAvatarUrl(currentUser.user_metadata?.avatar_url || "");
+
+      await loadStats();
+    } catch (error) {
+      console.error("Auth check error:", error);
       setShowAuthModal(true);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setUser(currentUser);
-    setFullName(currentUser.user_metadata?.full_name || "");
-    setEmail(currentUser.email || "");
-    setAvatarUrl(currentUser.user_metadata?.avatar_url || "");
-
-    await loadStats();
-    setLoading(false);
   };
 
   const loadStats = async () => {
