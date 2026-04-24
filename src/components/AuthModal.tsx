@@ -199,7 +199,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl text-center">Welcome to AffiliatePro</DialogTitle>
@@ -208,7 +208,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
