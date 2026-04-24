@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { supabase } from "@/integrations/supabase/client";
-import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp } from "lucide-react";
+import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp, Sparkles } from "lucide-react";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -39,9 +39,9 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="border-b">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <Zap className="h-6 w-6 text-primary" />
@@ -60,6 +60,10 @@ export function Header() {
                 <Link href="/autopilot-center" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                   <Zap className="h-4 w-4" />
                   AutoPilot
+                </Link>
+                <Link href="/ai-workflow-test" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <Sparkles className="h-4 w-4" />
+                  AI Test
                 </Link>
                 <Link href="/trending" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                   <TrendingUp className="h-4 w-4" />
@@ -126,6 +130,9 @@ export function Header() {
                 </Link>
                 <Link href="/autopilot-center" className="block text-sm font-medium hover:text-primary transition-colors">
                   AutoPilot Center
+                </Link>
+                <Link href="/ai-workflow-test" className="block text-sm font-medium hover:text-primary transition-colors">
+                  AI Workflow Test
                 </Link>
                 <Link href="/trending" className="block text-sm font-medium hover:text-primary transition-colors">
                   Trending Products
