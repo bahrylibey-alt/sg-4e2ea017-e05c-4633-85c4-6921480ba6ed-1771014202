@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
@@ -326,7 +327,7 @@ Investing in quality ${niche.toLowerCase()} can transform your daily routine. Th
                 ) : (
                   <span>
                     <Badge variant="secondary" className="mr-2">Demo Mode</Badge>
-                    Using simulated AI results. Add your OpenAI API key in <a href="/settings" className="text-primary hover:underline">Settings</a> to enable real AI.
+                    Using simulated AI results. Add your OpenAI API key in <Link href="/settings" className="text-primary hover:underline">Settings</Link> to enable real AI.
                   </span>
                 )}
               </AlertDescription>
@@ -595,7 +596,7 @@ Investing in quality ${niche.toLowerCase()} can transform your daily routine. Th
                 <div>
                   <strong>AI Mode (With API Key):</strong>
                   <ul className="list-disc list-inside mt-1 ml-4 space-y-1 text-muted-foreground">
-                    <li>Add your OpenAI API key in <a href="/settings" className="text-primary hover:underline">Settings → API Keys</a></li>
+                    <li>Add your OpenAI API key in <Link href="/settings" className="text-primary hover:underline">Settings → API Keys</Link></li>
                     <li>Uses real GPT-4 for content generation</li>
                     <li>Produces unique, high-quality content</li>
                     <li>Monitor usage at <a href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">OpenAI Dashboard</a></li>
