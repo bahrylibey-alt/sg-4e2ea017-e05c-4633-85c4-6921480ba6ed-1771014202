@@ -64,7 +64,16 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       const result = await authService.signIn(loginEmail.trim(), loginPassword);
 
       if (result.error) {
-        setError(result.error.message);
+        // Handle specific error cases
+        if (result.error.message?.includes("fetch")) {
+          setError("Network error. Please check your internet connection and try again.");
+        } else if (result.error.message?.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (result.error.message?.includes("Email not confirmed")) {
+          setError("Please verify your email before signing in. Check your inbox.");
+        } else {
+          setError(result.error.message);
+        }
         setLoading(false);
         return;
       }
@@ -80,7 +89,8 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         window.location.reload();
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      console.error("Login error:", err);
+      setError("Network error. Please check your internet connection and try again.");
       setLoading(false);
     }
   };
@@ -117,12 +127,19 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       );
 
       if (result.error) {
-        setError(result.error.message);
+        // Handle specific error cases
+        if (result.error.message?.includes("fetch")) {
+          setError("Network error. Please check your internet connection and try again.");
+        } else if (result.error.message?.includes("User already registered")) {
+          setError("This email is already registered. Please sign in instead.");
+        } else {
+          setError(result.error.message);
+        }
         setLoading(false);
         return;
       }
 
-      setSuccess("Account created successfully! Please check your email to verify your account.");
+      setSuccess("Account created! Please check your email to verify your account before signing in.");
       
       setTimeout(() => {
         setActiveTab("login");
@@ -131,10 +148,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         setSignupPassword("");
         setSignupName("");
         setConfirmPassword("");
+        setLoading(false);
       }, 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Signup failed. Please try again.");
-    } finally {
+      console.error("Signup error:", err);
+      setError("Network error. Please check your internet connection and try again.");
       setLoading(false);
     }
   };
