@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { supabase } from "@/integrations/supabase/client";
+import { mockAuthService } from "@/services/mockAuthService";
 import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp, Sparkles, User } from "lucide-react";
 
 export function Header() {
@@ -11,30 +11,20 @@ export function Header() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-  const navigationItems = [
-    { name: "Dashboard", href: "/dashboard" },
-    { name: "AutoPilot", href: "/autopilot-center" },
-    { name: "Analytics", href: "/tracking-dashboard" },
-    { name: "Content", href: "/content-manager" },
-    { name: "Integrations", href: "/integrations" },
-    { name: "Settings", href: "/settings" }
-  ];
-
   useEffect(() => {
     checkAuth();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkAuth();
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    // Check auth on route changes
+    const handleRouteChange = () => checkAuth();
+    router.events?.on("routeChangeComplete", handleRouteChange);
+    return () => router.events?.off("routeChangeComplete", handleRouteChange);
+  }, [router]);
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setIsAuthenticated(!!session);
+  const checkAuth = () => {
+    setIsAuthenticated(mockAuthService.isAuthenticated());
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
+    mockAuthService.signOut();
     router.push("/");
   };
 
@@ -73,10 +63,6 @@ export function Header() {
                   <User className="h-4 w-4" />
                   Profile
                 </Link>
-                <Link href="/test-auth-system" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                  <Settings className="h-4 w-4" />
-                  Test Auth
-                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
@@ -97,10 +83,6 @@ export function Header() {
                 <Link href="/integration-hub" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
                   <Link2 className="h-4 w-4" />
                   Integrations
-                </Link>
-                <Link href="/test-auth-system" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                  <Settings className="h-4 w-4" />
-                  Test Auth
                 </Link>
                 <ThemeSwitch />
                 <Link href="/dashboard">
@@ -141,9 +123,6 @@ export function Header() {
                 <Link href="/profile" className="block text-sm font-medium hover:text-primary transition-colors">
                   My Profile
                 </Link>
-                <Link href="/test-auth-system" className="block text-sm font-medium hover:text-primary transition-colors">
-                  Test Auth System
-                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full">
                   Logout
                 </Button>
@@ -161,9 +140,6 @@ export function Header() {
                 </Link>
                 <Link href="/integration-hub" className="block text-sm font-medium hover:text-primary transition-colors">
                   Integrations
-                </Link>
-                <Link href="/test-auth-system" className="block text-sm font-medium hover:text-primary transition-colors">
-                  Test Auth System
                 </Link>
                 <Link href="/dashboard">
                   <Button size="sm" className="w-full">

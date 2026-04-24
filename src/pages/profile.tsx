@@ -12,9 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { AuthModal } from "@/components/AuthModal";
-import { authService } from "@/services/authService";
-import { supabase } from "@/integrations/supabase/client";
+import { SimplifiedAuthModal } from "@/components/SimplifiedAuthModal";
+import { mockAuthService } from "@/services/mockAuthService";
 import { 
   User, Mail, Lock, CheckCircle2, AlertCircle, Loader2, 
   Camera, TrendingUp, DollarSign, FileText, MousePointerClick 
@@ -38,12 +37,12 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Stats state
-  const [stats, setStats] = useState({
-    totalProducts: 0,
-    totalContent: 0,
-    totalClicks: 0,
-    totalRevenue: 0
+  // Stats state (mock data for now)
+  const [stats] = useState({
+    totalProducts: 42,
+    totalContent: 158,
+    totalClicks: 1247,
+    totalRevenue: 432.50
   });
 
   // Notification state
@@ -56,68 +55,22 @@ export default function ProfilePage() {
     checkAuth();
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = () => {
     setLoading(true);
     
-    try {
-      const currentUser = await authService.getCurrentUser();
-      
-      if (!currentUser) {
-        setShowAuthModal(true);
-        setLoading(false);
-        return;
-      }
-
-      setUser(currentUser);
-      setFullName(currentUser.user_metadata?.full_name || "");
-      setEmail(currentUser.email || "");
-      setAvatarUrl(currentUser.user_metadata?.avatar_url || "");
-
-      await loadStats();
-    } catch (error) {
-      console.error("Auth check error:", error);
+    const currentUser = mockAuthService.getCurrentUser();
+    
+    if (!currentUser) {
       setShowAuthModal(true);
-    } finally {
       setLoading(false);
+      return;
     }
-  };
 
-  const loadStats = async () => {
-    try {
-      const db = supabase as any;
-      
-      // Get total products
-      const { count: productsCount } = await db
-        .from("product_catalog")
-        .select("id", { count: "exact", head: true });
-
-      // Get total content
-      const { count: contentCount } = await db
-        .from("generated_content")
-        .select("id", { count: "exact", head: true });
-
-      // Get total clicks
-      const { count: clicksCount } = await db
-        .from("click_events")
-        .select("id", { count: "exact", head: true });
-
-      // Get total revenue
-      const { data: commissions } = await db
-        .from("commissions")
-        .select("amount")
-        .eq("verified", true);
-
-      const totalRevenue = commissions?.reduce((sum: number, c: any) => sum + (c.amount || 0), 0) || 0;
-
-      setStats({
-        totalProducts: productsCount || 0,
-        totalContent: contentCount || 0,
-        totalClicks: clicksCount || 0,
-        totalRevenue
-      });
-    } catch (error) {
-      console.error("Failed to load stats:", error);
-    }
+    setUser(currentUser);
+    setFullName(currentUser.full_name || "");
+    setEmail(currentUser.email || "");
+    setAvatarUrl(currentUser.avatar_url || "");
+    setLoading(false);
   };
 
   const showNotification = (type: "success" | "error", message: string) => {
@@ -130,30 +83,19 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      const success = mockAuthService.updateProfile({
+        full_name: fullName,
         email: email,
-        data: {
-          full_name: fullName,
-          avatar_url: avatarUrl
-        }
+        avatar_url: avatarUrl
       });
 
-      if (error) throw error;
-
-      // Update profile in database
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          email: email,
-          avatar_url: avatarUrl
-        })
-        .eq("id", user.id);
-
-      if (profileError) console.error("Profile update error:", profileError);
+      if (!success) {
+        throw new Error("Failed to update profile");
+      }
 
       showNotification("success", "Profile updated successfully!");
-      await checkAuth(); // Refresh user data
+      const updatedUser = mockAuthService.getCurrentUser();
+      setUser(updatedUser);
     } catch (error: any) {
       showNotification("error", error.message || "Failed to update profile");
     } finally {
@@ -177,9 +119,11 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const { error } = await authService.updatePassword(newPassword);
+      const success = mockAuthService.updatePassword(user.email, newPassword);
 
-      if (error) throw error;
+      if (!success) {
+        throw new Error("Failed to update password");
+      }
 
       showNotification("success", "Password updated successfully!");
       setCurrentPassword("");
@@ -201,7 +145,6 @@ export default function ProfilePage() {
       .slice(0, 2);
   };
 
-  // Loading state - show spinner
   if (loading) {
     return (
       <>
@@ -213,19 +156,14 @@ export default function ProfilePage() {
     );
   }
 
-  // Not authenticated - show ONLY auth modal, no page content
-  if (showAuthModal && !user) {
+  if (showAuthModal && !mockAuthService.isAuthenticated()) {
     return (
       <>
         <SEO title="Sign In - AffiliatePro" />
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <AuthModal 
-            open={true} 
-            onOpenChange={(open) => {
-              if (!open) {
-                router.push("/");
-              }
-            }}
+        <div className="min-h-screen bg-background">
+          <SimplifiedAuthModal 
+            open={showAuthModal} 
+            onOpenChange={setShowAuthModal}
             onSuccess={() => {
               setShowAuthModal(false);
               checkAuth();
@@ -236,7 +174,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Authenticated - show profile page
   return (
     <>
       <SEO title="Profile Settings - AffiliatePro" />
