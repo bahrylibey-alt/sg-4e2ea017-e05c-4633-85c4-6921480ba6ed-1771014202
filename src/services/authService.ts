@@ -1,11 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { AuthError, User } from "@supabase/supabase-js";
+import type { AuthError, User, Session } from "@supabase/supabase-js";
 
 // Get the current URL for redirects (works in both dev and production)
 const getRedirectURL = () => {
   if (typeof window === "undefined") return "";
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/auth/confirm-email`;
+  return `${window.location.origin}/auth/confirm-email`;
 };
 
 class AuthService {
@@ -92,24 +91,31 @@ class AuthService {
     }
   }
 
-  async getCurrentUser(): Promise<{ user: User | null; error: AuthError | null }> {
+  async getCurrentUser(): Promise<User | null> {
     try {
-      const { data, error } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
       if (error) {
         console.error("Get user error:", error);
-        return { user: null, error };
+        return null;
       }
-      return { user: data.user, error: null };
+      return user;
     } catch (err) {
       console.error("Get user exception:", err);
-      return {
-        user: null,
-        error: {
-          message: err instanceof Error ? err.message : "Failed to get user",
-          name: "GetUserError",
-          status: 500
-        } as AuthError
-      };
+      return null;
+    }
+  }
+
+  async getCurrentSession(): Promise<Session | null> {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error("Get session error:", error);
+        return null;
+      }
+      return session;
+    } catch (err) {
+      console.error("Get session exception:", err);
+      return null;
     }
   }
 
