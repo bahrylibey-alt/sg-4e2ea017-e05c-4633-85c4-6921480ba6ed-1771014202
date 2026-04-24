@@ -77,28 +77,30 @@ export default function ProfilePage() {
 
   const loadStats = async () => {
     try {
+      const db = supabase as any;
+      
       // Get total products
-      const { count: productsCount } = await supabase
+      const { count: productsCount } = await db
         .from("product_catalog")
         .select("id", { count: "exact", head: true });
 
       // Get total content
-      const { count: contentCount } = await supabase
+      const { count: contentCount } = await db
         .from("generated_content")
         .select("id", { count: "exact", head: true });
 
       // Get total clicks
-      const { count: clicksCount } = await supabase
+      const { count: clicksCount } = await db
         .from("click_events")
         .select("id", { count: "exact", head: true });
 
       // Get total revenue
-      const { data: commissions } = await supabase
+      const { data: commissions } = await db
         .from("commissions")
         .select("amount")
         .eq("verified", true);
 
-      const totalRevenue = commissions?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+      const totalRevenue = commissions?.reduce((sum: number, c: any) => sum + (c.amount || 0), 0) || 0;
 
       setStats({
         totalProducts: productsCount || 0,
