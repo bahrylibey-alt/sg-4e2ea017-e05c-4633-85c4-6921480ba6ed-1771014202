@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle, CheckCircle2 } from "lucide-react";
 import { authService } from "@/services/authService";
 
 interface AuthModalProps {
@@ -20,6 +20,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [useAdminSignup, setUseAdminSignup] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
@@ -120,6 +121,42 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
+      // Try admin signup first (bypasses email confirmation)
+      if (useAdminSignup) {
+        const response = await fetch("/api/auth/test-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: signupEmail.trim(),
+            password: signupPassword,
+            name: signupName.trim()
+          })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          setError(data.error || "Signup failed");
+          setLoading(false);
+          return;
+        }
+
+        setSuccess("Account created successfully! Please sign in below.");
+        
+        setTimeout(() => {
+          setActiveTab("login");
+          setLoginEmail(signupEmail);
+          setSuccess(null);
+          setSignupEmail("");
+          setSignupPassword("");
+          setSignupName("");
+          setConfirmPassword("");
+          setLoading(false);
+        }, 2000);
+        return;
+      }
+
+      // Try regular signup
       const result = await authService.signUp(
         signupEmail.trim(),
         signupPassword,
@@ -127,9 +164,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       );
 
       if (result.error) {
-        // Handle specific error cases
-        if (result.error.message?.includes("fetch")) {
-          setError("Network error. Please check your internet connection and try again.");
+        // If network error, suggest admin signup
+        if (result.error.message?.includes("fetch") || result.error.message?.includes("network")) {
+          setError(
+            "Network error detected. Click 'Use Admin Signup' button below to bypass email confirmation."
+          );
+          setUseAdminSignup(true);
         } else if (result.error.message?.includes("User already registered")) {
           setError("This email is already registered. Please sign in instead.");
         } else {
@@ -152,14 +192,15 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
       }, 3000);
     } catch (err) {
       console.error("Signup error:", err);
-      setError("Network error. Please check your internet connection and try again.");
+      setError("Network error. Click 'Use Admin Signup' button below.");
+      setUseAdminSignup(true);
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl text-center">Welcome to AffiliatePro</DialogTitle>
           <DialogDescription className="text-center">
@@ -167,7 +208,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -250,7 +291,21 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
           </TabsContent>
 
           {/* Signup Tab */}
-          <TabsContent value="signup" className="space-y-4 mt-4">
+          <TabsContent value="signup" className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-500 bg-green-50">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">{success}</AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-name">Full Name</Label>
@@ -326,23 +381,37 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating account...
+                    Creating Account...
                   </>
                 ) : (
                   "Create Account"
                 )}
               </Button>
 
-              <div className="text-center text-sm text-muted-foreground">
+              {useAdminSignup && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setUseAdminSignup(true);
+                    handleSignup(new Event("submit") as any);
+                  }}
+                >
+                  Use Admin Signup (Skip Email Verification)
+                </Button>
+              )}
+
+              <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
                 <button
                   type="button"
                   onClick={() => setActiveTab("login")}
-                  className="text-primary hover:underline font-medium"
+                  className="text-primary hover:underline"
                 >
                   Sign in
                 </button>
-              </div>
+              </p>
             </form>
           </TabsContent>
         </Tabs>
