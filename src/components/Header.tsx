@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { supabase } from "@/integrations/supabase/client";
-import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp, Sparkles } from "lucide-react";
+import { Menu, X, LogOut, Settings, Zap, BarChart3, Link2, TrendingUp, Sparkles, User } from "lucide-react";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -69,20 +69,13 @@ export function Header() {
                   <TrendingUp className="h-4 w-4" />
                   Trending
                 </Link>
-                <Link href="/traffic-channels" className="text-sm font-medium hover:text-primary transition-colors">
-                  Traffic
+                <Link href="/profile" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                  <User className="h-4 w-4" />
+                  Profile
                 </Link>
-                <Link href="/integration-hub" className="text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                  <Link2 className="h-4 w-4" />
-                  Integrations
-                </Link>
-                <Link href="/settings" className="text-sm font-medium hover:text-primary transition-colors">
-                  Settings
-                </Link>
-                <ThemeSwitch />
-                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
+                  Logout
                 </Button>
               </>
             ) : (
@@ -137,18 +130,11 @@ export function Header() {
                 <Link href="/trending" className="block text-sm font-medium hover:text-primary transition-colors">
                   Trending Products
                 </Link>
-                <Link href="/traffic-channels" className="block text-sm font-medium hover:text-primary transition-colors">
-                  Traffic
+                <Link href="/profile" className="block text-sm font-medium hover:text-primary transition-colors">
+                  My Profile
                 </Link>
-                <Link href="/integration-hub" className="block text-sm font-medium hover:text-primary transition-colors">
-                  Integrations
-                </Link>
-                <Link href="/settings" className="block text-sm font-medium hover:text-primary transition-colors">
-                  Settings
-                </Link>
-                <Button variant="ghost" size="sm" onClick={handleSignOut} className="w-full justify-start">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
+                <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full">
+                  Logout
                 </Button>
               </>
             ) : (
