@@ -93,6 +93,46 @@ class MockAuthService {
   }
 
   /**
+   * Alias for getUser to fix TS errors
+   */
+  async getCurrentUser() {
+    return this.getUser();
+  }
+
+  /**
+   * Alias for signInWithPassword
+   */
+  async signIn(email: string, password?: string) {
+    return this.signInWithPassword(email, password || 'demo123');
+  }
+
+  /**
+   * Alias for signUpWithPassword
+   */
+  async signUp(email: string, password?: string) {
+    return this.signUpWithPassword(email, password || 'demo123');
+  }
+
+  /**
+   * Mock update profile
+   */
+  async updateProfile(data: any) {
+    const { session } = await this.getSession();
+    if (session) {
+      session.user.user_metadata = { ...session.user.user_metadata, ...data };
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
+    }
+    return { error: null };
+  }
+
+  /**
+   * Mock update password
+   */
+  async updatePassword(password: string) {
+    return { error: null };
+  }
+
+  /**
    * Sign out
    */
   async signOut(): Promise<{ error: any }> {
