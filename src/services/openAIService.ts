@@ -194,7 +194,7 @@ IMPORTANT: Every product MUST have REAL, VERIFIABLE data. No generic examples.`;
     category: string,
     description: string,
     affiliateLink: string
-  ): Promise<{ title: string; body: string; meta_description: string }> {
+  ): Promise<{ title: string; body: string; meta_description: string; seo_keywords: string[] }> {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -241,7 +241,8 @@ Return JSON format:
 {
   "title": "Engaging article title (60-70 chars)",
   "body": "Full article content (800-1200 words, natural language, includes affiliate link)",
-  "meta_description": "SEO description (150-160 chars)"
+  "meta_description": "SEO description (150-160 chars)",
+  "seo_keywords": ["keyword1", "keyword2", "keyword3"]
 }`
             }
           ],
@@ -277,7 +278,7 @@ Return JSON format:
     category: string,
     description: string,
     affiliateLink: string
-  ): Promise<Array<{ platform: string; content: string }>> {
+  ): Promise<Array<{ platform: string; content: string; title?: string; hashtags?: string[] }>> {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -330,7 +331,9 @@ Return JSON array format:
 [
   {
     "platform": "pinterest",
-    "content": "Post content with ${affiliateLink}"
+    "content": "Post content with ${affiliateLink}",
+    "title": "Optional short title for pinterest/tiktok",
+    "hashtags": ["natural", "tags"]
   },
   ...
 ]`
