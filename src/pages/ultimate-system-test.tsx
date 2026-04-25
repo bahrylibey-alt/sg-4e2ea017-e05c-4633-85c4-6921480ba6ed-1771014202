@@ -134,7 +134,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedProducts, error: productError } = await supabase
           .from('product_catalog')
-          .insert(products)
+          .insert(products as any)
           .select();
 
         if (productError) throw productError;
@@ -164,7 +164,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedLinks, error: linkError } = await supabase
           .from('affiliate_links')
-          .insert(links)
+          .insert(links as any)
           .select();
 
         if (linkError) throw linkError;
@@ -194,7 +194,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedContent, error: contentError } = await supabase
           .from('generated_content')
-          .insert(content)
+          .insert(content as any)
           .select();
 
         if (contentError) throw contentError;
@@ -233,7 +233,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedPosts, error: postError } = await supabase
           .from('posted_content')
-          .insert(posts)
+          .insert(posts as any)
           .select();
 
         if (postError) throw postError;
@@ -262,7 +262,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedClicks, error: clickError } = await supabase
           .from('click_events')
-          .insert(clicks)
+          .insert(clicks as any)
           .select();
 
         if (clickError) throw clickError;
@@ -296,7 +296,7 @@ export default function UltimateSystemTest() {
 
         const { data: insertedConversions, error: conversionError } = await supabase
           .from('conversion_events')
-          .insert(conversions)
+          .insert(conversions as any)
           .select();
 
         if (conversionError) throw conversionError;
