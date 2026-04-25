@@ -55,21 +55,21 @@ export default function ProfilePage() {
     checkAuth();
   }, []);
 
-  const checkAuth = () => {
+  const checkAuth = async () => {
     setLoading(true);
     
-    const currentUser = mockAuthService.getCurrentUser();
+    const { user } = await mockAuthService.getCurrentUser();
     
-    if (!currentUser) {
+    if (!user) {
       setShowAuthModal(true);
       setLoading(false);
       return;
     }
 
-    setUser(currentUser);
-    setFullName(currentUser.full_name || "");
-    setEmail(currentUser.email || "");
-    setAvatarUrl(currentUser.avatar_url || "");
+    setUser(user);
+    setFullName(user.user_metadata?.full_name || "");
+    setEmail(user.email || "");
+    setAvatarUrl(user.user_metadata?.avatar_url || "");
     setLoading(false);
   };
 
@@ -83,19 +83,19 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const success = mockAuthService.updateProfile({
+      const { error } = await mockAuthService.updateProfile({
         full_name: fullName,
         email: email,
         avatar_url: avatarUrl
       });
 
-      if (!success) {
-        throw new Error("Failed to update profile");
+      if (error) {
+        throw new Error(error.message || "Failed to update profile");
       }
 
       showNotification("success", "Profile updated successfully!");
-      const updatedUser = mockAuthService.getCurrentUser();
-      setUser(updatedUser);
+      const { user } = await mockAuthService.getCurrentUser();
+      setUser(user);
     } catch (error: any) {
       showNotification("error", error.message || "Failed to update profile");
     } finally {
@@ -119,10 +119,10 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const success = mockAuthService.updatePassword(user.email, newPassword);
+      const { error } = await mockAuthService.updatePassword(newPassword);
 
-      if (!success) {
-        throw new Error("Failed to update password");
+      if (error) {
+        throw new Error(error.message || "Failed to update password");
       }
 
       showNotification("success", "Password updated successfully!");

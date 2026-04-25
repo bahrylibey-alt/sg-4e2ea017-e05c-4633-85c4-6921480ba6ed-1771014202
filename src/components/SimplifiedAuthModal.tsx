@@ -63,8 +63,8 @@ export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", 
 
       const result = await mockAuthService.signIn(loginEmail.trim(), loginPassword);
 
-      if (!result.success) {
-        setError(result.error || "Login failed");
+      if (result.error || !result.session) {
+        setError(result.error?.message || result.error || "Login failed");
         setLoading(false);
         return;
       }
@@ -112,12 +112,16 @@ export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", 
 
       const result = await mockAuthService.signUp(
         signupEmail.trim(),
-        signupPassword,
-        signupName.trim()
+        signupPassword
       );
 
-      if (!result.success) {
-        setError(result.error || "Signup failed");
+      // Update name after signup
+      if (result.session) {
+        await mockAuthService.updateProfile({ full_name: signupName.trim() });
+      }
+
+      if (result.error || !result.session) {
+        setError(result.error?.message || result.error || "Signup failed");
         setLoading(false);
         return;
       }
