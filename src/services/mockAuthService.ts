@@ -122,4 +122,5 @@ class MockAuthService {
   }
 }
 
-export const mockAuth = new MockAuthService();
+export const mockAuthService = new MockAuthService();
+export const mockAuth = mockAuthService;
