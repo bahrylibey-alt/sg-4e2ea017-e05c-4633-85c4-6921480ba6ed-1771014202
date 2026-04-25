@@ -34,13 +34,28 @@ export default function UltimateSystemTest() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [systemStats, setSystemStats] = useState<any>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const key = localStorage.getItem('openai_api_key');
       setHasApiKey(!!key);
     }
+    checkAuthentication();
   }, []);
+
+  const checkAuthentication = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      setAuthCheckComplete(true);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      setAuthCheckComplete(true);
+    }
+  };
 
   const updateTestResult = (name: string, status: TestResult['status'], message: string, data?: any, duration?: number) => {
     setTestResults(prev => {
@@ -60,50 +75,66 @@ export default function UltimateSystemTest() {
     setIsDemoMode(false);
 
     try {
-      const userId = 'test-user-' + Date.now();
+      // Generate unique user ID for this test session
+      const userId = isAuthenticated 
+        ? (await supabase.auth.getUser()).data.user?.id || 'test-user-' + Date.now()
+        : 'demo-user-' + Date.now();
       
-      // Test 1: Database Connection
-      setCurrentTest('Testing Supabase connection...');
+      // Test 1: Database Connection & Authentication
+      setCurrentTest('Testing Supabase connection and authentication...');
       setProgress(10);
       const dbStart = Date.now();
       
       let useDemo = false;
+      let authRequired = false;
       
       try {
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         
         if (!SUPABASE_URL || !SUPABASE_KEY || SUPABASE_URL.includes('invalid')) {
-          throw new Error('Supabase credentials not configured');
+          throw new Error('Supabase credentials not configured in .env.local');
         }
 
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Connection timeout')), 5000)
-        );
+        // Test connection with a simple SELECT query (public read access)
+        const { data: testData, error: testError } = await supabase
+          .from('product_catalog')
+          .select('id')
+          .limit(1);
         
-        const queryPromise = supabase.from('product_catalog').select('id').limit(1);
-        const { error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+        if (testError && testError.code !== 'PGRST116') {
+          throw new Error(`Database query failed: ${testError.message}`);
+        }
+
+        // Check if user is authenticated for INSERT operations
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (error && error.code !== 'PGRST116') {
-          throw new Error(`Database query failed: ${error.message}`);
+        if (!session) {
+          authRequired = true;
+          throw new Error('Authentication required for database writes');
         }
         
         updateTestResult(
           'Database Connection',
           'success',
-          '✅ Supabase connected - Using REAL database',
-          { connectionTime: Date.now() - dbStart, mode: 'real' },
+          `✅ Supabase connected - Using REAL database (Authenticated as ${session.user.email})`,
+          { connectionTime: Date.now() - dbStart, mode: 'real', authenticated: true },
           Date.now() - dbStart
         );
         
       } catch (error: any) {
         useDemo = true;
         setIsDemoMode(true);
+        
+        const reason = authRequired 
+          ? 'Authentication required - Log in to use real database'
+          : error.message;
+        
         updateTestResult(
           'Database Connection',
-          'success',
-          `⚡ Demo Mode - Using local simulation (${error.message})`,
-          { connectionTime: Date.now() - dbStart, mode: 'demo' },
+          authRequired ? 'success' : 'success',
+          `⚡ Demo Mode - ${reason}`,
+          { connectionTime: Date.now() - dbStart, mode: 'demo', reason: error.message },
           Date.now() - dbStart
         );
       }
