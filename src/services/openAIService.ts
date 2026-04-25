@@ -1,5 +1,37 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Extract JSON from OpenAI response (handles markdown code blocks)
+ */
+function extractJSON(content: string): any {
+  try {
+    // Remove markdown code blocks if present
+    let cleaned = content.trim();
+    
+    // Remove ```json and ``` wrappers
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    
+    // Find JSON object boundaries
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+    
+    // Parse JSON
+    return JSON.parse(cleaned);
+  } catch (error) {
+    console.error('JSON extraction failed:', error);
+    console.error('Content:', content.substring(0, 500));
+    throw new Error('Failed to parse OpenAI response as JSON');
+  }
+}
+
 interface ProductSuggestion {
   name: string;
   category: string;
@@ -141,7 +173,7 @@ IMPORTANT: Every product MUST have REAL, VERIFIABLE data. No generic examples.`;
       });
 
       const content = response.choices[0].message.content;
-      const parsed = JSON.parse(content);
+      const parsed = extractJSON(content);
       
       if (!parsed.products || parsed.products.length === 0) {
         throw new Error("OpenAI did not return any products. Try a different niche or check your API key.");
@@ -150,158 +182,178 @@ IMPORTANT: Every product MUST have REAL, VERIFIABLE data. No generic examples.`;
       return parsed.products;
     } catch (error: any) {
       console.error('OpenAI product discovery error:', error);
-      throw new Error(`Failed to discover trending products: ${error.message}. Make sure your OpenAI API key is valid and has credits.`);
+      throw new Error(`Failed to discover products: ${error.message}`);
     }
   }
 
-  async generateSEOContent(productName: string, category: string, description: string, affiliateLink: string): Promise<ContentGeneration> {
-    const currentYear = new Date().getFullYear();
-    
-    const prompt = `Write a comprehensive, authentic affiliate marketing article about "${productName}" for ${currentYear}.
-
-Product Details:
-- Name: ${productName}
-- Category: ${category}
-- Description: ${description}
-- Affiliate Link: ${affiliateLink}
-- Year: ${currentYear}
-
-WRITING REQUIREMENTS:
-1. NATURAL TONE: Write like a real person sharing a genuine recommendation (not robotic or salesy)
-2. AUTHENTIC VOICE: Use conversational language, personal insights, real experiences
-3. LENGTH: 800-1200 words of valuable, engaging content
-4. STRUCTURE: 
-   - Compelling intro that hooks the reader
-   - Personal story or relatable scenario
-   - Detailed product analysis (features, benefits, use cases)
-   - Honest pros and cons
-   - Real-world comparisons with ${currentYear} alternatives
-   - Specific use cases and examples
-   - Natural call-to-action (not pushy)
-5. SEO OPTIMIZATION:
-   - Natural keyword placement (not forced)
-   - Header hierarchy (H2, H3)
-   - Scannable with bullet points
-   - Internal linking opportunities
-6. AFFILIATE LINK:
-   - Include ${affiliateLink} naturally 2-3 times in context
-   - Don't make it feel like an ad
-   - Provide value first, link second
-
-TONE: Helpful, genuine, knowledgeable, enthusiastic but balanced
-
-Return as JSON with this structure:
-{
-  "title": "Engaging Title That Mentions ${currentYear} (under 60 chars)",
-  "body": "Full article in Markdown with natural flow, personal insights, and genuine recommendations...",
-  "meta_description": "Compelling description that makes people want to click (under 160 chars)",
-  "seo_keywords": ["natural", "keyword", "phrases"],
-  "target_audience": "Specific audience description"
-}`;
-
+  /**
+   * Generate SEO-optimized content for a product
+   */
+  async generateSEOContent(
+    productName: string,
+    category: string,
+    description: string,
+    affiliateLink: string
+  ): Promise<{ title: string; body: string; meta_description: string }> {
     try {
-      const response = await this.makeRequest("/chat/completions", {
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: `You are an expert content writer who creates authentic, helpful affiliate marketing articles. You write like a real person sharing genuine recommendations, not a robot or salesperson. Your content is valuable, engaging, and optimized for ${currentYear} SEO trends.`
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.8,
-        response_format: { type: "json_object" }
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a professional content writer who creates authentic, engaging product reviews. 
+
+CRITICAL RULES:
+1. Write like a REAL PERSON sharing genuine experience
+2. Use conversational, natural language
+3. Include specific details and insights
+4. Be honest about pros and cons
+5. NO robotic or salesy language
+6. NO emoji spam
+7. Create content that sounds genuinely helpful
+
+Return ONLY valid JSON (no markdown, no code blocks).`
+            },
+            {
+              role: 'user',
+              content: `Write an authentic, engaging product review article.
+
+Product: ${productName}
+Category: ${category}
+Description: ${description}
+Affiliate Link: ${affiliateLink}
+
+Requirements:
+- Length: 800-1200 words
+- Tone: Conversational, like talking to a friend
+- Structure: Personal hook → Analysis → Pros/Cons → Recommendation
+- Include the affiliate link naturally in the conclusion
+- Write like you actually tested the product
+- Be specific with details (not generic)
+
+Return JSON format:
+{
+  "title": "Engaging article title (60-70 chars)",
+  "body": "Full article content (800-1200 words, natural language, includes affiliate link)",
+  "meta_description": "SEO description (150-160 chars)"
+}`
+            }
+          ],
+          temperature: 0.8,
+          max_tokens: 3000
+        })
       });
 
-      const content = response.choices[0].message.content;
-      return JSON.parse(content);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'OpenAI API error');
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      if (!content) {
+        throw new Error('No content in OpenAI response');
+      }
+
+      return extractJSON(content);
     } catch (error: any) {
       console.error('OpenAI content generation error:', error);
       throw new Error(`Failed to generate content: ${error.message}`);
     }
   }
 
-  async generateSocialPosts(productName: string, category: string, description: string, affiliateLink: string): Promise<SocialPost[]> {
-    const currentYear = new Date().getFullYear();
-    
-    const prompt = `Create AUTHENTIC, NATURAL social media posts for "${productName}" in ${currentYear}.
+  /**
+   * Generate authentic social media posts
+   */
+  async generateSocialPosts(
+    productName: string,
+    category: string,
+    description: string,
+    affiliateLink: string
+  ): Promise<Array<{ platform: string; content: string }>> {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a social media expert who creates AUTHENTIC, NATURAL posts that sound genuinely human.
+
+CRITICAL RULES:
+1. Write like a REAL PERSON, not a marketer
+2. Use conversational, relatable language
+3. Be platform-specific (Pinterest ≠ TikTok ≠ Twitter)
+4. NO emoji spam (use sparingly, naturally)
+5. NO generic phrases ("Amazing deal!", "Don't miss out!")
+6. Sound like you genuinely tried the product
+7. Include personal insights and specific details
+
+Return ONLY valid JSON (no markdown, no code blocks).`
+            },
+            {
+              role: 'user',
+              content: `Create 5 authentic social media posts (one per platform).
 
 Product: ${productName}
 Category: ${category}
 Description: ${description}
-Link: ${affiliateLink}
+Affiliate Link: ${affiliateLink}
 
-CRITICAL REQUIREMENTS - READ CAREFULLY:
-1. NATURAL LANGUAGE: Write like a real person excited to share something cool (NOT robotic marketing speak)
-2. PLATFORM-SPECIFIC: Each platform has a unique voice and style
-3. NO EMOJIS OVERLOAD: Use 1-2 relevant emojis max, or none
-4. NO GENERIC PHRASES: Avoid "game-changer", "revolutionary", "must-have" unless genuinely appropriate
-5. AUTHENTIC EXCITEMENT: Sound genuinely enthusiastic, not fake-salesy
-6. INCLUDE LINK NATURALLY: Work in ${affiliateLink} without making it feel like spam
+Create ONE post for each platform:
+1. Pinterest: Visual description with genuine recommendation (200-300 chars)
+2. TikTok: Viral hook + authentic insight (100-150 chars)
+3. Twitter: Conversational thread starter (200-280 chars)
+4. Facebook: Value-focused personal story (250-350 chars)
+5. Instagram: Natural caption with authentic voice (150-200 chars)
 
-PLATFORM GUIDELINES:
+REQUIREMENTS:
+- Sound genuinely human, not robotic
+- Include the affiliate link naturally
+- Platform-specific language and formatting
+- Personal, relatable tone
+- Minimal emojis (only where natural)
 
-**Pinterest:**
-- Natural, benefit-focused description
-- Keywords for discovery
-- Helpful, not salesy
-Example: "This solved my [problem] instantly. Perfect for [use case]. [Benefit 1] + [Benefit 2]. Full review: [link]"
-
-**TikTok:**
-- Conversational, casual, friendly
-- Hook in first 5 words
-- Relatable scenario
-Example: "Okay so I've been using this for 3 weeks and wow. [Specific result]. If you [relatable situation], you need this. Link below"
-
-**Twitter/X:**
-- Concise, informative, valuable
-- Thread-starter format
-- Engaging without being clickbait
-Example: "Just tested ${productName} for 2 weeks. Here's what actually happened: [specific result]. Thread 🧵 [link]"
-
-**Instagram:**
-- Visual storytelling
-- Personal experience
-- Genuine recommendation
-Example: "Didn't think I needed this until I tried it. Now I use it daily for [specific use]. Life's easier when [benefit]. Check it out: [link]"
-
-**Facebook:**
-- Longer, more detailed
-- Personal story or review
-- Community-focused
-Example: "Anyone else struggle with [problem]? Found this solution and it's been a game-changer. Here's my honest experience after [time period]... [link]"
-
-Create 5 posts (Pinterest, TikTok, Twitter, Instagram, Facebook) that sound GENUINELY HUMAN.
-
-Return as JSON:
-{
-  "posts": [
-    {
-      "platform": "pinterest",
-      "content": "Natural, helpful post content...",
-      "hashtags": ["relevant", "searchable", "tags"],
-      "title": "Pin title (for Pinterest)"
-    }
-  ]
-}`;
-
-    try {
-      const response = await this.makeRequest("/chat/completions", {
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: `You are a social media expert who creates authentic, engaging posts that sound like real people sharing genuine recommendations. You NEVER use robotic marketing language. You write naturally, enthusiastically, and helpfully for ${currentYear} audiences.`
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.9,
-        response_format: { type: "json_object" }
+Return JSON array format:
+[
+  {
+    "platform": "pinterest",
+    "content": "Post content with ${affiliateLink}"
+  },
+  ...
+]`
+            }
+          ],
+          temperature: 0.9,
+          max_tokens: 1500
+        })
       });
 
-      const content = response.choices[0].message.content;
-      const parsed = JSON.parse(content);
-      return parsed.posts || [];
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'OpenAI API error');
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      if (!content) {
+        throw new Error('No content in OpenAI response');
+      }
+
+      return extractJSON(content);
     } catch (error: any) {
       console.error('OpenAI social posts error:', error);
       throw new Error(`Failed to generate social posts: ${error.message}`);
@@ -343,7 +395,7 @@ Return as JSON:
       });
 
       const content_response = response.choices[0].message.content;
-      return JSON.parse(content_response);
+      return extractJSON(content_response);
     } catch (error: any) {
       console.error('OpenAI SEO optimization error:', error);
       throw new Error(`Failed to optimize SEO: ${error.message}`);
@@ -390,7 +442,7 @@ Return as JSON:
       });
 
       const content = response.choices[0].message.content;
-      return JSON.parse(content);
+      return extractJSON(content);
     } catch (error: any) {
       console.error('OpenAI performance analysis error:', error);
       throw new Error(`Failed to analyze performance: ${error.message}`);
