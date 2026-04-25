@@ -1,67 +1,51 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { X, Mail, Lock, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
 import { mockAuthService } from "@/services/mockAuthService";
+import { useRouter } from "next/router";
 
 interface SimplifiedAuthModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  defaultTab?: "login" | "signup";
+  isOpen: boolean;
+  onClose: () => void;
   onSuccess?: () => void;
 }
 
-export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", onSuccess }: SimplifiedAuthModalProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAuthModalProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Signup state
+  const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const resetForm = () => {
-    setLoginEmail("");
-    setLoginPassword("");
-    setSignupEmail("");
-    setSignupPassword("");
-    setSignupName("");
-    setConfirmPassword("");
-    setError(null);
-    setSuccess(null);
-    setLoading(false);
-  };
-
-  const handleClose = () => {
-    onOpenChange(false);
-    setTimeout(resetForm, 300);
-  };
+  if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
-      if (!loginEmail.trim() || !loginPassword.trim()) {
-        setError("Please enter both email and password");
+      if (!loginEmail.trim()) {
+        setError("Please enter your email");
         setLoading(false);
         return;
       }
 
-      const result = await mockAuthService.signIn(loginEmail.trim(), loginPassword);
+      // Use mock auth service - instant login, no email confirmation
+      const result = await mockAuthService.signIn(loginEmail.trim(), loginPassword || 'demo123');
 
       if (result.error || !result.session) {
         setError(result.error?.message || result.error || "Login failed");
@@ -69,37 +53,38 @@ export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", 
         return;
       }
 
-      setSuccess("Login successful! Redirecting...");
+      setSuccess("✅ Login successful! Redirecting...");
       
-      if (onSuccess) {
-        onSuccess();
-      }
-
+      // Clear form
+      setLoginEmail("");
+      setLoginPassword("");
+      
+      // Wait a moment for user to see success message
       setTimeout(() => {
-        handleClose();
-        window.location.reload();
+        if (onSuccess) {
+          onSuccess();
+        }
+        onClose();
+        // Redirect to working demo page
+        router.push('/working-autopilot-demo');
       }, 1000);
-    } catch (err) {
-      setError("Login failed. Please try again.");
+
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "An error occurred during login");
       setLoading(false);
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
-      if (!signupEmail.trim() || !signupPassword.trim() || !signupName.trim()) {
+      if (!signupName.trim() || !signupEmail.trim()) {
         setError("Please fill in all fields");
-        setLoading(false);
-        return;
-      }
-
-      if (signupPassword !== confirmPassword) {
-        setError("Passwords do not match");
         setLoading(false);
         return;
       }
@@ -110,6 +95,7 @@ export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", 
         return;
       }
 
+      // Use mock auth service - instant signup, no email confirmation
       const result = await mockAuthService.signUp(
         signupEmail.trim(),
         signupPassword
@@ -126,212 +112,194 @@ export function SimplifiedAuthModal({ open, onOpenChange, defaultTab = "login", 
         return;
       }
 
-      setSuccess("Account created successfully! Redirecting...");
+      setSuccess("✅ Account created successfully! Redirecting...");
       
-      if (onSuccess) {
-        onSuccess();
-      }
-
+      // Clear form
+      setSignupName("");
+      setSignupEmail("");
+      setSignupPassword("");
+      
+      // Wait a moment for user to see success message
       setTimeout(() => {
-        handleClose();
-        window.location.reload();
+        if (onSuccess) {
+          onSuccess();
+        }
+        onClose();
+        // Redirect to working demo page
+        router.push('/working-autopilot-demo');
       }, 1000);
-    } catch (err) {
-      setError("Signup failed. Please try again.");
+
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "An error occurred during signup");
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="text-2xl text-center">Welcome to AffiliatePro</DialogTitle>
-          <DialogDescription className="text-center">
-            Sign in to access your dashboard and campaigns
-          </DialogDescription>
-        </DialogHeader>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md relative">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 p-2 hover:bg-muted rounded-lg transition-colors"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
-          </TabsList>
+        <div className="p-6 space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold">Welcome to AffiliatePro</h2>
+            <p className="text-muted-foreground">
+              Sign in or create an account to continue
+            </p>
+          </div>
 
-          {/* Error/Success Messages */}
           {error && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+            </div>
           )}
 
           {success && (
-            <Alert className="mt-4 bg-green-50 border-green-200">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
-            </Alert>
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+              <p className="text-sm text-green-800 dark:text-green-200">{success}</p>
+            </div>
           )}
 
-          {/* Login Tab */}
-          <TabsContent value="login" className="space-y-4 mt-4">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    className="pl-10"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login" className="space-y-4 mt-4">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="pl-10"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Password (optional for demo)</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="pl-10"
+                      disabled={loading}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use demo password
+                  </p>
                 </div>
-              </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  "Sign In"
-                )}
-              </Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    "Login"
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
 
-              <div className="text-center text-sm text-muted-foreground">
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("signup")}
-                  className="text-primary hover:underline font-medium"
-                >
-                  Sign up
-                </button>
-              </div>
-            </form>
-          </TabsContent>
-
-          {/* Signup Tab */}
-          <TabsContent value="signup" className="space-y-4">
-            <form onSubmit={handleSignup} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signup-name">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="John Doe"
-                    className="pl-10"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
+            <TabsContent value="signup" className="space-y-4 mt-4">
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">Full Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      className="pl-10"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="your@email.com"
-                    className="pl-10"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      className="pl-10"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                    minLength={6}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      className="pl-10"
+                      disabled={loading}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Must be at least 6 characters
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">At least 6 characters</p>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="pl-10"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                  />
-                </div>
-              </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </Button>
+              </form>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Account...
-                  </>
-                ) : (
-                  "Create Account"
-                )}
-              </Button>
-
-              <p className="text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("login")}
-                  className="text-primary hover:underline"
-                >
-                  Sign in
-                </button>
+              <p className="text-xs text-center text-muted-foreground">
+                ✨ No email confirmation required - instant access!
               </p>
-            </form>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </Card>
+    </div>
   );
 }
