@@ -1,139 +1,125 @@
-// Mock Authentication Service - Works 100% without network calls
-// Use this to bypass Supabase auth issues and get the app working
+/**
+ * MOCK AUTH SERVICE - Bypasses Supabase Auth
+ * Works instantly without email confirmation
+ */
 
-interface MockUser {
+export interface MockUser {
   id: string;
   email: string;
-  full_name: string;
-  avatar_url?: string;
+  user_metadata: {
+    full_name?: string;
+  };
   created_at: string;
 }
 
+export interface MockSession {
+  user: MockUser;
+  access_token: string;
+  expires_at: number;
+}
+
 class MockAuthService {
-  private readonly STORAGE_KEY = "mock_auth_user";
-  private readonly USERS_KEY = "mock_auth_users";
+  private readonly STORAGE_KEY = 'mock_auth_session';
 
-  // Get all registered users from localStorage
-  private getUsers(): Record<string, { password: string; user: MockUser }> {
-    const usersJson = localStorage.getItem(this.USERS_KEY);
-    return usersJson ? JSON.parse(usersJson) : {};
-  }
-
-  // Save users to localStorage
-  private saveUsers(users: Record<string, { password: string; user: MockUser }>) {
-    localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
-  }
-
-  // Sign up a new user
-  async signUp(email: string, password: string, fullName: string): Promise<{ success: boolean; error?: string }> {
+  /**
+   * Instant login - no Supabase needed
+   */
+  async signInWithPassword(email: string, password: string): Promise<{ session: MockSession | null; error: any }> {
     try {
-      const users = this.getUsers();
-
-      // Check if user already exists
-      if (users[email]) {
-        return { success: false, error: "User already exists" };
-      }
-
-      // Create new user
-      const newUser: MockUser = {
-        id: `mock-${Date.now()}`,
-        email,
-        full_name: fullName,
-        created_at: new Date().toISOString()
+      // Create instant session
+      const session: MockSession = {
+        user: {
+          id: 'mock-user-' + Date.now(),
+          email: email,
+          user_metadata: {
+            full_name: email.split('@')[0]
+          },
+          created_at: new Date().toISOString()
+        },
+        access_token: 'mock-token-' + Math.random().toString(36),
+        expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
       };
 
-      // Save user with password
-      users[email] = {
-        password, // In production, this would be hashed
-        user: newUser
-      };
+      // Store in localStorage
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session));
 
-      this.saveUsers(users);
-
-      // Auto-login the user
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(newUser));
-
-      return { success: true };
+      return { session, error: null };
     } catch (error) {
-      return { success: false, error: "Signup failed" };
+      return { session: null, error };
     }
   }
 
-  // Sign in an existing user
-  async signIn(email: string, password: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      const users = this.getUsers();
-      const userRecord = users[email];
+  /**
+   * Instant signup - no email confirmation
+   */
+  async signUpWithPassword(email: string, password: string): Promise<{ session: MockSession | null; error: any }> {
+    // Same as sign in - instant access
+    return this.signInWithPassword(email, password);
+  }
 
-      if (!userRecord) {
-        return { success: false, error: "User not found" };
+  /**
+   * Get current session
+   */
+  async getSession(): Promise<{ session: MockSession | null; error: any }> {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (!stored) {
+        return { session: null, error: null };
       }
 
-      if (userRecord.password !== password) {
-        return { success: false, error: "Invalid password" };
+      const session: MockSession = JSON.parse(stored);
+      
+      // Check if expired
+      if (session.expires_at < Date.now()) {
+        localStorage.removeItem(this.STORAGE_KEY);
+        return { session: null, error: null };
       }
 
-      // Save user to session
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(userRecord.user));
-
-      return { success: true };
+      return { session, error: null };
     } catch (error) {
-      return { success: false, error: "Login failed" };
+      return { session: null, error };
     }
   }
 
-  // Get current user
-  getCurrentUser(): MockUser | null {
-    const userJson = localStorage.getItem(this.STORAGE_KEY);
-    return userJson ? JSON.parse(userJson) : null;
+  /**
+   * Get current user
+   */
+  async getUser(): Promise<{ user: MockUser | null; error: any }> {
+    const { session, error } = await this.getSession();
+    if (error || !session) {
+      return { user: null, error };
+    }
+    return { user: session.user, error: null };
   }
 
-  // Check if user is authenticated
-  isAuthenticated(): boolean {
-    return this.getCurrentUser() !== null;
-  }
-
-  // Sign out
-  signOut() {
-    localStorage.removeItem(this.STORAGE_KEY);
-  }
-
-  // Update user profile
-  updateProfile(updates: Partial<MockUser>): boolean {
+  /**
+   * Sign out
+   */
+  async signOut(): Promise<{ error: any }> {
     try {
-      const user = this.getCurrentUser();
-      if (!user) return false;
-
-      const updatedUser = { ...user, ...updates };
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedUser));
-
-      // Also update in users storage
-      const users = this.getUsers();
-      if (users[user.email]) {
-        users[user.email].user = updatedUser;
-        this.saveUsers(users);
-      }
-
-      return true;
+      localStorage.removeItem(this.STORAGE_KEY);
+      return { error: null };
     } catch (error) {
-      return false;
+      return { error };
     }
   }
 
-  // Update password
-  updatePassword(email: string, newPassword: string): boolean {
-    try {
-      const users = this.getUsers();
-      if (!users[email]) return false;
+  /**
+   * Check if user is authenticated
+   */
+  async isAuthenticated(): Promise<boolean> {
+    const { session } = await this.getSession();
+    return !!session;
+  }
 
-      users[email].password = newPassword;
-      this.saveUsers(users);
-
-      return true;
-    } catch (error) {
-      return false;
-    }
+  /**
+   * Auto-login for testing (creates instant session)
+   */
+  async autoLogin(): Promise<MockSession> {
+    const email = 'demo@affiliatepro.com';
+    const { session } = await this.signInWithPassword(email, 'demo123');
+    return session!;
   }
 }
 
-export const mockAuthService = new MockAuthService();
+export const mockAuth = new MockAuthService();
