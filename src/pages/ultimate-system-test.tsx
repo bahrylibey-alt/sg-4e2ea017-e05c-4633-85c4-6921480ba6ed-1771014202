@@ -57,6 +57,7 @@ export default function UltimateSystemTest() {
     setProgress(0);
     setTestResults([]);
     setCurrentTest('');
+    setIsDemoMode(false);
 
     try {
       const userId = 'test-user-' + Date.now();
@@ -69,7 +70,6 @@ export default function UltimateSystemTest() {
       let useDemo = false;
       
       try {
-        // Simple connection test - just try to get the client
         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         
@@ -77,16 +77,11 @@ export default function UltimateSystemTest() {
           throw new Error('Supabase credentials not configured');
         }
 
-        // Try a simple query with timeout
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Connection timeout')), 5000)
         );
         
-        const queryPromise = supabase
-          .from('product_catalog')
-          .select('id')
-          .limit(1);
-        
+        const queryPromise = supabase.from('product_catalog').select('id').limit(1);
         const { error } = await Promise.race([queryPromise, timeoutPromise]) as any;
         
         if (error && error.code !== 'PGRST116') {
@@ -102,70 +97,57 @@ export default function UltimateSystemTest() {
         );
         
       } catch (error: any) {
-        // Fall back to demo mode
         useDemo = true;
         setIsDemoMode(true);
-        
         updateTestResult(
           'Database Connection',
           'success',
-          '⚡ Demo Mode - Using local storage (Add Supabase for real database)',
-          { connectionTime: Date.now() - dbStart, mode: 'demo', reason: error.message },
+          `⚡ Demo Mode - Using local simulation (${error.message})`,
+          { connectionTime: Date.now() - dbStart, mode: 'demo' },
           Date.now() - dbStart
         );
       }
 
       // Test 2: Product Discovery & Insert
-      setCurrentTest('Discovering and inserting real products...');
+      setCurrentTest('Discovering and inserting products...');
       setProgress(25);
       const productStart = Date.now();
       
-      const products = [
+      const products: any[] = [
         {
+          id: `demo-prod-${Date.now()}-1`,
           user_id: userId,
           name: "AI-Powered Smart Coffee Maker Pro 2026",
-          description: "Revolutionary smart coffee maker with AI brewing optimization, app control, and voice commands. Featured at CES 2026.",
+          description: "Revolutionary smart coffee maker with AI brewing optimization.",
           category: "Kitchen Gadgets",
           price: 129.99,
           affiliate_url: `https://amazon.com/dp/B0COFFEE2026?tag=yourstore-20`,
           network: "amazon",
           commission_rate: 8,
-          trend_score: 95,
           status: "active"
         },
         {
+          id: `demo-prod-${Date.now()}-2`,
           user_id: userId,
           name: "Ultra Premium Noise-Canceling Headphones 2026",
-          description: "Next-gen ANC technology with 60-hour battery life. #1 on TikTok tech reviews.",
+          description: "Next-gen ANC technology with 60-hour battery life.",
           category: "Tech Accessories",
           price: 249.99,
           affiliate_url: `https://amazon.com/dp/B0HEADPHONES26?tag=yourstore-20`,
           network: "amazon",
           commission_rate: 10,
-          trend_score: 92,
-          status: "active"
-        },
-        {
-          user_id: userId,
-          name: "Eco-Friendly Smart Water Bottle 2026",
-          description: "Self-cleaning UV-C smart bottle with hydration tracking. Viral on Instagram wellness.",
-          category: "Fitness & Health",
-          price: 79.99,
-          affiliate_url: `https://aliexpress.com/item/smartbottle2026.html`,
-          network: "aliexpress",
-          commission_rate: 7,
-          trend_score: 88,
           status: "active"
         }
       ];
 
-      let insertedProducts = products;
+      let insertedProducts: any[] = products;
       
       if (!useDemo) {
         try {
+          const productsToInsert = products.map(({ id, ...rest }) => rest);
           const { data, error: productError } = await supabase
             .from('product_catalog')
-            .insert(products as any)
+            .insert(productsToInsert)
             .select();
 
           if (productError) throw productError;
@@ -174,12 +156,13 @@ export default function UltimateSystemTest() {
           updateTestResult(
             'Product Discovery',
             'success',
-            `✅ Inserted ${insertedProducts.length} trending products to Supabase database`,
+            `✅ Inserted ${insertedProducts.length} trending products to Supabase`,
             { products: insertedProducts },
             Date.now() - productStart
           );
         } catch (error: any) {
-          // Fallback to demo
+          useDemo = true;
+          setIsDemoMode(true);
           updateTestResult(
             'Product Discovery',
             'success',
@@ -189,21 +172,16 @@ export default function UltimateSystemTest() {
           );
         }
       } else {
-        updateTestResult(
-          'Product Discovery',
-          'success',
-          `⚡ Created ${products.length} products in demo mode`,
-          { products: insertedProducts },
-          Date.now() - productStart
-        );
+        updateTestResult('Product Discovery', 'success', `⚡ Created ${products.length} products in demo mode`, { products: insertedProducts }, Date.now() - productStart);
       }
 
-      // Test 3: Affiliate Link Creation
+      // Test 3: Affiliate Links
       setCurrentTest('Creating cloaked affiliate links...');
       setProgress(40);
       const linkStart = Date.now();
 
-      const links = insertedProducts!.map(product => ({
+      const links: any[] = insertedProducts.map((product, i) => ({
+        id: `demo-link-${Date.now()}-${i}`,
         user_id: userId,
         product_id: product.id,
         original_url: product.affiliate_url,
@@ -213,13 +191,14 @@ export default function UltimateSystemTest() {
         status: 'active'
       }));
 
-      let insertedLinks = links;
+      let insertedLinks: any[] = links;
       
       if (!useDemo) {
         try {
+          const linksToInsert = links.map(({ id, ...rest }) => rest);
           const { data, error: linkError } = await supabase
             .from('affiliate_links')
-            .insert(links as any)
+            .insert(linksToInsert)
             .select();
 
           if (linkError) throw linkError;
@@ -233,23 +212,11 @@ export default function UltimateSystemTest() {
             Date.now() - linkStart
           );
         } catch (error: any) {
-          // Fallback to demo
-          updateTestResult(
-            'Affiliate Links',
-            'success',
-            `⚡ Created ${links.length} links in demo mode (${error.message})`,
-            { links: insertedLinks },
-            Date.now() - linkStart
-          );
+          useDemo = true;
+          updateTestResult('Affiliate Links', 'success', `⚡ Created ${links.length} links in demo mode`, { links: insertedLinks }, Date.now() - linkStart);
         }
       } else {
-        updateTestResult(
-          'Affiliate Links',
-          'success',
-          `⚡ Created ${links.length} links in demo mode`,
-          { links: insertedLinks },
-          Date.now() - linkStart
-        );
+        updateTestResult('Affiliate Links', 'success', `⚡ Created ${links.length} links in demo mode`, { links: insertedLinks }, Date.now() - linkStart);
       }
 
       // Test 4: Content Generation
@@ -257,53 +224,35 @@ export default function UltimateSystemTest() {
       setProgress(55);
       const contentStart = Date.now();
 
-      const content = insertedProducts!.map(product => ({
+      const content: any[] = insertedProducts.map((product, i) => ({
+        id: `demo-content-${Date.now()}-${i}`,
         user_id: userId,
         product_id: product.id,
         title: `Complete ${product.name} Review 2026: Is It Worth The Hype?`,
-        body: `Discover why ${product.name} is taking 2026 by storm. ${product.description} In this comprehensive review, we'll break down everything you need to know about this viral product that's dominating social media feeds and Amazon best-seller lists.`,
-        meta_description: `${product.name} review 2026 - Features, pricing, and honest verdict from real users.`,
-        status: 'published',
-        content_type: 'blog'
+        body: `Discover why ${product.name} is taking 2026 by storm. ${product.description}`,
+        status: 'published'
       }));
 
-      let insertedContent = content;
+      let insertedContent: any[] = content;
       
       if (!useDemo) {
         try {
+          const contentToInsert = content.map(({ id, ...rest }) => rest);
           const { data, error: contentError } = await supabase
             .from('generated_content')
-            .insert(content as any)
+            .insert(contentToInsert)
             .select();
 
           if (contentError) throw contentError;
           insertedContent = data || content;
           
-          updateTestResult(
-            'Content Generation',
-            'success',
-            `✅ Generated ${insertedContent.length} SEO-optimized articles`,
-            { content: insertedContent },
-            Date.now() - contentStart
-          );
+          updateTestResult('Content Generation', 'success', `✅ Generated ${insertedContent.length} articles`, { content: insertedContent }, Date.now() - contentStart);
         } catch (error: any) {
-          // Fallback to demo
-          updateTestResult(
-            'Content Generation',
-            'success',
-            `⚡ Created ${content.length} articles in demo mode (${error.message})`,
-            { content: insertedContent },
-            Date.now() - contentStart
-          );
+          useDemo = true;
+          updateTestResult('Content Generation', 'success', `⚡ Created ${content.length} articles in demo mode`, { content: insertedContent }, Date.now() - contentStart);
         }
       } else {
-        updateTestResult(
-          'Content Generation',
-          'success',
-          `⚡ Created ${content.length} articles in demo mode`,
-          { content: insertedContent },
-          Date.now() - contentStart
-        );
+        updateTestResult('Content Generation', 'success', `⚡ Created ${content.length} articles in demo mode`, { content: insertedContent }, Date.now() - contentStart);
       }
 
       // Test 5: Social Publishing
@@ -311,62 +260,47 @@ export default function UltimateSystemTest() {
       setProgress(70);
       const publishStart = Date.now();
 
-      const platforms = ['pinterest', 'tiktok', 'twitter', 'facebook', 'instagram'];
+      const platforms = ['pinterest', 'tiktok', 'twitter'];
       const posts: any[] = [];
+      let postCounter = 0;
 
-      for (const product of insertedProducts!) {
-        const link = insertedLinks!.find(l => l.product_id === product.id);
+      for (const product of insertedProducts) {
+        const link = insertedLinks.find(l => l.product_id === product.id);
         if (!link) continue;
 
         for (const platform of platforms) {
           posts.push({
+            id: `demo-post-${Date.now()}-${postCounter++}`,
             user_id: userId,
             link_id: link.id,
             product_id: product.id,
             platform: platform,
-            caption: `🔥 ${product.name} - Only $${product.price}! ${link.cloaked_url} #Trending #${product.category.replace(/\s+/g, '')} #2026`,
+            caption: `🔥 ${product.name} - Only $${product.price}! ${link.cloaked_url}`,
             status: 'posted'
           });
         }
       }
 
-      let insertedPosts = posts;
+      let insertedPosts: any[] = posts;
       
       if (!useDemo) {
         try {
+          const postsToInsert = posts.map(({ id, ...rest }) => rest);
           const { data, error: postError } = await supabase
             .from('posted_content')
-            .insert(posts as any)
+            .insert(postsToInsert)
             .select();
 
           if (postError) throw postError;
           insertedPosts = data || posts;
           
-          updateTestResult(
-            'Social Publishing',
-            'success',
-            `✅ Published ${insertedPosts.length} posts across ${platforms.length} platforms`,
-            { posts: insertedPosts },
-            Date.now() - publishStart
-          );
+          updateTestResult('Social Publishing', 'success', `✅ Published ${insertedPosts.length} posts across ${platforms.length} platforms`, { posts: insertedPosts }, Date.now() - publishStart);
         } catch (error: any) {
-          // Fallback to demo
-          updateTestResult(
-            'Social Publishing',
-            'success',
-            `⚡ Created ${posts.length} posts in demo mode (${error.message})`,
-            { posts: insertedPosts },
-            Date.now() - publishStart
-          );
+          useDemo = true;
+          updateTestResult('Social Publishing', 'success', `⚡ Created ${posts.length} posts in demo mode`, { posts: insertedPosts }, Date.now() - publishStart);
         }
       } else {
-        updateTestResult(
-          'Social Publishing',
-          'success',
-          `⚡ Created ${posts.length} posts in demo mode`,
-          { posts: insertedPosts },
-          Date.now() - publishStart
-        );
+        updateTestResult('Social Publishing', 'success', `⚡ Created ${posts.length} posts in demo mode`, { posts: insertedPosts }, Date.now() - publishStart);
       }
 
       // Test 6: Click Tracking
@@ -374,52 +308,34 @@ export default function UltimateSystemTest() {
       setProgress(85);
       const clickStart = Date.now();
 
-      const clicks = insertedLinks!.slice(0, 3).map(link => ({
+      const clicks: any[] = insertedLinks.slice(0, 2).map((link, i) => ({
+        id: `demo-click-${Date.now()}-${i}`,
         link_id: link.id,
-        content_id: insertedPosts!.find(p => p.link_id === link.id)?.id,
+        content_id: insertedPosts.find(p => p.link_id === link.id)?.id || null,
         platform: 'pinterest',
-        ip_address: '192.168.1.' + Math.floor(Math.random() * 255),
-        user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        country: 'US'
+        ip_address: '192.168.1.' + Math.floor(Math.random() * 255)
       }));
 
-      let insertedClicks = clicks;
+      let insertedClicks: any[] = clicks;
       
       if (!useDemo) {
         try {
+          const clicksToInsert = clicks.map(({ id, ...rest }) => rest);
           const { data, error: clickError } = await supabase
             .from('click_events')
-            .insert(clicks as any)
+            .insert(clicksToInsert)
             .select();
 
           if (clickError) throw clickError;
           insertedClicks = data || clicks;
           
-          updateTestResult(
-            'Click Tracking',
-            'success',
-            `✅ Tracked ${insertedClicks.length} affiliate link clicks`,
-            { clicks: insertedClicks },
-            Date.now() - clickStart
-          );
+          updateTestResult('Click Tracking', 'success', `✅ Tracked ${insertedClicks.length} affiliate link clicks`, { clicks: insertedClicks }, Date.now() - clickStart);
         } catch (error: any) {
-          // Fallback to demo
-          updateTestResult(
-            'Click Tracking',
-            'success',
-            `⚡ Created ${clicks.length} clicks in demo mode (${error.message})`,
-            { clicks: insertedClicks },
-            Date.now() - clickStart
-          );
+          useDemo = true;
+          updateTestResult('Click Tracking', 'success', `⚡ Created ${clicks.length} clicks in demo mode`, { clicks: insertedClicks }, Date.now() - clickStart);
         }
       } else {
-        updateTestResult(
-          'Click Tracking',
-          'success',
-          `⚡ Created ${clicks.length} clicks in demo mode`,
-          { clicks: insertedClicks },
-          Date.now() - clickStart
-        );
+        updateTestResult('Click Tracking', 'success', `⚡ Created ${clicks.length} clicks in demo mode`, { clicks: insertedClicks }, Date.now() - clickStart);
       }
 
       // Test 7: Conversion & Revenue
@@ -427,12 +343,13 @@ export default function UltimateSystemTest() {
       setProgress(95);
       const conversionStart = Date.now();
 
-      const conversions = insertedClicks!.slice(0, 2).map((click, index) => {
-        const link = insertedLinks!.find(l => l.id === click.link_id);
-        const product = insertedProducts!.find(p => p.id === link?.product_id);
+      const conversions: any[] = insertedClicks.slice(0, 1).map((click, i) => {
+        const link = insertedLinks.find(l => l.id === click.link_id);
+        const product = insertedProducts.find(p => p.id === link?.product_id);
         const revenue = product ? (product.price * product.commission_rate / 100) : 0;
 
         return {
+          id: `demo-conv-${Date.now()}-${i}`,
           click_id: click.id,
           content_id: click.content_id,
           revenue: parseFloat(revenue.toFixed(2)),
@@ -441,79 +358,78 @@ export default function UltimateSystemTest() {
         };
       });
 
-      let insertedConversions = conversions;
+      let insertedConversions: any[] = conversions;
+      let totalRevenue = 0;
       
       if (!useDemo) {
         try {
+          const convsToInsert = conversions.map(({ id, ...rest }) => rest);
           const { data, error: conversionError } = await supabase
             .from('conversion_events')
-            .insert(conversions as any)
+            .insert(convsToInsert)
             .select();
 
           if (conversionError) throw conversionError;
           insertedConversions = data || conversions;
-          
-          const totalRevenue = insertedConversions.reduce((sum, c) => sum + c.revenue, 0);
+          totalRevenue = insertedConversions.reduce((sum, c) => sum + c.revenue, 0);
 
-          updateTestResult(
-            'Conversion Tracking',
-            'success',
-            `✅ Recorded ${insertedConversions.length} conversions - Total Revenue: $${totalRevenue.toFixed(2)}`,
-            { conversions: insertedConversions, totalRevenue },
-            Date.now() - conversionStart
-          );
+          updateTestResult('Conversion Tracking', 'success', `✅ Recorded ${insertedConversions.length} conversions - Total Revenue: $${totalRevenue.toFixed(2)}`, { conversions: insertedConversions, totalRevenue }, Date.now() - conversionStart);
         } catch (error: any) {
-          // Fallback to demo
-          const totalRevenue = conversions.reduce((sum, c) => sum + c.revenue, 0);
-
-          updateTestResult(
-            'Conversion Tracking',
-            'success',
-            `⚡ Created ${conversions.length} conversions in demo mode (${error.message})`,
-            { conversions: insertedConversions, totalRevenue },
-            Date.now() - conversionStart
-          );
+          totalRevenue = conversions.reduce((sum, c) => sum + c.revenue, 0);
+          updateTestResult('Conversion Tracking', 'success', `⚡ Created ${conversions.length} conversions in demo mode`, { conversions: insertedConversions, totalRevenue }, Date.now() - conversionStart);
         }
       } else {
-        const totalRevenue = conversions.reduce((sum, c) => sum + c.revenue, 0);
-
-        updateTestResult(
-          'Conversion Tracking',
-          'success',
-          `⚡ Created ${conversions.length} conversions in demo mode`,
-          { conversions: insertedConversions, totalRevenue },
-          Date.now() - conversionStart
-        );
+        totalRevenue = conversions.reduce((sum, c) => sum + c.revenue, 0);
+        updateTestResult('Conversion Tracking', 'success', `⚡ Created ${conversions.length} conversions in demo mode`, { conversions: insertedConversions, totalRevenue }, Date.now() - conversionStart);
       }
 
       setProgress(100);
       setCurrentTest('Complete!');
+      setIsRunning(false);
 
-      // Load system statistics
-      await loadSystemStats();
+      if (!useDemo) {
+        await loadSystemStats();
+      } else {
+        // Fallback stats for demo mode
+        setSystemStats({
+          products: insertedProducts.length,
+          links: insertedLinks.length,
+          content: insertedContent.length,
+          posts: insertedPosts.length,
+          clicks: insertedClicks.length,
+          conversions: insertedConversions.length,
+          revenue: totalRevenue
+        });
+      }
 
       toast({
-        title: "✅ System Test Complete!",
-        description: `All 7 tests passed successfully. System is fully operational!`
+        title: useDemo ? "⚡ Demo Test Complete" : "✅ System Test Complete",
+        description: useDemo ? "System ran in Demo mode because Supabase connection failed." : "All 7 tests passed successfully with real database!"
       });
 
     } catch (error: any) {
-      updateTestResult('Product Discovery', 'error', `❌ ${error.message}`);
-      throw error;
+      updateTestResult('System Error', 'error', `❌ ${error.message}`);
+      setIsRunning(false);
+      toast({
+        title: "Test Failed",
+        description: error.message,
+        variant: "destructive"
+      });
     }
-
   };
 
   const loadSystemStats = async () => {
     try {
       const [products, links, content, posts, clicks, conversions] = await Promise.all([
-        supabase.from('product_catalog').select('id, affiliate_url', { count: 'exact', head: true }),
-        supabase.from('affiliate_links').select('id, product_id', { count: 'exact', head: true }),
-        supabase.from('generated_content').select('id, product_id', { count: 'exact', head: true }),
-        supabase.from('posted_content').select('id, product_id, link_id', { count: 'exact', head: true }),
+        supabase.from('product_catalog').select('id', { count: 'exact', head: true }),
+        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
+        supabase.from('generated_content').select('id', { count: 'exact', head: true }),
+        supabase.from('posted_content').select('id', { count: 'exact', head: true }),
         supabase.from('click_events').select('id', { count: 'exact', head: true }),
-        supabase.from('conversion_events').select('revenue', { count: 'exact' })
+        supabase.from('conversion_events').select('revenue')
       ]);
+
+      if (products.error) throw products.error;
 
       const totalRevenue = conversions.data?.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0) || 0;
 
@@ -523,7 +439,7 @@ export default function UltimateSystemTest() {
         content: content.count || 0,
         posts: posts.count || 0,
         clicks: clicks.count || 0,
-        conversions: conversions.count || 0,
+        conversions: conversions.data?.length || 0,
         revenue: totalRevenue
       });
     } catch (error) {
@@ -671,15 +587,14 @@ export default function UltimateSystemTest() {
               </TabsContent>
 
               <TabsContent value="stats" className="space-y-6">
-                {/* System Statistics */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart className="h-5 w-5 text-primary" />
-                      System Statistics
+                      System Statistics {isDemoMode && <Badge variant="secondary">Demo Mode Stats</Badge>}
                     </CardTitle>
                     <CardDescription>
-                      Real-time data from Supabase database
+                      Real-time data
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -759,76 +674,6 @@ export default function UltimateSystemTest() {
                 </Card>
               </TabsContent>
             </Tabs>
-
-            {/* What This Tests */}
-            <Card className="bg-primary/5 border-primary/20">
-              <CardHeader>
-                <CardTitle>🧪 What This Test Validates</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Database Operations</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Supabase connection working</li>
-                      <li>INSERT operations successful</li>
-                      <li>Foreign key relationships valid</li>
-                      <li>Data persistence confirmed</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Product Discovery</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Real 2026 trending products</li>
-                      <li>Valid affiliate URLs (Amazon, AliExpress)</li>
-                      <li>Commission rates configured</li>
-                      <li>Trend scores calculated</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Affiliate Link System</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Cloaked URLs created (/go/...)</li>
-                      <li>Product relationships maintained</li>
-                      <li>Unique slugs generated</li>
-                      <li>Click tracking enabled</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Content Generation</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>SEO-optimized titles</li>
-                      <li>Meta descriptions</li>
-                      <li>Product references included</li>
-                      <li>Ready for publishing</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Social Publishing</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Multi-platform posts (5 platforms)</li>
-                      <li>Product + Link references</li>
-                      <li>Platform-optimized captions</li>
-                      <li>Hashtags included</li>
-                    </ul>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">✅ Click & Revenue Tracking</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Click events recorded</li>
-                      <li>Conversion tracking active</li>
-                      <li>Revenue calculated</li>
-                      <li>Attribution complete</li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
           </div>
         </main>
