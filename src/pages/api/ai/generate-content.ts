@@ -57,12 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Generate SEO-optimized content
     const content = await openai.generateSEOContent(
-      {
-        name: product.name,
-        category: product.category || "General",
-        target_audience: product.target_audience || "General audience"
-      },
-      trackingUrl
+      product.name,
+      product.category || "General",
+      product.description || "",
+      product.affiliate_url || ""
     );
 
     // Save to database

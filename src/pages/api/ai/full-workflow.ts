@@ -69,12 +69,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Step 2: Generate content
         const content = await openai.generateSEOContent(
-          {
-            name: savedProduct.name,
-            category: savedProduct.category || "General",
-            target_audience: savedProduct.target_audience || "General audience"
-          },
-          trackingUrl
+          product.name,
+          product.category || "General",
+          product.why_trending || "",
+          product.amazon_url || product.aliexpress_url || ""
         );
 
         const { data: savedContent } = await supabase
@@ -97,8 +95,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Step 3: Auto-publish if requested
         if (auto_publish) {
           const socialPosts = await openai.generateSocialPosts(
-            { title: savedContent.title, body: savedContent.body },
-            trackingUrl
+            product.name,
+            product.category || "General",
+            product.why_trending || "",
+            product.amazon_url || product.aliexpress_url || ""
           );
 
           for (const post of socialPosts) {

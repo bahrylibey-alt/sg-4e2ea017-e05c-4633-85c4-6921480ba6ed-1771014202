@@ -34,9 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const openai = new OpenAIService(process.env.OPENAI_API_KEY);
 
-    // Generate social media posts
+    // Step 2: Generate unique social posts tailored to each platform
     const socialPosts = await openai.generateSocialPosts(
-      { title: content.title, body: content.body },
+      content.title,
+      content.category || "General",
+      content.body || "",
       affiliateLink
     );
 
