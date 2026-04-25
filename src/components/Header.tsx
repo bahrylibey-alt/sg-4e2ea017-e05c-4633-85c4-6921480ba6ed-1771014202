@@ -19,8 +19,9 @@ export function Header() {
     return () => router.events?.off("routeChangeComplete", handleRouteChange);
   }, [router]);
 
-  const checkAuth = () => {
-    setIsAuthenticated(mockAuthService.isAuthenticated());
+  const checkAuth = async () => {
+    const isAuth = await mockAuthService.isAuthenticated();
+    setIsAuthenticated(isAuth);
   };
 
   const handleSignOut = () => {
