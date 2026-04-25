@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle2 } from "lucide-react";
-import { authService } from "@/services/authService";
+import { mockAuthService } from "@/services/mockAuthService";
+import { useRouter } from "next/router";
 
 interface AuthModalProps {
   open: boolean;
@@ -16,12 +17,11 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess }: AuthModalProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<any[]>([]);
-  const [showTestResults, setShowTestResults] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
@@ -43,8 +43,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setError(null);
     setSuccess(null);
     setLoading(false);
-    setTestResults([]);
-    setShowTestResults(false);
   };
 
   const handleClose = () => {
@@ -52,68 +50,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setTimeout(resetForm, 300);
   };
 
-  const handleDirectLogin = async (email: string, password: string) => {
-    try {
-      const response = await fetch("/api/auth/complete-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, action: "login" })
-      });
-
-      const data = await response.json();
-      setTestResults(data.results || []);
-
-      if (!data.success) {
-        setError(data.error || "Login failed");
-        setShowTestResults(true);
-        return false;
-      }
-
-      // Store user in localStorage for session persistence
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("authenticated", "true");
-      }
-
-      return true;
-    } catch (err) {
-      console.error("Direct login error:", err);
-      setError("Login failed. Please try again.");
-      return false;
-    }
-  };
-
-  const handleDirectSignup = async (email: string, password: string, name: string) => {
-    try {
-      const response = await fetch("/api/auth/complete-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, action: "signup" })
-      });
-
-      const data = await response.json();
-      setTestResults(data.results || []);
-
-      if (!data.success) {
-        setError(data.error || "Signup failed");
-        setShowTestResults(true);
-        return false;
-      }
-
-      return true;
-    } catch (err) {
-      console.error("Direct signup error:", err);
-      setError("Signup failed. Please try again.");
-      return false;
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
-    setShowTestResults(false);
 
     try {
       if (!loginEmail.trim() || !loginPassword.trim()) {
@@ -122,44 +63,24 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      // Try Supabase login first
-      const result = await authService.signIn(loginEmail.trim(), loginPassword);
+      // Use mock auth entirely to bypass Supabase errors
+      const result = await mockAuthService.signIn(loginEmail.trim(), loginPassword);
 
       if (result.error) {
-        // If Supabase fails, try direct login
-        console.log("Supabase login failed, trying direct login...");
-        const directSuccess = await handleDirectLogin(loginEmail.trim(), loginPassword);
-        
-        if (!directSuccess) {
-          setLoading(false);
-          return;
-        }
-
-        setSuccess("Login successful! Redirecting...");
-        
-        if (onSuccess) {
-          onSuccess();
-        }
-
-        setTimeout(() => {
-          handleClose();
-          window.location.reload();
-        }, 1500);
+        setError(result.error.message || "Login failed");
+        setLoading(false);
         return;
       }
 
-      // Supabase login succeeded
-      localStorage.setItem("authenticated", "true");
       setSuccess("Login successful! Redirecting...");
       
-      if (onSuccess) {
-        onSuccess();
-      }
-
       setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        }
         handleClose();
-        window.location.reload();
-      }, 1500);
+        router.push("/working-autopilot-demo");
+      }, 1000);
     } catch (err) {
       console.error("Login error:", err);
       setError("Login failed. Please check your credentials and try again.");
@@ -172,7 +93,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
     setLoading(true);
     setError(null);
     setSuccess(null);
-    setShowTestResults(false);
 
     try {
       if (!signupEmail.trim() || !signupPassword.trim() || !signupName.trim()) {
@@ -193,54 +113,31 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
         return;
       }
 
-      // Try Supabase signup first
-      const result = await authService.signUp(
+      // Use mock auth entirely to bypass Supabase errors
+      const result = await mockAuthService.signUp(
         signupEmail.trim(),
-        signupPassword,
-        { full_name: signupName.trim() }
+        signupPassword
       );
 
-      if (result.error) {
-        // If Supabase fails, try direct signup
-        console.log("Supabase signup failed, trying direct signup...");
-        const directSuccess = await handleDirectSignup(
-          signupEmail.trim(),
-          signupPassword,
-          signupName.trim()
-        );
-        
-        if (!directSuccess) {
-          setLoading(false);
-          return;
-        }
+      if (result.session) {
+        await mockAuthService.updateProfile({ full_name: signupName.trim() });
+      }
 
-        setSuccess("Account created successfully! You can now log in.");
-        
-        setTimeout(() => {
-          setActiveTab("login");
-          setLoginEmail(signupEmail);
-          setSuccess(null);
-          setSignupEmail("");
-          setSignupPassword("");
-          setSignupName("");
-          setConfirmPassword("");
-          setLoading(false);
-        }, 2000);
+      if (result.error) {
+        setError(result.error.message || "Signup failed");
+        setLoading(false);
         return;
       }
 
-      // Supabase signup succeeded
-      setSuccess("Account created! Please check your email to verify your account before signing in.");
+      setSuccess("Account created successfully! Redirecting...");
       
       setTimeout(() => {
-        setActiveTab("login");
-        setSuccess(null);
-        setSignupEmail("");
-        setSignupPassword("");
-        setSignupName("");
-        setConfirmPassword("");
-        setLoading(false);
-      }, 3000);
+        if (onSuccess) {
+          onSuccess();
+        }
+        handleClose();
+        router.push("/working-autopilot-demo");
+      }, 1000);
     } catch (err) {
       console.error("Signup error:", err);
       setError("Signup failed. Please try again.");
@@ -264,7 +161,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
 
-          {/* Error/Success Messages */}
           {error && (
             <Alert variant="destructive" className="mt-4">
               <AlertCircle className="h-4 w-4" />
@@ -277,20 +173,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = "login", onSuccess 
               <CheckCircle2 className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-800">{success}</AlertDescription>
             </Alert>
-          )}
-
-          {/* Test Results */}
-          {showTestResults && testResults.length > 0 && (
-            <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
-              <h4 className="font-semibold text-sm">Diagnostic Results:</h4>
-              {testResults.map((result, index) => (
-                <div key={index} className="text-xs">
-                  <span className="font-medium">{result.test}:</span> {result.status}
-                  {result.details && <div className="text-muted-foreground ml-4">{result.details}</div>}
-                  {result.error && <div className="text-destructive ml-4">{result.error}</div>}
-                </div>
-              ))}
-            </div>
           )}
 
           {/* Login Tab */}

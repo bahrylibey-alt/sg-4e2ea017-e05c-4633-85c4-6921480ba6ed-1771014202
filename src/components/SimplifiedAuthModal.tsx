@@ -9,12 +9,12 @@ import { mockAuthService } from "@/services/mockAuthService";
 import { useRouter } from "next/router";
 
 interface SimplifiedAuthModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
 
-export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAuthModalProps) {
+export function SimplifiedAuthModal({ open, onOpenChange, onSuccess }: SimplifiedAuthModalProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +29,7 @@ export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAu
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
 
-  if (!isOpen) return null;
+  if (!open) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +64,7 @@ export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAu
         if (onSuccess) {
           onSuccess();
         }
-        onClose();
+        onOpenChange(false);
         // Redirect to working demo page
         router.push('/working-autopilot-demo');
       }, 1000);
@@ -124,7 +124,7 @@ export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAu
         if (onSuccess) {
           onSuccess();
         }
-        onClose();
+        onOpenChange(false);
         // Redirect to working demo page
         router.push('/working-autopilot-demo');
       }, 1000);
@@ -140,7 +140,7 @@ export function SimplifiedAuthModal({ isOpen, onClose, onSuccess }: SimplifiedAu
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md relative">
         <button
-          onClick={onClose}
+          onClick={() => onOpenChange(false)}
           className="absolute right-4 top-4 p-2 hover:bg-muted rounded-lg transition-colors"
           aria-label="Close"
         >
