@@ -33,9 +33,32 @@ export default function ProductionReady() {
   const [currentStep, setCurrentStep] = useState("");
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState("");
+  const [stats, setStats] = useState({
+    products: 0,
+    links: 0,
+    content: 0,
+    posts: 0,
+    clicks: 0,
+    conversions: 0,
+    revenue: 0
+  });
 
   useEffect(() => {
     checkSetup();
+  }, []);
+
+  // Load stats on client side only
+  useEffect(() => {
+    const loadStats = () => {
+      const currentStats = realAutopilotEngine.getStats();
+      setStats(currentStats);
+    };
+    
+    loadStats();
+    
+    // Refresh stats every 2 seconds
+    const interval = setInterval(loadStats, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const checkSetup = () => {
@@ -85,8 +108,6 @@ export default function ProductionReady() {
       setIsRunning(false);
     }
   };
-
-  const stats = realAutopilotEngine.getStats();
 
   return (
     <>

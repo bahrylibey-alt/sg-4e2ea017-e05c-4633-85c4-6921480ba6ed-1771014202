@@ -83,9 +83,18 @@ class RealAutopilotEngine {
   private lastRun: Date | null = null;
 
   /**
+   * Check if running in browser (not SSR)
+   */
+  private isBrowser(): boolean {
+    return typeof window !== 'undefined';
+  }
+
+  /**
    * Initialize storage
    */
   private initStorage() {
+    if (!this.isBrowser()) return;
+    
     if (!localStorage.getItem(this.PRODUCTS_KEY)) {
       localStorage.setItem(this.PRODUCTS_KEY, JSON.stringify([]));
     }
@@ -113,6 +122,8 @@ class RealAutopilotEngine {
    * Log activity
    */
   private logActivity(action: string, details: string, status: 'success' | 'error' = 'success') {
+    if (!this.isBrowser()) return;
+    
     const logs: ActivityLog[] = JSON.parse(localStorage.getItem(this.LOGS_KEY) || '[]');
     
     const log: ActivityLog = {
@@ -132,7 +143,7 @@ class RealAutopilotEngine {
    * Check if OpenAI API key is configured
    */
   private checkApiKey(): boolean {
-    if (typeof window === 'undefined') return false;
+    if (!this.isBrowser()) return false;
     const key = localStorage.getItem('openai_api_key');
     return !!key && key.length > 0;
   }
@@ -141,6 +152,8 @@ class RealAutopilotEngine {
    * Generate proper affiliate tracking URL
    */
   private generateAffiliateUrl(baseUrl: string, network: string): string {
+    if (!this.isBrowser()) return baseUrl;
+    
     // Get your affiliate tag from settings or use default
     const affiliateTag = localStorage.getItem('affiliate_tag') || 'affiliatepro-20';
     
@@ -156,7 +169,6 @@ class RealAutopilotEngine {
     }
     
     // For AliExpress and other networks, return as-is
-    // (you can add your AliExpress affiliate ID here if you have one)
     return baseUrl;
   }
 
@@ -410,6 +422,18 @@ class RealAutopilotEngine {
    * Get all data
    */
   getAllData() {
+    if (!this.isBrowser()) {
+      return {
+        products: [],
+        links: [],
+        content: [],
+        posts: [],
+        logs: [],
+        clicks: [],
+        conversions: []
+      };
+    }
+    
     return {
       products: JSON.parse(localStorage.getItem(this.PRODUCTS_KEY) || '[]'),
       links: JSON.parse(localStorage.getItem(this.LINKS_KEY) || '[]'),
@@ -425,6 +449,18 @@ class RealAutopilotEngine {
    * Get statistics
    */
   getStats() {
+    if (!this.isBrowser()) {
+      return {
+        products: 0,
+        links: 0,
+        content: 0,
+        posts: 0,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0
+      };
+    }
+    
     const data = this.getAllData();
     const revenue = data.conversions.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0);
 
@@ -443,6 +479,8 @@ class RealAutopilotEngine {
    * Clear all data (for testing)
    */
   clearAllData() {
+    if (!this.isBrowser()) return;
+    
     localStorage.removeItem(this.PRODUCTS_KEY);
     localStorage.removeItem(this.LINKS_KEY);
     localStorage.removeItem(this.CONTENT_KEY);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SEO } from "@/components/SEO";
@@ -6,24 +6,68 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { realAutopilotEngine } from "@/services/realAutopilotEngine";
-import { Sparkles, Play, Loader2, CheckCircle2, AlertCircle, TrendingUp, Link as LinkIcon, FileText, Share2 } from "lucide-react";
+import { 
+  Sparkles, 
+  Play,
+  Loader2,
+  CheckCircle2,
+  TrendingUp,
+  Link as LinkIcon,
+  FileText,
+  Share2,
+  AlertCircle
+} from "lucide-react";
 
 export default function SimpleAutopilot() {
+  const [mounted, setMounted] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [step, setStep] = useState('');
-  const [results, setResults] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [currentStep, setCurrentStep] = useState("");
+  const [error, setError] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [stats, setStats] = useState({
+    products: 0,
+    links: 0,
+    content: 0,
+    posts: 0,
+    clicks: 0,
+    conversions: 0,
+    revenue: 0
+  });
 
-  // Check API key on load
-  useState(() => {
-    if (typeof window !== 'undefined') {
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Check API key on mount
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const checkKey = () => {
       const key = localStorage.getItem('openai_api_key');
       setHasApiKey(!!key && key.length > 0);
-    }
-  });
+    };
+    
+    checkKey();
+  }, [mounted]);
+
+  // Load stats on client side only
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const loadStats = () => {
+      const currentStats = realAutopilotEngine.getStats();
+      setStats(currentStats);
+    };
+    
+    loadStats();
+    
+    const interval = setInterval(loadStats, 2000);
+    return () => clearInterval(interval);
+  }, [mounted]);
 
   const runAutopilot = async () => {
     setIsRunning(true);
@@ -79,13 +123,41 @@ export default function SimpleAutopilot() {
     }
   };
 
-  const stats = realAutopilotEngine.getStats();
+  // Don't render dynamic content during SSR
+  if (!mounted) {
+    return (
+      <>
+        <SEO 
+          title="AI Autopilot - Affiliate Automation"
+          description="100% AI-powered autonomous affiliate marketing system"
+        />
+        
+        <div className="min-h-screen bg-background">
+          <Header />
+          
+          <main className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-3">
+                <Sparkles className="h-10 w-10 text-primary" />
+                <h1 className="text-4xl font-bold">Simple AI Autopilot</h1>
+              </div>
+              <p className="text-xl text-muted-foreground">
+                Loading...
+              </p>
+            </div>
+          </main>
+          
+          <Footer />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <SEO 
-        title="Simple AutoPilot - 100% Real AI Automation"
-        description="Clean, simple AI-powered affiliate automation"
+        title="AI Autopilot - Affiliate Automation"
+        description="100% AI-powered autonomous affiliate marketing system"
       />
       
       <div className="min-h-screen bg-background">
@@ -150,7 +222,7 @@ export default function SimpleAutopilot() {
               <div className="space-y-2">
                 <Progress value={progress} />
                 <p className="text-sm text-center text-muted-foreground">
-                  {step}
+                  {currentStep}
                 </p>
               </div>
             )}

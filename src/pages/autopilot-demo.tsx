@@ -9,47 +9,54 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { realAutopilotEngine } from "@/services/realAutopilotEngine";
 import { 
-  Play, 
-  Loader2, 
-  CheckCircle2, 
+  Sparkles, 
+  Play,
+  Loader2,
+  CheckCircle2,
   XCircle,
-  Sparkles,
   TrendingUp,
   Link as LinkIcon,
   FileText,
   Share2,
-  BarChart3,
-  Trash2
+  Clock
 } from "lucide-react";
 
 export default function AutopilotDemo() {
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState('');
+  const [currentStep, setCurrentStep] = useState("");
   const [results, setResults] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [stats, setStats] = useState<any>(null);
-  const [logs, setLogs] = useState<any[]>([]);
+  const [error, setError] = useState("");
+  const [stats, setStats] = useState({
+    products: 0,
+    links: 0,
+    content: 0,
+    posts: 0,
+    clicks: 0,
+    conversions: 0,
+    revenue: 0
+  });
 
+  // Prevent hydration mismatch
   useEffect(() => {
-    checkApiKey();
-    loadStats();
+    setMounted(true);
   }, []);
 
-  const checkApiKey = () => {
-    if (typeof window !== 'undefined') {
-      const key = localStorage.getItem('openai_api_key');
-      setHasApiKey(!!key && key.length > 0);
-    }
-  };
-
-  const loadStats = () => {
-    const statistics = realAutopilotEngine.getStats();
-    const data = realAutopilotEngine.getAllData();
-    setStats(statistics);
-    setLogs(data.logs.slice(0, 20));
-  };
+  // Load stats on client side only
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const loadStats = () => {
+      const currentStats = realAutopilotEngine.getStats();
+      setStats(currentStats);
+    };
+    
+    loadStats();
+    
+    const interval = setInterval(loadStats, 2000);
+    return () => clearInterval(interval);
+  }, [mounted]);
 
   const runAutopilot = async () => {
     if (!hasApiKey) {
@@ -106,17 +113,41 @@ export default function AutopilotDemo() {
     }
   };
 
+  // Don't render dynamic content during SSR
+  if (!mounted) {
+    return (
+      <>
+        <SEO 
+          title="Autopilot Demo - Real AI System"
+          description="Working demonstration of 100% real AI-powered affiliate automation"
+        />
+        
+        <div className="min-h-screen bg-background">
+          <Header />
+          
+          <main className="max-w-6xl mx-auto px-4 py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </main>
+          
+          <Footer />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <SEO 
-        title="AutoPilot Demo - 100% Real AI Automation"
-        description="Test the complete AI-powered affiliate automation system"
+        title="Autopilot Demo - Real AI System"
+        description="Working demonstration of 100% real AI-powered affiliate automation"
       />
       
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <main className="max-w-6xl mx-auto px-4 py-12 space-y-8">
           <div className="text-center space-y-4">
             <div className="flex items-center justify-center gap-3">
               <Sparkles className="h-10 w-10 text-primary" />
