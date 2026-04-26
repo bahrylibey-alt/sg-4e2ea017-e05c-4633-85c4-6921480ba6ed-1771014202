@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { supabase } from "@/integrations/supabase/client";
 import { mockAuthService } from "@/services/mockAuthService";
 import { SEO } from "@/components/SEO";
 import { Header } from "@/components/Header";
@@ -68,6 +69,7 @@ export default function Settings() {
   const [settings, setSettings] = useState<AutopilotSettings>(DEFAULT_SETTINGS);
   const [newNiche, setNewNiche] = useState("");
   const [newExcludedNiche, setNewExcludedNiche] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
 
   // API Keys state
   const [openaiApiKey, setOpenaiApiKey] = useState("");
@@ -79,17 +81,73 @@ export default function Settings() {
     checkAuth();
   }, []);
 
-  const checkAuth = () => {
+  const checkAuth = async () => {
     if (!mockAuthService.isAuthenticated()) {
       router.push('/dashboard');
       return;
     }
-    loadSettings();
+    
+    // Get Supabase user
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      setUserId(session.user.id);
+      await loadSettings(session.user.id);
+    } else {
+      // Fallback to localStorage if no Supabase session
+      loadLocalSettings();
+    }
   };
 
-  const loadSettings = () => {
+  const loadSettings = async (uid: string) => {
     try {
-      // Load settings from localStorage
+      console.log("Loading settings from Supabase for user:", uid);
+      
+      // Load from Supabase
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', uid)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load settings from database",
+          variant: "destructive"
+        });
+        loadLocalSettings(); // Fallback to localStorage
+        return;
+      }
+
+      if (data) {
+        console.log("Settings loaded from Supabase");
+        // Load API key
+        if (data.openai_api_key) {
+          setOpenaiApiKey(data.openai_api_key);
+          setApiKeyStatus('valid');
+        }
+        
+        // Load autopilot settings
+        if (data.autopilot_settings && typeof data.autopilot_settings === 'object') {
+          setSettings({ ...DEFAULT_SETTINGS, ...data.autopilot_settings });
+        }
+      } else {
+        console.log("No settings in Supabase, migrating from localStorage");
+        // Migrate from localStorage to Supabase
+        await migrateLocalSettingsToSupabase(uid);
+      }
+    } catch (error) {
+      console.error('Exception loading settings:', error);
+      loadLocalSettings();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadLocalSettings = () => {
+    try {
+      // Load settings from localStorage (fallback)
       const savedSettings = localStorage.getItem('autopilot_settings');
       if (savedSettings) {
         setSettings(JSON.parse(savedSettings));
@@ -102,18 +160,48 @@ export default function Settings() {
         setApiKeyStatus('valid');
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load settings",
-        variant: "destructive"
-      });
+      console.error('Error loading local settings:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const saveApiKey = () => {
+  const migrateLocalSettingsToSupabase = async (uid: string) => {
+    try {
+      const localSettings = localStorage.getItem('autopilot_settings');
+      const localApiKey = localStorage.getItem('openai_api_key');
+      
+      if (!localSettings && !localApiKey) return;
+
+      const settingsData = localSettings ? JSON.parse(localSettings) : DEFAULT_SETTINGS;
+      
+      // Save to Supabase
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: uid,
+          openai_api_key: localApiKey || null,
+          autopilot_settings: settingsData,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Migration error:', error);
+      } else {
+        console.log("Successfully migrated localStorage settings to Supabase");
+        // Update state
+        if (localApiKey) {
+          setOpenaiApiKey(localApiKey);
+          setApiKeyStatus('valid');
+        }
+        setSettings(settingsData);
+      }
+    } catch (error) {
+      console.error('Exception during migration:', error);
+    }
+  };
+
+  const saveApiKey = async () => {
     if (!openaiApiKey.trim()) {
       toast({
         title: "Error",
@@ -132,11 +220,35 @@ export default function Settings() {
       return;
     }
 
-    localStorage.setItem('openai_api_key', openaiApiKey);
+    if (userId) {
+      // Save to Supabase
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: userId,
+          openai_api_key: openaiApiKey,
+          autopilot_settings: settings,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error saving API key:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save API key to database",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      // Fallback to localStorage
+      localStorage.setItem('openai_api_key', openaiApiKey);
+    }
+
     setApiKeyStatus(null);
     toast({
       title: "Success",
-      description: "OpenAI API key saved successfully"
+      description: "OpenAI API key saved successfully (synced across devices)"
     });
   };
 
@@ -191,16 +303,46 @@ export default function Settings() {
     return key.slice(0, 7) + '****' + '****' + '****' + key.slice(-4);
   };
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     setSaving(true);
     try {
-      // Save to localStorage
-      localStorage.setItem('autopilot_settings', JSON.stringify(settings));
-      
-      toast({
-        title: "Success",
-        description: "Settings saved successfully"
-      });
+      if (userId) {
+        // Save to Supabase
+        const { error } = await supabase
+          .from('user_settings')
+          .upsert({
+            user_id: userId,
+            openai_api_key: openaiApiKey || null,
+            autopilot_settings: settings,
+            updated_at: new Date().toISOString()
+          });
+
+        if (error) {
+          console.error('Error saving settings:', error);
+          toast({
+            title: "Error",
+            description: "Failed to save settings to database",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        toast({
+          title: "Success",
+          description: "Settings saved successfully (synced across devices)"
+        });
+      } else {
+        // Fallback to localStorage
+        localStorage.setItem('autopilot_settings', JSON.stringify(settings));
+        if (openaiApiKey) {
+          localStorage.setItem('openai_api_key', openaiApiKey);
+        }
+        
+        toast({
+          title: "Success",
+          description: "Settings saved locally"
+        });
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
       toast({
@@ -287,6 +429,12 @@ export default function Settings() {
             <p className="text-muted-foreground">
               Manage your account, autopilot settings, and API integrations
             </p>
+            {userId && (
+              <Badge variant="secondary" className="mt-2">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Synced across devices
+              </Badge>
+            )}
           </div>
 
           <Card className="mb-6 border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-background">
@@ -363,8 +511,11 @@ export default function Settings() {
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Your API key is stored securely in your browser's local storage and is never sent to our servers.
-                      Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a>
+                      {userId ? (
+                        <>Your API key is securely stored in your Supabase account and syncs across all devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a></>
+                      ) : (
+                        <>Your API key is stored locally in this browser. Sign in to sync across devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a></>
+                      )}
                     </AlertDescription>
                   </Alert>
 
