@@ -2,79 +2,68 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Bulletproof JSON extraction from OpenAI response
- * Handles: markdown blocks, trailing text, nested JSON, arrays
+ * Handles: markdown blocks, trailing text, nested JSON, arrays, broken formatting
  */
 function extractJSON(content: string): any {
+  // Log raw response for debugging
+  console.log('🔍 OpenAI Response (first 500 chars):', content.substring(0, 500));
+  
   try {
-    // Strategy 1: Try direct parse first (fastest)
+    // Strategy 1: Direct parse (fastest)
     try {
-      return JSON.parse(content);
+      const result = JSON.parse(content);
+      console.log('✅ Direct JSON parse succeeded');
+      return result;
     } catch (e) {
-      // Continue to other strategies
+      // Continue to extraction strategies
     }
 
     let cleaned = content.trim();
     
-    // Strategy 2: Remove markdown code blocks
-    // Handle: ```json\n{...}\n``` or ```\n{...}\n```
-    const codeBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)\n?```/;
-    const codeBlockMatch = cleaned.match(codeBlockRegex);
-    if (codeBlockMatch) {
-      cleaned = codeBlockMatch[1].trim();
-    }
-    
-    // Strategy 3: Find JSON object/array boundaries
-    // Look for { ... } or [ ... ]
-    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
-    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
-    
-    if (objectMatch) {
-      cleaned = objectMatch[0];
-    } else if (arrayMatch) {
-      cleaned = arrayMatch[0];
-    }
-    
-    // Strategy 4: Remove trailing non-JSON text
-    // Sometimes OpenAI adds explanations after the JSON
-    const lines = cleaned.split('\n');
-    let jsonLines = [];
-    let braceCount = 0;
-    let bracketCount = 0;
-    let inJson = false;
-    
-    for (const line of lines) {
-      for (const char of line) {
-        if (char === '{') { braceCount++; inJson = true; }
-        if (char === '}') braceCount--;
-        if (char === '[') { bracketCount++; inJson = true; }
-        if (char === ']') bracketCount--;
-      }
-      
-      if (inJson) {
-        jsonLines.push(line);
-      }
-      
-      // Stop when we've closed all braces/brackets
-      if (inJson && braceCount === 0 && bracketCount === 0) {
-        break;
+    // Strategy 2: Strip markdown code blocks
+    if (cleaned.includes('```')) {
+      const match = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (match) {
+        cleaned = match[1].trim();
+        console.log('📝 Removed markdown code blocks');
       }
     }
     
-    if (jsonLines.length > 0) {
-      cleaned = jsonLines.join('\n');
+    // Strategy 3: Find first { or [ and last } or ]
+    const firstBrace = cleaned.indexOf('{');
+    const firstBracket = cleaned.indexOf('[');
+    const lastBrace = cleaned.lastIndexOf('}');
+    const lastBracket = cleaned.lastIndexOf(']');
+    
+    // Determine if it's an object or array
+    const isArray = firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace);
+    
+    if (isArray && firstBracket !== -1 && lastBracket !== -1) {
+      cleaned = cleaned.substring(firstBracket, lastBracket + 1);
+      console.log('📦 Extracted JSON array');
+    } else if (!isArray && firstBrace !== -1 && lastBrace !== -1) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+      console.log('📦 Extracted JSON object');
     }
     
-    // Strategy 5: Final parse attempt
-    return JSON.parse(cleaned);
+    // Strategy 4: Parse the extracted JSON
+    try {
+      const result = JSON.parse(cleaned);
+      console.log('✅ Extraction succeeded');
+      return result;
+    } catch (parseError: any) {
+      console.error('❌ Parse failed after extraction');
+      console.error('Cleaned content:', cleaned.substring(0, 300));
+      throw parseError;
+    }
     
-  } catch (error) {
-    console.error('❌ JSON extraction failed after all strategies');
-    console.error('Error:', error);
-    console.error('Raw content (first 1000 chars):', content.substring(0, 1000));
-    console.error('Raw content (last 500 chars):', content.substring(Math.max(0, content.length - 500)));
+  } catch (error: any) {
+    console.error('❌ JSON extraction failed completely');
+    console.error('Error:', error.message);
+    console.error('Raw response (first 1000 chars):', content.substring(0, 1000));
+    console.error('Raw response (last 500 chars):', content.substring(Math.max(0, content.length - 500)));
     
-    // Last resort: Try to construct a valid response
-    throw new Error(`Failed to parse OpenAI response as JSON. Content preview: ${content.substring(0, 200)}...`);
+    throw new Error(`Failed to parse OpenAI response: ${error.message}. Response started with: ${content.substring(0, 100)}...`);
   }
 }
 
