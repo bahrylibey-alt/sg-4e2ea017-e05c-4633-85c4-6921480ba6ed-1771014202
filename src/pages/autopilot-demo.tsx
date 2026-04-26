@@ -18,7 +18,9 @@ import {
   Link as LinkIcon,
   FileText,
   Share2,
-  Clock
+  Clock,
+  Trash2,
+  BarChart3
 } from "lucide-react";
 
 export default function AutopilotDemo() {
@@ -28,6 +30,8 @@ export default function AutopilotDemo() {
   const [currentStep, setCurrentStep] = useState("");
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState("");
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [logs, setLogs] = useState<any[]>([]);
   const [stats, setStats] = useState({
     products: 0,
     links: 0,
@@ -43,14 +47,26 @@ export default function AutopilotDemo() {
     setMounted(true);
   }, []);
 
+  // Check API key on mount
+  useEffect(() => {
+    if (!mounted) return;
+    const checkKey = () => {
+      const key = localStorage.getItem('openai_api_key');
+      setHasApiKey(!!key && key.length > 0);
+    };
+    checkKey();
+  }, [mounted]);
+
+  const loadStats = () => {
+    const currentStats = realAutopilotEngine.getStats();
+    setStats(currentStats);
+    const allData = realAutopilotEngine.getAllData();
+    setLogs(allData.logs || []);
+  };
+
   // Load stats on client side only
   useEffect(() => {
     if (!mounted) return;
-    
-    const loadStats = () => {
-      const currentStats = realAutopilotEngine.getStats();
-      setStats(currentStats);
-    };
     
     loadStats();
     

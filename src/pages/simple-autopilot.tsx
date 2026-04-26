@@ -27,6 +27,7 @@ export default function SimpleAutopilot() {
   const [currentStep, setCurrentStep] = useState("");
   const [error, setError] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [results, setResults] = useState<any>(null);
   const [stats, setStats] = useState({
     products: 0,
     links: 0,
@@ -87,29 +88,29 @@ export default function SimpleAutopilot() {
       }
 
       // Step 1: Discover products
-      setStep('🔍 AI discovering trending products...');
+      setCurrentStep('🔍 AI discovering trending products...');
       setProgress(20);
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const productResults = await realAutopilotEngine.runAutopilot('Smart Home Devices');
 
       // Step 2: Links created
-      setStep('🔗 Created affiliate tracking links');
+      setCurrentStep('🔗 Created affiliate tracking links');
       setProgress(40);
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Step 3: Content generated
-      setStep('✍️ AI writing articles...');
+      setCurrentStep('✍️ AI writing articles...');
       setProgress(60);
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Step 4: Social posts
-      setStep('📱 AI generating social posts...');
+      setCurrentStep('📱 AI generating social posts...');
       setProgress(80);
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Done
-      setStep('✅ Autopilot complete!');
+      setCurrentStep('✅ Autopilot complete!');
       setProgress(100);
       setResults(productResults);
 
@@ -117,7 +118,7 @@ export default function SimpleAutopilot() {
       console.error('Autopilot error:', err);
       setError(err.message || 'An error occurred. Check console for details.');
       setProgress(0);
-      setStep('');
+      setCurrentStep('');
     } finally {
       setIsRunning(false);
     }
