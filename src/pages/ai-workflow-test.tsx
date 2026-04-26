@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { openAIService } from "@/services/openAIService";
+import { openAI } from "@/services/openAIService";
 import { 
   Sparkles, 
   Play,
@@ -75,7 +75,7 @@ export default function AIWorkflowTest() {
       setCurrentStepIndex(0);
       updateStepStatus('discovery', 'running');
       
-      const products = await openAIService.discoverTrendingProducts('Smart Home Devices', 3);
+      const products = await openAI.discoverTrendingProducts('Smart Home Devices', 3);
       
       updateStepStatus('discovery', 'complete', products);
       
@@ -84,7 +84,7 @@ export default function AIWorkflowTest() {
       updateStepStatus('content', 'running');
       
       const firstProduct = products[0];
-      const content = await openAIService.generateSEOContent(
+      const content = await openAI.generateSEOContent(
         firstProduct.name,
         firstProduct.category,
         firstProduct.why_trending,
@@ -97,7 +97,7 @@ export default function AIWorkflowTest() {
       setCurrentStepIndex(2);
       updateStepStatus('social', 'running');
       
-      const posts = await openAIService.generateSocialPosts(
+      const posts = await openAI.generateSocialPosts(
         firstProduct.name,
         firstProduct.category,
         firstProduct.why_trending,
