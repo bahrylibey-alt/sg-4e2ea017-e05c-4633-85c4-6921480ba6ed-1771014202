@@ -1,34 +1,80 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Extract JSON from OpenAI response (handles markdown code blocks)
+ * Bulletproof JSON extraction from OpenAI response
+ * Handles: markdown blocks, trailing text, nested JSON, arrays
  */
 function extractJSON(content: string): any {
   try {
-    // Remove markdown code blocks if present
+    // Strategy 1: Try direct parse first (fastest)
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      // Continue to other strategies
+    }
+
     let cleaned = content.trim();
     
-    // Remove ```json and ``` wrappers
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
+    // Strategy 2: Remove markdown code blocks
+    // Handle: ```json\n{...}\n``` or ```\n{...}\n```
+    const codeBlockRegex = /```(?:json)?\s*\n?([\s\S]*?)\n?```/;
+    const codeBlockMatch = cleaned.match(codeBlockRegex);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1].trim();
     }
     
-    // Find JSON object boundaries
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
+    // Strategy 3: Find JSON object/array boundaries
+    // Look for { ... } or [ ... ]
+    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
     
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    if (objectMatch) {
+      cleaned = objectMatch[0];
+    } else if (arrayMatch) {
+      cleaned = arrayMatch[0];
     }
     
-    // Parse JSON
+    // Strategy 4: Remove trailing non-JSON text
+    // Sometimes OpenAI adds explanations after the JSON
+    const lines = cleaned.split('\n');
+    let jsonLines = [];
+    let braceCount = 0;
+    let bracketCount = 0;
+    let inJson = false;
+    
+    for (const line of lines) {
+      for (const char of line) {
+        if (char === '{') { braceCount++; inJson = true; }
+        if (char === '}') braceCount--;
+        if (char === '[') { bracketCount++; inJson = true; }
+        if (char === ']') bracketCount--;
+      }
+      
+      if (inJson) {
+        jsonLines.push(line);
+      }
+      
+      // Stop when we've closed all braces/brackets
+      if (inJson && braceCount === 0 && bracketCount === 0) {
+        break;
+      }
+    }
+    
+    if (jsonLines.length > 0) {
+      cleaned = jsonLines.join('\n');
+    }
+    
+    // Strategy 5: Final parse attempt
     return JSON.parse(cleaned);
+    
   } catch (error) {
-    console.error('JSON extraction failed:', error);
-    console.error('Content:', content.substring(0, 500));
-    throw new Error('Failed to parse OpenAI response as JSON');
+    console.error('❌ JSON extraction failed after all strategies');
+    console.error('Error:', error);
+    console.error('Raw content (first 1000 chars):', content.substring(0, 1000));
+    console.error('Raw content (last 500 chars):', content.substring(Math.max(0, content.length - 500)));
+    
+    // Last resort: Try to construct a valid response
+    throw new Error(`Failed to parse OpenAI response as JSON. Content preview: ${content.substring(0, 200)}...`);
   }
 }
 
@@ -98,88 +144,66 @@ export class OpenAIService {
     return response.json();
   }
 
-  async discoverTrendingProducts(niche: string, count: number = 5): Promise<ProductSuggestion[]> {
-    const currentDate = new Date().toISOString().split('T')[0];
-    const currentYear = new Date().getFullYear();
-    
-    const prompt = `You are a professional trend analyst with access to real-time market data for ${currentYear}.
-
-CRITICAL: You MUST find REAL, CURRENTLY TRENDING products that people can buy TODAY on Amazon or AliExpress.
-
-Find ${count} REAL trending products in the "${niche}" niche that are:
-1. Actually available for purchase right now
-2. Have verifiable social media buzz or news coverage
-3. Are trending in ${currentYear} (not old products from 2024-2025)
-4. Perfect for affiliate marketing (high commission potential)
-5. Have REAL Amazon or AliExpress product pages
-
-For each product, provide:
-1. EXACT product name (as it appears on the marketplace)
-2. Category
-3. Trend score (1-100) based on CURRENT data (Google Trends, social mentions, sales rank)
-4. Why it's trending RIGHT NOW (specific events, viral moments, influencer mentions)
-5. Target audience (be specific)
-6. Affiliate potential (high/medium/low)
-7. Price range (e.g., "$50-$100")
-8. Estimated exact price
-9. Real Amazon URL with affiliate tag placeholder: https://amazon.com/dp/[ASIN]?tag=YOURTAG-20
-10. Real AliExpress product URL if available
-11. EXACT search term that will find this product on Amazon
-12. EXACT search term for AliExpress
-13. Current trend data with SPECIFIC metrics (Google Trends %, TikTok views, Reddit mentions, etc.)
-
-VALIDATION RULES:
-- Product MUST be released or trending in ${currentYear}
-- Must have REAL social proof (cite specific numbers: "50M TikTok views", "5K Reddit upvotes")
-- Amazon URL must be valid format with real ASIN
-- Price must be reasonable and market-accurate
-- Trend data must include SPECIFIC METRICS, not vague claims
-
-Return as JSON array with this EXACT structure:
-{
-  "products": [
-    {
-      "name": "Exact Product Name Here (Brand + Model)",
-      "category": "Specific Category",
-      "trend_score": 95,
-      "why_trending": "Went viral on TikTok with 50M views in March 2026 after influencer @techguru reviewed it. Featured in WSJ tech section.",
-      "target_audience": "Tech enthusiasts aged 25-40, early adopters, smart home users",
-      "affiliate_potential": "high",
-      "price_range": "$80-$150",
-      "estimated_price": 129.99,
-      "amazon_url": "https://amazon.com/dp/B0ABC12345?tag=YOURTAG-20",
-      "aliexpress_url": "https://aliexpress.com/item/1234567890.html",
-      "amazon_search_term": "brand model year smart device",
-      "aliexpress_search_term": "smart device brand model",
-      "current_trend_data": "Google Trends: +320% spike (March 2026), TikTok: 50M views #smarttech, Reddit: 8.5K upvotes r/gadgets, Amazon Best Seller Rank: #3 in category"
-    }
-  ]
-}
-
-IMPORTANT: Every product MUST have REAL, VERIFIABLE data. No generic examples.`;
-
+  async discoverTrendingProducts(niche: string, count: number = 3): Promise<ProductSuggestion[]> {
     try {
-      const response = await this.makeRequest("/chat/completions", {
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: `You are a professional market analyst specializing in identifying trending products for ${currentYear}. You ONLY suggest products with REAL, verifiable trend data and actual marketplace availability. You provide specific metrics and cite sources.`
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a product research AI. Return ONLY valid JSON, no markdown, no explanations, no extra text.
+
+CRITICAL: Your entire response must be parseable as JSON. Start with [ and end with ].`
+            },
+            {
+              role: 'user',
+              content: `Find ${count} REAL trending products in the "${niche}" category for 2026.
+
+Requirements:
+- Must be actually available on Amazon or AliExpress
+- Must have verifiable social media buzz (TikTok, Reddit, etc.)
+- Include specific trend metrics
+- Return ONLY a JSON array
+
+Format (ONLY THIS, NOTHING ELSE):
+[
+  {
+    "name": "Product Name",
+    "category": "${niche}",
+    "why_trending": "Specific reason with metrics",
+    "trend_score": 95,
+    "estimated_price": 99.99,
+    "amazon_url": "https://amazon.com/dp/B0XXXXX",
+    "aliexpress_url": "",
+    "affiliate_potential": "high"
+  }
+]`
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        })
       });
 
-      const content = response.choices[0].message.content;
-      const parsed = extractJSON(content);
-      
-      if (!parsed.products || parsed.products.length === 0) {
-        throw new Error("OpenAI did not return any products. Try a different niche or check your API key.");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'OpenAI API error');
       }
 
-      return parsed.products;
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      
+      if (!content) {
+        throw new Error('No content in OpenAI response');
+      }
+
+      return extractJSON(content);
     } catch (error: any) {
       console.error('OpenAI product discovery error:', error);
       throw new Error(`Failed to discover products: ${error.message}`);
@@ -207,40 +231,25 @@ IMPORTANT: Every product MUST have REAL, VERIFIABLE data. No generic examples.`;
           messages: [
             {
               role: 'system',
-              content: `You are a professional content writer who creates authentic, engaging product reviews. 
+              content: `You are a content writer AI. Return ONLY valid JSON, no markdown, no explanations.
 
-CRITICAL RULES:
-1. Write like a REAL PERSON sharing genuine experience
-2. Use conversational, natural language
-3. Include specific details and insights
-4. Be honest about pros and cons
-5. NO robotic or salesy language
-6. NO emoji spam
-7. Create content that sounds genuinely helpful
-
-Return ONLY valid JSON (no markdown, no code blocks).`
+CRITICAL: Your entire response must be parseable as JSON. Start with { and end with }.`
             },
             {
               role: 'user',
-              content: `Write an authentic, engaging product review article.
+              content: `Write an authentic product review article.
 
 Product: ${productName}
 Category: ${category}
 Description: ${description}
-Affiliate Link: ${affiliateLink}
+Link: ${affiliateLink}
 
-Requirements:
-- Length: 800-1200 words
-- Tone: Conversational, like talking to a friend
-- Structure: Personal hook → Analysis → Pros/Cons → Recommendation
-- Include the affiliate link naturally in the conclusion
-- Write like you actually tested the product
-- Be specific with details (not generic)
+Write 800-1200 words in natural, conversational language. Include the link naturally in the conclusion.
 
-Return JSON format:
+Return ONLY this JSON (no markdown, no extra text):
 {
-  "title": "Engaging article title (60-70 chars)",
-  "body": "Full article content (800-1200 words, natural language, includes affiliate link)",
+  "title": "Article title (60-70 chars)",
+  "body": "Full article (800-1200 words, include ${affiliateLink})",
   "meta_description": "SEO description (150-160 chars)",
   "seo_keywords": ["keyword1", "keyword2", "keyword3"]
 }`
@@ -291,51 +300,31 @@ Return JSON format:
           messages: [
             {
               role: 'system',
-              content: `You are a social media expert who creates AUTHENTIC, NATURAL posts that sound genuinely human.
+              content: `You are a social media AI. Return ONLY valid JSON, no markdown, no explanations.
 
-CRITICAL RULES:
-1. Write like a REAL PERSON, not a marketer
-2. Use conversational, relatable language
-3. Be platform-specific (Pinterest ≠ TikTok ≠ Twitter)
-4. NO emoji spam (use sparingly, naturally)
-5. NO generic phrases ("Amazing deal!", "Don't miss out!")
-6. Sound like you genuinely tried the product
-7. Include personal insights and specific details
-
-Return ONLY valid JSON (no markdown, no code blocks).`
+CRITICAL: Your entire response must be parseable as JSON. Start with [ and end with ].`
             },
             {
               role: 'user',
-              content: `Create 5 authentic social media posts (one per platform).
+              content: `Create 5 authentic social posts (one per platform).
 
 Product: ${productName}
 Category: ${category}
 Description: ${description}
-Affiliate Link: ${affiliateLink}
+Link: ${affiliateLink}
 
-Create ONE post for each platform:
-1. Pinterest: Visual description with genuine recommendation (200-300 chars)
-2. TikTok: Viral hook + authentic insight (100-150 chars)
-3. Twitter: Conversational thread starter (200-280 chars)
-4. Facebook: Value-focused personal story (250-350 chars)
-5. Instagram: Natural caption with authentic voice (150-200 chars)
+Write naturally, like a real person. Include ${affiliateLink} in each post.
 
-REQUIREMENTS:
-- Sound genuinely human, not robotic
-- Include the affiliate link naturally
-- Platform-specific language and formatting
-- Personal, relatable tone
-- Minimal emojis (only where natural)
+Platforms: pinterest, tiktok, twitter, facebook, instagram
 
-Return JSON array format:
+Return ONLY this JSON array (no markdown, no extra text):
 [
   {
     "platform": "pinterest",
     "content": "Post content with ${affiliateLink}",
-    "title": "Optional short title for pinterest/tiktok",
-    "hashtags": ["natural", "tags"]
-  },
-  ...
+    "title": "Short title",
+    "hashtags": ["tag1", "tag2"]
+  }
 ]`
             }
           ],
