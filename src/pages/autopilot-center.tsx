@@ -160,6 +160,7 @@ export default function AutoPilotCenter() {
   const loadStats = async () => {
     try {
       const realStats = await UnifiedStatsService.getStats();
+      console.log("Loaded stats from database:", realStats);
       setStats(realStats);
     } catch (error) {
       console.error("Error loading real stats:", error);
