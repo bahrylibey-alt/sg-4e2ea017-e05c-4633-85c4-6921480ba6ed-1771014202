@@ -44,6 +44,7 @@ export default function ProductionReady() {
   });
 
   useEffect(() => {
+    console.log("🚀 Production Ready: Component mounted");
     checkSetup();
     loadStats();
     const interval = setInterval(loadStats, 5000);
@@ -52,11 +53,12 @@ export default function ProductionReady() {
 
   const loadStats = async () => {
     try {
+      console.log("📊 Production Ready: Fetching stats from UnifiedStatsService...");
       const realStats = await UnifiedStatsService.getStats();
-      console.log("Production page - loaded stats:", realStats);
+      console.log("✅ Production Ready: Stats received:", realStats);
       setStats(realStats);
     } catch (error) {
-      console.error("Error loading stats:", error);
+      console.error("❌ Production Ready: Error loading stats:", error);
     }
   };
 

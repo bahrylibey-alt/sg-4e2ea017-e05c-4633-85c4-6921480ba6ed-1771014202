@@ -152,18 +152,20 @@ export default function AutoPilotCenter() {
   ];
 
   useEffect(() => {
+    console.log("🚀 AutoPilot Center: Component mounted, loading stats...");
     loadStats();
-    const interval = setInterval(loadStats, 10000); // Refresh every 10 seconds
+    const interval = setInterval(loadStats, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const loadStats = async () => {
     try {
+      console.log("📊 AutoPilot Center: Fetching stats from UnifiedStatsService...");
       const realStats = await UnifiedStatsService.getStats();
-      console.log("Loaded stats from database:", realStats);
+      console.log("✅ AutoPilot Center: Stats received:", realStats);
       setStats(realStats);
     } catch (error) {
-      console.error("Error loading real stats:", error);
+      console.error("❌ AutoPilot Center: Error loading stats:", error);
     }
   };
 
