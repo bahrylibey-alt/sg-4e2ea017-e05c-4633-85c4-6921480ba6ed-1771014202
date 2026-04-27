@@ -157,7 +157,7 @@ export default function SupabaseConnectionTest() {
     // Test 4: Database Query
     if (currentUser) {
       try {
-        const { data, error } = await supabase
+        const { data, error, count } = await supabase
           .from('affiliate_links')
           .select('id', { count: 'exact', head: true });
         
@@ -171,7 +171,7 @@ export default function SupabaseConnectionTest() {
           newResults.database = {
             status: 'success',
             message: 'Database is accessible',
-            count: data || 0
+            count: count || 0
           };
         }
       } catch (error: any) {
