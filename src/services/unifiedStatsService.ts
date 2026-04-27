@@ -53,7 +53,7 @@ export class UnifiedStatsService {
         clicks: stats.total_clicks || 0,
         views: stats.total_views || 0,
         conversions: stats.total_conversions || 0,
-        revenue: parseFloat(stats.total_revenue || 0)
+        revenue: Number(stats.total_revenue) || 0
       };
     } catch (error) {
       console.error("Failed to get stats:", error);
@@ -74,7 +74,7 @@ export class UnifiedStatsService {
       supabase.from('conversion_events').select('revenue', { count: 'exact' }).eq('verified', true)
     ]);
 
-    const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (parseFloat(conv.revenue as any) || 0), 0) || 0;
+    const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (Number(conv.revenue) || 0), 0) || 0;
 
     return {
       products: products.count || 0,
@@ -101,7 +101,7 @@ export class UnifiedStatsService {
         supabase.from('conversion_events').select('revenue', { count: 'exact' }).eq('user_id', userId).eq('verified', true)
       ]);
 
-      const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (parseFloat(conv.revenue as any) || 0), 0) || 0;
+      const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (Number(conv.revenue) || 0), 0) || 0;
 
       return {
         products: products.count || 0,

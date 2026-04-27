@@ -122,15 +122,16 @@ export default function Settings() {
 
       if (data) {
         console.log("Settings loaded from Supabase");
+        const settingsData = data as any;
         // Load API key
-        if (data.openai_api_key) {
-          setOpenaiApiKey(data.openai_api_key);
+        if (settingsData.openai_api_key) {
+          setOpenaiApiKey(settingsData.openai_api_key);
           setApiKeyStatus('valid');
         }
         
         // Load autopilot settings
-        if (data.autopilot_settings && typeof data.autopilot_settings === 'object') {
-          setSettings({ ...DEFAULT_SETTINGS, ...data.autopilot_settings });
+        if (settingsData.autopilot_settings && typeof settingsData.autopilot_settings === 'object') {
+          setSettings({ ...DEFAULT_SETTINGS, ...settingsData.autopilot_settings });
         }
       } else {
         console.log("No settings in Supabase, migrating from localStorage");
@@ -175,15 +176,17 @@ export default function Settings() {
 
       const settingsData = localSettings ? JSON.parse(localSettings) : DEFAULT_SETTINGS;
       
+      const payload: any = {
+        user_id: uid,
+        openai_api_key: localApiKey || null,
+        autopilot_settings: settingsData,
+        updated_at: new Date().toISOString()
+      };
+
       // Save to Supabase
       const { error } = await supabase
         .from('user_settings')
-        .upsert({
-          user_id: uid,
-          openai_api_key: localApiKey || null,
-          autopilot_settings: settingsData,
-          updated_at: new Date().toISOString()
-        });
+        .upsert(payload);
 
       if (error) {
         console.error('Migration error:', error);
@@ -221,15 +224,17 @@ export default function Settings() {
     }
 
     if (userId) {
+      const payload: any = {
+        user_id: userId,
+        openai_api_key: openaiApiKey,
+        autopilot_settings: settings,
+        updated_at: new Date().toISOString()
+      };
+
       // Save to Supabase
       const { error } = await supabase
         .from('user_settings')
-        .upsert({
-          user_id: userId,
-          openai_api_key: openaiApiKey,
-          autopilot_settings: settings,
-          updated_at: new Date().toISOString()
-        });
+        .upsert(payload);
 
       if (error) {
         console.error('Error saving API key:', error);
@@ -307,15 +312,17 @@ export default function Settings() {
     setSaving(true);
     try {
       if (userId) {
+        const payload: any = {
+          user_id: userId,
+          openai_api_key: openaiApiKey || null,
+          autopilot_settings: settings,
+          updated_at: new Date().toISOString()
+        };
+
         // Save to Supabase
         const { error } = await supabase
           .from('user_settings')
-          .upsert({
-            user_id: userId,
-            openai_api_key: openaiApiKey || null,
-            autopilot_settings: settings,
-            updated_at: new Date().toISOString()
-          });
+          .upsert(payload);
 
         if (error) {
           console.error('Error saving settings:', error);
