@@ -18,12 +18,12 @@ export interface UnifiedStats {
  * 
  * Data sources:
  * - Products: affiliate_links table
- * - Articles: generated_content (published)
- * - Posts: posted_content (posted to social)
+ * - Articles: generated_content (status = 'published')
+ * - Posts: posted_content (status = 'posted')
  * - Clicks: click_events table
  * - Views: view_events table
- * - Conversions: conversion_events (verified)
- * - Revenue: sum of conversion_events.revenue (verified)
+ * - Conversions: conversion_events (verified = true)
+ * - Revenue: sum of conversion_events.revenue (verified = true)
  */
 export class UnifiedStatsService {
   /**
@@ -32,59 +32,76 @@ export class UnifiedStatsService {
    */
   static async getStats(): Promise<UnifiedStats> {
     try {
-      // Execute single query to get all stats at once
-      const { data, error } = await supabase.rpc('get_unified_stats');
+      console.log("🔍 UnifiedStatsService: Fetching stats from database...");
       
-      if (error) {
-        console.error("Stats query error:", error);
-        // Fall back to individual queries if RPC doesn't exist
-        return await this.getStatsFallback();
-      }
+      // Run all queries in parallel for speed
+      const [
+        productsResult,
+        articlesResult,
+        postsResult,
+        clicksResult,
+        viewsResult,
+        conversionsResult
+      ] = await Promise.all([
+        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
+        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published'),
+        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
+        supabase.from('click_events').select('id', { count: 'exact', head: true }),
+        supabase.from('view_events').select('id', { count: 'exact', head: true }),
+        supabase.from('conversion_events').select('revenue').eq('verified', true)
+      ]);
 
-      if (!data || data.length === 0) {
-        return await this.getStatsFallback();
-      }
+      // Log results for debugging
+      console.log("📊 Query results:", {
+        products: productsResult.count,
+        articles: articlesResult.count,
+        posts: postsResult.count,
+        clicks: clicksResult.count,
+        views: viewsResult.count,
+        conversions: conversionsResult.data?.length
+      });
 
-      const stats = data[0];
-      return {
-        products: stats.total_products || 0,
-        articles: stats.total_articles || 0,
-        posts: stats.total_posts || 0,
-        clicks: stats.total_clicks || 0,
-        views: stats.total_views || 0,
-        conversions: stats.total_conversions || 0,
-        revenue: Number(stats.total_revenue) || 0
+      // Check for errors
+      if (productsResult.error) console.error("Products query error:", productsResult.error);
+      if (articlesResult.error) console.error("Articles query error:", articlesResult.error);
+      if (postsResult.error) console.error("Posts query error:", postsResult.error);
+      if (clicksResult.error) console.error("Clicks query error:", clicksResult.error);
+      if (viewsResult.error) console.error("Views query error:", viewsResult.error);
+      if (conversionsResult.error) console.error("Conversions query error:", conversionsResult.error);
+
+      // Calculate total revenue
+      const totalRevenue = conversionsResult.data?.reduce((sum, conv) => {
+        const revenue = Number(conv.revenue) || 0;
+        return sum + revenue;
+      }, 0) || 0;
+
+      const stats: UnifiedStats = {
+        products: productsResult.count || 0,
+        articles: articlesResult.count || 0,
+        posts: postsResult.count || 0,
+        clicks: clicksResult.count || 0,
+        views: viewsResult.count || 0,
+        conversions: conversionsResult.data?.length || 0,
+        revenue: totalRevenue
       };
+
+      console.log("✅ Final stats:", stats);
+      return stats;
+      
     } catch (error) {
-      console.error("Failed to get stats:", error);
-      return await this.getStatsFallback();
+      console.error("❌ UnifiedStatsService error:", error);
+      
+      // Return zeros on error (never use localStorage as fallback)
+      return {
+        products: 0,
+        articles: 0,
+        posts: 0,
+        clicks: 0,
+        views: 0,
+        conversions: 0,
+        revenue: 0
+      };
     }
-  }
-
-  /**
-   * Fallback method using individual queries
-   */
-  private static async getStatsFallback(): Promise<UnifiedStats> {
-    const [products, articles, posts, clicks, views, conversions] = await Promise.all([
-      supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
-      supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-      supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
-      supabase.from('click_events').select('id', { count: 'exact', head: true }),
-      supabase.from('view_events').select('id', { count: 'exact', head: true }),
-      supabase.from('conversion_events').select('revenue', { count: 'exact' }).eq('verified', true)
-    ]);
-
-    const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (Number(conv.revenue) || 0), 0) || 0;
-
-    return {
-      products: products.count || 0,
-      articles: articles.count || 0,
-      posts: posts.count || 0,
-      clicks: clicks.count || 0,
-      views: views.count || 0,
-      conversions: conversions.count || 0,
-      revenue: totalRevenue
-    };
   }
 
   /**
@@ -92,28 +109,45 @@ export class UnifiedStatsService {
    */
   static async getStatsForUser(userId: string): Promise<UnifiedStats> {
     try {
-      const [products, articles, posts, clicks, views, conversions] = await Promise.all([
+      console.log(`🔍 UnifiedStatsService: Fetching stats for user ${userId}...`);
+      
+      const [
+        productsResult,
+        articlesResult,
+        postsResult,
+        clicksResult,
+        viewsResult,
+        conversionsResult
+      ] = await Promise.all([
         supabase.from('affiliate_links').select('id', { count: 'exact', head: true }).eq('user_id', userId),
         supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'published'),
         supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'posted'),
         supabase.from('click_events').select('id', { count: 'exact', head: true }).eq('user_id', userId),
         supabase.from('view_events').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('conversion_events').select('revenue', { count: 'exact' }).eq('user_id', userId).eq('verified', true)
+        supabase.from('conversion_events').select('revenue').eq('user_id', userId).eq('verified', true)
       ]);
 
-      const totalRevenue = conversions.data?.reduce((sum, conv) => sum + (Number(conv.revenue) || 0), 0) || 0;
+      const totalRevenue = conversionsResult.data?.reduce((sum, conv) => {
+        const revenue = Number(conv.revenue) || 0;
+        return sum + revenue;
+      }, 0) || 0;
 
-      return {
-        products: products.count || 0,
-        articles: articles.count || 0,
-        posts: posts.count || 0,
-        clicks: clicks.count || 0,
-        views: views.count || 0,
-        conversions: conversions.count || 0,
+      const stats: UnifiedStats = {
+        products: productsResult.count || 0,
+        articles: articlesResult.count || 0,
+        posts: postsResult.count || 0,
+        clicks: clicksResult.count || 0,
+        views: viewsResult.count || 0,
+        conversions: conversionsResult.data?.length || 0,
         revenue: totalRevenue
       };
+
+      console.log(`✅ User ${userId} stats:`, stats);
+      return stats;
+      
     } catch (error) {
-      console.error("Failed to get user stats:", error);
+      console.error(`❌ UnifiedStatsService error for user ${userId}:`, error);
+      
       return {
         products: 0,
         articles: 0,
