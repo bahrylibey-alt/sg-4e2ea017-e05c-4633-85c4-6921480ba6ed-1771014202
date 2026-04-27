@@ -508,10 +508,10 @@ export default function Settings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Key className="h-5 w-5" />
-                    OpenAI API Key
+                    OpenAI API Key (Optional)
                   </CardTitle>
                   <CardDescription>
-                    Configure your OpenAI API key for AI-powered content generation, product discovery, and automation
+                    Add your OpenAI API key for real AI-powered features. The system works in demo mode without it.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -519,9 +519,9 @@ export default function Settings() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
                       {userId ? (
-                        <>Your API key is securely stored in your Supabase account and syncs across all devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a></>
+                        <>💡 <strong>Optional:</strong> Your API key is securely stored in your Supabase account and syncs across all devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a>. The system works in demo mode without it.</>
                       ) : (
-                        <>Your API key is stored locally in this browser. Sign in to sync across devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a></>
+                        <>💡 <strong>Optional:</strong> Your API key is stored locally in this browser. Sign in to sync across devices. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">OpenAI Platform</a>. The system works in demo mode without it.</>
                       )}
                     </AlertDescription>
                   </Alert>

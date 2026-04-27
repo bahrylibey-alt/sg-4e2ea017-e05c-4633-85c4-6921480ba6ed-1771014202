@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { UnifiedStatsService, UnifiedStats } from "@/services/unifiedStatsService";
-import { Play, RefreshCw, Zap, Clock, CheckCircle2, Search, FileText, Share2, TrendingUp, Repeat, BarChart3, Settings, Globe, Cpu, Activity, Eye, MousePointerClick } from "lucide-react";
+import { Play, RefreshCw, Zap, Clock, CheckCircle2, Search, FileText, Share2, TrendingUp, Repeat, BarChart3, Settings, Globe, Cpu, Activity, Eye, MousePointerClick, Sparkles, Info } from "lucide-react";
+import Link from "next/link";
 
 interface AutomationFunction {
   id: string;
@@ -23,6 +25,7 @@ export default function AutoPilotCenter() {
   const { toast } = useToast();
   const [selectedNiche, setSelectedNiche] = useState("all");
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [hasOpenAI, setHasOpenAI] = useState(false);
   const [stats, setStats] = useState<UnifiedStats>({
     products: 0,
     articles: 0,
@@ -153,10 +156,18 @@ export default function AutoPilotCenter() {
 
   useEffect(() => {
     console.log("🚀 AutoPilot Center: Component mounted, loading stats...");
+    checkOpenAI();
     loadStats();
     const interval = setInterval(loadStats, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const checkOpenAI = () => {
+    if (typeof window !== 'undefined') {
+      const key = localStorage.getItem('openai_api_key');
+      setHasOpenAI(!!key);
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -269,6 +280,35 @@ export default function AutoPilotCenter() {
               </div>
             </div>
           </div>
+
+          {/* Optional API Key Info Banner - NOT blocking */}
+          {!hasOpenAI && (
+            <Alert className="mb-6 bg-blue-500/10 border-blue-500/50">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>
+                    💡 <strong>Optional:</strong> Add your OpenAI API key in{' '}
+                    <Link href="/settings" className="underline font-semibold">Settings</Link>{' '}
+                    for real AI-powered product discovery and content generation. Demo mode works without it!
+                  </span>
+                  <Badge variant="secondary" className="ml-4">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Demo Mode
+                  </Badge>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {hasOpenAI && (
+            <Alert className="mb-6 bg-green-500/10 border-green-500/50">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                ✅ <strong>OpenAI Connected</strong> - Real AI features enabled
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <Select value={selectedNiche} onValueChange={setSelectedNiche}>

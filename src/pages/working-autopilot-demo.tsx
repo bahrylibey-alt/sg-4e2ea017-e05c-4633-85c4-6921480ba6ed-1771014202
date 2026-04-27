@@ -16,7 +16,7 @@ import { realTrafficEngine } from "@/services/realTrafficEngine";
 import { 
   Zap, Play, CheckCircle2, TrendingUp, Link2, FileText, Share2, 
   MousePointerClick, DollarSign, Activity, Sparkles, Loader2,
-  AlertCircle, Database, Wifi, WifiOff
+  AlertCircle, Database, Wifi, WifiOff, Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -151,6 +151,27 @@ export default function WorkingAutopilotDemo() {
               </Badge>
             </div>
 
+            {/* Optional OpenAI Notice - NOT blocking */}
+            {!hasOpenAI && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  💡 Running in <strong>Demo Mode</strong>. Add OpenAI API key in{' '}
+                  <Link href="/settings" className="underline">Settings</Link>{' '}
+                  for real AI product discovery and content generation. System works without it!
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {hasOpenAI && (
+              <Alert className="bg-green-500/10 border-green-500/50">
+                <Sparkles className="h-4 w-4" />
+                <AlertDescription>
+                  ✅ <strong>Real AI Mode Active</strong> - Using your OpenAI API key for actual product discovery
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* System Status */}
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
@@ -194,18 +215,6 @@ export default function WorkingAutopilotDemo() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* OpenAI Notice */}
-            {!hasOpenAI && (
-              <Alert>
-                <Sparkles className="h-4 w-4" />
-                <AlertDescription>
-                  Running in <strong>Demo Mode</strong>. Add OpenAI API key in{' '}
-                  <Link href="/settings" className="underline">Settings</Link>{' '}
-                  for real AI product discovery and content generation.
-                </AlertDescription>
-              </Alert>
-            )}
 
             {/* Main Control */}
             <Card>
