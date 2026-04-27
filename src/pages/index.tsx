@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { realAutopilotEngine } from "@/services/realAutopilotEngine";
+import { UnifiedStatsService, UnifiedStats } from "@/services/unifiedStatsService";
 import { 
   Rocket,
   Sparkles, 
@@ -41,12 +42,12 @@ export default function CommandCenter() {
   const [hasApiKey, setHasApiKey] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [niche, setNiche] = useState("Smart Home Devices");
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<UnifiedStats>({
     products: 0,
-    links: 0,
-    content: 0,
+    articles: 0,
     posts: 0,
     clicks: 0,
+    views: 0,
     conversions: 0,
     revenue: 0
   });
@@ -68,18 +69,22 @@ export default function CommandCenter() {
     checkKey();
   }, [mounted]);
 
-  // Load stats on client side only
+  // Load REAL stats from database
   useEffect(() => {
     if (!mounted) return;
     
-    const loadStats = () => {
-      const currentStats = realAutopilotEngine.getStats();
-      setStats(currentStats);
+    const loadStats = async () => {
+      try {
+        const realStats = await UnifiedStatsService.getStats();
+        setStats(realStats);
+      } catch (error) {
+        console.error("Error loading stats:", error);
+      }
     };
     
     loadStats();
     
-    const interval = setInterval(loadStats, 2000);
+    const interval = setInterval(loadStats, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
   }, [mounted]);
 
@@ -119,6 +124,10 @@ export default function CommandCenter() {
       setCurrentStep('✅ Autopilot complete!');
       setProgress(100);
       setResults(productResults);
+
+      // Reload stats after autopilot runs
+      const realStats = await UnifiedStatsService.getStats();
+      setStats(realStats);
 
     } catch (err: any) {
       console.error('Autopilot error:', err);
@@ -179,7 +188,7 @@ export default function CommandCenter() {
               <h1 className="text-4xl font-bold">AutoPilot Command Center</h1>
             </div>
             <p className="text-lg text-muted-foreground">
-              Master Control for Your Autonomous Affiliate System
+              Real-time stats from database — All data is live and tracked
             </p>
             
             {hasApiKey ? (
@@ -208,29 +217,59 @@ export default function CommandCenter() {
 
             <Card className="p-6 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Links</p>
-                <LinkIcon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.links}</p>
-              <p className="text-xs text-muted-foreground">Affiliate URLs</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Articles</p>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-3xl font-bold">{stats.content}</p>
-              <p className="text-xs text-muted-foreground">AI-written</p>
+              <p className="text-3xl font-bold">{stats.articles}</p>
+              <p className="text-xs text-muted-foreground">Published</p>
             </Card>
 
             <Card className="p-6 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Posts</p>
+                <p className="text-sm text-muted-foreground">Views</p>
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">{stats.views}</p>
+              <p className="text-xs text-muted-foreground">Real traffic</p>
+            </Card>
+
+            <Card className="p-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Clicks</p>
+                <MousePointerClick className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">{stats.clicks}</p>
+              <p className="text-xs text-muted-foreground">Tracked clicks</p>
+            </Card>
+          </div>
+
+          {/* Secondary Stats */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <Card className="p-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Social Posts</p>
                 <Share2 className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-3xl font-bold">{stats.posts}</p>
-              <p className="text-xs text-muted-foreground">Social posts</p>
+              <p className="text-xs text-muted-foreground">Published posts</p>
+            </Card>
+
+            <Card className="p-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Conversions</p>
+                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">{stats.conversions}</p>
+              <p className="text-xs text-muted-foreground">Verified sales</p>
+            </Card>
+
+            <Card className="p-6 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Revenue</p>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">${stats.revenue.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Total earnings</p>
             </Card>
           </div>
 
@@ -319,7 +358,7 @@ export default function CommandCenter() {
           </Card>
 
           {/* Results Tabs */}
-          {(results || stats.products > 0) && (
+          {results && (
             <Tabs defaultValue="products" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="products">Products</TabsTrigger>
@@ -331,15 +370,15 @@ export default function CommandCenter() {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-primary" />
-                    AI-Discovered Products ({stats.products})
+                    AI-Discovered Products ({results?.products?.length || 0})
                   </h3>
-                  {stats.products === 0 ? (
+                  {results?.products?.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       No products yet. Run AutoPilot to discover trending products.
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {results?.products.map((product: any, i: number) => (
+                      {results?.products?.map((product: any, i: number) => (
                         <div key={i} className="border rounded-lg p-4 space-y-2">
                           <h4 className="font-semibold">{product.name}</h4>
                           <p className="text-sm text-muted-foreground line-clamp-2">
@@ -361,15 +400,15 @@ export default function CommandCenter() {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <FileText className="h-5 w-5 text-primary" />
-                    AI-Written Articles ({stats.content})
+                    AI-Written Articles ({results?.content?.length || 0})
                   </h3>
-                  {stats.content === 0 ? (
+                  {results?.content?.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       No articles yet. Run AutoPilot to generate content.
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {results?.content.map((article: any, i: number) => (
+                      {results?.content?.map((article: any, i: number) => (
                         <div key={i} className="border rounded-lg p-4 space-y-2">
                           <h4 className="font-semibold">{article.title}</h4>
                           <p className="text-sm text-muted-foreground line-clamp-2">
@@ -389,15 +428,15 @@ export default function CommandCenter() {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Share2 className="h-5 w-5 text-primary" />
-                    Social Media Posts ({stats.posts})
+                    Social Media Posts ({results?.posts?.length || 0})
                   </h3>
-                  {stats.posts === 0 ? (
+                  {results?.posts?.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">
                       No posts yet. Run AutoPilot to generate social content.
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {results?.posts.slice(0, 10).map((post: any, i: number) => (
+                      {results?.posts?.slice(0, 10).map((post: any, i: number) => (
                         <div key={i} className="border rounded-lg p-4 space-y-2">
                           <Badge>{post.platform}</Badge>
                           <p className="text-sm">{post.caption}</p>
