@@ -338,7 +338,7 @@ export default function Settings() {
           console.log("✅ API key saved to localStorage for this device");
         } else {
           localStorage.removeItem('openai_api_key');
-          setApiKeyStatus('empty');
+          setApiKeyStatus(null);
         }
 
         localStorage.setItem('autopilot_settings', JSON.stringify(settings));
@@ -354,7 +354,7 @@ export default function Settings() {
           setApiKeyStatus('valid');
         } else {
           localStorage.removeItem('openai_api_key');
-          setApiKeyStatus('empty');
+          setApiKeyStatus(null);
         }
         
         localStorage.setItem('autopilot_settings', JSON.stringify(settings));

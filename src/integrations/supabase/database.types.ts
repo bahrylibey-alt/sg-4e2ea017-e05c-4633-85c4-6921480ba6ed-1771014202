@@ -3182,11 +3182,13 @@ export type Database = {
       user_settings: {
         Row: {
           autopilot_enabled: boolean | null
+          autopilot_settings: Json | null
           created_at: string | null
           currency: string | null
           last_autopilot_run: string | null
           notification_email: boolean | null
           notification_push: boolean | null
+          openai_api_key: string | null
           payout_email: string | null
           payout_method: string | null
           payout_minimum: number | null
@@ -3196,11 +3198,13 @@ export type Database = {
         }
         Insert: {
           autopilot_enabled?: boolean | null
+          autopilot_settings?: Json | null
           created_at?: string | null
           currency?: string | null
           last_autopilot_run?: string | null
           notification_email?: boolean | null
           notification_push?: boolean | null
+          openai_api_key?: string | null
           payout_email?: string | null
           payout_method?: string | null
           payout_minimum?: number | null
@@ -3210,11 +3214,13 @@ export type Database = {
         }
         Update: {
           autopilot_enabled?: boolean | null
+          autopilot_settings?: Json | null
           created_at?: string | null
           currency?: string | null
           last_autopilot_run?: string | null
           notification_email?: boolean | null
           notification_push?: boolean | null
+          openai_api_key?: string | null
           payout_email?: string | null
           payout_method?: string | null
           payout_minimum?: number | null
