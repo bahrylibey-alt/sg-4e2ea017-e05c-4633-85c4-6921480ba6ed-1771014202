@@ -89,7 +89,7 @@ export default function UltimateSystemTest() {
       setProgress(25);
       const productStart = Date.now();
 
-      const products = await realAutopilotEngine.discoverProducts(niche, 3);
+      const products = await realAutopilotEngine.discoverProducts(niche);
       
       updateTestResult(
         'Product Discovery',
@@ -119,7 +119,11 @@ export default function UltimateSystemTest() {
       setCurrentTest('AI writing SEO-optimized articles...');
       const contentStart = Date.now();
 
-      const content = await realAutopilotEngine.generateContent(products, links);
+      const content = [];
+      for (const product of products) {
+        const article = await realAutopilotEngine.generateContent(product);
+        content.push(article);
+      }
 
       updateTestResult(
         'Content Generation',
