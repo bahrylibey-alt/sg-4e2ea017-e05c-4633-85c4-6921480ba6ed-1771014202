@@ -163,9 +163,20 @@ export default function AutoPilotCenter() {
       console.log("📊 AutoPilot Center: Fetching stats from UnifiedStatsService...");
       const realStats = await UnifiedStatsService.getStats();
       console.log("✅ AutoPilot Center: Stats received:", realStats);
+      
+      // Force update even if zeros
       setStats(realStats);
+      
+      // Log to console for debugging
+      console.log("📊 Current stats state:", realStats);
     } catch (error) {
       console.error("❌ AutoPilot Center: Error loading stats:", error);
+      // Show error in UI
+      toast({
+        title: "Stats Loading Error",
+        description: `Failed to load stats: ${error}`,
+        variant: "destructive"
+      });
     }
   };
 

@@ -56,7 +56,12 @@ export default function ProductionReady() {
       console.log("📊 Production Ready: Fetching stats from UnifiedStatsService...");
       const realStats = await UnifiedStatsService.getStats();
       console.log("✅ Production Ready: Stats received:", realStats);
+      
+      // Force update
       setStats(realStats);
+      
+      // Log for debugging
+      console.log("📊 Current stats state:", realStats);
     } catch (error) {
       console.error("❌ Production Ready: Error loading stats:", error);
     }
