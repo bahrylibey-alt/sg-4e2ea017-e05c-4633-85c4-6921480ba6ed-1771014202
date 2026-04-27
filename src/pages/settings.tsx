@@ -319,42 +319,56 @@ export default function Settings() {
           updated_at: new Date().toISOString()
         };
 
-        // Save to Supabase
+        // Save to Supabase - syncs across all devices
         const { error } = await supabase
           .from('user_settings')
           .upsert(payload);
 
         if (error) {
-          console.error('Error saving settings:', error);
-          toast({
-            title: "Error",
-            description: "Failed to save settings to database",
-            variant: "destructive"
-          });
-          return;
+          console.error("Error saving to Supabase:", error);
+          throw error;
         }
 
-        toast({
-          title: "Success",
-          description: "Settings saved successfully (synced across devices)"
-        });
-      } else {
-        // Fallback to localStorage
-        localStorage.setItem('autopilot_settings', JSON.stringify(settings));
+        console.log("✅ Settings saved to Supabase - will sync to all devices");
+
+        // Also save to localStorage for immediate use
         if (openaiApiKey) {
           localStorage.setItem('openai_api_key', openaiApiKey);
+          setApiKeyStatus('valid');
+          console.log("✅ API key saved to localStorage for this device");
+        } else {
+          localStorage.removeItem('openai_api_key');
+          setApiKeyStatus('empty');
+        }
+
+        localStorage.setItem('autopilot_settings', JSON.stringify(settings));
+
+        toast({
+          title: "Settings Saved",
+          description: "Your settings have been saved and will sync across all devices"
+        });
+      } else {
+        // Not signed in - save to localStorage only
+        if (openaiApiKey) {
+          localStorage.setItem('openai_api_key', openaiApiKey);
+          setApiKeyStatus('valid');
+        } else {
+          localStorage.removeItem('openai_api_key');
+          setApiKeyStatus('empty');
         }
         
+        localStorage.setItem('autopilot_settings', JSON.stringify(settings));
+
         toast({
-          title: "Success",
-          description: "Settings saved locally"
+          title: "Settings Saved Locally",
+          description: "Sign in to sync settings across devices"
         });
       }
-    } catch (error) {
-      console.error('Error saving settings:', error);
+    } catch (error: any) {
+      console.error("Error saving settings:", error);
       toast({
         title: "Error",
-        description: "Failed to save settings",
+        description: error.message,
         variant: "destructive"
       });
     } finally {

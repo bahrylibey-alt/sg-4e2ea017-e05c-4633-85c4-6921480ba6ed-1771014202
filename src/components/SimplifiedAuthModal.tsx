@@ -14,8 +14,9 @@ interface SimplifiedAuthModalProps {
   onSuccess?: () => void;
 }
 
-export function SimplifiedAuthModal({ open, onOpenChange, onSuccess }: SimplifiedAuthModalProps) {
+export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalProps) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -61,9 +62,6 @@ export function SimplifiedAuthModal({ open, onOpenChange, onSuccess }: Simplifie
       
       // Wait a moment for user to see success message
       setTimeout(() => {
-        if (onSuccess) {
-          onSuccess();
-        }
         onOpenChange(false);
         // Redirect to working demo page
         router.push('/working-autopilot-demo');
@@ -121,9 +119,6 @@ export function SimplifiedAuthModal({ open, onOpenChange, onSuccess }: Simplifie
       
       // Wait a moment for user to see success message
       setTimeout(() => {
-        if (onSuccess) {
-          onSuccess();
-        }
         onOpenChange(false);
         // Redirect to working demo page
         router.push('/working-autopilot-demo');
