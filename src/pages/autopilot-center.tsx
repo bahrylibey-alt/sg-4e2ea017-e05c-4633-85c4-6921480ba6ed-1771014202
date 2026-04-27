@@ -7,14 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Play, RefreshCw, Zap, Clock, CheckCircle2, Search, FileText, Share2, TrendingUp, Repeat, BarChart3, Settings, Globe, Cpu, Activity } from "lucide-react";
-
-interface AutomationStats {
-  products: number;
-  articles: number;
-  conversions: number;
-  revenue: number;
-}
+import { UnifiedStatsService, UnifiedStats } from "@/services/unifiedStatsService";
+import { Play, RefreshCw, Zap, Clock, CheckCircle2, Search, FileText, Share2, TrendingUp, Repeat, BarChart3, Settings, Globe, Cpu, Activity, Eye, MousePointerClick } from "lucide-react";
 
 interface AutomationFunction {
   id: string;
@@ -29,9 +23,12 @@ export default function AutoPilotCenter() {
   const { toast } = useToast();
   const [selectedNiche, setSelectedNiche] = useState("all");
   const [isRunningAll, setIsRunningAll] = useState(false);
-  const [stats, setStats] = useState<AutomationStats>({
+  const [stats, setStats] = useState<UnifiedStats>({
     products: 0,
     articles: 0,
+    posts: 0,
+    clicks: 0,
+    views: 0,
     conversions: 0,
     revenue: 0
   });
@@ -156,135 +153,16 @@ export default function AutoPilotCenter() {
 
   useEffect(() => {
     loadStats();
-    const interval = setInterval(loadStats, 5000);
+    const interval = setInterval(loadStats, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
-  const loadStats = () => {
+  const loadStats = async () => {
     try {
-      // Load stats from localStorage
-      const savedStats = localStorage.getItem('autopilot_stats');
-      if (savedStats) {
-        const parsed = JSON.parse(savedStats);
-        setStats(parsed);
-      } else {
-        // Initialize with demo data
-        const demoStats = {
-          products: 158,
-          articles: 42,
-          conversions: 15,
-          revenue: 327.50
-        };
-        localStorage.setItem('autopilot_stats', JSON.stringify(demoStats));
-        setStats(demoStats);
-      }
+      const realStats = await UnifiedStatsService.getStats();
+      setStats(realStats);
     } catch (error) {
-      console.error("Error loading stats:", error);
-      // Set default stats if loading fails
-      setStats({
-        products: 158,
-        articles: 42,
-        conversions: 15,
-        revenue: 327.50
-      });
-    }
-  };
-
-  const updateStats = (updates: Partial<AutomationStats>) => {
-    const newStats = { ...stats, ...updates };
-    localStorage.setItem('autopilot_stats', JSON.stringify(newStats));
-    setStats(newStats);
-  };
-
-  const simulateAutomation = (id: string): { success: boolean; message: string; statsUpdate?: Partial<AutomationStats> } => {
-    const niche = selectedNiche !== "all" ? selectedNiche : "tech";
-    
-    switch (id) {
-      case "product-discovery":
-        return {
-          success: true,
-          message: `✅ Discovered 3 trending ${niche} products and added to catalog`,
-          statsUpdate: { products: stats.products + 3 }
-        };
-      
-      case "content-generator":
-        return {
-          success: true,
-          message: `✅ Generated 2 SEO-optimized articles for ${niche} products`,
-          statsUpdate: { articles: stats.articles + 2 }
-        };
-      
-      case "social-publisher":
-        return {
-          success: true,
-          message: `✅ Created viral social posts for 5 ${niche} articles across platforms`,
-          statsUpdate: {}
-        };
-      
-      case "traffic-boost":
-        return {
-          success: true,
-          message: `✅ Generated Reddit, Quora & YouTube promotion tactics for ${niche}`,
-          statsUpdate: {}
-        };
-      
-      case "conversion-sequences":
-        return {
-          success: true,
-          message: `✅ Set up 3 conversion sequences for ${niche} visitors`,
-          statsUpdate: { conversions: stats.conversions + 2 }
-        };
-      
-      case "performance-analysis":
-        return {
-          success: true,
-          message: `✅ Analyzed top 10 ${niche} products - 3 winners identified for scaling`,
-          statsUpdate: {}
-        };
-      
-      case "seo-optimizer":
-        return {
-          success: true,
-          message: `✅ Optimized SEO for 8 ${niche} articles (titles, meta, keywords)`,
-          statsUpdate: {}
-        };
-      
-      case "rewrite-low-performers":
-        return {
-          success: true,
-          message: `✅ Rewrote 4 underperforming ${niche} articles with AI improvements`,
-          statsUpdate: { articles: stats.articles + 1 }
-        };
-      
-      case "auto-publish":
-        return {
-          success: true,
-          message: `✅ Published 3 scheduled ${niche} articles to live site`,
-          statsUpdate: {}
-        };
-      
-      case "smart-autopilot":
-        return {
-          success: true,
-          message: `✅ AI analyzed system & executed: Product Discovery → Content Gen → Social Posts`,
-          statsUpdate: { 
-            products: stats.products + 2,
-            articles: stats.articles + 1
-          }
-        };
-      
-      case "system-health":
-        return {
-          success: true,
-          message: `✅ System Health: All 11 automation functions operational. No issues detected.`,
-          statsUpdate: {}
-        };
-      
-      default:
-        return {
-          success: false,
-          message: "Unknown automation function"
-        };
+      console.error("Error loading real stats:", error);
     }
   };
 
@@ -293,32 +171,38 @@ export default function AutoPilotCenter() {
       a.id === id ? { ...a, status: "running" as const } : a
     ));
 
-    // Simulate work with delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const result = simulateAutomation(id);
-
-    if (result.success) {
-      setAutomations(prev => prev.map(a => 
-        a.id === id ? { ...a, status: "success" as const, lastRun: new Date().toISOString() } : a
-      ));
-      
-      if (result.statsUpdate) {
-        updateStats(result.statsUpdate);
-      }
-      
-      toast({
-        title: "Success",
-        description: result.message,
+    try {
+      const response = await fetch(`/api/autopilot/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche: selectedNiche !== "all" ? selectedNiche : undefined })
       });
-    } else {
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setAutomations(prev => prev.map(a => 
+          a.id === id ? { ...a, status: "success" as const, lastRun: new Date().toISOString() } : a
+        ));
+        
+        toast({
+          title: "Success",
+          description: result.message || "Automation completed successfully",
+        });
+
+        // Reload stats after automation runs
+        await loadStats();
+      } else {
+        throw new Error(result.error || "Automation failed");
+      }
+    } catch (error: any) {
       setAutomations(prev => prev.map(a => 
         a.id === id ? { ...a, status: "error" as const } : a
       ));
       
       toast({
         title: "Error",
-        description: result.message,
+        description: error.message,
         variant: "destructive"
       });
     }
@@ -367,7 +251,7 @@ export default function AutoPilotCenter() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-white">AutoPilot Command Center</h1>
-                <p className="text-slate-400">Offline mode — all functions work instantly without network calls</p>
+                <p className="text-slate-400">Real-time stats from database — All data is live and tracked</p>
               </div>
             </div>
           </div>
@@ -397,7 +281,7 @@ export default function AutoPilotCenter() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Card className="bg-slate-900/50 border-slate-700">
               <CardHeader className="pb-3">
                 <CardDescription className="text-slate-400">Products</CardDescription>
@@ -442,6 +326,44 @@ export default function AutoPilotCenter() {
                 <div className="flex items-center justify-between">
                   <span className="text-3xl font-bold text-white">${stats.revenue.toFixed(2)}</span>
                   <span className="text-2xl text-emerald-400">$</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <Card className="bg-slate-900/50 border-slate-700">
+              <CardHeader className="pb-3">
+                <CardDescription className="text-slate-400">Views</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-white">{stats.views}</span>
+                  <Eye className="h-6 w-6 text-cyan-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-700">
+              <CardHeader className="pb-3">
+                <CardDescription className="text-slate-400">Clicks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-white">{stats.clicks}</span>
+                  <MousePointerClick className="h-6 w-6 text-yellow-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-900/50 border-slate-700">
+              <CardHeader className="pb-3">
+                <CardDescription className="text-slate-400">Social Posts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-white">{stats.posts}</span>
+                  <Share2 className="h-6 w-6 text-pink-400" />
                 </div>
               </CardContent>
             </Card>
