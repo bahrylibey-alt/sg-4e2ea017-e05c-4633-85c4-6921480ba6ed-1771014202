@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockAuthService } from "@/services/mockAuthService";
 import { useRouter } from "next/router";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface SimplifiedAuthModalProps {
   open: boolean;
@@ -16,6 +18,7 @@ interface SimplifiedAuthModalProps {
 
 export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
