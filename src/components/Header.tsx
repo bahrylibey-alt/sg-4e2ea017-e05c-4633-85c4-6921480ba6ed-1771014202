@@ -184,7 +184,7 @@ export function Header() {
 
       {/* Auth Modal */}
       <SimplifiedAuthModal 
-        isOpen={showAuthModal} 
+        open={showAuthModal} 
         onClose={() => setShowAuthModal(false)} 
       />
     </>

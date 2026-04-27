@@ -148,7 +148,7 @@ export default function Home() {
 
       {/* Auth Modal */}
       <SimplifiedAuthModal 
-        isOpen={showAuthModal} 
+        open={showAuthModal} 
         onClose={() => setShowAuthModal(false)} 
       />
     </>

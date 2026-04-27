@@ -44,13 +44,13 @@ export class UnifiedStatsService {
         viewsResult,
         conversionsResult
       ] = await Promise.all([
-        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }).timeout(5000),
-        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published').timeout(5000),
-        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted').timeout(5000),
-        supabase.from('click_events').select('id', { count: 'exact', head: true }).timeout(5000),
-        supabase.from('view_events').select('id', { count: 'exact', head: true }).timeout(5000),
-        supabase.from('conversion_events').select('revenue').eq('verified', true).timeout(5000)
-      ].map(p => p.catch(err => {
+        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
+        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published'),
+        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
+        supabase.from('click_events').select('id', { count: 'exact', head: true }),
+        supabase.from('view_events').select('id', { count: 'exact', head: true }),
+        supabase.from('conversion_events').select('revenue').eq('verified', true)
+      ].map(p => Promise.resolve(p).catch(err => {
         console.warn("Query failed:", err);
         return { data: null, error: err, count: 0 };
       })));
