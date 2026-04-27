@@ -41,11 +41,13 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
     setError("");
 
     try {
+      console.log("🔐 Attempting login...", { email: loginEmail });
+      
       // Add timeout to prevent infinite loading
       const loginTimeout = setTimeout(() => {
         setLoading(false);
-        setError("Login timeout - please try again");
-      }, 15000); // 15 second timeout
+        setError("Login timeout - please check your internet connection");
+      }, 15000);
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
@@ -54,7 +56,18 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
 
       clearTimeout(loginTimeout);
 
-      if (signInError) throw signInError;
+      if (signInError) {
+        console.error("❌ Supabase sign in error:", signInError);
+        
+        // Show user-friendly error messages
+        if (signInError.message.includes('fetch')) {
+          throw new Error("Unable to connect to authentication server. Please check your internet connection.");
+        } else if (signInError.message.includes('Invalid login credentials')) {
+          throw new Error("Invalid email or password. Please try again.");
+        } else {
+          throw signInError;
+        }
+      }
 
       if (data.user) {
         console.log("✅ Sign in successful:", data.user.email);
@@ -81,11 +94,10 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
               localStorage.setItem('autopilot_settings', JSON.stringify(settings.autopilot_settings));
             }
           } else {
-            console.log("ℹ️ No existing settings found - new user or first sign in");
+            console.log("ℹ️ No existing settings found");
           }
         } catch (settingsErr) {
           console.warn("Settings load failed, continuing anyway:", settingsErr);
-          // Don't block login if settings fail to load
         }
 
         // Success toast
@@ -105,8 +117,8 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
         }, 300);
       }
     } catch (err: any) {
-      console.error("❌ Sign in error:", err);
-      setError(err.message || "Failed to sign in");
+      console.error("❌ Login error:", err);
+      setError(err.message || "Failed to sign in. Please try again.");
       setLoading(false);
     }
   };
@@ -117,11 +129,13 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
     setError("");
 
     try {
-      // Add timeout to prevent infinite loading
+      console.log("📝 Attempting signup...", { email: signupEmail, name: signupName });
+      
+      // Add timeout
       const signupTimeout = setTimeout(() => {
         setLoading(false);
-        setError("Signup timeout - please try again");
-      }, 15000); // 15 second timeout
+        setError("Signup timeout - please check your internet connection");
+      }, 15000);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: signupEmail,
@@ -135,7 +149,18 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
 
       clearTimeout(signupTimeout);
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        console.error("❌ Supabase signup error:", signUpError);
+        
+        // Show user-friendly error messages
+        if (signUpError.message.includes('fetch')) {
+          throw new Error("Unable to connect to authentication server. Please check your internet connection.");
+        } else if (signUpError.message.includes('already registered')) {
+          throw new Error("This email is already registered. Please try logging in instead.");
+        } else {
+          throw signUpError;
+        }
+      }
 
       if (data.user) {
         console.log("✅ Account created:", data.user.email);
@@ -151,13 +176,13 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
         
         // Small delay before redirect
         setTimeout(() => {
-          console.log("🔄 Redirecting to settings...");
-          router.push('/settings?tab=api-keys');
+          console.log("🔄 Redirecting to autopilot-center...");
+          router.push('/autopilot-center');
         }, 300);
       }
     } catch (err: any) {
-      console.error("❌ Sign up error:", err);
-      setError(err.message || "Failed to create account");
+      console.error("❌ Signup error:", err);
+      setError(err.message || "Failed to create account. Please try again.");
       setLoading(false);
     }
   };
