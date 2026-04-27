@@ -34,99 +34,127 @@ export function SimplifiedAuthModal({ open, onOpenChange }: SimplifiedAuthModalP
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
     setLoading(true);
+    setError("");
 
     try {
-      if (!loginEmail.trim()) {
-        setError("Please enter your email");
+      // Add timeout to prevent infinite loading
+      const loginTimeout = setTimeout(() => {
         setLoading(false);
-        return;
-      }
+        setError("Login timeout - please try again");
+      }, 15000); // 15 second timeout
 
-      // Use mock auth service - instant login, no email confirmation
-      const result = await mockAuthService.signIn(loginEmail.trim(), loginPassword || 'demo123');
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
 
-      if (result.error || !result.session) {
-        setError(result.error?.message || result.error || "Login failed");
+      clearTimeout(loginTimeout);
+
+      if (signInError) throw signInError;
+
+      if (data.user) {
+        console.log("✅ Sign in successful:", data.user.email);
+        
+        try {
+          // Load user settings from Supabase (including OpenAI API key)
+          const { data: settings, error: settingsError } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', data.user.id)
+            .maybeSingle();
+
+          if (!settingsError && settings) {
+            console.log("✅ Loaded user settings from Supabase");
+            
+            // Save API key to localStorage for this device
+            if (settings.openai_api_key) {
+              localStorage.setItem('openai_api_key', settings.openai_api_key);
+              console.log("✅ API key synced to this device");
+            }
+            
+            // Save other settings if needed
+            if (settings.autopilot_settings) {
+              localStorage.setItem('autopilot_settings', JSON.stringify(settings.autopilot_settings));
+            }
+          } else {
+            console.log("ℹ️ No existing settings found - new user or first sign in");
+          }
+        } catch (settingsErr) {
+          console.warn("Settings load failed, continuing anyway:", settingsErr);
+          // Don't block login if settings fail to load
+        }
+
+        // Success toast
+        toast({
+          title: "Welcome back!",
+          description: "Signed in successfully",
+        });
+
+        // Force close modal FIRST
         setLoading(false);
-        return;
-      }
-
-      setSuccess("✅ Login successful! Redirecting...");
-      
-      // Clear form
-      setLoginEmail("");
-      setLoginPassword("");
-      
-      // Wait a moment for user to see success message
-      setTimeout(() => {
         onOpenChange(false);
-        // Redirect to working demo page
-        router.push('/working-autopilot-demo');
-      }, 1000);
-
+        
+        // Small delay to ensure modal closes before redirect
+        setTimeout(() => {
+          console.log("🔄 Redirecting to autopilot-center...");
+          router.push('/autopilot-center');
+        }, 300);
+      }
     } catch (err: any) {
-      console.error("Login error:", err);
-      setError(err.message || "An error occurred during login");
+      console.error("❌ Sign in error:", err);
+      setError(err.message || "Failed to sign in");
       setLoading(false);
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
     setLoading(true);
+    setError("");
 
     try {
-      if (!signupName.trim() || !signupEmail.trim()) {
-        setError("Please fill in all fields");
+      // Add timeout to prevent infinite loading
+      const signupTimeout = setTimeout(() => {
         setLoading(false);
-        return;
-      }
+        setError("Signup timeout - please try again");
+      }, 15000); // 15 second timeout
 
-      if (signupPassword.length < 6) {
-        setError("Password must be at least 6 characters long");
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: signupPassword,
+        options: {
+          data: {
+            full_name: signupName,
+          },
+        },
+      });
+
+      clearTimeout(signupTimeout);
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        console.log("✅ Account created:", data.user.email);
+
+        toast({
+          title: "Account created!",
+          description: "Welcome to AffiliatePro",
+        });
+
+        // Force close modal FIRST
         setLoading(false);
-        return;
-      }
-
-      // Use mock auth service - instant signup, no email confirmation
-      const result = await mockAuthService.signUp(
-        signupEmail.trim(),
-        signupPassword
-      );
-
-      // Update name after signup
-      if (result.session) {
-        await mockAuthService.updateProfile({ full_name: signupName.trim() });
-      }
-
-      if (result.error || !result.session) {
-        setError(result.error?.message || result.error || "Signup failed");
-        setLoading(false);
-        return;
-      }
-
-      setSuccess("✅ Account created successfully! Redirecting...");
-      
-      // Clear form
-      setSignupName("");
-      setSignupEmail("");
-      setSignupPassword("");
-      
-      // Wait a moment for user to see success message
-      setTimeout(() => {
         onOpenChange(false);
-        // Redirect to working demo page
-        router.push('/working-autopilot-demo');
-      }, 1000);
-
+        
+        // Small delay before redirect
+        setTimeout(() => {
+          console.log("🔄 Redirecting to settings...");
+          router.push('/settings?tab=api-keys');
+        }, 300);
+      }
     } catch (err: any) {
-      console.error("Signup error:", err);
-      setError(err.message || "An error occurred during signup");
+      console.error("❌ Sign up error:", err);
+      setError(err.message || "Failed to create account");
       setLoading(false);
     }
   };
