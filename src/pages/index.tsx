@@ -1,48 +1,40 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Hero } from "@/components/Hero";
+import { ProductShowcase } from "@/components/ProductShowcase";
+import { FeaturedContent } from "@/components/FeaturedContent";
+import { Pricing } from "@/components/Pricing";
+import { Newsletter } from "@/components/Newsletter";
 import { SEO } from "@/components/SEO";
-import { Card } from "@/components/ui/card";
+import { SimplifiedAuthModal } from "@/components/SimplifiedAuthModal";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { realAutopilotEngine } from "@/services/realAutopilotEngine";
-import { UnifiedStatsService, UnifiedStats } from "@/services/unifiedStatsService";
+import { UnifiedStatsService } from "@/services/unifiedStatsService";
 import { 
-  Rocket,
-  Sparkles, 
-  Play,
-  Pause,
-  Loader2,
+  Zap, 
+  TrendingUp, 
+  Target, 
+  BarChart3, 
+  Clock, 
+  Shield,
   CheckCircle2,
-  TrendingUp,
-  Link as LinkIcon,
-  FileText,
-  Share2,
-  DollarSign,
+  Sparkles,
+  ArrowRight,
+  Play,
   Eye,
   MousePointerClick,
-  AlertCircle,
-  Trash2,
-  RefreshCw,
-  Settings,
-  BarChart3
+  DollarSign
 } from "lucide-react";
 
-export default function CommandCenter() {
+export default function Home() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState("");
-  const [error, setError] = useState("");
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [results, setResults] = useState<any>(null);
-  const [niche, setNiche] = useState("Smart Home Devices");
-  const [stats, setStats] = useState<UnifiedStats>({
+  const [user, setUser] = useState<any>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [stats, setStats] = useState({
     products: 0,
     articles: 0,
     posts: 0,
@@ -52,465 +44,113 @@ export default function CommandCenter() {
     revenue: 0
   });
 
-  // Prevent hydration mismatch
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Check API key on mount
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const checkKey = () => {
-      const key = localStorage.getItem('openai_api_key');
-      setHasApiKey(!!key && key.length > 0);
-    };
-    
-    checkKey();
-  }, [mounted]);
-
-  // Load REAL stats from database
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const loadStats = async () => {
-      try {
-        const realStats = await UnifiedStatsService.getStats();
-        setStats(realStats);
-      } catch (error) {
-        console.error("Error loading stats:", error);
-      }
-    };
-    
+    checkUser();
     loadStats();
     
-    const interval = setInterval(loadStats, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
-  }, [mounted]);
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+    });
 
-  const runAutopilot = async () => {
-    setIsRunning(true);
-    setProgress(0);
-    setError('');
-    setResults(null);
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user || null);
+  };
+
+  const loadStats = async () => {
     try {
-      if (typeof window !== 'undefined') {
-        const key = localStorage.getItem('openai_api_key');
-        if (!key || key.length === 0) {
-          setError('OpenAI API key required! Go to Settings to add your key.');
-          setIsRunning(false);
-          return;
-        }
-      }
-
-      setCurrentStep('🔍 AI discovering trending products...');
-      setProgress(20);
-
-      const productResults = await realAutopilotEngine.runAutopilot(niche);
-
-      setCurrentStep('🔗 Created affiliate tracking links');
-      setProgress(40);
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setCurrentStep('✍️ AI writing articles...');
-      setProgress(60);
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setCurrentStep('📱 AI generating social posts...');
-      setProgress(80);
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setCurrentStep('✅ Autopilot complete!');
-      setProgress(100);
-      setResults(productResults);
-
-      // Reload stats after autopilot runs
       const realStats = await UnifiedStatsService.getStats();
       setStats(realStats);
-
-    } catch (err: any) {
-      console.error('Autopilot error:', err);
-      setError(err.message || 'An error occurred. Check console for details.');
-      setProgress(0);
-      setCurrentStep('');
-    } finally {
-      setIsRunning(false);
+    } catch (error) {
+      console.error("Error loading stats:", error);
+      // Page still loads even if stats fail
     }
   };
 
-  const clearAllData = () => {
-    if (confirm('⚠️ This will delete ALL products, links, articles, and posts. Are you sure?')) {
-      realAutopilotEngine.clearAllData();
-      setResults(null);
+  const handleGetStarted = () => {
+    if (user) {
+      router.push('/autopilot-center');
+    } else {
+      setShowAuthModal(true);
     }
   };
-
-  // Don't render dynamic content during SSR
-  if (!mounted) {
-    return (
-      <>
-        <SEO 
-          title="AutoPilot Command Center - Affiliate Automation"
-          description="Master control center for your autonomous affiliate marketing system"
-        />
-        
-        <div className="min-h-screen bg-background">
-          <Header />
-          
-          <main className="max-w-7xl mx-auto px-4 py-12">
-            <div className="text-center">
-              <p className="text-muted-foreground">Loading Command Center...</p>
-            </div>
-          </main>
-          
-          <Footer />
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
-      <SEO 
-        title="AutoPilot Command Center - Affiliate Automation"
-        description="Master control center for your autonomous affiliate marketing system"
-      />
-      
+      <SEO />
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-          {/* Header */}
-          <div className="text-center space-y-3">
-            <div className="flex items-center justify-center gap-3">
-              <Rocket className="h-10 w-10 text-primary" />
-              <h1 className="text-4xl font-bold">AutoPilot Command Center</h1>
-            </div>
-            <p className="text-lg text-muted-foreground">
-              Real-time stats from database — All data is live and tracked
-            </p>
-            
-            {hasApiKey ? (
-              <Badge variant="default" className="gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                AI Ready
+        {/* Hero Section */}
+        <section className="pt-32 pb-20 px-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center space-y-6 mb-12">
+              <Badge className="text-lg px-4 py-2">
+                <Sparkles className="h-4 w-4 mr-2" />
+                AI-Powered Affiliate Automation
               </Badge>
-            ) : (
-              <Badge variant="destructive" className="gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Setup Required
-              </Badge>
-            )}
-          </div>
-
-          {/* Real-Time Statistics Dashboard */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Products</p>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.products}</p>
-              <p className="text-xs text-muted-foreground">AI-discovered</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Articles</p>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.articles}</p>
-              <p className="text-xs text-muted-foreground">Published</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Views</p>
-                <Eye className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.views}</p>
-              <p className="text-xs text-muted-foreground">Real traffic</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Clicks</p>
-                <MousePointerClick className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.clicks}</p>
-              <p className="text-xs text-muted-foreground">Tracked clicks</p>
-            </Card>
-          </div>
-
-          {/* Secondary Stats */}
-          <div className="grid md:grid-cols-3 gap-4">
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Social Posts</p>
-                <Share2 className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.posts}</p>
-              <p className="text-xs text-muted-foreground">Published posts</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Conversions</p>
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">{stats.conversions}</p>
-              <p className="text-xs text-muted-foreground">Verified sales</p>
-            </Card>
-
-            <Card className="p-6 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Revenue</p>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-bold">${stats.revenue.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">Total earnings</p>
-            </Card>
-          </div>
-
-          {/* AutoPilot Control Panel */}
-          <Card className="p-6 space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-primary" />
-                AI AutoPilot
-              </h2>
-              <p className="text-muted-foreground">
-                Discover trending products, generate content, and create social posts - all in one click
+              <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                Automate Your Affiliate Empire
+              </h1>
+              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+                Let AI discover products, generate content, and drive traffic 24/7. 
+                Your autonomous affiliate marketing system is ready.
               </p>
+              <div className="flex gap-4 justify-center pt-4">
+                <Button size="lg" onClick={handleGetStarted} className="gap-2">
+                  <Play className="h-5 w-5" />
+                  Get Started Free
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => router.push('/autopilot-center')}>
+                  <Zap className="h-5 w-5 mr-2" />
+                  View Demo
+                </Button>
+              </div>
             </div>
 
-            {!hasApiKey && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-2">
-                    <p className="font-semibold text-yellow-800 dark:text-yellow-200">
-                      OpenAI API Key Required
-                    </p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      Add your OpenAI API key in Settings to enable real AI-powered automation.
-                    </p>
-                    <Button
-                      onClick={() => router.push('/settings')}
-                      size="sm"
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Go to Settings
-                    </Button>
-                  </div>
-                </div>
+            {/* Live Stats */}
+            {stats.products > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+                <Card className="p-4 text-center">
+                  <div className="text-3xl font-bold text-primary">{stats.products}</div>
+                  <div className="text-sm text-muted-foreground">Products Tracked</div>
+                </Card>
+                <Card className="p-4 text-center">
+                  <div className="text-3xl font-bold text-purple-500">{stats.articles}</div>
+                  <div className="text-sm text-muted-foreground">Articles Generated</div>
+                </Card>
+                <Card className="p-4 text-center">
+                  <div className="text-3xl font-bold text-blue-500">{stats.clicks}</div>
+                  <div className="text-sm text-muted-foreground">Clicks Tracked</div>
+                </Card>
+                <Card className="p-4 text-center">
+                  <div className="text-3xl font-bold text-green-500">${stats.revenue.toFixed(0)}</div>
+                  <div className="text-sm text-muted-foreground">Revenue Generated</div>
+                </Card>
               </div>
             )}
+          </div>
+        </section>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Product Niche</label>
-                <Input
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  placeholder="e.g., Smart Home Devices, Fitness Gear, Kitchen Gadgets"
-                  disabled={isRunning}
-                />
-              </div>
-
-              <Button
-                onClick={runAutopilot}
-                disabled={isRunning || !hasApiKey}
-                size="lg"
-                className="w-full gap-2"
-              >
-                {isRunning ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Running AutoPilot...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-5 w-5" />
-                    Run AI AutoPilot
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {isRunning && (
-              <div className="space-y-2">
-                <Progress value={progress} />
-                <p className="text-sm text-center text-muted-foreground">
-                  {currentStep}
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-              </div>
-            )}
-          </Card>
-
-          {/* Results Tabs */}
-          {results && (
-            <Tabs defaultValue="products" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="products">Products</TabsTrigger>
-                <TabsTrigger value="content">Articles</TabsTrigger>
-                <TabsTrigger value="posts">Social Posts</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="products" className="space-y-4">
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    AI-Discovered Products ({results?.products?.length || 0})
-                  </h3>
-                  {results?.products?.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      No products yet. Run AutoPilot to discover trending products.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {results?.products?.map((product: any, i: number) => (
-                        <div key={i} className="border rounded-lg p-4 space-y-2">
-                          <h4 className="font-semibold">{product.name}</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {product.description}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline">${product.price}</Badge>
-                            <Badge variant="outline">{product.network}</Badge>
-                            <Badge variant="secondary">Score: {product.trend_score}</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="content" className="space-y-4">
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
-                    AI-Written Articles ({results?.content?.length || 0})
-                  </h3>
-                  {results?.content?.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      No articles yet. Run AutoPilot to generate content.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {results?.content?.map((article: any, i: number) => (
-                        <div key={i} className="border rounded-lg p-4 space-y-2">
-                          <h4 className="font-semibold">{article.title}</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {article.body.substring(0, 200)}...
-                          </p>
-                          <Badge variant="secondary">
-                            {article.body.split(' ').length} words
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="posts" className="space-y-4">
-                <Card className="p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Share2 className="h-5 w-5 text-primary" />
-                    Social Media Posts ({results?.posts?.length || 0})
-                  </h3>
-                  {results?.posts?.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      No posts yet. Run AutoPilot to generate social content.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {results?.posts?.slice(0, 10).map((post: any, i: number) => (
-                        <div key={i} className="border rounded-lg p-4 space-y-2">
-                          <Badge>{post.platform}</Badge>
-                          <p className="text-sm">{post.caption}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              </TabsContent>
-            </Tabs>
-          )}
-
-          {/* System Actions */}
-          {stats.products > 0 && (
-            <Card className="p-6">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => window.location.reload()}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh Data
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push('/settings')}
-                  className="gap-2"
-                >
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={clearAllData}
-                  className="gap-2 ml-auto"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Clear All Data
-                </Button>
-              </div>
-            </Card>
-          )}
-
-          {/* Quick Help */}
-          <Card className="p-6 bg-muted/50">
-            <h3 className="font-semibold mb-3">Quick Start Guide</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                <span><strong>Step 1:</strong> Add your OpenAI API key in Settings</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                <span><strong>Step 2:</strong> Enter a product niche (e.g., "Smart Home Devices")</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                <span><strong>Step 3:</strong> Click "Run AI AutoPilot" and wait ~15-20 seconds</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                <span><strong>Step 4:</strong> Review products, articles, and social posts in tabs above</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                <span><strong>Step 5:</strong> Share content to Reddit, Pinterest, Twitter to drive traffic!</span>
-              </li>
-            </ul>
-          </Card>
-        </main>
-        
+        {/* Rest of homepage content */}
+        <Hero />
+        <ProductShowcase />
+        <FeaturedContent />
+        <Pricing />
+        <Newsletter />
         <Footer />
       </div>
+
+      {/* Auth Modal */}
+      <SimplifiedAuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
     </>
   );
 }

@@ -29,6 +29,7 @@ export class UnifiedStatsService {
   /**
    * Get real-time stats from database
    * Returns actual data, never mock/demo data
+   * FAILS GRACEFULLY - returns zeros if database unreachable
    */
   static async getStats(): Promise<UnifiedStats> {
     try {
@@ -43,13 +44,16 @@ export class UnifiedStatsService {
         viewsResult,
         conversionsResult
       ] = await Promise.all([
-        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
-        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
-        supabase.from('click_events').select('id', { count: 'exact', head: true }),
-        supabase.from('view_events').select('id', { count: 'exact', head: true }),
-        supabase.from('conversion_events').select('revenue').eq('verified', true)
-      ]);
+        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }).timeout(5000),
+        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published').timeout(5000),
+        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted').timeout(5000),
+        supabase.from('click_events').select('id', { count: 'exact', head: true }).timeout(5000),
+        supabase.from('view_events').select('id', { count: 'exact', head: true }).timeout(5000),
+        supabase.from('conversion_events').select('revenue').eq('verified', true).timeout(5000)
+      ].map(p => p.catch(err => {
+        console.warn("Query failed:", err);
+        return { data: null, error: err, count: 0 };
+      })));
 
       // Log results for debugging
       console.log("📊 Query results:", {
@@ -60,14 +64,6 @@ export class UnifiedStatsService {
         views: viewsResult.count,
         conversions: conversionsResult.data?.length
       });
-
-      // Check for errors
-      if (productsResult.error) console.error("Products query error:", productsResult.error);
-      if (articlesResult.error) console.error("Articles query error:", articlesResult.error);
-      if (postsResult.error) console.error("Posts query error:", postsResult.error);
-      if (clicksResult.error) console.error("Clicks query error:", clicksResult.error);
-      if (viewsResult.error) console.error("Views query error:", viewsResult.error);
-      if (conversionsResult.error) console.error("Conversions query error:", conversionsResult.error);
 
       // Calculate total revenue
       const totalRevenue = conversionsResult.data?.reduce((sum, conv) => {
@@ -90,8 +86,9 @@ export class UnifiedStatsService {
       
     } catch (error) {
       console.error("❌ UnifiedStatsService error:", error);
+      console.warn("Returning zeros - database may be unreachable");
       
-      // Return zeros on error (never use localStorage as fallback)
+      // Return zeros on error - page still loads
       return {
         products: 0,
         articles: 0,
