@@ -31,6 +31,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const openai = new OpenAIService(apiKey);
     const published = 0;
 
+    // Fetch the content from the database
+    const { data: content, error: contentError } = await supabase
+      .from("generated_content")
+      .select("*")
+      .eq("id", content_id)
+      .single();
+
+    if (contentError || !content) {
+      return res.status(404).json({ error: "Content not found" });
+    }
+
+    const affiliateLink = content.product_link || "https://yourdomain.com/go/offer";
+
     // Step 2: Generate unique social posts tailored to each platform
     const socialPosts = await openai.generateSocialPosts(
       content.title,
