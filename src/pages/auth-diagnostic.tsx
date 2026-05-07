@@ -29,7 +29,7 @@ export default function AuthDiagnostic() {
     
     // Test 1: Supabase Client
     try {
-      const url = supabase.supabaseUrl;
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "Not configured";
       setStatus((prev: any) => ({
         ...prev,
         supabase: { 
@@ -343,10 +343,10 @@ export default function AuthDiagnostic() {
           <h2 className="text-xl font-bold mb-4">Environment Info</h2>
           <div className="space-y-2 text-sm">
             <div>
-              <strong>Supabase URL:</strong> {supabase.supabaseUrl}
+              <strong>Supabase URL:</strong> {process.env.NEXT_PUBLIC_SUPABASE_URL || "Not configured"}
             </div>
             <div>
-              <strong>Has Anon Key:</strong> {supabase.supabaseKey ? "✅ Yes" : "❌ No"}
+              <strong>Has Anon Key:</strong> {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "✅ Yes" : "❌ No"}
             </div>
             <div>
               <strong>Browser:</strong> {typeof window !== "undefined" ? navigator.userAgent : "Server"}
