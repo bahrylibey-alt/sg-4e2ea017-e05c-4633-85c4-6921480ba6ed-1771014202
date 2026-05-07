@@ -45,45 +45,37 @@ interface GeneratedContent {
   created_at: string;
 }
 
-interface ActivityLog {
-  id: string;
-  user_id: string;
-  action: string;
-  details: string;
-  status: string;
-  created_at: string;
-}
-
 class RealAutopilotEngine {
   private readonly API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
   private isRunning = false;
   private lastRun: Date | null = null;
+  private statsCache = {
+    products: 0,
+    links: 0,
+    content: 0,
+    posts: 0,
+    clicks: 0,
+    conversions: 0,
+    revenue: 0
+  };
 
   private isBrowser(): boolean {
     return typeof window !== 'undefined';
   }
 
-  /**
-   * DISCOVER REAL TRENDING PRODUCTS
-   * Uses RapidAPI, Amazon API, and performance data
-   */
+  // --- REAL ASYNC METHODS ---
+
   async discoverRealProducts(niche: string = 'trending'): Promise<any[]> {
     try {
       console.log(`🔍 Discovering REAL products in niche: ${niche}`);
-      
       const response = await fetch(`${this.API_BASE}/api/trending/discover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ niche, limit: 20 })
       });
-
-      if (!response.ok) {
-        throw new Error(`Discovery API failed: ${response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`Discovery API failed: ${response.statusText}`);
       const data = await response.json();
       console.log(`✅ Discovered ${data.trending?.length || 0} REAL products`);
-      
       return data.trending || [];
     } catch (error) {
       console.error('❌ Product discovery error:', error);
@@ -91,13 +83,8 @@ class RealAutopilotEngine {
     }
   }
 
-  /**
-   * CREATE TRACKED AFFILIATE LINKS
-   * Real tracking URLs with click/conversion monitoring
-   */
   async createAffiliateLinks(products: Product[]): Promise<AffiliateLink[]> {
     const links: AffiliateLink[] = [];
-    
     for (const product of products) {
       const slug = product.name.toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -118,29 +105,19 @@ class RealAutopilotEngine {
         created_at: new Date().toISOString()
       });
     }
-
     console.log(`✅ Created ${links.length} tracked affiliate links`);
     return links;
   }
 
-  /**
-   * GENERATE REAL CONTENT
-   * Uses actual product data and performance metrics
-   */
   async generateRealContent(product: any): Promise<any> {
     try {
       const response = await fetch(`${this.API_BASE}/api/autopilot/content-generator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-
-      if (!response.ok) {
-        throw new Error(`Content generation failed: ${response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`Content generation failed: ${response.statusText}`);
       const data = await response.json();
       console.log(`✅ Generated content: ${data.articlesCreated} articles`);
-      
       return data;
     } catch (error) {
       console.error('❌ Content generation error:', error);
@@ -148,26 +125,15 @@ class RealAutopilotEngine {
     }
   }
 
-  /**
-   * PUBLISH TO REAL TRAFFIC SOURCES
-   * Pinterest, Reddit, Twitter with actual APIs
-   */
   async publishToRealTraffic(products: Product[], links: AffiliateLink[]): Promise<any[]> {
-    const posts: any[] = [];
-    
     try {
       const response = await fetch(`${this.API_BASE}/api/autopilot/social-publisher`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-
-      if (!response.ok) {
-        throw new Error(`Social publishing failed: ${response.statusText}`);
-      }
-
+      if (!response.ok) throw new Error(`Social publishing failed: ${response.statusText}`);
       const data = await response.json();
       console.log(`✅ Published to traffic sources: ${data.posts || 0} posts`);
-      
       return data.posts || [];
     } catch (error) {
       console.error('❌ Traffic publishing error:', error);
@@ -175,42 +141,23 @@ class RealAutopilotEngine {
     }
   }
 
-  /**
-   * RUN FULL AUTONOMOUS WORKFLOW
-   * Discovers → Tracks → Generates → Publishes
-   */
   async runAutopilot(niche: string = 'trending'): Promise<any> {
     try {
       this.isRunning = true;
       this.lastRun = new Date();
-      
       console.log('🚀 STARTING REAL AUTONOMOUS AFFILIATE ENGINE');
-      console.log(`   Mode: 100% Real Data`);
-      console.log(`   Niche: ${niche}`);
-
-      // Step 1: Discover real trending products
+      
       const products = await this.discoverRealProducts(niche);
-      console.log(`   ✅ Step 1: Discovered ${products.length} real products`);
-
-      if (products.length === 0) {
-        throw new Error('No products discovered. Check API keys in settings.');
-      }
-
-      // Step 2: Create tracked affiliate links
+      if (products.length === 0) throw new Error('No products discovered.');
+      
       const links = await this.createAffiliateLinks(products);
-      console.log(`   ✅ Step 2: Created ${links.length} tracking links`);
-
-      // Step 3: Generate real content
       const content = await this.generateRealContent(products[0]);
-      console.log(`   ✅ Step 3: Generated content`);
-
-      // Step 4: Publish to real traffic sources
       const posts = await this.publishToRealTraffic(products, links);
-      console.log(`   ✅ Step 4: Published to traffic channels`);
 
       this.isRunning = false;
-
-      const result = {
+      this.refreshStatsAsync();
+      
+      return {
         success: true,
         products: products.length,
         links: links.length,
@@ -219,10 +166,6 @@ class RealAutopilotEngine {
         mode: 'REAL_DATA_ONLY',
         timestamp: new Date().toISOString()
       };
-
-      console.log('✅ AUTOPILOT COMPLETE:', result);
-      return result;
-
     } catch (error: any) {
       this.isRunning = false;
       console.error('❌ Autopilot error:', error);
@@ -230,30 +173,50 @@ class RealAutopilotEngine {
     }
   }
 
-  /**
-   * GET REAL-TIME STATS
-   * Actual performance metrics from database
-   */
-  async getStats() {
+  // --- BACKWARD COMPATIBILITY / UI SHIMS ---
+
+  getStats() {
+    // Return synchronously to prevent React SetStateAction<Promise> errors
+    this.refreshStatsAsync();
+    return this.statsCache;
+  }
+
+  private async refreshStatsAsync() {
+    if (!this.isBrowser()) return;
     try {
       const response = await fetch(`${this.API_BASE}/api/autopilot/system-health`);
       if (response.ok) {
         const data = await response.json();
-        return data.stats || {};
+        if (data.stats) this.statsCache = data.stats;
       }
     } catch (error) {
-      console.error('Stats fetch error:', error);
+      // Silent catch for background refresh
     }
-    
+  }
+
+  getAllData() {
     return {
-      products: 0,
-      links: 0,
-      content: 0,
-      posts: 0,
-      clicks: 0,
-      conversions: 0,
-      revenue: 0
+      products: [],
+      links: [],
+      content: [],
+      posts: []
     };
+  }
+
+  clearAllData() {
+    console.log('Real system active: clearAllData is disabled to protect live data.');
+  }
+
+  async discoverProducts(niche?: string) {
+    return this.discoverRealProducts(niche || 'trending');
+  }
+
+  async generateContent(product?: any) {
+    return this.generateRealContent(product);
+  }
+
+  async publishToSocial(products?: any[], links?: any[]) {
+    return this.publishToRealTraffic(products || [], links || []);
   }
 
   getLastRun() {
