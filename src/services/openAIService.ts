@@ -103,11 +103,13 @@ export class OpenAIService {
   private baseUrl = "https://api.openai.com/v1";
 
   constructor(apiKey?: string) {
-    // Check localStorage for API key (browser only)
-    if (typeof window !== 'undefined') {
-      this.apiKey = apiKey || localStorage.getItem('openai_api_key') || "";
+    // Priority: 1. Passed key, 2. localStorage (browser), 3. Environment variable
+    if (apiKey) {
+      this.apiKey = apiKey;
+    } else if (typeof window !== 'undefined') {
+      this.apiKey = localStorage.getItem('openai_api_key') || "";
     } else {
-      this.apiKey = apiKey || process.env.OPENAI_API_KEY || "";
+      this.apiKey = process.env.OPENAI_API_KEY || "";
     }
   }
 
