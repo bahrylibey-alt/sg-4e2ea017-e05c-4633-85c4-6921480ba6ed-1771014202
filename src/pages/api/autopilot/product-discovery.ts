@@ -8,7 +8,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { niche } = req.body;
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/trending/discover`, {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://127.0.0.1:3000";
+
+    const response = await fetch(`${baseUrl}/api/trending/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ niche, limit: 5 })

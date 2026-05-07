@@ -78,8 +78,8 @@ export default function AuthDiagnostic() {
     // Test 3: Database Query
     try {
       const { data, error } = await supabase
-        .from('products')
-        .select('count')
+        .from('profiles')
+        .select('id')
         .limit(1);
       
       if (error) throw error;
