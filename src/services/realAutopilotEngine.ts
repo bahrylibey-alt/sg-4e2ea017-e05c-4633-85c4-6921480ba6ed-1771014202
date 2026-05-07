@@ -199,7 +199,8 @@ class RealAutopilotEngine {
       products: [],
       links: [],
       content: [],
-      posts: []
+      posts: [],
+      logs: []
     };
   }
 
