@@ -52,7 +52,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       link = newLink;
     }
 
-    const trackingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/go/${link?.slug}`;
+    // CRITICAL: Validate link exists before proceeding
+    if (!link || !link.slug) {
+      return res.status(400).json({ 
+        error: "Failed to create affiliate tracking link. Cannot generate content without a valid link." 
+      });
+    }
+
+    const trackingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/go/${link.slug}`;
+
+    // Double-check tracking URL is valid
+    if (!trackingUrl.includes("/go/")) {
+      return res.status(400).json({ 
+        error: "Invalid tracking URL format. Link must follow /go/{slug} pattern." 
+      });
+    }
 
     // Get OpenAI key from database
     const apiKey = await getOpenAIKeyFromDB();

@@ -68,8 +68,13 @@ export const smartProductDiscovery = {
           result.totalDiscovered += count;
           console.log(`   ✅ Found ${count} real products from ${network} with performance data`);
           
-          // Extract top performers
+          // CRITICAL: Ensure every product has a valid slug for /go/ links
           existingProducts?.slice(0, 5).forEach(product => {
+            if (!product.slug) {
+              console.error(`   ❌ Product missing slug: ${product.product_name || 'Unknown'} - cannot create tracking link`);
+              return;
+            }
+
             result.topProducts.push({
               name: product.product_name || 'Product',
               network: product.network || network,

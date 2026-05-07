@@ -48,6 +48,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const item of drafts) {
       let bodyWithLink = item.body || "";
       
+      // CRITICAL: Extract and validate the affiliate link
+      const linkMatch = bodyWithLink.match(/\[.*?\]\((\/go\/[^\)]+)\)/);
+      let affiliateLink = linkMatch ? linkMatch[1] : null;
+
+      // If no link found in body, try to get from product
+      if (!affiliateLink && product?.affiliate_url) {
+        affiliateLink = product.affiliate_url;
+      }
+
+      // BLOCK PUBLISHING if no valid link exists
+      if (!affiliateLink) {
+        console.error(`❌ BLOCKED: Content "${item.title}" has NO affiliate link - skipping publish`);
+        continue;
+      }
+
+      // Verify link format
+      if (!affiliateLink.includes("/go/")) {
+        console.error(`❌ BLOCKED: Content "${item.title}" has invalid link format - must use /go/{slug}`);
+        continue;
+      }
+
       // If we have a product and its link isn't already in the body, append it
       if (product?.affiliate_url && !bodyWithLink.includes(product.affiliate_url)) {
         bodyWithLink += `\n\n👉 **[Get ${product.name} at the Best Price Here](${product.affiliate_url})**`;

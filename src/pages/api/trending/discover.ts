@@ -46,6 +46,20 @@ export default async function handler(
               discovered_at: new Date().toISOString()
             }));
             console.log(`✅ Found ${discoveredProducts.length} products from RapidAPI`);
+            
+            // CRITICAL: Create affiliate links for each discovered product
+            for (const product of discoveredProducts) {
+              const slug = `${product.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+              await supabase.from('affiliate_links').insert({
+                original_url: product.url,
+                slug,
+                product_name: product.name,
+                platform: 'rapidapi',
+                status: 'active',
+                network: 'RapidAPI'
+              });
+              console.log(`   ✅ Created tracking link: /go/${slug}`);
+            }
           }
         }
       } catch (error) {

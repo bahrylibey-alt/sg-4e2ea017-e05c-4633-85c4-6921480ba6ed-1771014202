@@ -44,6 +44,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const affiliateLink = content.product_link || "https://yourdomain.com/go/offer";
 
+    // CRITICAL: Validate affiliate link exists and is valid
+    if (!affiliateLink || affiliateLink === "https://yourdomain.com/go/offer") {
+      return res.status(400).json({ 
+        error: "Cannot publish content without a valid affiliate tracking link. Content ID: " + content_id 
+      });
+    }
+
+    // Verify link follows /go/{slug} format
+    if (!affiliateLink.includes("/go/")) {
+      return res.status(400).json({ 
+        error: "Invalid link format. All published content must use /go/{slug} tracking links." 
+      });
+    }
+
     // Step 2: Generate unique social posts tailored to each platform
     const socialPosts = await openai.generateSocialPosts(
       content.title,
