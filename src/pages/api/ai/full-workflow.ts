@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { OpenAIService } from "@/services/openAIService";
+import { getOpenAIKeyFromDB } from "@/lib/getOpenAIKey";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -19,7 +20,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const openai = new OpenAIService(process.env.OPENAI_API_KEY);
+    // Get OpenAI key from database
+    const apiKey = await getOpenAIKeyFromDB();
+    if (!apiKey) {
+      return res.status(400).json({ 
+        error: "OpenAI API key not configured. Please add your key in Settings → API Keys" 
+      });
+    }
+
+    const openai = new OpenAIService(apiKey);
     const results = {
       products_discovered: 0,
       content_generated: 0,

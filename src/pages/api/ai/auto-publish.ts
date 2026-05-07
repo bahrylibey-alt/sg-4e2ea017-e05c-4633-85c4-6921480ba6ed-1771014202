@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { OpenAIService } from "@/services/openAIService";
+import { getOpenAIKeyFromDB } from "@/lib/getOpenAIKey";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -19,20 +20,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // Get content
-    const { data: content } = await supabase
-      .from("generated_content")
-      .select("*")
-      .eq("id", content_id)
-      .single();
-
-    if (!content) {
-      return res.status(404).json({ error: "Content not found" });
+    // Get OpenAI key from database
+    const apiKey = await getOpenAIKeyFromDB();
+    if (!apiKey) {
+      return res.status(400).json({ 
+        error: "OpenAI API key not configured. Please add your key in Settings → API Keys" 
+      });
     }
 
-    const affiliateLink = content.product_link || "";
-
-    const openai = new OpenAIService(process.env.OPENAI_API_KEY);
+    const openai = new OpenAIService(apiKey);
+    const published = 0;
 
     // Step 2: Generate unique social posts tailored to each platform
     const socialPosts = await openai.generateSocialPosts(

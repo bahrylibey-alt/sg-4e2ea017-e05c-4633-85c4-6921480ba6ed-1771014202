@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { OpenAIService } from "@/services/openAIService";
+import { getOpenAIKeyFromDB } from "@/lib/getOpenAIKey";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -53,7 +54,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const trackingUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/go/${link?.slug}`;
 
-    const openai = new OpenAIService(process.env.OPENAI_API_KEY);
+    // Get OpenAI key from database
+    const apiKey = await getOpenAIKeyFromDB();
+    if (!apiKey) {
+      return res.status(400).json({ 
+        error: "OpenAI API key not configured. Please add your key in Settings → API Keys" 
+      });
+    }
+
+    const openai = new OpenAIService(apiKey);
 
     // Generate SEO-optimized content
     const content = await openai.generateSEOContent(
