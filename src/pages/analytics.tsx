@@ -93,17 +93,22 @@ export default function ProfessionalAnalytics() {
       }
 
       // Get all data
-      const [clicks, conversions, products, trafficSources] = await Promise.all([
-        supabase.from('click_events').select('*').eq('user_id', currentUserId),
-        supabase.from('conversion_events').select('*').eq('user_id', currentUserId),
-        supabase.from('product_catalog').select('id, name').eq('user_id', currentUserId),
-        supabase.from('traffic_sources').select('*').eq('user_id', currentUserId)
+      const [clicksRes, conversionsRes, productsRes, trafficSourcesRes] = await Promise.all([
+        (supabase as any).from('click_events').select('*').eq('user_id', currentUserId),
+        (supabase as any).from('conversion_events').select('*').eq('user_id', currentUserId),
+        (supabase as any).from('product_catalog').select('id, name').eq('user_id', currentUserId),
+        (supabase as any).from('traffic_sources').select('*').eq('user_id', currentUserId)
       ]);
 
+      const clicksData: any[] = clicksRes.data || [];
+      const conversionsData: any[] = conversionsRes.data || [];
+      const productsData: any[] = productsRes.data || [];
+      const trafficSourcesData: any[] = trafficSourcesRes.data || [];
+
       // Calculate metrics
-      const totalRevenue = conversions.data?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
-      const totalClicks = clicks.data?.length || 0;
-      const totalConversions = conversions.data?.length || 0;
+      const totalRevenue = conversionsData.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
+      const totalClicks = clicksData.length || 0;
+      const totalConversions = conversionsData.length || 0;
       const avgConversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
 
       // Calculate growth (last 7 days vs previous 7 days)
@@ -111,18 +116,18 @@ export default function ProfessionalAnalytics() {
       const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const previous7Days = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-      const recentClicks = clicks.data?.filter(c => new Date(c.created_at) > last7Days).length || 0;
-      const previousClicks = clicks.data?.filter(c => {
-        const date = new Date(c.created_at);
+      const recentClicks = clicksData.filter((c: any) => new Date(c.created_at || now) > last7Days).length || 0;
+      const previousClicks = clicksData.filter((c: any) => {
+        const date = new Date(c.created_at || now);
         return date > previous7Days && date <= last7Days;
       }).length || 0;
 
-      const recentRevenue = conversions.data?.filter(c => new Date(c.created_at) > last7Days)
-        .reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
-      const previousRevenue = conversions.data?.filter(c => {
-        const date = new Date(c.created_at);
+      const recentRevenue = conversionsData.filter((c: any) => new Date(c.created_at || now) > last7Days)
+        .reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
+      const previousRevenue = conversionsData.filter((c: any) => {
+        const date = new Date(c.created_at || now);
         return date > previous7Days && date <= last7Days;
-      }).reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
+      }).reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
 
       const clickGrowth = previousClicks > 0 ? ((recentClicks - previousClicks) / previousClicks) * 100 : 0;
       const revenueGrowth = previousRevenue > 0 ? ((recentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
@@ -138,10 +143,10 @@ export default function ProfessionalAnalytics() {
 
       // Analyze product performance
       const productPerformance: ProductPerformance[] = [];
-      for (const product of products.data || []) {
-        const productClicks = clicks.data?.filter(c => c.product_id === product.id).length || 0;
-        const productConversions = conversions.data?.filter(c => c.product_id === product.id) || [];
-        const productRevenue = productConversions.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0);
+      for (const product of productsData) {
+        const productClicks = clicksData.filter((c: any) => c.product_id === product.id).length || 0;
+        const productConversions = conversionsData.filter((c: any) => c.product_id === product.id) || [];
+        const productRevenue = productConversions.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0);
         const conversionRate = productClicks > 0 ? (productConversions.length / productClicks) * 100 : 0;
 
         let status: 'hot' | 'warm' | 'cold' = 'cold';
@@ -165,10 +170,10 @@ export default function ProfessionalAnalytics() {
 
       // Analyze traffic source performance
       const trafficPerformance: TrafficPerformance[] = [];
-      for (const source of trafficSources.data || []) {
-        const sourceClicks = clicks.data?.filter(c => c.traffic_source === source.source_name).length || 0;
-        const sourceConversions = conversions.data?.filter(c => c.traffic_source === source.source_name) || [];
-        const sourceRevenue = sourceConversions.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0);
+      for (const source of trafficSourcesData) {
+        const sourceClicks = clicksData.filter((c: any) => c.traffic_source === source.source_name).length || 0;
+        const sourceConversions = conversionsData.filter((c: any) => c.traffic_source === source.source_name) || [];
+        const sourceRevenue = sourceConversions.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0);
         const roi = sourceRevenue; // Simplified - in production, factor in costs
 
         let status: 'excellent' | 'good' | 'poor' = 'poor';
