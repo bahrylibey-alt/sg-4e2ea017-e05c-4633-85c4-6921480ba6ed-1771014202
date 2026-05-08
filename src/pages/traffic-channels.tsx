@@ -49,22 +49,26 @@ export default function TrafficChannels() {
       setLoading(true);
       
       // Get user
+      let currentUserId = null;
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user) {
         // Try to get first profile
         const { data: profiles } = await supabase.from('profiles').select('id').limit(1);
         if (profiles && profiles.length > 0) {
-          setUserId(profiles[0].id);
+          currentUserId = profiles[0].id;
         }
       } else {
-        setUserId(user.id);
+        currentUserId = user.id;
       }
+      
+      setUserId(currentUserId);
 
       // Get campaigns
       const { data: campaigns } = await supabase
         .from('campaigns')
         .select('id')
-        .eq('user_id', user?.id || (profiles && profiles[0]?.id));
+        .eq('user_id', currentUserId);
 
       if (!campaigns || campaigns.length === 0) {
         // No campaigns - show all sources as disconnected
