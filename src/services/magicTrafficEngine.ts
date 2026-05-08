@@ -350,7 +350,7 @@ export const magicTrafficEngine = {
 
     // Save to database for tracking
     for (const opp of allOpportunities.slice(0, 10)) {
-      await db.from('traffic_sources').insert({
+      const { error } = await db.from('traffic_sources').insert({
         user_id: userId,
         platform: opp.source,
         strategy: opp.method,
@@ -358,7 +358,8 @@ export const magicTrafficEngine = {
         estimated_daily_traffic: opp.estimated_traffic,
         competition_level: opp.competition_level,
         automation_possible: true
-      }).catch(() => {}); // Ignore duplicates
+      });
+      // Ignore duplicate errors silently
     }
 
     console.log(`✅ DISCOVERY COMPLETE: ${allOpportunities.length} total opportunities found`);
