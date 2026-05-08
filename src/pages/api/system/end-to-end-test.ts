@@ -33,7 +33,7 @@ export default async function handler(
       userId = user.id;
     } else {
       // Get first available user
-      const { data: users } = await supabase
+      const { data: users } = await (supabase as any)
         .from('profiles')
         .select('id')
         .limit(1);
@@ -48,7 +48,7 @@ export default async function handler(
 
     // STEP 2: Check products
     testResults.push({ step: 'Product Discovery', status: 'STARTED' });
-    const { data: products, error: productsError } = await supabase
+    const { data: products, error: productsError } = await (supabase as any)
       .from('product_catalog')
       .select('id')
       .eq('user_id', userId)
@@ -66,7 +66,7 @@ export default async function handler(
 
     // STEP 3: Check affiliate links
     testResults.push({ step: 'Affiliate Links', status: 'STARTED' });
-    const { data: links, error: linksError } = await supabase
+    const { data: links, error: linksError } = await (supabase as any)
       .from('affiliate_links')
       .select('id')
       .eq('user_id', userId)
@@ -85,7 +85,7 @@ export default async function handler(
 
     // STEP 4: Check generated content
     testResults.push({ step: 'Content Generation', status: 'STARTED' });
-    const { data: content, error: contentError } = await supabase
+    const { data: content, error: contentError } = await (supabase as any)
       .from('generated_content')
       .select('id')
       .eq('user_id', userId)
@@ -103,7 +103,7 @@ export default async function handler(
 
     // STEP 5: Check traffic sources
     testResults.push({ step: 'Traffic Sources', status: 'STARTED' });
-    const { data: trafficSources, error: trafficError } = await supabase
+    const { data: trafficSources, error: trafficError } = await (supabase as any)
       .from('traffic_sources')
       .select('id')
       .eq('user_id', userId)
@@ -138,7 +138,7 @@ export default async function handler(
 
     // STEP 7: Check tracking
     testResults.push({ step: 'Click Tracking', status: 'STARTED' });
-    const { data: clicks } = await supabase
+    const { data: clicks } = await (supabase as any)
       .from('click_events')
       .select('count')
       .eq('user_id', userId);
@@ -152,13 +152,13 @@ export default async function handler(
 
     // STEP 8: Check conversions
     testResults.push({ step: 'Conversion Tracking', status: 'STARTED' });
-    const { data: conversions } = await supabase
+    const { data: conversions } = await (supabase as any)
       .from('conversion_events')
       .select('revenue')
       .eq('user_id', userId);
     
     const conversionCount = conversions?.length || 0;
-    const totalRevenue = conversions?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
+    const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
     
     testResults.push({ 
       step: 'Conversion Tracking', 
@@ -169,7 +169,7 @@ export default async function handler(
 
     // STEP 9: Check autopilot status
     testResults.push({ step: 'Autopilot Status', status: 'STARTED' });
-    const { data: settings } = await supabase
+    const { data: settings } = await (supabase as any)
       .from('user_settings')
       .select('autopilot_enabled, last_autopilot_run')
       .eq('user_id', userId)
