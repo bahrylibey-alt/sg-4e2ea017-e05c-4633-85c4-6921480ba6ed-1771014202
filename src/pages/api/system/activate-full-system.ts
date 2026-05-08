@@ -118,7 +118,7 @@ export default async function handler(
         metadata: {
           activation_steps: activationSteps,
           healing_result: healingResult
-        },
+        } as Record<string, any>,
         status: 'success'
       });
     activationSteps.push({ step: 'Log Activation', status: 'SUCCESS' });

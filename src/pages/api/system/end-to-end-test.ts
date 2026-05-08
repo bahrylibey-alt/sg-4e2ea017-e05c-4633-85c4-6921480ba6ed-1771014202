@@ -49,10 +49,9 @@ export default async function handler(
     // STEP 2: Check products
     testResults.push({ step: 'Product Discovery', status: 'STARTED' });
     const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('*')
+      .from('product_catalog')
+      .select('id')
       .eq('user_id', userId)
-      .eq('status', 'active')
       .limit(10);
 
     if (productsError) throw productsError;
@@ -69,7 +68,7 @@ export default async function handler(
     testResults.push({ step: 'Affiliate Links', status: 'STARTED' });
     const { data: links, error: linksError } = await supabase
       .from('affiliate_links')
-      .select('*')
+      .select('id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .limit(10);
@@ -88,7 +87,7 @@ export default async function handler(
     testResults.push({ step: 'Content Generation', status: 'STARTED' });
     const { data: content, error: contentError } = await supabase
       .from('generated_content')
-      .select('*')
+      .select('id')
       .eq('user_id', userId)
       .limit(10);
 
@@ -106,7 +105,7 @@ export default async function handler(
     testResults.push({ step: 'Traffic Sources', status: 'STARTED' });
     const { data: trafficSources, error: trafficError } = await supabase
       .from('traffic_sources')
-      .select('*')
+      .select('id')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -155,11 +154,11 @@ export default async function handler(
     testResults.push({ step: 'Conversion Tracking', status: 'STARTED' });
     const { data: conversions } = await supabase
       .from('conversion_events')
-      .select('*')
+      .select('revenue')
       .eq('user_id', userId);
     
     const conversionCount = conversions?.length || 0;
-    const totalRevenue = conversions?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+    const totalRevenue = conversions?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
     
     testResults.push({ 
       step: 'Conversion Tracking', 
