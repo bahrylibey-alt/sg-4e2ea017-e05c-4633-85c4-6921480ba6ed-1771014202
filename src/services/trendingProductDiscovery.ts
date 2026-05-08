@@ -1,4 +1,3 @@
-<![CDATA[
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -377,4 +376,3 @@ export const trendingProductDiscovery = {
     return result;
   }
 };
-</file_contents>
