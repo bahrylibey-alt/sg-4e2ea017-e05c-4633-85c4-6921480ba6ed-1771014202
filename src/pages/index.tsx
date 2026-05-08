@@ -105,8 +105,8 @@ export default function HomePage() {
         totalClicks: clicks.count || 0,
         totalRevenue,
         contentGenerated: content.count || 0,
-        autopilotEnabled: settings?.autopilot_enabled || false,
-        lastAutopilotRun: settings?.last_autopilot_run || null,
+        autopilotEnabled: settings.data?.autopilot_enabled || false,
+        lastAutopilotRun: settings.data?.last_autopilot_run || null,
         recentProducts
       });
 
