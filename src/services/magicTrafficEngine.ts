@@ -348,20 +348,6 @@ export const magicTrafficEngine = {
     // Sort by estimated traffic
     allOpportunities.sort((a, b) => b.estimated_traffic - a.estimated_traffic);
 
-    // Save to database for tracking
-    for (const opp of allOpportunities.slice(0, 10)) {
-      const { error } = await db.from('traffic_sources').insert({
-        user_id: userId,
-        platform: opp.source,
-        strategy: opp.method,
-        status: 'discovered',
-        estimated_daily_traffic: opp.estimated_traffic,
-        competition_level: opp.competition_level,
-        automation_possible: true
-      });
-      // Ignore duplicate errors silently
-    }
-
     console.log(`✅ DISCOVERY COMPLETE: ${allOpportunities.length} total opportunities found`);
     console.log(`📊 Estimated total traffic potential: ${allOpportunities.reduce((sum, o) => sum + o.estimated_traffic, 0)} visitors/month`);
 
@@ -389,26 +375,41 @@ export const magicTrafficEngine = {
     const discovery = await this.discoverAllOpportunities(userId, "general", db);
     const topSources = discovery.top_opportunities.slice(0, limit);
 
-    const activated = [];
-    for (const source of topSources) {
-      // Create traffic source record
-      const { data } = await db.from('traffic_sources').insert({
+    // Find or create default campaign
+    let { data: campaign } = await db.from('campaigns').select('id').eq('user_id', userId).limit(1).maybeSingle();
+    
+    if (!campaign) {
+      const { data: newCamp } = await db.from('campaigns').insert({
         user_id: userId,
-        platform: source.source,
-        strategy: source.method,
-        status: 'active',
-        estimated_daily_traffic: Math.floor(source.estimated_traffic / 30),
-        automation_level: 'full'
+        name: 'Magic Traffic Engine',
+        goal: 'traffic'
       }).select().single();
+      campaign = newCamp;
+    }
+    
+    const campaignId = campaign?.id;
+    const activated = [];
+    
+    if (campaignId) {
+      for (const source of topSources) {
+        // Create traffic source record linked to campaign
+        const { data } = await db.from('traffic_sources').insert({
+          campaign_id: campaignId,
+          source_type: 'social',
+          source_name: source.source,
+          status: 'active',
+          automation_enabled: true
+        }).select().maybeSingle();
 
-      if (data) {
-        activated.push({
-          platform: source.source,
-          method: source.method,
-          estimated_traffic: source.estimated_traffic,
-          status: 'activated'
-        });
-        console.log(`   ✅ Activated: ${source.source}`);
+        if (data) {
+          activated.push({
+            platform: source.source,
+            method: source.method,
+            estimated_traffic: source.estimated_traffic,
+            status: 'activated'
+          });
+          console.log(`   ✅ Activated: ${source.source}`);
+        }
       }
     }
 
@@ -427,11 +428,21 @@ export const magicTrafficEngine = {
     const db = supabaseClient || supabase;
     console.log(`📢 DISTRIBUTING CONTENT SYSTEMATICALLY...`);
 
+    // Get active campaigns for user
+    const { data: campaigns } = await db.from('campaigns').select('id').eq('user_id', userId);
+    const campaignIds = campaigns?.map((c: any) => c.id) || [];
+
+    if (campaignIds.length === 0) {
+      console.log("⚠️ No active campaigns - auto-activating...");
+      await this.autoActivateBestSources(userId, 5, db);
+      return this.distributeContent(userId, contentId, db);
+    }
+
     // Get active traffic sources
     const { data: sources } = await db
       .from('traffic_sources')
       .select('*')
-      .eq('user_id', userId)
+      .in('campaign_id', campaignIds)
       .eq('status', 'active');
 
     if (!sources || sources.length === 0) {
@@ -457,22 +468,23 @@ export const magicTrafficEngine = {
       await db.from('posted_content').insert({
         user_id: userId,
         content_id: contentId,
-        platform: source.platform,
-        post_title: content.title,
+        platform: source.source_name,
+        post_type: 'social',
+        caption: content.title,
         post_content: content.body,
         status: 'scheduled',
         scheduled_for: new Date(Date.now() + distributed.length * 3600000).toISOString() // Stagger by 1 hour
       });
 
-      distributed.push(source.platform);
-      console.log(`   ✅ Scheduled for: ${source.platform}`);
+      distributed.push(source.source_name);
+      console.log(`   ✅ Scheduled for: ${source.source_name}`);
     }
 
     return {
       success: true,
       distributed_to: distributed.length,
       platforms: distributed,
-      total_estimated_reach: sources.reduce((sum: number, s: any) => sum + (s.estimated_daily_traffic || 0), 0)
+      total_estimated_reach: sources.reduce((sum: number, s: any) => sum + 1000, 0) // Estimated default
     };
   }
 };
