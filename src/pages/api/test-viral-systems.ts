@@ -1,5 +1,3 @@
-
-
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
 import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
@@ -43,12 +41,11 @@ export default async function handler(
     // TEST 1: DNA ANALYZER
     console.log('TEST 1: DNA Analyzer...');
     try {
-      const dnaResults = await viralDnaAnalyzer.extractDNA(userId);
+      const dnaResults = await viralDnaAnalyzer.batchOptimizeContent(userId);
       testResults.systems.dnaAnalyzer = {
         status: '✅ PASSED',
-        patternsFound: dnaResults.viralPatterns.length,
-        topGenes: dnaResults.topGenes.length,
-        totalAnalyzed: dnaResults.totalAnalyzed
+        optimizedCount: dnaResults.optimized_count,
+        averageBoost: dnaResults.average_boost
       };
     } catch (error) {
       testResults.systems.dnaAnalyzer = {
@@ -84,26 +81,12 @@ export default async function handler(
     // TEST 3: QUANTUM MULTIPLIER
     console.log('TEST 3: Quantum Content Multiplier...');
     try {
-      const { data: post } = await supabase
-        .from('posted_content')
-        .select('id')
-        .eq('user_id', userId)
-        .limit(1)
-        .maybeSingle();
-
-      if (post) {
-        const quantumResults = await quantumContentMultiplier.createSuperposition(userId, post.id);
-        testResults.systems.quantumMultiplier = {
-          status: '✅ PASSED',
-          variations: quantumResults.variations,
-          quantumStates: quantumResults.quantumStates.length
-        };
-      } else {
-        testResults.systems.quantumMultiplier = {
-          status: '⚠️ SKIPPED',
-          reason: 'No posts available for testing'
-        };
-      }
+      const quantumResults = await quantumContentMultiplier.autoPost(userId);
+      testResults.systems.quantumMultiplier = {
+        status: '✅ PASSED',
+        postedCount: quantumResults.posted_count,
+        platforms: quantumResults.platforms
+      };
     } catch (error) {
       testResults.systems.quantumMultiplier = {
         status: '❌ FAILED',
@@ -114,13 +97,11 @@ export default async function handler(
     // TEST 4: VIRAL ENGINE
     console.log('TEST 4: Viral Engine...');
     try {
-      const viralResults = await viralEngine.orchestrate(userId);
+      const viralResults = await viralEngine.batchGenerateViralContent(userId);
       testResults.systems.viralEngine = {
         status: viralResults.success ? '✅ PASSED' : '⚠️ PARTIAL',
-        campaignsCreated: viralResults.campaigns.length,
-        estimatedReach: viralResults.totalEstimatedReach,
-        estimatedRevenue: viralResults.totalEstimatedRevenue,
-        systemHealth: viralResults.systemHealth
+        generatedCount: viralResults.generated_count,
+        productsProcessed: viralResults.products_processed
       };
     } catch (error) {
       testResults.systems.viralEngine = {
