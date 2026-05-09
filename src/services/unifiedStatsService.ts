@@ -100,3 +100,37 @@ export const unifiedStatsService = {
     }
   }
 };
+
+export interface UnifiedStats {
+  totalProducts: number;
+  activeLinks: number;
+  contentGenerated: number;
+  postsCreated: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  products?: number;
+  contentReady?: number;
+  postsToday?: number;
+  autopilotEnabled?: boolean;
+}
+
+export class UnifiedStatsService {
+  static async getStats(userId: string): Promise<UnifiedStats> {
+    const stats = await unifiedStatsService.getRealStats(userId);
+    return {
+      totalProducts: stats.products,
+      activeLinks: stats.activeLinks,
+      contentGenerated: stats.contentReady,
+      postsCreated: stats.postsToday,
+      clicks: stats.clicks,
+      conversions: stats.conversions,
+      revenue: stats.revenue,
+      ...stats
+    };
+  }
+  
+  async getStats(userId: string): Promise<UnifiedStats> {
+    return UnifiedStatsService.getStats(userId);
+  }
+}

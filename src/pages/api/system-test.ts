@@ -61,11 +61,11 @@ export default async function handler(
     console.log('🔍 PHASE 2: Discovering REAL 2026 products...');
     
     try {
-      const discoveryResult = await trendingProductDiscovery.discoverAllTrendingProducts(userId);
+      const discoveryResult: any = await trendingProductDiscovery.discoverAllTrendingProducts(userId);
       testResults.phase2_discovery = {
-        success: discoveryResult.success,
+        success: discoveryResult.success || discoveryResult.total_found > 0,
         productsFound: discoveryResult.total_found || 0,
-        sources: discoveryResult.sources || [],
+        sources: discoveryResult.sources || discoveryResult.sources_checked || [],
         realNetworks: ['Amazon', 'AliExpress', 'Google Trends']
       };
     } catch (error) {
