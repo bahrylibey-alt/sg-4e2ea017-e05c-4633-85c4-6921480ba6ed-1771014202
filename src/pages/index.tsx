@@ -29,6 +29,7 @@ export default function HomePage() {
   const [activating, setActivating] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [executing, setExecuting] = useState(false);
+  const [activatingAutopilot, setActivatingAutopilot] = useState(false);
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeLinks: 0,
