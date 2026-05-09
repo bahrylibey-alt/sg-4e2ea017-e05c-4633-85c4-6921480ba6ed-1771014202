@@ -154,9 +154,6 @@ export default async function handler(
     }
 
     // FIX 4: Traffic Sources
-    // Fix 3: Verify traffic sources
-    steps.push({ step: 'Verify Traffic Sources', status: 'checking' });
-    
     const { data: userCampaigns } = await supabase
       .from('campaigns')
       .select('id')
@@ -175,8 +172,6 @@ export default async function handler(
     }
 
     if (trafficCount === 0) {
-      steps.push({ step: 'Verify Traffic Sources', status: 'warning', count: 0 });
-      
       // Create default campaign if none exists
       let defaultCampaignId;
       if (userCampaignIds.length === 0) {
