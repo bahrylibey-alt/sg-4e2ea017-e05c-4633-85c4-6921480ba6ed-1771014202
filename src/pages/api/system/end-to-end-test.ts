@@ -113,7 +113,7 @@ export default async function handler(
     let sourceCount = 0;
     
     if (userCampaignIds.length > 0) {
-      const { data: trafficSources, error: trafficError } = await supabase
+      const { data: trafficSources, error: trafficError } = await (supabase as any)
         .from('traffic_sources')
         .select('id')
         .in('campaign_id', userCampaignIds)
