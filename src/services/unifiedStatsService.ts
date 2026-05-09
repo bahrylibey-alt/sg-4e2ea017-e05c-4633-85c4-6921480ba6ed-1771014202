@@ -54,7 +54,7 @@ export const unifiedStatsService = {
         .eq('user_id', userId);
 
       const conversionCount = conversions?.length || 0;
-      const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
+      const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0), 0) || 0;
 
       // Posts today (only real published posts)
       const today = new Date();
@@ -102,20 +102,21 @@ export const unifiedStatsService = {
 };
 
 export interface UnifiedStats {
-  totalProducts: number;
-  activeLinks: number;
-  contentGenerated: number;
-  postsCreated: number;
+  products: number;
+  articles: number;
+  posts: number;
   clicks: number;
+  views: number;
   conversions: number;
   revenue: number;
-  products?: number;
+  
+  totalProducts?: number;
+  activeLinks?: number;
+  contentGenerated?: number;
+  postsCreated?: number;
   contentReady?: number;
   postsToday?: number;
   autopilotEnabled?: boolean;
-  articles?: number;
-  posts?: number;
-  views?: number;
 }
 
 export class UnifiedStatsService {
@@ -123,17 +124,21 @@ export class UnifiedStatsService {
     const targetUserId = userId || '00000000-0000-0000-0000-000000000000';
     const stats = await unifiedStatsService.getRealStats(targetUserId);
     return {
+      products: stats.products,
+      articles: 0,
+      posts: stats.postsToday,
+      clicks: stats.clicks,
+      views: stats.clicks * 3, // Approximate real views based on clicks
+      conversions: stats.conversions,
+      revenue: stats.revenue,
+      
       totalProducts: stats.products,
       activeLinks: stats.activeLinks,
       contentGenerated: stats.contentReady,
       postsCreated: stats.postsToday,
-      clicks: stats.clicks,
-      conversions: stats.conversions,
-      revenue: stats.revenue,
-      articles: 0,
-      posts: stats.postsToday,
-      views: stats.clicks * 3, // Approximate real views based on clicks
-      ...stats
+      contentReady: stats.contentReady,
+      postsToday: stats.postsToday,
+      autopilotEnabled: stats.autopilotEnabled
     };
   }
   
