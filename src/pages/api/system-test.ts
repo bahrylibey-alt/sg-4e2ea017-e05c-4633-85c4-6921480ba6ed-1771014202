@@ -44,18 +44,108 @@ export default async function handler(
 
     const userId = profiles[0].id;
 
-    // PHASE 1: AGGRESSIVE PURGE OF ALL MOCK DATA
+    // PHASE 1: AGGRESSIVE PURGE OF ALL MOCK DATA (INLINE - NO FETCH)
     console.log('🧹 PHASE 1: Purging ALL mock data...');
-    const purgeResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/system/purge-mock-data`, {
-      method: 'POST'
-    });
     
-    const purgeData = await purgeResponse.json();
-    testResults.phase1_purge = {
-      success: purgeData.success,
-      totalDeleted: purgeData.totalDeleted || 0,
-      breakdown: purgeData.purged || {}
-    };
+    try {
+      const purgeResults = {
+        mockProducts: 0,
+        allClicks: 0,
+        allConversions: 0,
+        invalidLinks: 0,
+        fakeContent: 0,
+        testPosts: 0
+      };
+
+      const validNetworks = ['amazon', 'aliexpress', 'clickbank', 'cj', 'shareasale', 'rakuten', 'impact', 'awin'];
+      
+      // Delete invalid products
+      const { data: allProducts } = await (supabase as any)
+        .from('product_catalog')
+        .select('id, network, affiliate_url, source')
+        .eq('user_id', userId);
+
+      const invalidProductIds: string[] = [];
+      allProducts?.forEach((p: any) => {
+        const hasValidNetwork = validNetworks.includes(p.network?.toLowerCase());
+        const hasRealUrl = p.affiliate_url?.startsWith('http') && 
+                          !p.affiliate_url?.includes('example.com') && 
+                          !p.affiliate_url?.includes('test.com');
+        const hasRealSource = p.source && 
+                              !p.source.toLowerCase().includes('mock') &&
+                              !p.source.toLowerCase().includes('test');
+        
+        if (!hasValidNetwork || !hasRealUrl || !hasRealSource) {
+          invalidProductIds.push(p.id);
+        }
+      });
+
+      if (invalidProductIds.length > 0) {
+        await (supabase as any).from('product_catalog').delete().in('id', invalidProductIds);
+        purgeResults.mockProducts = invalidProductIds.length;
+      }
+
+      // Delete ALL clicks (simulated)
+      const { count: clickCount } = await (supabase as any)
+        .from('click_events')
+        .delete()
+        .eq('user_id', userId)
+        .select('*', { count: 'exact' });
+      purgeResults.allClicks = clickCount || 0;
+
+      // Delete ALL conversions
+      const { count: convCount } = await (supabase as any)
+        .from('conversion_events')
+        .delete()
+        .eq('user_id', userId)
+        .select('*', { count: 'exact' });
+      purgeResults.allConversions = convCount || 0;
+
+      // Delete ALL posted content
+      const { count: postCount } = await (supabase as any)
+        .from('posted_content')
+        .delete()
+        .eq('user_id', userId)
+        .select('*', { count: 'exact' });
+      purgeResults.testPosts = postCount || 0;
+
+      // Delete fake generated content
+      const { count: contentCount } = await (supabase as any)
+        .from('generated_content')
+        .delete()
+        .eq('user_id', userId)
+        .in('status', ['draft', 'ready', 'scheduled'])
+        .select('*', { count: 'exact' });
+      purgeResults.fakeContent = contentCount || 0;
+
+      // Delete invalid links
+      const { data: invalidLinks } = await (supabase as any)
+        .from('affiliate_links')
+        .select('id')
+        .eq('user_id', userId)
+        .or('original_url.ilike.%example%,original_url.ilike.%test%,status.eq.invalid');
+
+      if (invalidLinks && invalidLinks.length > 0) {
+        await (supabase as any).from('affiliate_links').delete().in('id', invalidLinks.map((l: any) => l.id));
+        purgeResults.invalidLinks = invalidLinks.length;
+      }
+
+      const totalDeleted = Object.values(purgeResults).reduce((a, b) => a + b, 0);
+      
+      testResults.phase1_purge = {
+        success: true,
+        totalDeleted,
+        breakdown: purgeResults
+      };
+
+    } catch (purgeError) {
+      console.error('Purge error:', purgeError);
+      testResults.phase1_purge = {
+        success: false,
+        error: purgeError instanceof Error ? purgeError.message : 'Purge failed',
+        totalDeleted: 0
+      };
+    }
 
     // PHASE 2: DISCOVER REAL 2026 TRENDING PRODUCTS
     console.log('🔍 PHASE 2: Discovering REAL 2026 products...');
@@ -96,7 +186,7 @@ export default async function handler(
             user_id: userId,
             product_id: product.id,
             original_url: product.affiliate_url,
-            short_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/go/${product.id.substring(0, 8)}`,
+            short_url: `/go/${product.id.substring(0, 8)}`,
             status: 'active',
             network: product.network
           });
@@ -126,7 +216,6 @@ export default async function handler(
           );
 
           if (content && content.length > 50) {
-            // Save to database
             await (supabase as any).from('generated_content').insert({
               user_id: userId,
               product_id: product.id,
@@ -159,7 +248,6 @@ export default async function handler(
     // PHASE 5: SETUP REAL TRAFFIC SOURCES
     console.log('🚦 PHASE 5: Setting up real traffic sources...');
     
-    // Get or create campaign
     let campaignId: string | null = null;
     const { data: existingCampaigns } = await (supabase as any)
       .from('campaigns')
