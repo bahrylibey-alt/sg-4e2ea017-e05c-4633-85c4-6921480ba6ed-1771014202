@@ -1,159 +1,102 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export interface UnifiedStats {
-  products: number;
-  articles: number;
-  posts: number;
-  clicks: number;
-  views: number;
-  conversions: number;
-  revenue: number;
-}
-
 /**
- * UNIFIED STATS SERVICE - SINGLE SOURCE OF TRUTH
- * 
- * All dashboard pages MUST use this service to display stats.
- * This ensures data consistency across the entire application.
- * 
- * Data sources:
- * - Products: affiliate_links table
- * - Articles: generated_content (status = 'published')
- * - Posts: posted_content (status = 'posted')
- * - Clicks: click_events table
- * - Views: view_events table
- * - Conversions: conversion_events (verified = true)
- * - Revenue: sum of conversion_events.revenue (verified = true)
+ * UNIFIED STATS SERVICE
+ * Real-time statistics from actual database data
+ * NO SIMULATIONS - NO MOCKS
  */
-export class UnifiedStatsService {
+export const unifiedStatsService = {
   /**
-   * Get real-time stats from database
-   * Returns actual data, never mock/demo data
-   * FAILS GRACEFULLY - returns zeros if database unreachable
+   * Get real system statistics for a user
    */
-  static async getStats(): Promise<UnifiedStats> {
+  async getRealStats(userId: string): Promise<{
+    products: number;
+    activeLinks: number;
+    contentReady: number;
+    clicks: number;
+    conversions: number;
+    revenue: number;
+    postsToday: number;
+    autopilotEnabled: boolean;
+  }> {
     try {
-      console.log("🔍 UnifiedStatsService: Fetching stats from database...");
+      // Real products count
+      const { count: productCount } = await (supabase as any)
+        .from('product_catalog')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .in('network', ['amazon', 'aliexpress', 'clickbank', 'cj', 'shareasale']);
+
+      // Real active affiliate links
+      const { count: linkCount } = await (supabase as any)
+        .from('affiliate_links')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+      // Content ready to post
+      const { count: contentCount } = await (supabase as any)
+        .from('generated_content')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .in('status', ['ready', 'scheduled']);
+
+      // Real clicks from actual visitors
+      const { count: clickCount } = await (supabase as any)
+        .from('click_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      // Real conversions
+      const { data: conversions } = await (supabase as any)
+        .from('conversion_events')
+        .select('revenue')
+        .eq('user_id', userId);
+
+      const conversionCount = conversions?.length || 0;
+      const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
+
+      // Posts today (only real published posts)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      // Run all queries in parallel for speed
-      const [
-        productsResult,
-        articlesResult,
-        postsResult,
-        clicksResult,
-        viewsResult,
-        conversionsResult
-      ] = await Promise.all([
-        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }),
-        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('status', 'posted'),
-        supabase.from('click_events').select('id', { count: 'exact', head: true }),
-        supabase.from('view_events').select('id', { count: 'exact', head: true }),
-        supabase.from('conversion_events').select('revenue').eq('verified', true)
-      ].map(p => Promise.resolve(p).catch(err => {
-        console.warn("Query failed:", err);
-        return { data: null, error: err, count: 0 };
-      })));
+      const { count: postsToday } = await (supabase as any)
+        .from('posted_content')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'published')
+        .gte('created_at', today.toISOString());
 
-      // Log results for debugging
-      console.log("📊 Query results:", {
-        products: productsResult.count,
-        articles: articlesResult.count,
-        posts: postsResult.count,
-        clicks: clicksResult.count,
-        views: viewsResult.count,
-        conversions: conversionsResult.data?.length
-      });
+      // Autopilot status
+      const { data: settings } = await (supabase as any)
+        .from('user_settings')
+        .select('autopilot_enabled')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      // Calculate total revenue
-      const totalRevenue = conversionsResult.data?.reduce((sum, conv) => {
-        const revenue = Number(conv.revenue) || 0;
-        return sum + revenue;
-      }, 0) || 0;
-
-      const stats: UnifiedStats = {
-        products: productsResult.count || 0,
-        articles: articlesResult.count || 0,
-        posts: postsResult.count || 0,
-        clicks: clicksResult.count || 0,
-        views: viewsResult.count || 0,
-        conversions: conversionsResult.data?.length || 0,
-        revenue: totalRevenue
+      return {
+        products: productCount || 0,
+        activeLinks: linkCount || 0,
+        contentReady: contentCount || 0,
+        clicks: clickCount || 0,
+        conversions: conversionCount,
+        revenue: totalRevenue,
+        postsToday: postsToday || 0,
+        autopilotEnabled: settings?.autopilot_enabled || false
       };
 
-      console.log("✅ Final stats:", stats);
-      return stats;
-      
     } catch (error) {
-      console.error("❌ UnifiedStatsService error:", error);
-      console.warn("Returning zeros - database may be unreachable");
-      
-      // Return zeros on error - page still loads
+      console.error('Failed to get real stats:', error);
       return {
         products: 0,
-        articles: 0,
-        posts: 0,
+        activeLinks: 0,
+        contentReady: 0,
         clicks: 0,
-        views: 0,
         conversions: 0,
-        revenue: 0
+        revenue: 0,
+        postsToday: 0,
+        autopilotEnabled: false
       };
     }
   }
-
-  /**
-   * Get stats for a specific user
-   */
-  static async getStatsForUser(userId: string): Promise<UnifiedStats> {
-    try {
-      console.log(`🔍 UnifiedStatsService: Fetching stats for user ${userId}...`);
-      
-      const [
-        productsResult,
-        articlesResult,
-        postsResult,
-        clicksResult,
-        viewsResult,
-        conversionsResult
-      ] = await Promise.all([
-        supabase.from('affiliate_links').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('generated_content').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'published'),
-        supabase.from('posted_content').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'posted'),
-        supabase.from('click_events').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('view_events').select('id', { count: 'exact', head: true }).eq('user_id', userId),
-        supabase.from('conversion_events').select('revenue').eq('user_id', userId).eq('verified', true)
-      ]);
-
-      const totalRevenue = conversionsResult.data?.reduce((sum, conv) => {
-        const revenue = Number(conv.revenue) || 0;
-        return sum + revenue;
-      }, 0) || 0;
-
-      const stats: UnifiedStats = {
-        products: productsResult.count || 0,
-        articles: articlesResult.count || 0,
-        posts: postsResult.count || 0,
-        clicks: clicksResult.count || 0,
-        views: viewsResult.count || 0,
-        conversions: conversionsResult.data?.length || 0,
-        revenue: totalRevenue
-      };
-
-      console.log(`✅ User ${userId} stats:`, stats);
-      return stats;
-      
-    } catch (error) {
-      console.error(`❌ UnifiedStatsService error for user ${userId}:`, error);
-      
-      return {
-        products: 0,
-        articles: 0,
-        posts: 0,
-        clicks: 0,
-        views: 0,
-        conversions: 0,
-        revenue: 0
-      };
-    }
-  }
-}
+};
