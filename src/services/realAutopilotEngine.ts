@@ -325,35 +325,39 @@ export const realAutopilotEngine = {
   },
 
   // COMPATIBILITY METHODS FOR EXISTING TEST PAGES
-  async getStats(userId: string) { 
-    return { totalProducts: 0, contentGenerated: 0, postsCreated: 0, activeLinks: 0 }; 
+  async getStats(userId?: string): Promise<any> { 
+    return { products: 0, links: 0, content: 0, posts: 0, clicks: 0, conversions: 0, revenue: 0, totalProducts: 0, contentGenerated: 0, postsCreated: 0, activeLinks: 0 }; 
   },
   
-  async getAllData(userId: string) { 
-    return { products: [], links: [], content: [], posts: [] }; 
+  async getAllData(userId?: string): Promise<any> { 
+    return { products: [], links: [], content: [], posts: [], logs: [] }; 
   },
   
-  async runAutopilot(userId: string) { 
-    return await this.executeCompleteWorkflow(userId); 
+  async runAutopilot(userId?: string, options?: any): Promise<any> { 
+    if (userId) {
+      const result = await this.executeCompleteWorkflow(userId);
+      return { ...result, logs: [] };
+    }
+    return { success: true, logs: [], postsCreated: 0 }; 
   },
   
-  async clearAllData(userId: string) { 
+  async clearAllData(userId?: string): Promise<any> { 
     return { success: true }; 
   },
   
-  async discoverProducts(userId: string) { 
-    return { success: true, count: 0 }; 
+  async discoverProducts(userId?: string, options?: any): Promise<any> { 
+    return []; 
   },
   
-  async createAffiliateLinks(userId: string) { 
-    return { success: true, count: 0 }; 
+  async createAffiliateLinks(userId?: string, options?: any): Promise<any> { 
+    return []; 
   },
   
-  async generateContent(userId: string) { 
-    return { success: true, count: 0 }; 
+  async generateContent(userId?: string, options?: any): Promise<any> { 
+    return []; 
   },
   
-  async publishToSocial(userId: string) { 
-    return { success: true, count: 0 }; 
+  async publishToSocial(userId?: string, platform?: string): Promise<any> { 
+    return []; 
   }
 };
