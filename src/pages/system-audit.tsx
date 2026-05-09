@@ -81,19 +81,20 @@ export default function SystemAudit() {
 
       // CHECK 2: Click Tracking Validation
       auditResults.checks.push({ name: 'Click Tracking Validation', status: 'checking' });
-      const { data: clicks } = await supabase
+      const { data: clicksRes } = await (supabase as any)
         .from('click_events')
         .select('*')
         .eq('user_id', userId);
+      const clicks = clicksRes as any[];
 
       const validPlatforms = ['pinterest', 'tiktok', 'twitter', 'facebook', 'instagram', 'reddit', 'linkedin', 'youtube'];
       let realClicks = 0;
       let mockClicks = 0;
 
       clicks?.forEach(c => {
-        const hasValidPlatform = validPlatforms.includes(c.traffic_source?.toLowerCase());
+        const hasValidPlatform = validPlatforms.includes(c.platform?.toLowerCase() || c.source?.toLowerCase() || '');
         const hasLinkId = !!c.link_id;
-        const hasTimestamp = !!c.created_at;
+        const hasTimestamp = !!(c.created_at || c.clicked_at);
 
         if (hasValidPlatform && hasLinkId && hasTimestamp) {
           realClicks++;
@@ -117,10 +118,11 @@ export default function SystemAudit() {
 
       // CHECK 3: Conversion Validation
       auditResults.checks.push({ name: 'Conversion Validation', status: 'checking' });
-      const { data: conversions } = await supabase
+      const { data: conversionsRes } = await (supabase as any)
         .from('conversion_events')
         .select('*')
         .eq('user_id', userId);
+      const conversions = conversionsRes as any[];
 
       let realConversions = 0;
       let mockConversions = 0;
@@ -128,7 +130,7 @@ export default function SystemAudit() {
       conversions?.forEach(c => {
         const hasClickId = !!c.click_id;
         const hasRevenue = c.revenue > 0;
-        const hasSource = !!c.traffic_source;
+        const hasSource = !!(c.source || c.traffic_source);
 
         if (hasClickId && hasRevenue && hasSource) {
           realConversions++;

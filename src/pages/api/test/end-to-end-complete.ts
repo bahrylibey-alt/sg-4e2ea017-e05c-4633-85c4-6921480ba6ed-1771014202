@@ -72,7 +72,7 @@ export default async function handler(
 
     const linksCreated: string[] = [];
     for (const product of savedProducts) {
-      const { data: link, error } = await supabase
+      const { data: link, error } = await (supabase as any)
         .from('affiliate_links')
         .insert({
           user_id: userId,
