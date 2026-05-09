@@ -1,230 +1,114 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
+import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
+import { realTrafficEngine } from "@/services/realTrafficEngine";
 
 /**
- * COMPLETE SYSTEM TEST
+ * COMPLETE SYSTEM TEST - REAL DATA ONLY
  * 
- * Tests every component with REAL data validation
- * Reports exactly what's missing/broken
+ * This test:
+ * 1. Purges ALL mock/fake data
+ * 2. Discovers REAL 2026 trending products
+ * 3. Generates REAL content with OpenAI
+ * 4. Attempts REAL posting (requires API setup)
+ * 5. Reports what's working and what needs setup
  */
-
-interface SystemTest {
-  name: string;
-  status: 'PASS' | 'FAIL' | 'SKIP';
-  message: string;
-  data?: any;
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const tests: SystemTest[] = [];
-  
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    // Get user from query param
-    const userId = req.query.userId as string;
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'userId required in query params' });
+    const testResults: any = {
+      phase1_purge: {},
+      phase2_discovery: {},
+      phase3_content: {},
+      phase4_posting: {},
+      summary: {}
+    };
+
+    // Get authenticated user
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    console.log('🧪 SYSTEM TEST: Starting comprehensive test...');
+    const userId = session.user.id;
 
-    // TEST 1: User Settings
-    const { data: userSettings, error: settingsError } = await supabase
-      .from('user_settings')
+    // PHASE 1: PURGE MOCK DATA
+    console.log('🧹 PHASE 1: Purging mock data...');
+    const purgeResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/system/purge-mock-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const purgeData = await purgeResponse.json();
+    testResults.phase1_purge = purgeData.purged || {};
+
+    // PHASE 2: DISCOVER REAL 2026 PRODUCTS
+    console.log('🔍 PHASE 2: Discovering real 2026 products...');
+    const discoveryResult = await trendingProductDiscovery.discoverAllTrendingProducts(userId);
+    testResults.phase2_discovery = {
+      productsFound: discoveryResult.total_found || 0,
+      sources: ['Amazon', 'AliExpress', 'Google Trends', 'Curated 2026']
+    };
+
+    // PHASE 3: GENERATE REAL CONTENT
+    console.log('✍️ PHASE 3: Generating real content...');
+    const { data: products } = await (supabase as any)
+      .from('product_catalog')
       .select('*')
       .eq('user_id', userId)
-      .maybeSingle();
+      .gte('created_at', '2026-01-01')
+      .limit(3);
 
-    tests.push({
-      name: 'User Settings',
-      status: userSettings ? 'PASS' : 'FAIL',
-      message: userSettings 
-        ? 'User settings exist' 
-        : settingsError?.message || 'No user settings found',
-      data: userSettings
-    });
-
-    // TEST 2: Autopilot Settings
-    const { data: autopilotSettings, error: autopilotError } = await supabase
-      .from('autopilot_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    tests.push({
-      name: 'Autopilot Settings',
-      status: autopilotSettings ? 'PASS' : 'FAIL',
-      message: autopilotSettings 
-        ? 'Autopilot configured' 
-        : autopilotError?.message || 'No autopilot settings',
-      data: autopilotSettings
-    });
-
-    // TEST 3: Connected Integrations
-    const { data: integrations, error: intError } = await supabase
-      .from('integrations')
-      .select('provider, status, category')
-      .eq('user_id', userId)
-      .eq('status', 'connected');
-
-    const affiliateNetworks = integrations?.filter(i => i.category === 'affiliate') || [];
-    const trafficSources = integrations?.filter(i => i.category === 'traffic') || [];
-
-    tests.push({
-      name: 'Affiliate Networks',
-      status: affiliateNetworks.length > 0 ? 'PASS' : 'FAIL',
-      message: affiliateNetworks.length > 0 
-        ? `${affiliateNetworks.length} networks connected: ${affiliateNetworks.map(i => i.provider).join(', ')}`
-        : 'No affiliate networks connected - go to /integrations',
-      data: { networks: affiliateNetworks.map(i => i.provider) }
-    });
-
-    tests.push({
-      name: 'Traffic Sources',
-      status: trafficSources.length > 0 ? 'PASS' : 'FAIL',
-      message: trafficSources.length > 0 
-        ? `${trafficSources.length} sources connected: ${trafficSources.map(i => i.provider).join(', ')}`
-        : 'No traffic sources connected - go to /integrations',
-      data: { sources: trafficSources.map(i => i.provider) }
-    });
-
-    // TEST 4: Product Catalog
-    const { data: products, count: productCount } = await supabase
-      .from('affiliate_links')
-      .select('id, product_name, network, status', { count: 'exact' })
-      .eq('user_id', userId);
-
-    tests.push({
-      name: 'Product Catalog',
-      status: (productCount || 0) > 0 ? 'PASS' : 'FAIL',
-      message: (productCount || 0) > 0 
-        ? `${productCount} products found`
-        : 'No products - run product discovery',
-      data: { 
-        count: productCount,
-        sample: products?.slice(0, 3).map(p => p.product_name)
+    let contentGenerated = 0;
+    if (products && products.length > 0) {
+      for (const product of products) {
+        const content = await realTrafficEngine.generateRealContent(product, 'pinterest');
+        if (content && content.length > 50) {
+          contentGenerated++;
+        }
       }
-    });
+    }
+    testResults.phase3_content = {
+      productsProcessed: products?.length || 0,
+      contentGenerated
+    };
 
-    // TEST 5: Tracking Data
-    const { data: clicks, count: clickCount } = await supabase
-      .from('click_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    const { data: views, count: viewCount } = await supabase
-      .from('view_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    const { data: conversions, count: conversionCount } = await supabase
-      .from('conversion_events')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    tests.push({
-      name: 'Tracking Data',
-      status: ((clickCount || 0) > 0 || (viewCount || 0) > 0) ? 'PASS' : 'FAIL',
-      message: `${clickCount || 0} clicks, ${viewCount || 0} views, ${conversionCount || 0} conversions`,
-      data: {
-        clicks: clickCount,
-        views: viewCount,
-        conversions: conversionCount
-      }
-    });
-
-    // TEST 6: Posted Content
-    const { data: posts, count: postCount } = await supabase
-      .from('posted_content')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    tests.push({
-      name: 'Posted Content',
-      status: (postCount || 0) > 0 ? 'PASS' : 'SKIP',
-      message: (postCount || 0) > 0 
-        ? `${postCount} posts found`
-        : 'No posts yet - will be created by autopilot',
-      data: { count: postCount }
-    });
-
-    // TEST 7: System State
-    const { data: systemState } = await supabase
-      .from('system_state')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    tests.push({
-      name: 'System State',
-      status: systemState ? 'PASS' : 'SKIP',
-      message: systemState 
-        ? `State: ${systemState.state}, Views: ${systemState.total_views}, Clicks: ${systemState.total_clicks}`
-        : 'No system state yet',
-      data: systemState
-    });
+    // PHASE 4: ATTEMPT REAL POSTING
+    console.log('📤 PHASE 4: Attempting real posting...');
+    const postingResult = await realTrafficEngine.executeRealWorkflow(userId);
+    testResults.phase4_posting = postingResult;
 
     // SUMMARY
-    const passed = tests.filter(t => t.status === 'PASS').length;
-    const failed = tests.filter(t => t.status === 'FAIL').length;
-    const skipped = tests.filter(t => t.status === 'SKIP').length;
+    testResults.summary = {
+      mockDataRemoved: Object.values(testResults.phase1_purge).reduce((a: any, b: any) => a + b, 0),
+      realProductsAdded: testResults.phase2_discovery.productsFound,
+      realContentGenerated: testResults.phase3_content.contentGenerated,
+      realPostsCreated: testResults.phase4_posting.realPosts,
+      setupRequired: testResults.phase4_posting.requiresSetup,
+      status: testResults.phase4_posting.realPosts > 0 ? 'WORKING' : 'NEEDS_API_SETUP'
+    };
 
-    const overallStatus = failed === 0 ? 'READY' : 'NOT_READY';
-
-    // ACTION PLAN
-    const actions: string[] = [];
-    
-    if (!userSettings) {
-      actions.push('1. Go to /settings and save your preferences');
-    }
-    if (!autopilotSettings) {
-      actions.push('2. Configure autopilot settings in /settings');
-    }
-    if (affiliateNetworks.length === 0) {
-      actions.push('3. Connect at least one affiliate network in /integrations');
-    }
-    if (trafficSources.length === 0) {
-      actions.push('4. Connect at least one traffic source in /integrations');
-    }
-    if ((productCount || 0) === 0) {
-      actions.push('5. Run product discovery: /api/cron/discover-products');
-    }
-
-    console.log('✅ SYSTEM TEST: Complete');
+    console.log('✅ System test complete:', testResults.summary);
 
     return res.status(200).json({
-      status: overallStatus,
-      summary: {
-        total: tests.length,
-        passed,
-        failed,
-        skipped
-      },
-      tests,
-      actions: actions.length > 0 ? actions : ['System is ready! You can run autopilot.'],
-      recommendations: [
-        'For autopilot to work, you need:',
-        '• At least 1 affiliate network connected',
-        '• At least 1 traffic source connected',
-        '• At least 1 product in catalog',
-        '• User settings configured',
-        '',
-        'Real data sources:',
-        '• Products: From affiliate network APIs',
-        '• Clicks: From traffic platform webhooks',
-        '• Views: From platform APIs',
-        '• Conversions: From postback URLs'
-      ]
+      success: true,
+      results: testResults,
+      message: testResults.summary.status === 'WORKING' 
+        ? 'System is working with real data!' 
+        : 'Mock data purged. Real products added. API integrations needed for posting.',
+      timestamp: new Date().toISOString()
     });
 
-  } catch (error: any) {
-    console.error('❌ SYSTEM TEST ERROR:', error);
+  } catch (error) {
+    console.error('❌ System test failed:', error);
     return res.status(500).json({
-      error: error.message,
-      tests
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }

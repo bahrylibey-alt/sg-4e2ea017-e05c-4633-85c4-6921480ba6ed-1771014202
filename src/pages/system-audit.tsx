@@ -10,13 +10,67 @@ import {
   Loader2,
   Database,
   Zap,
-  TrendingUp
+  TrendingUp,
+  Trash2,
+  CheckCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function SystemAudit() {
   const [scanning, setScanning] = useState(false);
   const [results, setResults] = useState<any>(null);
+
+  const purgeMockData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/system/purge-mock-data', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      
+      toast({
+        title: "Mock Data Purged",
+        description: `Deleted ${data.message}`,
+      });
+
+      // Re-run audit
+      runAudit();
+    } catch (error) {
+      toast({
+        title: "Purge Failed",
+        description: "Could not purge mock data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runRealSystemTest = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/system-test', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      
+      toast({
+        title: data.success ? "System Test Complete" : "Test Failed",
+        description: data.message,
+      });
+
+      // Re-run audit
+      runAudit();
+    } catch (error) {
+      toast({
+        title: "Test Failed",
+        description: "Could not run system test",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const runAudit = async () => {
     setScanning(true);
@@ -303,24 +357,64 @@ export default function SystemAudit() {
         {/* Scan Button */}
         <Card className="border-2 border-blue-500">
           <CardContent className="pt-6">
-            <Button
-              onClick={runAudit}
-              disabled={scanning}
-              size="lg"
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
-            >
-              {scanning ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Scanning System...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-5 w-5" />
-                  Run Complete System Audit
-                </>
-              )}
-            </Button>
+            <div className="flex gap-4">
+              <Button
+                onClick={runAudit}
+                disabled={scanning}
+                size="lg"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Scanning System...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-5 w-5" />
+                    Run Complete System Audit
+                  </>
+                )}
+              </Button>
+
+              <Button
+                onClick={purgeMockData}
+                disabled={scanning}
+                variant="destructive"
+                size="lg"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Purging...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-5 w-5" />
+                    Purge All Mock Data
+                  </>
+                )}
+              </Button>
+
+              <Button
+                onClick={runRealSystemTest}
+                disabled={scanning}
+                variant="outline"
+                size="lg"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-5 w-5" />
+                    Test Real System
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
