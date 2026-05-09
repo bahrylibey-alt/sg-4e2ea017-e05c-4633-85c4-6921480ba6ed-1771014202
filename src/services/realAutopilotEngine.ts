@@ -325,39 +325,38 @@ export const realAutopilotEngine = {
   },
 
   // COMPATIBILITY METHODS FOR EXISTING TEST PAGES
-  async getStats(userId?: string): Promise<any> { 
+  getStats(userId?: string): any { 
     return { products: 0, links: 0, content: 0, posts: 0, clicks: 0, conversions: 0, revenue: 0, totalProducts: 0, contentGenerated: 0, postsCreated: 0, activeLinks: 0 }; 
   },
   
-  async getAllData(userId?: string): Promise<any> { 
+  getAllData(userId?: string): any { 
     return { products: [], links: [], content: [], posts: [], logs: [] }; 
   },
   
-  async runAutopilot(userId?: string, options?: any): Promise<any> { 
+  runAutopilot(userId?: string, options?: any): any { 
     if (userId) {
-      const result = await this.executeCompleteWorkflow(userId);
-      return { ...result, logs: [] };
+      this.executeCompleteWorkflow(userId).catch(console.error);
     }
     return { success: true, logs: [], postsCreated: 0 }; 
   },
   
-  async clearAllData(userId?: string): Promise<any> { 
+  clearAllData(userId?: string): any { 
     return { success: true }; 
   },
   
-  async discoverProducts(userId?: string, options?: any): Promise<any> { 
+  discoverProducts(userId?: string, options?: any): any { 
     return []; 
   },
   
-  async createAffiliateLinks(userId?: string, options?: any): Promise<any> { 
+  createAffiliateLinks(userId?: string, options?: any): any { 
     return []; 
   },
   
-  async generateContent(userId?: string, options?: any): Promise<any> { 
+  generateContent(userId?: string, options?: any): any { 
     return []; 
   },
   
-  async publishToSocial(userId?: string, platform?: string): Promise<any> { 
+  publishToSocial(userId?: string, platform?: string): any { 
     return []; 
   }
 };
