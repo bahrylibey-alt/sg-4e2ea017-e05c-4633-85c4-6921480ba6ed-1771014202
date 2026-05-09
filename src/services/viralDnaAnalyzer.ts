@@ -279,13 +279,15 @@ export const viralDnaAnalyzer = {
     average_boost: number;
   }> => {
     try {
-      const { data: content } = await supabase
+      const { data: content } = await (supabase as any)
         .from('generated_content')
         .select('*')
         .eq('user_id', userId)
         .eq('status', 'draft');
 
-      if (!content || content.length === 0) {
+      const contentData: any[] = content || [];
+
+      if (contentData.length === 0) {
         return {
           success: false,
           optimized_count: 0,
@@ -296,10 +298,10 @@ export const viralDnaAnalyzer = {
       let totalBoost = 0;
       let optimizedCount = 0;
 
-      for (const item of content) {
+      for (const item of contentData) {
         const optimization = viralDnaAnalyzer.optimizeContent(item.content, item.platform);
         
-        await supabase
+        await (supabase as any)
           .from('generated_content')
           .update({
             content: optimization.optimized_content,

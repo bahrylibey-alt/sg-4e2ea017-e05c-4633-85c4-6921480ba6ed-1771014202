@@ -155,7 +155,7 @@ export const viralEngine = {
       });
 
       // Save to database
-      await supabase.from('generated_content').insert({
+      await (supabase as any).from('generated_content').insert({
         user_id: userId,
         product_id: product.id,
         platform: platform.name,
@@ -351,7 +351,7 @@ Edit: Since people asked, here's where I got it [affiliate link - full disclosur
   }> => {
     try {
       // Get top products
-      const { data: products } = await supabase
+      const { data: products } = await (supabase as any)
         .from('product_catalog')
         .select('*')
         .eq('user_id', userId)

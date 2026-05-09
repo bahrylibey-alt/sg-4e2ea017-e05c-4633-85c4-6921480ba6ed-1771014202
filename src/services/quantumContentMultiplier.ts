@@ -71,7 +71,7 @@ export const quantumContentMultiplier = {
         variations.push(contentVariation);
 
         // Save to database
-        await supabase.from('generated_content').insert({
+        await (supabase as any).from('generated_content').insert({
           user_id: userId,
           product_id: product.id,
           platform: base.platform,
@@ -157,7 +157,7 @@ export const quantumContentMultiplier = {
         const [hour] = timeSlot.match(/\d+/) || ['12'];
         scheduledDate.setHours(parseInt(hour), 0, 0, 0);
 
-        await supabase
+        await (supabase as any)
           .from('generated_content')
           .update({
             scheduled_time: scheduledDate.toISOString(),
@@ -195,7 +195,7 @@ export const quantumContentMultiplier = {
   }> => {
     try {
       // Get ready content
-      const { data: readyContent } = await supabase
+      const { data: readyContent } = await (supabase as any)
         .from('generated_content')
         .select('*')
         .eq('user_id', userId)
@@ -203,7 +203,9 @@ export const quantumContentMultiplier = {
         .lte('scheduled_time', new Date().toISOString())
         .limit(10);
 
-      if (!readyContent || readyContent.length === 0) {
+      const contentData: any[] = readyContent || [];
+
+      if (contentData.length === 0) {
         return {
           success: false,
           posted_count: 0,
@@ -213,7 +215,7 @@ export const quantumContentMultiplier = {
 
       const postedPlatforms = new Set<string>();
 
-      for (const content of readyContent) {
+      for (const content of contentData) {
         // In production, integrate with:
         // - Buffer API for social posting
         // - Pinterest API for pins
@@ -222,7 +224,7 @@ export const quantumContentMultiplier = {
         // - Zapier webhooks for automation
 
         // For now, mark as posted
-        await supabase
+        await (supabase as any)
           .from('generated_content')
           .update({ status: 'published' })
           .eq('id', content.id);
@@ -230,7 +232,7 @@ export const quantumContentMultiplier = {
         postedPlatforms.add(content.platform);
 
         // Log activity
-        await supabase.from('activity_log').insert({
+        await (supabase as any).from('activity_log').insert({
           user_id: userId,
           action: 'content_published',
           entity_type: 'generated_content',
@@ -244,7 +246,7 @@ export const quantumContentMultiplier = {
 
       return {
         success: true,
-        posted_count: readyContent.length,
+        posted_count: contentData.length,
         platforms: Array.from(postedPlatforms)
       };
     } catch (error) {
