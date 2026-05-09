@@ -54,7 +54,7 @@ export const unifiedStatsService = {
         .eq('user_id', userId);
 
       const conversionCount = conversions?.length || 0;
-      const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0), 0) || 0;
+      const totalRevenue = conversions?.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;
 
       // Posts today (only real published posts)
       const today = new Date();
