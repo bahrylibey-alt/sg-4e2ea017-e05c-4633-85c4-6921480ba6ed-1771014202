@@ -431,6 +431,44 @@ Return as JSON:
       throw new Error(`Failed to analyze performance: ${error.message}`);
     }
   }
+
+  /**
+   * Generate raw text for generic prompts
+   */
+  async generateText(prompt: string, options?: { maxTokens?: number; temperature?: number }): Promise<string> {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert copywriter and affiliate marketer. Write engaging, conversational content that drives clicks.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: options?.temperature || 0.7,
+          max_tokens: options?.maxTokens || 1000
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'OpenAI API error');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error: any) {
+      console.error('OpenAI generate text error:', error);
+      throw new Error(`Failed to generate text: ${error.message}`);
+    }
+  }
 }
 
 export const openAI = new OpenAIService();

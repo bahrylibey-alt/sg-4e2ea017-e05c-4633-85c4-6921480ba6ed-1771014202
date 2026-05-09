@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { openAIService } from "./openAIService";
+import { openAI } from "./openAIService";
 
 /**
  * REAL TRAFFIC ENGINE
@@ -35,7 +35,7 @@ Requirements:
 
 Write the complete post:`;
 
-      const content = await openAIService.generateText(prompt, {
+      const content = await openAI.generateText(prompt, {
         maxTokens: platform === 'medium' ? 1000 : 300,
         temperature: 0.8
       });
