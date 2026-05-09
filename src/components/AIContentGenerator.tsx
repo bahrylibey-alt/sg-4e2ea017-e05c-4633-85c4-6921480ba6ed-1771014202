@@ -1,320 +1,249 @@
+<![CDATA[
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Sparkles, 
   Copy, 
-  Download,
-  RefreshCw,
-  Wand2,
-  FileText,
+  Check,
+  Loader2,
   TrendingUp,
-  Target
+  Hash,
+  MessageSquare,
+  Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { aiContentGenerator } from "@/services/aiContentGenerator";
 
 interface AIContentGeneratorProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+    affiliate_url: string;
+    image_url?: string;
+  };
+  userId: string;
 }
 
-export function AIContentGenerator({ open, onOpenChange }: AIContentGeneratorProps) {
+export function AIContentGenerator({ product, userId }: AIContentGeneratorProps) {
+  const [generating, setGenerating] = useState(false);
+  const [generatedPosts, setGeneratedPosts] = useState<any[]>([]);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [contentType, setContentType] = useState<"ad-copy" | "email" | "social" | "product">("ad-copy");
-  const [input, setInput] = useState({
-    productName: "",
-    targetAudience: "",
-    keyFeatures: "",
-    tone: "professional"
-  });
-  const [generatedContent, setGeneratedContent] = useState<{
-    headline: string;
-    body: string;
-    cta: string;
-    variations: string[];
-  } | null>(null);
 
   const generateContent = async () => {
-    if (!input.productName) {
+    if (!product) {
       toast({
-        title: "Missing Information",
-        description: "Please enter a product name",
+        title: "No Product Selected",
+        description: "Please select a product first",
         variant: "destructive"
       });
       return;
     }
 
-    setLoading(true);
+    setGenerating(true);
     try {
-      // Simulate AI content generation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const content = {
-        headline: generateHeadline(),
-        body: generateBody(),
-        cta: generateCTA(),
-        variations: [
-          generateHeadline(),
-          generateHeadline(),
-          generateHeadline()
-        ]
-      };
-
-      setGeneratedContent(content);
+      const posts = await aiContentGenerator.generateAllPlatforms(product, userId);
+      setGeneratedPosts(posts);
+      
       toast({
         title: "Content Generated!",
-        description: "AI has created optimized content for your campaign"
+        description: `Created ${posts.length} platform-optimized posts`,
       });
-    } catch (err) {
+    } catch (error: any) {
       toast({
         title: "Generation Failed",
-        description: "Failed to generate content. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setGenerating(false);
     }
   };
 
-  const generateHeadline = () => {
-    const headlines = [
-      `Transform Your Life with ${input.productName}`,
-      `Discover the Power of ${input.productName} Today`,
-      `${input.productName}: The Solution You've Been Waiting For`,
-      `Unlock Your Potential with ${input.productName}`,
-      `Experience the Difference: ${input.productName}`
-    ];
-    return headlines[Math.floor(Math.random() * headlines.length)];
-  };
-
-  const generateBody = () => {
-    return `Introducing ${input.productName} - the revolutionary solution designed specifically for ${input.targetAudience}. ${input.keyFeatures || "With cutting-edge features and proven results"}, you'll experience immediate impact and long-term success. Join thousands of satisfied customers who have already transformed their lives.`;
-  };
-
-  const generateCTA = () => {
-    const ctas = [
-      "Get Started Now",
-      "Claim Your Offer Today",
-      "Start Your Free Trial",
-      "Join Thousands of Happy Customers",
-      "Unlock Your Success"
-    ];
-    return ctas[Math.floor(Math.random() * ctas.length)];
-  };
-
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+    
     toast({
       title: "Copied!",
-      description: "Content copied to clipboard"
+      description: "Post copied to clipboard",
     });
   };
 
+  const platformIcons: Record<string, string> = {
+    'tiktok': '🎵',
+    'instagram': '📸',
+    'pinterest': '📌',
+    'twitter': '🐦',
+    'facebook': '👥',
+    'linkedin': '💼'
+  };
+
+  const platformColors: Record<string, string> = {
+    'tiktok': 'bg-pink-100 border-pink-300',
+    'instagram': 'bg-purple-100 border-purple-300',
+    'pinterest': 'bg-red-100 border-red-300',
+    'twitter': 'bg-blue-100 border-blue-300',
+    'facebook': 'bg-blue-100 border-blue-300',
+    'linkedin': 'bg-indigo-100 border-indigo-300'
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
+    <div className="space-y-6">
+      {/* Generator Header */}
+      <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-blue-600" />
             AI Content Generator
-          </DialogTitle>
-          <DialogDescription>
-            Create high-converting copy in seconds with AI optimization
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-6 lg:grid-cols-2 mt-4">
-          <Card className="border-0 shadow-none">
-            <CardHeader className="px-0 pt-0">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Wand2 className="h-5 w-5 text-primary" />
-                Content Settings
-              </CardTitle>
-              <CardDescription>Tell AI about your product and audience</CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 space-y-4">
-              <Tabs value={contentType} onValueChange={(v) => setContentType(v as any)}>
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="ad-copy">Ad Copy</TabsTrigger>
-                  <TabsTrigger value="email">Email</TabsTrigger>
-                  <TabsTrigger value="social">Social</TabsTrigger>
-                  <TabsTrigger value="product">Product</TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              <div className="space-y-2">
-                <Label htmlFor="productName">Product/Offer Name *</Label>
-                <Input
-                  id="productName"
-                  placeholder="e.g., Premium Fitness Program"
-                  value={input.productName}
-                  onChange={(e) => setInput({ ...input, productName: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="targetAudience">Target Audience</Label>
-                <Input
-                  id="targetAudience"
-                  placeholder="e.g., busy professionals aged 25-45"
-                  value={input.targetAudience}
-                  onChange={(e) => setInput({ ...input, targetAudience: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="keyFeatures">Key Features/Benefits</Label>
-                <Textarea
-                  id="keyFeatures"
-                  placeholder="e.g., 30-minute workouts, no equipment needed, proven results"
-                  value={input.keyFeatures}
-                  onChange={(e) => setInput({ ...input, keyFeatures: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tone">Tone of Voice</Label>
-                <select
-                  id="tone"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={input.tone}
-                  onChange={(e) => setInput({ ...input, tone: e.target.value })}
-                >
-                  <option value="professional">Professional</option>
-                  <option value="casual">Casual & Friendly</option>
-                  <option value="urgent">Urgent & Compelling</option>
-                  <option value="luxury">Luxury & Premium</option>
-                  <option value="playful">Playful & Fun</option>
-                </select>
-              </div>
-
-              <Button 
-                onClick={generateContent} 
-                disabled={loading}
-                className="w-full"
-                size="lg"
-              >
-                {loading ? (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate AI Content
-                  </>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {product && (
+            <div className="p-4 bg-white rounded-lg border">
+              <div className="flex items-center gap-4">
+                {product.image_url && (
+                  <img 
+                    src={product.image_url} 
+                    alt={product.name}
+                    className="w-16 h-16 object-cover rounded"
+                  />
                 )}
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{product.name}</h3>
+                  <p className="text-sm text-gray-600">{product.category} • ${product.price}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
-          <Card className="bg-accent/10 border-0 shadow-none">
-            <CardHeader className="pt-0">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Generated Content
-              </CardTitle>
-              <CardDescription>
-                {generatedContent ? "AI-optimized copy ready to use" : "Your content will appear here"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {generatedContent ? (
-                <div className="space-y-6">
-                  <div className="p-4 rounded-lg border bg-background shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline">Headline</Badge>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(generatedContent.headline)}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <p className="font-semibold">{generatedContent.headline}</p>
+          <Button 
+            onClick={generateContent}
+            disabled={generating || !product}
+            className="w-full"
+            size="lg"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Generating Content...
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-5 w-5" />
+                Generate Social Media Posts
+              </>
+            )}
+          </Button>
+
+          <p className="text-xs text-gray-600 text-center">
+            Automatically creates optimized posts for 6 platforms: TikTok, Instagram, Pinterest, Twitter, Facebook, LinkedIn
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Generated Posts */}
+      {generatedPosts.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-blue-600" />
+            Generated Posts ({generatedPosts.length})
+          </h3>
+
+          {generatedPosts.map((post, index) => (
+            <Card key={index} className={`border-2 ${platformColors[post.platform]}`}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="text-2xl">{platformIcons[post.platform]}</span>
+                    {post.platform.charAt(0).toUpperCase() + post.platform.slice(1)}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      <Zap className="h-3 w-3 mr-1" />
+                      {post.estimated_engagement}% engagement
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(`${post.caption}\n\n${post.hashtags.join(' ')}`, index)}
+                    >
+                      {copiedIndex === index ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-
-                  <div className="p-4 rounded-lg border bg-background shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline">Body Copy</Badge>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(generatedContent.body)}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{generatedContent.body}</p>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Hook */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    HOOK
                   </div>
+                  <p className="text-sm font-medium text-gray-900 bg-yellow-50 p-2 rounded">
+                    {post.hook}
+                  </p>
+                </div>
 
-                  <div className="p-4 rounded-lg border bg-background shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline">Call-to-Action</Badge>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(generatedContent.cta)}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <p className="font-medium text-primary">{generatedContent.cta}</p>
+                {/* Caption */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                    <MessageSquare className="h-3 w-3" />
+                    CAPTION
                   </div>
+                  <Textarea 
+                    value={post.caption}
+                    readOnly
+                    className="min-h-[150px] text-sm bg-white"
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      Alternative Headlines
-                    </h4>
-                    {generatedContent.variations.map((variation, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 rounded border bg-background text-xs hover:border-primary transition-colors">
-                        <span className="truncate flex-1 mr-2">{variation}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-5 w-5 p-0"
-                          onClick={() => copyToClipboard(variation)}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
+                {/* Hashtags */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                    <Hash className="h-3 w-3" />
+                    HASHTAGS ({post.hashtags.length})
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {post.hashtags.map((tag: string, tagIndex: number) => (
+                      <Badge key={tagIndex} variant="outline" className="text-blue-600">
+                        {tag}
+                      </Badge>
                     ))}
                   </div>
+                </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <Button variant="outline" onClick={generateContent} className="flex-1">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Regenerate
-                    </Button>
-                    <Button className="flex-1">
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600">Characters</div>
+                    <div className="text-sm font-semibold">{post.character_count}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600">Emojis</div>
+                    <div className="text-sm font-semibold">{post.emoji_count}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600">CTA</div>
+                    <div className="text-sm font-semibold">{post.cta}</div>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p>Fill in the details to generate content</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 }
+</file_contents>
