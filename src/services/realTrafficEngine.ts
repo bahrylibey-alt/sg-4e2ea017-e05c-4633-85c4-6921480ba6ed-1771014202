@@ -265,5 +265,18 @@ Write the complete post:`;
         requiresSetup: ['All platforms require API setup']
       };
     }
+  },
+
+  // COMPATIBILITY STUBS
+  getAllTactics() {
+    return [];
+  },
+  
+  getQuickWinTactics() {
+    return [];
+  },
+  
+  generateTrafficPlan() {
+    return "Real traffic plan execution required.";
   }
 };

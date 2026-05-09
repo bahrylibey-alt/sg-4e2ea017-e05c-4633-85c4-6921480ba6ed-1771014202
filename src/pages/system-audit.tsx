@@ -15,10 +15,13 @@ import {
   CheckCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SystemAudit() {
   const [scanning, setScanning] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>(null);
+  const { toast } = useToast();
 
   const purgeMockData = async () => {
     try {
