@@ -32,6 +32,7 @@ export default function AutopilotDemo() {
   const [error, setError] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     products: 0,
     links: 0,
@@ -46,6 +47,21 @@ export default function AutopilotDemo() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Get user_id on mount
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const fetchUserId = async () => {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data } = await (supabase as any).from('profiles').select('id').limit(1).single();
+      if (data) {
+        setUserId(data.id);
+      }
+    };
+    
+    fetchUserId();
+  }, [mounted]);
 
   // Check API key on mount
   useEffect(() => {
@@ -75,6 +91,11 @@ export default function AutopilotDemo() {
   }, [mounted]);
 
   const runAutopilot = async () => {
+    if (!userId) {
+      setError('User ID not found. Please sign up or log in.');
+      return;
+    }
+
     if (!hasApiKey) {
       setError('OpenAI API key required! Go to Settings → API Keys to add your key.');
       return;
@@ -91,7 +112,7 @@ export default function AutopilotDemo() {
       setProgress(10);
       setCurrentStep('🔍 AI discovering REAL trending products...');
       
-      const result = await realAutopilotEngine.runAutopilot('Smart Home Devices');
+      const result = await realAutopilotEngine.runAutopilot(userId);
 
       setProgress(40);
       setCurrentStep('🔗 Creating affiliate tracking links...');
@@ -108,7 +129,7 @@ export default function AutopilotDemo() {
       setProgress(100);
       setCurrentStep('✅ Autopilot cycle complete!');
 
-      setResults(result);
+      setResults(result || {});
       loadStats();
 
     } catch (err: any) {
@@ -271,13 +292,13 @@ export default function AutopilotDemo() {
                 </TabsList>
 
                 <TabsContent value="results" className="space-y-4">
-                  {results ? (
+                  {results && results.products && results.products.length > 0 ? (
                     <>
                       <Card className="p-6 space-y-4">
                         <div className="flex items-center gap-2">
                           <TrendingUp className="h-5 w-5 text-primary" />
                           <h3 className="text-lg font-semibold">
-                            Products ({results.products.length})
+                            Products ({results.products?.length || 0})
                           </h3>
                         </div>
                         <div className="space-y-3">
@@ -297,44 +318,48 @@ export default function AutopilotDemo() {
                         </div>
                       </Card>
 
-                      <Card className="p-6 space-y-4">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">
-                            Articles ({results.content.length})
-                          </h3>
-                        </div>
-                        <div className="space-y-3">
-                          {results.content.map((article: any, i: number) => (
-                            <div key={i} className="border rounded-lg p-4 space-y-2">
-                              <h4 className="font-semibold">{article.title}</h4>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {article.body.substring(0, 200)}...
-                              </p>
-                              <Badge variant="secondary">
-                                {article.body.split(' ').length} words
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
+                      {results.content && results.content.length > 0 && (
+                        <Card className="p-6 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">
+                              Articles ({results.content.length})
+                            </h3>
+                          </div>
+                          <div className="space-y-3">
+                            {results.content.map((article: any, i: number) => (
+                              <div key={i} className="border rounded-lg p-4 space-y-2">
+                                <h4 className="font-semibold">{article.title}</h4>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {article.body?.substring(0, 200)}...
+                                </p>
+                                <Badge variant="secondary">
+                                  {article.body?.split(' ').length || 0} words
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      )}
 
-                      <Card className="p-6 space-y-4">
-                        <div className="flex items-center gap-2">
-                          <Share2 className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">
-                            Social Posts ({results.posts.length})
-                          </h3>
-                        </div>
-                        <div className="space-y-3">
-                          {results.posts.slice(0, 10).map((post: any, i: number) => (
-                            <div key={i} className="border rounded-lg p-4 space-y-2">
-                              <Badge>{post.platform}</Badge>
-                              <p className="text-sm">{post.caption}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
+                      {results.posts && results.posts.length > 0 && (
+                        <Card className="p-6 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Share2 className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-semibold">
+                              Social Posts ({results.posts.length})
+                            </h3>
+                          </div>
+                          <div className="space-y-3">
+                            {results.posts.slice(0, 10).map((post: any, i: number) => (
+                              <div key={i} className="border rounded-lg p-4 space-y-2">
+                                <Badge>{post.platform}</Badge>
+                                <p className="text-sm">{post.caption}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      )}
                     </>
                   ) : (
                     <Card className="p-12 text-center">
