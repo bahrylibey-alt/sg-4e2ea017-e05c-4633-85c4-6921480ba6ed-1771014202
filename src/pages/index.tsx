@@ -15,7 +15,9 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Radio
+  Radio,
+  PauseCircle,
+  PlayCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -236,6 +238,40 @@ export default function HomePage() {
     }
   };
 
+  const handleActivateFullSystem = async () => {
+    try {
+      setActivatingAutopilot(true);
+      const response = await fetch('/api/system/activate-full-system', {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({
+          title: "System Activated! 🚀",
+          description: `${data.summary.successful}/${data.summary.totalPhases} phases completed successfully`,
+        });
+        // Refresh stats
+        loadDashboard();
+      } else {
+        toast({
+          title: "Activation Incomplete",
+          description: data.error || "Some phases failed. Check system audit for details.",
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Activation Error",
+        description: "Failed to activate system. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setActivatingAutopilot(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -301,6 +337,87 @@ export default function HomePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Hero Section */}
+        <div className="bg-gradient-to-br from-primary/10 via-background to-accent/10 rounded-xl p-8 mb-8">
+          <div className="max-w-3xl mx-auto text-center space-y-6">
+            <h1 className="text-4xl font-bold">
+              Autonomous Affiliate Marketing System
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              AI-powered traffic generation, viral content creation, and conversion optimization
+            </p>
+            
+            {/* System Activation Buttons */}
+            <div className="flex flex-wrap gap-4 justify-center mt-8">
+              <Button
+                size="lg"
+                onClick={handleActivateFullSystem}
+                disabled={activatingAutopilot}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold px-8 py-6 text-lg"
+              >
+                {activatingAutopilot ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Activating System...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-5 w-5" />
+                    Activate Full System
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={discoverProducts}
+                disabled={discovering}
+              >
+                {discovering ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Discovering...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="mr-2 h-5 w-5" />
+                    Discover Trending Products
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="lg"
+                variant={stats.autopilotEnabled ? "default" : "outline"}
+                onClick={toggleAutopilot}
+              >
+                {stats.autopilotEnabled ? (
+                  <>
+                    <PauseCircle className="mr-2 h-5 w-5" />
+                    Pause Autopilot
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="mr-2 h-5 w-5" />
+                    Start Autopilot
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* System Status Alert */}
+            {!stats.autopilotEnabled && (
+              <Alert className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  System is currently paused. Click "Activate Full System" to start autonomous traffic generation.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </div>
 
         {/* Key Metrics */}
         <div className="grid md:grid-cols-4 gap-6">

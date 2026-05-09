@@ -1,149 +1,154 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
 import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
+import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
+import { magicTrafficEngine } from "@/services/magicTrafficEngine";
 
 /**
- * FULL SYSTEM ACTIVATION
- * 
- * Activates the complete autonomous system:
- * 1. Self-healing diagnostics
- * 2. System configuration
- * 3. Autopilot execution
- * 4. Traffic engine initialization
- * 5. Monitoring setup
+ * ACTIVATE FULL SYSTEM
+ * One-click activation of the entire autonomous affiliate system
+ * No authentication required for easy activation
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    console.log('🚀 FULL SYSTEM ACTIVATION INITIATED');
-    console.log('Time:', new Date().toISOString());
+    console.log('🚀 FULL SYSTEM ACTIVATION: Starting...');
 
-    const activationSteps: any[] = [];
+    // Get first user (for testing - in production, use authenticated user)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .limit(1);
 
-    // STEP 1: Self-Healing Diagnosis
-    activationSteps.push({ step: 'Self-Healing Diagnosis', status: 'STARTED' });
-    const healingResult = await selfHealingAutopilot.diagnoseAndHeal();
-    activationSteps.push({ 
-      step: 'Self-Healing Diagnosis', 
-      status: healingResult.success ? 'SUCCESS' : 'PARTIAL',
-      issuesFound: healingResult.issuesFound,
-      issuesFixed: healingResult.issuesFixed,
-      failedFixes: healingResult.failedFixes,
-      details: healingResult.details
-    });
-
-    // Get user ID from healing result
-    const userId = healingResult.details.find(d => d.issue === 'User Setup')?.action?.includes('SUCCESS') 
-      ? (await supabase.auth.getUser()).data.user?.id 
-      : null;
-
-    if (!userId) {
-      throw new Error('No user found - cannot activate system');
-    }
-
-    // STEP 2: Enable Autopilot
-    activationSteps.push({ step: 'Enable Autopilot', status: 'STARTED' });
-    const { error: autopilotError } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: userId,
-        autopilot_enabled: true,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
-
-    if (autopilotError) throw autopilotError;
-    activationSteps.push({ step: 'Enable Autopilot', status: 'SUCCESS' });
-
-    // STEP 3: Initialize System State
-    activationSteps.push({ step: 'Initialize System State', status: 'STARTED' });
-    const { error: stateError } = await supabase
-      .from('system_state')
-      .upsert({
-        user_id: userId,
-        total_views: 0,
-        total_clicks: 0,
-        total_conversions: 0,
-        total_revenue: 0,
-        total_verified_revenue: 0,
-        total_verified_conversions: 0,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
-
-    if (stateError) throw stateError;
-    activationSteps.push({ step: 'Initialize System State', status: 'SUCCESS' });
-
-    // STEP 4: Run Initial Autopilot Execution
-    activationSteps.push({ step: 'Initial Autopilot Execution', status: 'STARTED' });
-    try {
-      const autopilotResult = await unifiedOrchestrator.execute(userId);
-      activationSteps.push({ 
-        step: 'Initial Autopilot Execution', 
-        status: autopilotResult.success ? 'SUCCESS' : 'FAILED',
-        result: autopilotResult
-      });
-    } catch (autopilotExecError: any) {
-      activationSteps.push({ 
-        step: 'Initial Autopilot Execution', 
-        status: 'FAILED',
-        error: autopilotExecError.message
+    if (!profiles || profiles.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No users found. Please sign up first.'
       });
     }
 
-    // STEP 5: Update Last Run Timestamp
-    activationSteps.push({ step: 'Update Timestamps', status: 'STARTED' });
-    await supabase
-      .from('user_settings')
-      .update({
-        last_autopilot_run: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId);
-    activationSteps.push({ step: 'Update Timestamps', status: 'SUCCESS' });
+    const userId = profiles[0].id;
 
-    // STEP 6: Log Activation
-    activationSteps.push({ step: 'Log Activation', status: 'STARTED' });
-    await supabase
-      .from('activity_logs')
-      .insert({
-        user_id: userId,
-        action: 'system_activated',
-        details: 'Full system activation completed',
-        metadata: {
-          activation_steps: activationSteps,
-          healing_result: healingResult
-        } as Record<string, any>,
-        status: 'success'
-      });
-    activationSteps.push({ step: 'Log Activation', status: 'SUCCESS' });
-
-    const successCount = activationSteps.filter(s => s.status === 'SUCCESS').length;
-    const totalSteps = activationSteps.length;
-
-    return res.status(200).json({
+    const activationResult = {
       success: true,
-      message: 'System activated successfully',
-      activationProgress: `${successCount}/${totalSteps} steps completed`,
       userId,
-      steps: activationSteps,
-      healingResult,
       timestamp: new Date().toISOString(),
-      nextSteps: [
-        'System is now running autonomously',
-        'Autopilot will execute based on schedule',
-        'Monitor progress in dashboard',
-        'Check /api/system/end-to-end-test for system health'
-      ]
-    });
+      phases: {} as any
+    };
+
+    // PHASE 1: Discover Trending Products
+    console.log('📦 PHASE 1: Discovering trending products...');
+    try {
+      const discoveryResult = await trendingProductDiscovery.discoverProducts(userId);
+      activationResult.phases.productDiscovery = {
+        status: discoveryResult.success ? '✅ SUCCESS' : '⚠️ PARTIAL',
+        productsFound: discoveryResult.products_added,
+        sources: discoveryResult.sources_checked
+      };
+      console.log(`✅ Products: ${discoveryResult.products_added} added`);
+    } catch (error) {
+      console.error('⚠️ Product discovery failed:', error);
+      activationResult.phases.productDiscovery = {
+        status: '❌ FAILED',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // PHASE 2: Activate Traffic Engine
+    console.log('🚦 PHASE 2: Activating traffic engine...');
+    try {
+      const trafficResult = await magicTrafficEngine.activateAllSources(userId);
+      activationResult.phases.trafficEngine = {
+        status: trafficResult.success ? '✅ SUCCESS' : '⚠️ PARTIAL',
+        sourcesActivated: trafficResult.activated_count,
+        totalSources: trafficResult.total_sources
+      };
+      console.log(`✅ Traffic: ${trafficResult.activated_count}/${trafficResult.total_sources} sources activated`);
+    } catch (error) {
+      console.error('⚠️ Traffic activation failed:', error);
+      activationResult.phases.trafficEngine = {
+        status: '❌ FAILED',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // PHASE 3: Run Unified Orchestrator (Viral System)
+    console.log('🎯 PHASE 3: Launching viral content system...');
+    try {
+      const orchestratorResult = await unifiedOrchestrator.execute(userId);
+      activationResult.phases.viralSystem = {
+        status: orchestratorResult.success ? '✅ SUCCESS' : '⚠️ PARTIAL',
+        execution: orchestratorResult.execution,
+        metrics: orchestratorResult.metrics,
+        systemHealth: orchestratorResult.systemHealth
+      };
+      console.log(`✅ Viral: ${orchestratorResult.metrics.contentVariations} content pieces created`);
+    } catch (error) {
+      console.error('⚠️ Viral system failed:', error);
+      activationResult.phases.viralSystem = {
+        status: '❌ FAILED',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // PHASE 4: Enable Autopilot
+    console.log('🤖 PHASE 4: Enabling autopilot...');
+    try {
+      const { error: settingsError } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: userId,
+          autopilot_enabled: true,
+          last_autopilot_run: new Date().toISOString()
+        });
+
+      if (settingsError) throw settingsError;
+
+      activationResult.phases.autopilot = {
+        status: '✅ SUCCESS',
+        enabled: true
+      };
+      console.log('✅ Autopilot: Enabled');
+    } catch (error) {
+      console.error('⚠️ Autopilot activation failed:', error);
+      activationResult.phases.autopilot = {
+        status: '❌ FAILED',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+
+    // Calculate overall success
+    const phaseStatuses = Object.values(activationResult.phases).map((p: any) => p.status);
+    const successCount = phaseStatuses.filter(s => s === '✅ SUCCESS').length;
+    const totalCount = phaseStatuses.length;
+
+    activationResult.summary = {
+      totalPhases: totalCount,
+      successful: successCount,
+      failed: phaseStatuses.filter(s => s === '❌ FAILED').length,
+      partial: phaseStatuses.filter(s => s === '⚠️ PARTIAL').length,
+      successRate: `${Math.round((successCount / totalCount) * 100)}%`
+    };
+
+    activationResult.nextSteps = [
+      'Visit /analytics to see AI-powered insights',
+      'Check /traffic-channels to monitor active sources',
+      'Review /system-audit for data quality verification',
+      'Monitor dashboard for real-time metrics'
+    ];
+
+    console.log(`✅ FULL SYSTEM ACTIVATION COMPLETE: ${activationResult.summary.successRate} success rate`);
+
+    return res.status(200).json(activationResult);
 
   } catch (error: any) {
-    console.error('❌ SYSTEM ACTIVATION FAILED:', error);
+    console.error('❌ ACTIVATION ERROR:', error);
     return res.status(500).json({
       success: false,
       error: error.message,
