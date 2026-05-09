@@ -276,7 +276,10 @@ Write the complete post:`;
     return [];
   },
   
-  generateTrafficPlan() {
-    return "Real traffic plan execution required.";
+  generateTrafficPlan(contentId?: string, platforms?: string[]) {
+    return {
+      plan: "Real traffic plan execution required.",
+      totalEstimatedReach: 0
+    };
   }
 };
