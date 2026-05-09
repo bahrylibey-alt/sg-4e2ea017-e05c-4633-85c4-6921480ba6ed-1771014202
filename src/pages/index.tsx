@@ -19,6 +19,7 @@ import {
   PauseCircle,
   PlayCircle
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
