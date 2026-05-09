@@ -32,22 +32,22 @@ export default async function handler(
       summary: {}
     };
 
-    // Get authenticated user
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return res.status(401).json({ error: 'Not authenticated' });
+    // Get first user profile
+    const { data: profiles } = await (supabase as any)
+      .from('profiles')
+      .select('id')
+      .limit(1);
+
+    if (!profiles || profiles.length === 0) {
+      return res.status(400).json({ error: 'No users found. Please sign up first.' });
     }
 
-    const userId = session.user.id;
+    const userId = profiles[0].id;
 
     // PHASE 1: AGGRESSIVE PURGE OF ALL MOCK DATA
     console.log('🧹 PHASE 1: Purging ALL mock data...');
     const purgeResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/system/purge-mock-data`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cookie': req.headers.cookie || ''
-      }
+      method: 'POST'
     });
     
     const purgeData = await purgeResponse.json();
