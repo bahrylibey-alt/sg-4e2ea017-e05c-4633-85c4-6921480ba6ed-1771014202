@@ -93,17 +93,28 @@ export default function ProfessionalAnalytics() {
       }
 
       // Get all data
-      const [clicksRes, conversionsRes, productsRes, trafficSourcesRes] = await Promise.all([
+      const [clicksRes, conversionsRes, productsRes, campaignsRes] = await Promise.all([
         (supabase as any).from('click_events').select('*').eq('user_id', currentUserId),
         (supabase as any).from('conversion_events').select('*').eq('user_id', currentUserId),
         (supabase as any).from('product_catalog').select('id, name').eq('user_id', currentUserId),
-        (supabase as any).from('traffic_sources').select('*').eq('user_id', currentUserId)
+        supabase.from('campaigns').select('id').eq('user_id', currentUserId)
       ]);
 
       const clicksData: any[] = clicksRes.data || [];
       const conversionsData: any[] = conversionsRes.data || [];
       const productsData: any[] = productsRes.data || [];
-      const trafficSourcesData: any[] = trafficSourcesRes.data || [];
+      
+      // Get traffic sources via campaigns
+      const campaignIds = campaignsRes.data?.map((c: any) => c.id) || [];
+      let trafficSourcesData: any[] = [];
+      
+      if (campaignIds.length > 0) {
+        const { data } = await (supabase as any)
+          .from('traffic_sources')
+          .select('*')
+          .in('campaign_id', campaignIds);
+        trafficSourcesData = data || [];
+      }
 
       // Calculate metrics
       const totalRevenue = conversionsData.reduce((sum: number, c: any) => sum + (Number(c.revenue) || 0), 0) || 0;

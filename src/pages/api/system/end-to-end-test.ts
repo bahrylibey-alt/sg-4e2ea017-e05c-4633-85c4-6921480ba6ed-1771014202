@@ -103,15 +103,26 @@ export default async function handler(
 
     // STEP 5: Check traffic sources
     testResults.push({ step: 'Traffic Sources', status: 'STARTED' });
-    const { data: trafficSources, error: trafficError } = await (supabase as any)
-      .from('traffic_sources')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (trafficError) throw trafficError;
     
-    const sourceCount = trafficSources?.length || 0;
+    const { data: userCampaigns } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('user_id', userId);
+    
+    const userCampaignIds = userCampaigns?.map((c: any) => c.id) || [];
+    let sourceCount = 0;
+    
+    if (userCampaignIds.length > 0) {
+      const { data: trafficSources, error: trafficError } = await supabase
+        .from('traffic_sources')
+        .select('id')
+        .in('campaign_id', userCampaignIds)
+        .eq('is_active', true);
+
+      if (trafficError) throw trafficError;
+      sourceCount = trafficSources?.length || 0;
+    }
+    
     testResults.push({ 
       step: 'Traffic Sources', 
       status: sourceCount > 0 ? 'SUCCESS' : 'WARNING',

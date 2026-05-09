@@ -154,32 +154,65 @@ export default async function handler(
     }
 
     // FIX 4: Traffic Sources
-    const { data: trafficSources, error: trafficError } = await supabase
-      .from('traffic_sources')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1);
-
-    if (!trafficSources || trafficSources.length === 0) {
-      const defaultSources = [
-        { user_id: userId, name: 'Pinterest', platform: 'pinterest', status: 'active' },
-        { user_id: userId, name: 'TikTok', platform: 'tiktok', status: 'active' },
-      ];
-
-      const { error: createTrafficError } = await supabase
+    // Fix 3: Verify traffic sources
+    steps.push({ step: 'Verify Traffic Sources', status: 'checking' });
+    
+    const { data: userCampaigns } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('user_id', userId);
+    
+    const userCampaignIds = userCampaigns?.map(c => c.id) || [];
+    let trafficCount = 0;
+    
+    if (userCampaignIds.length > 0) {
+      const { count } = await supabase
         .from('traffic_sources')
-        .insert(defaultSources as any);
+        .select('*', { count: 'exact', head: true })
+        .in('campaign_id', userCampaignIds)
+        .eq('status', 'active');
+      trafficCount = count || 0;
+    }
 
-      if (createTrafficError) {
-        console.error('Failed to create traffic sources:', createTrafficError);
-        failedCount++;
-        fixes.push({
-          issue: 'No traffic sources',
-          action: 'Attempted to create',
-          status: 'FAILED',
-          error: createTrafficError.message
-        });
+    if (trafficCount === 0) {
+      steps.push({ step: 'Verify Traffic Sources', status: 'warning', count: 0 });
+      
+      // Create default campaign if none exists
+      let defaultCampaignId;
+      if (userCampaignIds.length === 0) {
+        const { data: newCampaign } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: userId,
+            name: 'Default Campaign',
+            status: 'active'
+          })
+          .select()
+          .single();
+        defaultCampaignId = newCampaign?.id;
       } else {
+        defaultCampaignId = userCampaignIds[0];
+      }
+
+      if (defaultCampaignId) {
+        await supabase
+          .from('traffic_sources')
+          .insert({
+            campaign_id: defaultCampaignId,
+            name: 'Pinterest',
+            platform: 'pinterest',
+            status: 'active'
+          } as any);
+
+        await supabase
+          .from('traffic_sources')
+          .insert({
+            campaign_id: defaultCampaignId,
+            name: 'TikTok',
+            platform: 'tiktok',
+            status: 'active'
+          } as any);
+
         fixedCount++;
         fixes.push({
           issue: 'No traffic sources',
