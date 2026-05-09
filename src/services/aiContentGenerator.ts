@@ -1,4 +1,3 @@
-<![CDATA[
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -408,4 +407,3 @@ export const aiContentGenerator = {
     };
   }
 };
-</file_contents>
