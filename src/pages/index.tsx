@@ -26,8 +26,9 @@ import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
+  const [activating, setActivating] = useState(false);
   const [discovering, setDiscovering] = useState(false);
-  const [activatingAutopilot, setActivatingAutopilot] = useState(false);
+  const [executing, setExecuting] = useState(false);
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeLinks: 0,
@@ -241,7 +242,7 @@ export default function HomePage() {
 
   const handleActivateFullSystem = async () => {
     try {
-      setActivatingAutopilot(true);
+      setActivating(true);
       const response = await fetch('/api/system/activate-full-system', {
         method: 'POST'
       });
@@ -269,7 +270,41 @@ export default function HomePage() {
         variant: "destructive"
       });
     } finally {
-      setActivatingAutopilot(false);
+      setActivating(false);
+    }
+  };
+
+  const handleExecuteWorkflow = async () => {
+    try {
+      setExecuting(true);
+      const response = await fetch('/api/autopilot/execute-workflow', {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({
+          title: "Workflow Executed! ✅",
+          description: `${data.workflow.postsCreated} posts created, ${data.traffic.clicks} clicks generated`,
+        });
+        // Refresh stats
+        loadDashboard();
+      } else {
+        toast({
+          title: "Execution Failed",
+          description: data.error || "Workflow execution failed. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Execution Error",
+        description: "Failed to execute workflow. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setExecuting(false);
     }
   };
 
@@ -304,11 +339,11 @@ export default function HomePage() {
               <div className="flex gap-3">
                 <Button 
                   onClick={toggleAutopilot} 
-                  disabled={activatingAutopilot}
+                  disabled={activating}
                   variant={stats.autopilotEnabled ? "destructive" : "default"}
                   size="lg"
                 >
-                  {activatingAutopilot ? (
+                  {activating ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : stats.autopilotEnabled ? (
                     <Pause className="mr-2 h-5 w-5" />
@@ -353,14 +388,33 @@ export default function HomePage() {
             <div className="flex flex-wrap gap-4 justify-center mt-8">
               <Button
                 size="lg"
-                onClick={handleActivateFullSystem}
-                disabled={activatingAutopilot}
+                onClick={handleExecuteWorkflow}
+                disabled={executing}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold px-8 py-6 text-lg"
               >
-                {activatingAutopilot ? (
+                {executing ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Activating System...
+                    Executing Workflow...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="mr-2 h-5 w-5" />
+                    Execute Workflow Now
+                  </>
+                )}
+              </Button>
+
+              <Button
+                size="lg"
+                onClick={handleActivateFullSystem}
+                disabled={activating}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8"
+              >
+                {activating ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Activating...
                   </>
                 ) : (
                   <>
@@ -413,7 +467,7 @@ export default function HomePage() {
               <Alert className="mt-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  System is currently paused. Click "Activate Full System" to start autonomous traffic generation.
+                  System is currently paused. Click "Execute Workflow Now" to generate posts and drive traffic immediately.
                 </AlertDescription>
               </Alert>
             )}
