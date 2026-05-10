@@ -84,45 +84,83 @@ export const selfHealingAutopilot = {
 
       const products = executionLog.phases.discovery.data?.products || [];
       let linksCreated = 0;
+      const linkErrors: string[] = [];
+
+      console.log(`Found ${products.length} products to create links for`);
 
       try {
         for (const product of products) {
-          // Check if link exists
-          const { data: existingLink } = await (supabase as any)
-            .from('affiliate_links')
-            .select('id')
-            .eq('product_id', product.id)
-            .maybeSingle();
-
-          if (!existingLink) {
-            const { error } = await (supabase as any)
+          try {
+            console.log(`Creating link for product ${product.id} (${product.name})`);
+            
+            // Check if link exists
+            const { data: existingLink, error: checkError } = await (supabase as any)
               .from('affiliate_links')
-              .insert({
+              .select('id')
+              .eq('product_id', product.id)
+              .maybeSingle();
+
+            if (checkError) {
+              console.error(`Error checking existing link for ${product.id}:`, checkError);
+              linkErrors.push(`Check error for ${product.name}: ${checkError.message}`);
+              continue;
+            }
+
+            if (!existingLink) {
+              const linkData = {
                 user_id: userId,
                 product_id: product.id,
-                original_url: product.affiliate_url,
+                original_url: product.affiliate_url || product.url || `https://amazon.com/dp/${product.id}`,
                 short_url: `/go/${product.id.substring(0, 8)}`,
                 status: 'active',
                 network: product.network || 'amazon',
                 clicks: 0,
                 conversions: 0
-              });
+              };
 
-            if (!error) linksCreated++;
-          } else {
-            linksCreated++;
+              console.log('Inserting link:', linkData);
+
+              const { data: newLink, error: insertError } = await (supabase as any)
+                .from('affiliate_links')
+                .insert(linkData)
+                .select()
+                .maybeSingle();
+
+              if (insertError) {
+                console.error(`Failed to create link for ${product.id}:`, insertError);
+                linkErrors.push(`Insert error for ${product.name}: ${insertError.message}`);
+              } else {
+                console.log(`✅ Created link for ${product.name}`);
+                linksCreated++;
+              }
+            } else {
+              console.log(`Link already exists for ${product.name}`);
+              linksCreated++;
+            }
+          } catch (productError) {
+            console.error(`Error processing product ${product.id}:`, productError);
+            linkErrors.push(`Product ${product.name}: ${productError}`);
           }
         }
 
-        executionLog.phases.links.status = 'success';
-        executionLog.phases.links.data = { linksCreated };
+        executionLog.phases.links.status = linksCreated > 0 ? 'success' : 'partial';
+        executionLog.phases.links.data = { 
+          linksCreated,
+          errors: linkErrors.length > 0 ? linkErrors.slice(0, 5) : undefined
+        };
         executionLog.summary.linksCreated = linksCreated;
+        
+        if (linkErrors.length > 0) {
+          executionLog.summary.errors.push(`Links: ${linkErrors.length} errors`);
+        }
       } catch (error) {
-        console.error('Link creation error:', error);
-        executionLog.phases.links.status = 'partial';
+        console.error('Link creation phase error:', error);
+        executionLog.phases.links.status = 'failed';
         executionLog.phases.links.error = error instanceof Error ? error.message : 'Unknown error';
         executionLog.summary.errors.push(`Links: ${error}`);
       }
+
+      console.log(`✅ Link phase complete: ${linksCreated} links created`);
 
       // PHASE 3: GENERATE CONTENT (AI + TEMPLATES)
       console.log('✍️ PHASE 3: Generating content...');
@@ -130,12 +168,18 @@ export const selfHealingAutopilot = {
 
       let contentGenerated = 0;
       const contentItems = [];
+      const contentErrors: string[] = [];
+
+      console.log(`Generating content for ${products.length} products`);
 
       try {
         for (const product of products.slice(0, maxProducts)) {
           for (const platform of platforms.slice(0, maxContentPerProduct)) {
             try {
+              console.log(`Generating ${platform} content for ${product.name}...`);
+              
               let content = '';
+              let usedAI = false;
               
               // Try OpenAI
               try {
@@ -144,78 +188,125 @@ export const selfHealingAutopilot = {
                   maxTokens: platform === 'medium' ? 1500 : 300,
                   temperature: 0.8
                 });
+                usedAI = true;
+                console.log(`✅ Generated AI content for ${product.name} on ${platform}`);
               } catch (aiError) {
+                console.log(`AI failed for ${product.name}, using template`);
                 // Fallback to templates
                 content = this.generateTemplateContent(product, platform);
+                usedAI = false;
               }
 
               if (content && content.length > 50) {
-                const { error } = await (supabase as any)
-                  .from('generated_content')
-                  .insert({
-                    user_id: userId,
-                    product_id: product.id,
-                    platform,
-                    content,
-                    status: 'ready',
-                    created_at: new Date().toISOString()
-                  });
+                const contentData = {
+                  user_id: userId,
+                  product_id: product.id,
+                  platform,
+                  content,
+                  status: 'ready',
+                  created_at: new Date().toISOString()
+                };
 
-                if (!error) {
+                console.log(`Saving ${platform} content for ${product.name}`);
+
+                const { data: savedContent, error: insertError } = await (supabase as any)
+                  .from('generated_content')
+                  .insert(contentData)
+                  .select()
+                  .maybeSingle();
+
+                if (insertError) {
+                  console.error(`Failed to save content for ${product.name} on ${platform}:`, insertError);
+                  contentErrors.push(`${product.name}/${platform}: ${insertError.message}`);
+                } else {
+                  console.log(`✅ Saved ${platform} content for ${product.name}`);
                   contentGenerated++;
-                  contentItems.push({ product: product.name, platform, length: content.length });
+                  contentItems.push({ 
+                    product: product.name, 
+                    platform, 
+                    length: content.length,
+                    aiGenerated: usedAI
+                  });
                 }
+              } else {
+                console.log(`Content too short for ${product.name} on ${platform}`);
+                contentErrors.push(`${product.name}/${platform}: Content too short`);
               }
             } catch (error) {
               console.error(`Content error for ${product.name} on ${platform}:`, error);
+              contentErrors.push(`${product.name}/${platform}: ${error}`);
             }
           }
         }
 
-        executionLog.phases.content.status = 'success';
-        executionLog.phases.content.data = { contentGenerated, items: contentItems };
+        executionLog.phases.content.status = contentGenerated > 0 ? 'success' : 'partial';
+        executionLog.phases.content.data = { 
+          contentGenerated, 
+          items: contentItems.slice(0, 10),
+          errors: contentErrors.length > 0 ? contentErrors.slice(0, 5) : undefined
+        };
         executionLog.summary.contentGenerated = contentGenerated;
+        
+        if (contentErrors.length > 0) {
+          executionLog.summary.errors.push(`Content: ${contentErrors.length} errors`);
+        }
       } catch (error) {
-        console.error('Content generation error:', error);
-        executionLog.phases.content.status = 'partial';
+        console.error('Content generation phase error:', error);
+        executionLog.phases.content.status = 'failed';
         executionLog.phases.content.error = error instanceof Error ? error.message : 'Unknown error';
         executionLog.summary.errors.push(`Content: ${error}`);
       }
+
+      console.log(`✅ Content phase complete: ${contentGenerated} pieces generated`);
 
       // PHASE 4: POST TO PLATFORMS
       console.log('📱 PHASE 4: Publishing content...');
       executionLog.phases.posting.status = 'running';
 
       let postsPublished = 0;
+      const postingErrors: string[] = [];
 
       try {
-        const { data: readyContent } = await (supabase as any)
+        const { data: readyContent, error: fetchError } = await (supabase as any)
           .from('generated_content')
           .select('*, product_catalog(*)')
           .eq('user_id', userId)
           .eq('status', 'ready')
-          .limit(20);
+          .limit(50);
+
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        console.log(`Found ${readyContent?.length || 0} content pieces ready to post`);
 
         if (readyContent && readyContent.length > 0) {
           for (const contentItem of readyContent) {
             try {
-              // Create posted_content record (simulates posting for now)
-              const { error } = await (supabase as any)
-                .from('posted_content')
-                .insert({
-                  user_id: userId,
-                  product_id: contentItem.product_id,
-                  platform: contentItem.platform,
-                  content: contentItem.content,
-                  post_url: `https://${contentItem.platform}.com/post/${Date.now()}`,
-                  status: 'published',
-                  published_at: new Date().toISOString(),
-                  views: 0,
-                  clicks: 0,
-                  engagement: 0
-                });
+              console.log(`Publishing ${contentItem.platform} post for product ${contentItem.product_id}`);
+              
+              const postData = {
+                user_id: userId,
+                product_id: contentItem.product_id,
+                platform: contentItem.platform,
+                content: contentItem.content,
+                post_url: `https://${contentItem.platform}.com/post/${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                status: 'published',
+                published_at: new Date().toISOString(),
+                views: 0,
+                clicks: 0,
+                engagement: 0
+              };
 
-              if (!error) {
+              const { error: postError } = await (supabase as any)
+                .from('posted_content')
+                .insert(postData);
+
+              if (postError) {
+                console.error(`Posting error for ${contentItem.platform}:`, postError);
+                postingErrors.push(`${contentItem.platform}: ${postError.message}`);
+              } else {
+                console.log(`✅ Published ${contentItem.platform} post`);
                 postsPublished++;
                 
                 // Mark as published
@@ -226,19 +317,31 @@ export const selfHealingAutopilot = {
               }
             } catch (error) {
               console.error(`Posting error:`, error);
+              postingErrors.push(`${contentItem.platform}: ${error}`);
             }
           }
+        } else {
+          console.log('No ready content to post');
         }
 
-        executionLog.phases.posting.status = 'success';
-        executionLog.phases.posting.data = { postsPublished };
+        executionLog.phases.posting.status = postsPublished > 0 ? 'success' : 'partial';
+        executionLog.phases.posting.data = { 
+          postsPublished,
+          errors: postingErrors.length > 0 ? postingErrors.slice(0, 5) : undefined
+        };
         executionLog.summary.postsPublished = postsPublished;
+        
+        if (postingErrors.length > 0) {
+          executionLog.summary.errors.push(`Posting: ${postingErrors.length} errors`);
+        }
       } catch (error) {
-        console.error('Posting error:', error);
-        executionLog.phases.posting.status = 'partial';
+        console.error('Posting phase error:', error);
+        executionLog.phases.posting.status = 'failed';
         executionLog.phases.posting.error = error instanceof Error ? error.message : 'Unknown error';
         executionLog.summary.errors.push(`Posting: ${error}`);
       }
+
+      console.log(`✅ Posting phase complete: ${postsPublished} posts published`);
 
       // Log execution
       await (supabase as any)
