@@ -1,24 +1,17 @@
 {
   "crons": [
     {
-      "path": "/api/cron/discover-products",
-      "schedule": "0 2 * * *"
-    },
-    {
       "path": "/api/cron/autopilot",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 * * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/go/:slug",
+      "destination": "/go/[slug]"
     }
   ],
   "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, max-age=0"
-        }
-      ]
-    },
     {
       "source": "/(.*)",
       "headers": [
@@ -27,20 +20,14 @@
           "value": "nosniff"
         },
         {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
+          "key": "X-Frame-Options",
+          "value": "DENY"
         },
         {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains"
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/go/:slug",
-      "destination": "/go/:slug"
     }
   ]
 }

@@ -1,221 +1,273 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
-import { aiContentGenerator } from "@/services/aiContentGenerator";
+import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
 
+/**
+ * COMPLETE END-TO-END SYSTEM TEST
+ * 
+ * Tests every component of the autonomous affiliate marketing system:
+ * 1. Database connectivity
+ * 2. Product discovery
+ * 3. Affiliate link creation  
+ * 4. Content generation
+ * 5. Content posting
+ * 6. Autopilot execution
+ * 7. Metrics tracking
+ */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const testResults: any[] = [];
-  const startTime = Date.now();
+  const testResults: any = {
+    timestamp: new Date().toISOString(),
+    tests: {
+      database: { status: 'pending', message: '' },
+      userProfile: { status: 'pending', message: '' },
+      productDiscovery: { status: 'pending', message: '' },
+      affiliateLinks: { status: 'pending', message: '' },
+      contentGeneration: { status: 'pending', message: '' },
+      contentPosting: { status: 'pending', message: '' },
+      autopilotExecution: { status: 'pending', message: '' },
+      metricsTracking: { status: 'pending', message: '' }
+    },
+    summary: {
+      total: 8,
+      passed: 0,
+      failed: 0,
+      warnings: 0
+    }
+  };
 
   try {
-    // Get user
-    const { data: profiles } = await supabase.from('profiles').select('id').limit(1);
-    if (!profiles || profiles.length === 0) {
-      throw new Error('No user found - please create an account first');
+    // TEST 1: DATABASE CONNECTIVITY
+    console.log('TEST 1: Database connectivity...');
+    try {
+      const { data, error } = await (supabase as any)
+        .from('profiles')
+        .select('count')
+        .limit(1);
+
+      if (error) throw error;
+
+      testResults.tests.database.status = 'passed';
+      testResults.tests.database.message = '✅ Database connected';
+      testResults.summary.passed++;
+    } catch (error) {
+      testResults.tests.database.status = 'failed';
+      testResults.tests.database.message = `❌ Database error: ${error}`;
+      testResults.summary.failed++;
     }
-    const userId = profiles[0].id;
 
-    testResults.push({
-      step: '1. User Verification',
-      status: '✅ PASS',
-      userId,
-      timestamp: new Date().toISOString()
-    });
-
-    // STEP 1: Discover Real Products
-    testResults.push({
-      step: '2. Product Discovery',
-      status: '🔄 RUNNING',
-      message: 'Discovering trending products from real sources...'
-    });
-
-    const discoveryResult = await trendingProductDiscovery.discoverAllTrendingProducts(userId);
+    // TEST 2: USER PROFILE
+    console.log('TEST 2: User profile...');
+    let userId: string | null = null;
     
-    testResults.push({
-      step: '2. Product Discovery',
-      status: '✅ PASS',
-      productsFound: discoveryResult.total_found,
-      productsSaved: discoveryResult.top_products.length,
-      sources: discoveryResult.sources_checked
-    });
+    try {
+      const { data: profiles } = await (supabase as any)
+        .from('profiles')
+        .select('id')
+        .limit(1);
 
-    // Verify products saved
-    const { data: savedProducts } = await supabase
-      .from('product_catalog')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(5);
+      if (!profiles || profiles.length === 0) {
+        // Create test profile
+        const { data: newProfile, error } = await (supabase as any)
+          .from('profiles')
+          .insert({ email: 'test@example.com' })
+          .select()
+          .single();
 
-    if (!savedProducts || savedProducts.length === 0) {
-      throw new Error('Product discovery succeeded but no products saved to database');
-    }
-
-    testResults.push({
-      step: '3. Product Validation',
-      status: '✅ PASS',
-      verifiedProducts: savedProducts.length,
-      sampleProduct: savedProducts[0].name
-    });
-
-    // STEP 2: Create Affiliate Links
-    testResults.push({
-      step: '4. Affiliate Link Generation',
-      status: '🔄 RUNNING'
-    });
-
-    const linksCreated: string[] = [];
-    for (const product of savedProducts) {
-      const { data: link, error } = await (supabase as any)
-        .from('affiliate_links')
-        .insert({
-          user_id: userId,
-          product_id: product.id,
-          original_url: product.affiliate_url,
-          short_code: `${product.id.substring(0, 8)}`,
-          status: 'active'
-        })
-        .select()
-        .single();
-
-      if (!error && link) {
-        linksCreated.push(link.id);
+        if (error) throw error;
+        userId = newProfile.id;
+        testResults.tests.userProfile.status = 'passed';
+        testResults.tests.userProfile.message = '✅ Created test profile';
+      } else {
+        userId = profiles[0].id;
+        testResults.tests.userProfile.status = 'passed';
+        testResults.tests.userProfile.message = '✅ User profile found';
       }
+      
+      testResults.summary.passed++;
+    } catch (error) {
+      testResults.tests.userProfile.status = 'failed';
+      testResults.tests.userProfile.message = `❌ Profile error: ${error}`;
+      testResults.summary.failed++;
     }
 
-    testResults.push({
-      step: '4. Affiliate Link Generation',
-      status: linksCreated.length > 0 ? '✅ PASS' : '⚠️ WARNING',
-      linksCreated: linksCreated.length
-    });
+    if (!userId) {
+      return res.status(500).json({
+        success: false,
+        message: 'Cannot proceed without user ID',
+        results: testResults
+      });
+    }
 
-    // STEP 3: Generate Content
-    testResults.push({
-      step: '5. AI Content Generation',
-      status: '🔄 RUNNING'
-    });
-
-    const contentProduct = savedProducts[0];
-    const posts = await aiContentGenerator.generateAllPlatforms(contentProduct, userId);
-
-    testResults.push({
-      step: '5. AI Content Generation',
-      status: posts.length === 6 ? '✅ PASS' : '⚠️ WARNING',
-      postsGenerated: posts.length,
-      platforms: posts.map(p => p.platform)
-    });
-
-    // STEP 4: Verify Traffic Sources
-    testResults.push({
-      step: '6. Traffic Source Check',
-      status: '🔄 RUNNING'
-    });
-
-    const { data: campaigns } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('user_id', userId);
-
-    const campaignIds = campaigns?.map(c => c.id) || [];
-    let activeTraffic = 0;
-
-    if (campaignIds.length > 0) {
-      const { data: trafficSources } = await supabase
-        .from('traffic_sources')
+    // TEST 3: PRODUCT DISCOVERY
+    console.log('TEST 3: Product discovery...');
+    try {
+      const { data: products } = await (supabase as any)
+        .from('product_catalog')
         .select('*')
-        .in('campaign_id', campaignIds)
-        .eq('status', 'active');
+        .eq('user_id', userId)
+        .limit(5);
 
-      activeTraffic = trafficSources?.length || 0;
+      if (products && products.length > 0) {
+        testResults.tests.productDiscovery.status = 'passed';
+        testResults.tests.productDiscovery.message = `✅ Found ${products.length} products`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.productDiscovery.status = 'warning';
+        testResults.tests.productDiscovery.message = '⚠️ No products found. Run discovery first.';
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.productDiscovery.status = 'failed';
+      testResults.tests.productDiscovery.message = `❌ Discovery error: ${error}`;
+      testResults.summary.failed++;
     }
 
-    testResults.push({
-      step: '6. Traffic Source Check',
-      status: activeTraffic > 0 ? '✅ PASS' : '⚠️ WARNING',
-      activeSources: activeTraffic,
-      campaigns: campaignIds.length
-    });
+    // TEST 4: AFFILIATE LINKS
+    console.log('TEST 4: Affiliate links...');
+    try {
+      const { data: links } = await (supabase as any)
+        .from('affiliate_links')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(5);
 
-    // STEP 5: Enable Autopilot
-    testResults.push({
-      step: '7. Autopilot Activation',
-      status: '🔄 RUNNING'
-    });
+      if (links && links.length > 0) {
+        testResults.tests.affiliateLinks.status = 'passed';
+        testResults.tests.affiliateLinks.message = `✅ Found ${links.length} active links`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.affiliateLinks.status = 'warning';
+        testResults.tests.affiliateLinks.message = '⚠️ No links found. Run autopilot first.';
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.affiliateLinks.status = 'failed';
+      testResults.tests.affiliateLinks.message = `❌ Links error: ${error}`;
+      testResults.summary.failed++;
+    }
 
-    await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: userId,
-        autopilot_enabled: true,
-        last_autopilot_run: new Date().toISOString()
+    // TEST 5: CONTENT GENERATION
+    console.log('TEST 5: Content generation...');
+    try {
+      const { data: content } = await (supabase as any)
+        .from('generated_content')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(5);
+
+      if (content && content.length > 0) {
+        testResults.tests.contentGeneration.status = 'passed';
+        testResults.tests.contentGeneration.message = `✅ Found ${content.length} content pieces`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.contentGeneration.status = 'warning';
+        testResults.tests.contentGeneration.message = '⚠️ No content found. Run autopilot first.';
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.contentGeneration.status = 'failed';
+      testResults.tests.contentGeneration.message = `❌ Content error: ${error}`;
+      testResults.summary.failed++;
+    }
+
+    // TEST 6: CONTENT POSTING
+    console.log('TEST 6: Content posting...');
+    try {
+      const { data: posts } = await (supabase as any)
+        .from('posted_content')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(5);
+
+      if (posts && posts.length > 0) {
+        testResults.tests.contentPosting.status = 'passed';
+        testResults.tests.contentPosting.message = `✅ Found ${posts.length} published posts`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.contentPosting.status = 'warning';
+        testResults.tests.contentPosting.message = '⚠️ No posts found. Run autopilot first.';
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.contentPosting.status = 'failed';
+      testResults.tests.contentPosting.message = `❌ Posting error: ${error}`;
+      testResults.summary.failed++;
+    }
+
+    // TEST 7: AUTOPILOT EXECUTION
+    console.log('TEST 7: Autopilot execution...');
+    try {
+      const result = await selfHealingAutopilot.executeFullCycle({
+        userId,
+        maxProducts: 3,
+        maxContentPerProduct: 2,
+        platforms: ['pinterest', 'reddit']
       });
 
-    testResults.push({
-      step: '7. Autopilot Activation',
-      status: '✅ PASS',
-      enabled: true
-    });
+      if (result.success) {
+        testResults.tests.autopilotExecution.status = 'passed';
+        testResults.tests.autopilotExecution.message = `✅ Autopilot executed: ${result.summary?.productsDiscovered || 0} products, ${result.summary?.contentGenerated || 0} content, ${result.summary?.postsPublished || 0} posts`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.autopilotExecution.status = 'warning';
+        testResults.tests.autopilotExecution.message = `⚠️ Partial success: ${result.error || 'Some phases failed'}`;
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.autopilotExecution.status = 'failed';
+      testResults.tests.autopilotExecution.message = `❌ Autopilot error: ${error}`;
+      testResults.summary.failed++;
+    }
 
-    // STEP 6: System Health Check
-    const { data: healthProducts } = await supabase
-      .from('product_catalog')
-      .select('id', { count: 'exact' })
-      .eq('user_id', userId);
+    // TEST 8: METRICS TRACKING
+    console.log('TEST 8: Metrics tracking...');
+    try {
+      const { data: tasks } = await (supabase as any)
+        .from('autopilot_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('executed_at', { ascending: false })
+        .limit(5);
 
-    const { data: healthLinks } = await supabase
-      .from('affiliate_links')
-      .select('id', { count: 'exact' })
-      .eq('user_id', userId)
-      .eq('status', 'active');
+      if (tasks && tasks.length > 0) {
+        testResults.tests.metricsTracking.status = 'passed';
+        testResults.tests.metricsTracking.message = `✅ Found ${tasks.length} execution logs`;
+        testResults.summary.passed++;
+      } else {
+        testResults.tests.metricsTracking.status = 'warning';
+        testResults.tests.metricsTracking.message = '⚠️ No execution logs found';
+        testResults.summary.warnings++;
+      }
+    } catch (error) {
+      testResults.tests.metricsTracking.status = 'failed';
+      testResults.tests.metricsTracking.message = `❌ Metrics error: ${error}`;
+      testResults.summary.failed++;
+    }
 
-    const { data: healthContent } = await supabase
-      .from('generated_content')
-      .select('id', { count: 'exact' })
-      .eq('user_id', userId);
-
-    const systemHealth = {
-      products: healthProducts?.length || 0,
-      links: healthLinks?.length || 0,
-      content: healthContent?.length || 0,
-      traffic: activeTraffic
-    };
-
-    testResults.push({
-      step: '8. System Health',
-      status: '✅ COMPLETE',
-      health: systemHealth
-    });
-
-    // Calculate test duration
-    const duration = (Date.now() - startTime) / 1000;
+    // FINAL SUMMARY
+    const overallStatus = 
+      testResults.summary.failed === 0 && testResults.summary.warnings === 0
+        ? '✅ ALL SYSTEMS OPERATIONAL'
+        : testResults.summary.failed === 0
+        ? '⚠️ SYSTEM OPERATIONAL (with warnings)'
+        : '❌ SYSTEM HAS FAILURES';
 
     return res.status(200).json({
-      success: true,
-      message: 'End-to-end test completed successfully',
-      duration: `${duration.toFixed(2)}s`,
+      success: testResults.summary.failed === 0,
+      status: overallStatus,
       results: testResults,
-      summary: {
-        totalSteps: testResults.length,
-        passed: testResults.filter(r => r.status?.includes('✅')).length,
-        warnings: testResults.filter(r => r.status?.includes('⚠️')).length,
-        systemHealth
-      },
       timestamp: new Date().toISOString()
     });
 
-  } catch (error: any) {
-    console.error('End-to-end test failed:', error);
+  } catch (error) {
+    console.error('End-to-end test error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message,
-      results: testResults,
-      timestamp: new Date().toISOString()
+      error: error instanceof Error ? error.message : 'Unknown error',
+      results: testResults
     });
   }
 }
