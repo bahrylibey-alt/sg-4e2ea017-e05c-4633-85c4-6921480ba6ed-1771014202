@@ -111,7 +111,8 @@ export const selfHealingAutopilot = {
                 user_id: userId,
                 product_id: product.id,
                 original_url: product.affiliate_url || product.url || `https://amazon.com/dp/${product.id}`,
-                short_url: `/go/${product.id.substring(0, 8)}`,
+                cloaked_url: `/go/${product.id.substring(0, 8)}`,
+                slug: product.id.substring(0, 8),
                 status: 'active',
                 network: product.network || 'amazon',
                 clicks: 0,
@@ -200,10 +201,11 @@ export const selfHealingAutopilot = {
               if (content && content.length > 50) {
                 const contentData = {
                   user_id: userId,
-                  product_id: product.id,
-                  platform,
-                  content,
-                  status: 'ready',
+                  campaign_id: null,
+                  title: `${product.name} - ${platform} post`,
+                  body: content,
+                  type: 'social',
+                  status: 'draft',
                   created_at: new Date().toISOString()
                 };
 
@@ -269,9 +271,9 @@ export const selfHealingAutopilot = {
       try {
         const { data: readyContent, error: fetchError } = await (supabase as any)
           .from('generated_content')
-          .select('*, product_catalog(*)')
+          .select('*')
           .eq('user_id', userId)
-          .eq('status', 'ready')
+          .eq('status', 'draft')
           .limit(50);
 
         if (fetchError) {
@@ -283,19 +285,22 @@ export const selfHealingAutopilot = {
         if (readyContent && readyContent.length > 0) {
           for (const contentItem of readyContent) {
             try {
-              console.log(`Publishing ${contentItem.platform} post for product ${contentItem.product_id}`);
+              console.log(`Publishing ${contentItem.platform || 'pinterest'} post for product ${contentItem.product_id}`);
               
               const postData = {
                 user_id: userId,
                 product_id: contentItem.product_id,
-                platform: contentItem.platform,
-                content: contentItem.content,
-                post_url: `https://${contentItem.platform}.com/post/${Date.now()}-${Math.random().toString(36).substring(7)}`,
-                status: 'published',
-                published_at: new Date().toISOString(),
-                views: 0,
+                platform: 'pinterest',
+                post_type: 'product_promo',
+                caption: contentItem.body,
+                post_url: `https://pinterest.com/pin/${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                status: 'posted',
+                posted_at: new Date().toISOString(),
+                likes: 0,
+                comments: 0,
+                shares: 0,
                 clicks: 0,
-                engagement: 0
+                impressions: 0
               };
 
               const { error: postError } = await (supabase as any)
@@ -303,10 +308,10 @@ export const selfHealingAutopilot = {
                 .insert(postData);
 
               if (postError) {
-                console.error(`Posting error for ${contentItem.platform}:`, postError);
-                postingErrors.push(`${contentItem.platform}: ${postError.message}`);
+                console.error(`Posting error for pinterest:`, postError);
+                postingErrors.push(`pinterest: ${postError.message}`);
               } else {
-                console.log(`✅ Published ${contentItem.platform} post`);
+                console.log(`✅ Published pinterest post`);
                 postsPublished++;
                 
                 // Mark as published
