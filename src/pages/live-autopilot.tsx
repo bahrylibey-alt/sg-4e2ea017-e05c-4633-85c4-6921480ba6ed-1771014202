@@ -58,27 +58,64 @@ export default function LiveAutopilot() {
     setResults(null);
 
     try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 2, 95));
-      }, 500);
-
-      // Phase updates
-      setTimeout(() => setPhase('🔍 Discovering trending products...'), 1000);
-      setTimeout(() => setPhase('🔗 Creating affiliate links...'), 8000);
-      setTimeout(() => setPhase('✍️ Generating AI content...'), 15000);
-      setTimeout(() => setPhase('📱 Publishing to platforms...'), 22000);
-
+      // Start execution (returns immediately)
       const response = await fetch('/api/autopilot/execute-now', {
         method: 'POST'
       });
 
-      clearInterval(progressInterval);
-      setProgress(100);
-
       const data = await response.json();
-      setResults(data);
-      setStats(data.currentStats);
+
+      if (!data.success || !data.jobId) {
+        throw new Error(data.error || 'Failed to start execution');
+      }
+
+      // Poll for status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/autopilot/execute-now?jobId=${data.jobId}`);
+          const statusData = await statusResponse.json();
+
+          if (statusData.job) {
+            const job = statusData.job;
+            setProgress(job.progress || 0);
+            setPhase(job.phase || '');
+
+            if (job.status === 'completed') {
+              clearInterval(pollInterval);
+              setProgress(100);
+              setResults({
+                success: true,
+                summary: job.results?.summary,
+                execution: job.results?.execution,
+                currentStats: job.currentStats
+              });
+              setStats(job.currentStats);
+              setExecuting(false);
+            } else if (job.status === 'failed') {
+              clearInterval(pollInterval);
+              setResults({
+                success: false,
+                error: job.error
+              });
+              setExecuting(false);
+            }
+          }
+        } catch (error) {
+          console.error('Poll error:', error);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      // Timeout after 2 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (executing) {
+          setResults({
+            success: false,
+            error: 'Execution timed out'
+          });
+          setExecuting(false);
+        }
+      }, 120000);
 
     } catch (error) {
       console.error('Execution error:', error);
@@ -86,9 +123,7 @@ export default function LiveAutopilot() {
         success: false,
         error: error instanceof Error ? error.message : 'Execution failed'
       });
-    } finally {
       setExecuting(false);
-      setPhase('');
     }
   };
 

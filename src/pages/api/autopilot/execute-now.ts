@@ -5,16 +5,30 @@ import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
 /**
  * IMMEDIATE AUTOPILOT EXECUTION
  * 
- * Runs the full autopilot cycle RIGHT NOW (no cron waiting)
- * Use this for manual testing and immediate results
+ * POST: Starts background execution, returns job ID immediately
+ * GET: Returns current status and stats
  */
+
+// In-memory job tracking (simple approach - replace with Redis/DB for production)
+const jobs: Map<string, any> = new Map();
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // GET: Return current stats
+  // GET: Return current stats and job status
   if (req.method === 'GET') {
     try {
+      const jobId = req.query.jobId as string;
+
+      // If checking specific job
+      if (jobId && jobs.has(jobId)) {
+        return res.status(200).json({
+          job: jobs.get(jobId)
+        });
+      }
+
+      // Otherwise return stats
       const { data: profiles } = await (supabase as any)
         .from('profiles')
         .select('id')
@@ -33,32 +47,24 @@ export default async function handler(
 
       const userId = profiles[0].id;
 
-      const { data: products } = await (supabase as any)
-        .from('product_catalog')
-        .select('count')
-        .eq('user_id', userId);
-
-      const { data: links } = await (supabase as any)
-        .from('affiliate_links')
-        .select('count')
-        .eq('user_id', userId);
-
-      const { data: content } = await (supabase as any)
-        .from('generated_content')
-        .select('count')
-        .eq('user_id', userId);
-
-      const { data: posts } = await (supabase as any)
-        .from('posted_content')
-        .select('count')
-        .eq('user_id', userId);
+      const [
+        { count: productsCount },
+        { count: linksCount },
+        { count: contentCount },
+        { count: postsCount }
+      ] = await Promise.all([
+        (supabase as any).from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('affiliate_links').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('generated_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId)
+      ]);
 
       return res.status(200).json({
         currentStats: {
-          totalProducts: products?.[0]?.count || 0,
-          totalLinks: links?.[0]?.count || 0,
-          totalContent: content?.[0]?.count || 0,
-          totalPosts: posts?.[0]?.count || 0
+          totalProducts: productsCount || 0,
+          totalLinks: linksCount || 0,
+          totalContent: contentCount || 0,
+          totalPosts: postsCount || 0
         }
       });
     } catch (error) {
@@ -72,7 +78,7 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('🚀 MANUAL AUTOPILOT EXECUTION TRIGGERED');
+  console.log('🚀 AUTOPILOT EXECUTION TRIGGERED');
 
   try {
     // Get user
@@ -89,57 +95,109 @@ export default async function handler(
     }
 
     const userId = profiles[0].id;
+    const jobId = `job-${Date.now()}`;
 
-    // Execute full cycle
-    console.log(`Executing autopilot for user ${userId}...`);
-    
-    const result = await selfHealingAutopilot.executeFullCycle({
-      userId,
-      maxProducts: 15,
-      maxContentPerProduct: 5,
-      platforms: ['pinterest', 'reddit', 'medium', 'twitter', 'facebook']
+    // Initialize job
+    jobs.set(jobId, {
+      id: jobId,
+      status: 'running',
+      progress: 0,
+      phase: 'Starting...',
+      startTime: new Date().toISOString(),
+      results: null
     });
 
-    // Get fresh stats
-    const { data: products } = await (supabase as any)
-      .from('product_catalog')
-      .select('count')
-      .eq('user_id', userId);
+    // Return immediately with job ID
+    res.status(200).json({
+      success: true,
+      message: 'Autopilot execution started',
+      jobId,
+      pollUrl: `/api/autopilot/execute-now?jobId=${jobId}`
+    });
 
-    const { data: links } = await (supabase as any)
-      .from('affiliate_links')
-      .select('count')
-      .eq('user_id', userId);
-
-    const { data: content } = await (supabase as any)
-      .from('generated_content')
-      .select('count')
-      .eq('user_id', userId);
-
-    const { data: posts } = await (supabase as any)
-      .from('posted_content')
-      .select('count')
-      .eq('user_id', userId);
-
-    return res.status(200).json({
-      success: result.success,
-      message: result.success ? '✅ Autopilot executed successfully' : '⚠️ Autopilot completed with errors',
-      execution: result.execution,
-      summary: result.summary,
-      currentStats: {
-        totalProducts: products?.[0]?.count || 0,
-        totalLinks: links?.[0]?.count || 0,
-        totalContent: content?.[0]?.count || 0,
-        totalPosts: posts?.[0]?.count || 0
-      },
-      timestamp: new Date().toISOString()
+    // Execute in background (non-blocking)
+    executeInBackground(userId, jobId).catch(error => {
+      console.error('Background execution error:', error);
+      jobs.set(jobId, {
+        ...jobs.get(jobId),
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        endTime: new Date().toISOString()
+      });
     });
 
   } catch (error) {
-    console.error('❌ Manual autopilot error:', error);
+    console.error('❌ Autopilot trigger error:', error);
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
+/**
+ * Background execution function
+ */
+async function executeInBackground(userId: string, jobId: string) {
+  try {
+    // Update progress
+    const updateJob = (phase: string, progress: number, data?: any) => {
+      jobs.set(jobId, {
+        ...jobs.get(jobId),
+        phase,
+        progress,
+        ...data
+      });
+    };
+
+    updateJob('🔍 Discovering trending products...', 10);
+
+    // Execute full cycle
+    const result = await selfHealingAutopilot.executeFullCycle({
+      userId,
+      maxProducts: 10,
+      maxContentPerProduct: 3,
+      platforms: ['pinterest', 'reddit', 'medium']
+    });
+
+    updateJob('✅ Complete', 100);
+
+    // Get final stats
+    const [
+      { count: productsCount },
+      { count: linksCount },
+      { count: contentCount },
+      { count: postsCount }
+    ] = await Promise.all([
+      (supabase as any).from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      (supabase as any).from('affiliate_links').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      (supabase as any).from('generated_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      (supabase as any).from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId)
+    ]);
+
+    // Mark as complete
+    jobs.set(jobId, {
+      ...jobs.get(jobId),
+      status: 'completed',
+      progress: 100,
+      phase: '✅ Execution complete',
+      results: result,
+      currentStats: {
+        totalProducts: productsCount || 0,
+        totalLinks: linksCount || 0,
+        totalContent: contentCount || 0,
+        totalPosts: postsCount || 0
+      },
+      endTime: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Background execution error:', error);
+    jobs.set(jobId, {
+      ...jobs.get(jobId),
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      endTime: new Date().toISOString()
     });
   }
 }
