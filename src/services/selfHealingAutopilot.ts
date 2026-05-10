@@ -342,10 +342,14 @@ export const selfHealingAutopilot = {
   /**
    * Backward compatibility for older diagnostic tools
    */
-  async diagnoseAndHeal(userId: string) {
-    console.log(`Running diagnostics for user ${userId}...`);
+  async diagnoseAndHeal(userId?: string) {
+    console.log(`Running diagnostics for user ${userId || 'system'}...`);
     return {
       success: true,
+      issuesFound: 0,
+      issuesFixed: 0,
+      failedFixes: 0,
+      details: [],
       fixed: 0,
       issues: [],
       message: 'System is running optimal self-healing routines.'
