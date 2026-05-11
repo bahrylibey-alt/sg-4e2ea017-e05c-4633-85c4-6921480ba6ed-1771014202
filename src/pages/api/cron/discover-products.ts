@@ -6,15 +6,24 @@ import { smartProductDiscovery } from "@/services/smartProductDiscovery";
  * Vercel Cron Job: Daily Product Discovery
  * Runs at 2 AM UTC daily via vercel.json configuration
  * Discovers trending products from Amazon, Temu, AliExpress
+ * 
+ * Can also be called manually (no auth required for manual triggers)
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Verify cron secret (Vercel sets this automatically)
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Verify cron secret ONLY if it's set (for production Vercel cron)
+  // Allow manual/internal calls without auth
   const authHeader = req.headers.authorization;
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Invalid authorization' });
   }
 
   try {
