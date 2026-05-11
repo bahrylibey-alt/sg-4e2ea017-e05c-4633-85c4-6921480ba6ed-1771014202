@@ -201,7 +201,6 @@ export const selfHealingAutopilot = {
               if (content && content.length > 50) {
                 const contentData = {
                   user_id: userId,
-                  campaign_id: null,
                   title: `${product.name} - ${platform} post`,
                   body: content,
                   type: 'social',
