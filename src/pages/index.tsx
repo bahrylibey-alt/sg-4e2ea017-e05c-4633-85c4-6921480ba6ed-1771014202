@@ -212,24 +212,25 @@ export default function HomePage() {
     });
 
     try {
-      // Run discovery
-      await discoverProducts();
-      
-      // Activate autopilot
-      if (!stats.autopilotEnabled) {
-        await toggleAutopilot();
-      }
-
-      // Trigger cron jobs
-      await Promise.all([
-        fetch('/api/cron/discover-products', { method: 'POST' }),
-        fetch('/api/cron/autopilot', { method: 'POST' })
-      ]);
-
-      toast({
-        title: "System Activated!",
-        description: "All components are now running",
+      // Use the new activation endpoint instead of direct cron calls
+      const response = await fetch('/api/autopilot/activate-publishing', { 
+        method: 'POST' 
       });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({
+          title: "System Activated!",
+          description: `${data.postsCreated} posts published across all platforms`,
+        });
+      } else {
+        toast({
+          title: "Activation Error",
+          description: data.error || "Failed to activate system",
+          variant: "destructive"
+        });
+      }
 
       await loadDashboard();
     } catch (error: any) {

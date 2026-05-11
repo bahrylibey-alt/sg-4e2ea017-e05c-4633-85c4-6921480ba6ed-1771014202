@@ -6,6 +6,7 @@ import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
  * AUTONOMOUS AUTOPILOT CRON JOB
  * 
  * Runs automatically every hour via Vercel Cron
+ * Can also be called manually (no auth required for manual triggers)
  * Executes for ALL users in the system
  * 
  * Flow:
@@ -18,6 +19,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Verify cron secret ONLY if it's set (for production Vercel cron)
+  // Allow manual/internal calls without auth
+  const authHeader = req.headers.authorization;
+  const cronSecret = process.env.CRON_SECRET;
+  
+  if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Invalid authorization' });
+  }
+
   console.log('🤖 AUTOPILOT CRON JOB STARTED');
   
   try {
