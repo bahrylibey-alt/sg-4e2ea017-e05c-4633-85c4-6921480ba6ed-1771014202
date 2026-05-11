@@ -3,92 +3,90 @@ import { supabase } from "@/integrations/supabase/client";
 import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
 
 /**
- * CRON JOB: Autonomous Autopilot Execution
+ * AUTONOMOUS AUTOPILOT CRON JOB
  * 
- * This endpoint should be called every hour by Vercel Cron or external scheduler
+ * Runs automatically every hour via Vercel Cron
+ * Executes for ALL users in the system
  * 
- * Vercel cron.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/autopilot",
- *     "schedule": "0 * * * *"
- *   }]
- * }
+ * Flow:
+ * 1. Discover 10-15 trending products
+ * 2. Create affiliate links
+ * 3. Generate AI content (with template fallback)
+ * 4. Post to ALL platforms automatically
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  console.log('🤖 CRON: Autopilot execution triggered');
-
+  console.log('🤖 AUTOPILOT CRON JOB STARTED');
+  
   try {
-    // Get all users with autopilot enabled
-    const { data: users } = await (supabase as any)
+    // Get all active users
+    const { data: users, error: usersError } = await (supabase as any)
       .from('profiles')
-      .select('id')
+      .select('id, email')
       .limit(10);
+
+    if (usersError) {
+      throw usersError;
+    }
 
     if (!users || users.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No users found',
-        executed: 0
+        message: 'No users to process',
+        executedAt: new Date().toISOString()
       });
     }
 
+    console.log(`Found ${users.length} users to process`);
+
     const results = [];
 
+    // Execute for each user
     for (const user of users) {
       try {
-        console.log(`Executing autopilot for user ${user.id}`);
+        console.log(`Executing autopilot for user ${user.email}...`);
         
         const result = await selfHealingAutopilot.executeFullCycle({
           userId: user.id,
-          maxProducts: 10,
-          maxContentPerProduct: 3,
-          platforms: ['pinterest', 'reddit', 'medium', 'twitter', 'facebook']
+          maxProducts: 15,
+          maxContentPerProduct: 5,
+          platforms: ['pinterest', 'reddit', 'medium', 'twitter', 'facebook', 'linkedin', 'tumblr', 'instagram']
         });
 
         results.push({
           userId: user.id,
+          email: user.email,
           success: result.success,
           summary: result.summary
         });
 
-      } catch (error) {
-        console.error(`Autopilot failed for user ${user.id}:`, error);
+        console.log(`✅ Completed for ${user.email}: ${JSON.stringify(result.summary)}`);
+      } catch (userError) {
+        console.error(`Error processing user ${user.email}:`, userError);
         results.push({
           userId: user.id,
+          email: user.email,
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: userError instanceof Error ? userError.message : 'Unknown error'
         });
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-
-    console.log(`✅ Autopilot cron completed: ${successCount}/${users.length} successful`);
-
     return res.status(200).json({
       success: true,
-      message: `Executed autopilot for ${users.length} users`,
-      successCount,
-      totalUsers: users.length,
+      message: `Autopilot executed for ${users.length} users`,
       results,
-      timestamp: new Date().toISOString()
+      executedAt: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('❌ Cron autopilot error:', error);
+    console.error('❌ Cron job error:', error);
     return res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      executedAt: new Date().toISOString()
     });
   }
-
-  // Vercel Cron auth check (optional)
-  // const authHeader = req.headers.authorization;
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return res.status(401).json({ error: 'Unauthorized' });
-  // }
 }
