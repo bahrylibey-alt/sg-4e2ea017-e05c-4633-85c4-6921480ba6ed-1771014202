@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { SimplifiedAuthModal } from "@/components/SimplifiedAuthModal";
 import { mockAuthService } from "@/services/mockAuthService";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   User, Mail, Lock, CheckCircle2, AlertCircle, Loader2, 
   Camera, TrendingUp, DollarSign, FileText, MousePointerClick 
