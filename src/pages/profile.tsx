@@ -37,12 +37,12 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Stats state (mock data for now)
-  const [stats] = useState({
-    totalProducts: 42,
-    totalContent: 158,
-    totalClicks: 1247,
-    totalRevenue: 432.50
+  // Stats state - load from database
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalContent: 0,
+    totalClicks: 0,
+    totalRevenue: 0
   });
 
   // Notification state
@@ -54,6 +54,48 @@ export default function ProfilePage() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadRealStats();
+    }
+  }, [user]);
+
+  const loadRealStats = async () => {
+    try {
+      const userId = user.id;
+
+      // Get real counts from database
+      const [
+        { count: productsCount },
+        { count: contentCount },
+        { count: postsCount },
+        { data: clicksData },
+        { data: revenueData }
+      ] = await Promise.all([
+        (supabase as any).from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('generated_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+        (supabase as any).from('affiliate_links').select('clicks').eq('user_id', userId),
+        (supabase as any).from('affiliate_links').select('revenue').eq('user_id', userId)
+      ]);
+
+      // Calculate total clicks
+      const totalClicks = clicksData?.reduce((sum: number, link: any) => sum + (link.clicks || 0), 0) || 0;
+
+      // Calculate total revenue
+      const totalRevenue = revenueData?.reduce((sum: number, link: any) => sum + (link.revenue || 0), 0) || 0;
+
+      setStats({
+        totalProducts: productsCount || 0,
+        totalContent: contentCount || 0,
+        totalClicks,
+        totalRevenue
+      });
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
   const checkAuth = async () => {
     setLoading(true);
