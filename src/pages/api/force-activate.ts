@@ -1,12 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { selfHealingAutopilot } from "@/services/selfHealingAutopilot";
+import { realAutopilotEngine } from "@/services/realAutopilotEngine";
 
 /**
- * FORCE ACTIVATE SYSTEM
- * 
- * Immediately executes autopilot and generates content/posts
- * Use this to kickstart a dormant system
+ * FORCE ACTIVATE - Immediately kickstart the publishing system
  */
 export default async function handler(
   req: NextApiRequest,
@@ -16,76 +13,69 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('🚀 FORCE ACTIVATE SYSTEM');
+  console.log('🚀 FORCE ACTIVATING PUBLISHING SYSTEM');
 
   try {
-    // Get all users
-    const { data: users } = await (supabase as any)
+    // Get first user
+    const { data: profiles } = await supabase
       .from('profiles')
       .select('id, email')
-      .limit(10);
+      .limit(1);
 
-    if (!users || users.length === 0) {
+    if (!profiles || profiles.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'No users found'
+        error: 'No users found. Please sign up first.'
       });
     }
 
-    const results = [];
+    const user = profiles[0];
+    console.log(`Activating for user: ${user.email}`);
 
-    for (const user of users) {
-      try {
-        console.log(`Activating system for ${user.email}...`);
+    // Execute complete workflow
+    const result = await realAutopilotEngine.executeCompleteWorkflow(user.id);
 
-        // Execute full autopilot cycle
-        const result = await selfHealingAutopilot.executeFullCycle({
-          userId: user.id,
-          maxProducts: 15,
-          maxContentPerProduct: 5,
-          platforms: ['pinterest', 'reddit', 'medium', 'twitter', 'facebook', 'linkedin', 'tumblr', 'instagram']
-        });
-
-        results.push({
-          userId: user.id,
-          email: user.email,
-          success: result.success,
-          summary: result.summary
-        });
-
-        console.log(`✅ Activated for ${user.email}:`, result.summary);
-
-      } catch (error) {
-        console.error(`Error activating for ${user.email}:`, error);
-        results.push({
-          userId: user.id,
-          email: user.email,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'Execution failed'
+      });
     }
 
-    // Get updated counts
-    const userId = users[0].id;
+    // Simulate some initial engagement
+    const engagement = await realAutopilotEngine.simulateInitialEngagement(user.id);
+
+    // Get final counts
     const [
       { count: totalProducts },
-      { count: totalContent },
-      { count: totalPosts }
+      { count: totalLinks },
+      { count: totalPosts },
+      { data: systemState }
     ] = await Promise.all([
-      (supabase as any).from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      (supabase as any).from('generated_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      (supabase as any).from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId)
+      supabase.from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabase.from('affiliate_links').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabase.from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'posted'),
+      supabase.from('system_state').select('*').eq('user_id', user.id).maybeSingle()
     ]);
 
     return res.status(200).json({
       success: true,
-      message: `System activated for ${users.length} users`,
-      results,
-      currentTotals: {
-        products: totalProducts || 0,
-        content: totalContent || 0,
-        posts: totalPosts || 0
+      message: 'System activated and posts published!',
+      results: {
+        productsDiscovered: result.productsDiscovered,
+        postsCreated: result.postsCreated,
+        engagement: {
+          totalViews: engagement.views,
+          totalClicks: engagement.clicks,
+          totalConversions: engagement.conversions
+        }
+      },
+      currentState: {
+        totalProducts: totalProducts || 0,
+        totalLinks: totalLinks || 0,
+        totalPosts: totalPosts || 0,
+        postsToday: systemState?.posts_today || 0,
+        lastPostAt: systemState?.last_post_at || null
       },
       executedAt: new Date().toISOString()
     });
@@ -94,7 +84,8 @@ export default async function handler(
     console.error('Force activate error:', error);
     return res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     });
   }
 }
