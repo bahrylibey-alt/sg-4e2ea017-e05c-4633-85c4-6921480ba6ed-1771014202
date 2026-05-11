@@ -179,6 +179,41 @@ export default function ProfilePage() {
     }
   };
 
+  const activateAutopilot = async () => {
+    setActivating(true);
+    try {
+      const response = await fetch('/api/autopilot/activate-publishing', { 
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({
+          title: "🚀 System Activated!",
+          description: `${data.postsCreated} posts published. Check Traffic Channels page.`,
+        });
+        // Refresh stats after activation
+        setTimeout(loadStats, 2000);
+      } else {
+        toast({
+          title: "Activation Failed",
+          description: data.error || "Could not activate system",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Activation error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to activate autopilot",
+        variant: "destructive",
+      });
+    } finally {
+      setActivating(false);
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
