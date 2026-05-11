@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { realAutopilotEngine } from "@/services/realAutopilotEngine";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Eye,
   MousePointerClick,
@@ -40,17 +41,26 @@ export default function TrackingDashboard() {
   useEffect(() => {
     if (!mounted) return;
     
-    const loadData = () => {
-      const currentStats = realAutopilotEngine.getStats();
-      setStats(currentStats);
-      
-      const allData = realAutopilotEngine.getAllData();
-      setRecentActivity(allData.logs || []);
+    const loadData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+        
+        const userId = session.user.id;
+        
+        const currentStats = await realAutopilotEngine.getStats(userId);
+        setStats(currentStats as any);
+        
+        const allData = await realAutopilotEngine.getAllData(userId);
+        setRecentActivity(allData.logs || []);
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      }
     };
     
     loadData();
     
-    const interval = setInterval(loadData, 2000);
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [mounted]);
 

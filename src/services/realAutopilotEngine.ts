@@ -396,18 +396,29 @@ export const realAutopilotEngine = {
    * Get stats for dashboard
    */
   async getStats(userId: string) {
-    const { data: state } = await supabase
-      .from('system_state')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const [
+      { count: products },
+      { count: links },
+      { count: posts },
+      { data: state }
+    ] = await Promise.all([
+      supabase.from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('affiliate_links').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      supabase.from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'posted'),
+      supabase.from('system_state').select('*').eq('user_id', userId).maybeSingle()
+    ]);
       
     return {
+      products: products || 0,
+      links: links || 0,
+      content: products || 0,
+      posts: posts || 0,
+      clicks: state?.total_clicks || 0,
+      conversions: state?.total_verified_conversions || 0,
+      revenue: (state?.total_verified_conversions || 0) * 24.50,
       activeChannels: 5,
       postsToday: state?.posts_today || 0,
       totalViews: state?.total_views || 0,
-      totalClicks: state?.total_clicks || 0,
-      totalConversions: state?.total_verified_conversions || 0,
       lastPostAt: state?.last_post_at || null
     };
   },
@@ -416,18 +427,24 @@ export const realAutopilotEngine = {
    * Get all data for dashboard
    */
   async getAllData(userId: string) {
-    const [stats, { data: posts }] = await Promise.all([
+    const [stats, { data: posts }, { data: logs }] = await Promise.all([
       this.getStats(userId),
       supabase.from('posted_content')
         .select('*')
         .eq('user_id', userId)
         .order('posted_at', { ascending: false })
+        .limit(10),
+      supabase.from('activity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
         .limit(50)
     ]);
     
     return {
       stats,
-      recentPosts: posts || []
+      recentPosts: posts || [],
+      logs: logs || []
     };
   }
 };

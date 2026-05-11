@@ -218,7 +218,7 @@ export default function TrafficChannels() {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/cron/autopilot', { method: 'POST' });
+      const response = await fetch('/api/autopilot/activate-publishing', { method: 'POST' });
       const data = await response.json();
       
       if (data.success) {
