@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { SimplifiedAuthModal } from "@/components/SimplifiedAuthModal";
 import { mockAuthService } from "@/services/mockAuthService";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { 
   User, Mail, Lock, CheckCircle2, AlertCircle, Loader2, 
   Camera, TrendingUp, DollarSign, FileText, MousePointerClick 
@@ -22,8 +23,10 @@ import {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
@@ -194,7 +197,7 @@ export default function ProfilePage() {
           description: `${data.postsCreated} posts published. Check Traffic Channels page.`,
         });
         // Refresh stats after activation
-        setTimeout(loadStats, 2000);
+        setTimeout(loadRealStats, 2000);
       } else {
         toast({
           title: "Activation Failed",
@@ -272,12 +275,26 @@ export default function ProfilePage() {
                 )}
               </Avatar>
               
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold">{fullName || "Your Profile"}</h1>
-                <p className="text-muted-foreground">{email}</p>
-                <Badge className="mt-2" variant="outline">
-                  Member since {new Date(user?.created_at || Date.now()).toLocaleDateString()}
-                </Badge>
+              <div className="flex-1 flex justify-between items-start">
+                <div>
+                  <h1 className="text-3xl font-bold">{fullName || "Your Profile"}</h1>
+                  <p className="text-muted-foreground">{email}</p>
+                  <Badge className="mt-2" variant="outline">
+                    Member since {new Date(user?.created_at || Date.now()).toLocaleDateString()}
+                  </Badge>
+                </div>
+                <Button 
+                  onClick={activateAutopilot} 
+                  disabled={activating}
+                  variant="outline"
+                  className="bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border-blue-200"
+                >
+                  {activating ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting...</>
+                  ) : (
+                    <>🤖 Run System Autopilot</>
+                  )}
+                </Button>
               </div>
             </div>
 
