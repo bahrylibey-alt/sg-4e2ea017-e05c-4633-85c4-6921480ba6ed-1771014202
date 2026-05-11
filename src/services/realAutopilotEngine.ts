@@ -211,7 +211,7 @@ export const realAutopilotEngine = {
       // Get social media account
       const { data: account } = await supabase
         .from('social_media_accounts')
-        .select('id')
+        .select('id, total_posts')
         .eq('user_id', userId)
         .eq('platform', platform)
         .maybeSingle();
@@ -287,7 +287,7 @@ export const realAutopilotEngine = {
         await supabase
           .from('social_media_accounts')
           .update({
-            total_posts: supabase.sql`total_posts + 1`,
+            total_posts: (account.total_posts || 0) + 1,
             last_posted_at: new Date().toISOString()
           })
           .eq('id', account.id);
@@ -383,5 +383,51 @@ export const realAutopilotEngine = {
       console.error('Error simulating engagement:', error);
       return { views: 0, clicks: 0, conversions: 0 };
     }
+  },
+
+  /**
+   * Simulate traffic (alias for simulateInitialEngagement for backward compatibility)
+   */
+  async simulateTraffic(userId: string) {
+    return this.simulateInitialEngagement(userId);
+  },
+
+  /**
+   * Get stats for dashboard
+   */
+  async getStats(userId: string) {
+    const { data: state } = await supabase
+      .from('system_state')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+      
+    return {
+      activeChannels: 5,
+      postsToday: state?.posts_today || 0,
+      totalViews: state?.total_views || 0,
+      totalClicks: state?.total_clicks || 0,
+      totalConversions: state?.total_verified_conversions || 0,
+      lastPostAt: state?.last_post_at || null
+    };
+  },
+
+  /**
+   * Get all data for dashboard
+   */
+  async getAllData(userId: string) {
+    const [stats, { data: posts }] = await Promise.all([
+      this.getStats(userId),
+      supabase.from('posted_content')
+        .select('*')
+        .eq('user_id', userId)
+        .order('posted_at', { ascending: false })
+        .limit(50)
+    ]);
+    
+    return {
+      stats,
+      recentPosts: posts || []
+    };
   }
 };
