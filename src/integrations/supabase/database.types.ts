@@ -360,6 +360,53 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_optimization: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          improvements_made: number | null
+          optimization_type: string
+          performance_lift: number | null
+          status: string
+          tests_run: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          improvements_made?: number | null
+          optimization_type: string
+          performance_lift?: number | null
+          status?: string
+          tests_run?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          improvements_made?: number | null
+          optimization_type?: string
+          performance_lift?: number | null
+          status?: string
+          tests_run?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_optimization_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auto_posts: {
         Row: {
           caption: string | null
@@ -869,6 +916,87 @@ export type Database = {
           },
           {
             foreignKeyName: "autopilot_tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bridge_pages: {
+        Row: {
+          benefits: string[] | null
+          clicks: number | null
+          conversion_rate: number | null
+          conversions: number | null
+          created_at: string | null
+          cta_text: string | null
+          headline: string
+          id: string
+          product_id: string | null
+          slug: string
+          social_proof: string[] | null
+          status: string
+          story_content: string | null
+          trust_badges: string[] | null
+          updated_at: string | null
+          urgency_message: string | null
+          url: string
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          benefits?: string[] | null
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          cta_text?: string | null
+          headline: string
+          id?: string
+          product_id?: string | null
+          slug: string
+          social_proof?: string[] | null
+          status?: string
+          story_content?: string | null
+          trust_badges?: string[] | null
+          updated_at?: string | null
+          urgency_message?: string | null
+          url: string
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          benefits?: string[] | null
+          clicks?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          cta_text?: string | null
+          headline?: string
+          id?: string
+          product_id?: string | null
+          slug?: string
+          social_proof?: string[] | null
+          status?: string
+          story_content?: string | null
+          trust_badges?: string[] | null
+          updated_at?: string | null
+          urgency_message?: string | null
+          url?: string
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bridge_pages_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bridge_pages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -1958,6 +2086,124 @@ export type Database = {
           },
         ]
       }
+      lead_captures: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          lead_magnet_id: string | null
+          metadata: Json | null
+          name: string | null
+          product_id: string | null
+          source: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          lead_magnet_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          product_id?: string | null
+          source?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          lead_magnet_id?: string | null
+          metadata?: Json | null
+          name?: string | null
+          product_id?: string | null
+          source?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_captures_lead_magnet_id_fkey"
+            columns: ["lead_magnet_id"]
+            isOneToOne: false
+            referencedRelation: "lead_magnets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_captures_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_captures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_magnets: {
+        Row: {
+          conversion_rate: number | null
+          created_at: string | null
+          description: string | null
+          downloads: number | null
+          file_url: string | null
+          id: string
+          product_id: string | null
+          status: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          conversion_rate?: number | null
+          created_at?: string | null
+          description?: string | null
+          downloads?: number | null
+          file_url?: string | null
+          id?: string
+          product_id?: string | null
+          status?: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          conversion_rate?: number | null
+          created_at?: string | null
+          description?: string | null
+          downloads?: number | null
+          file_url?: string | null
+          id?: string
+          product_id?: string | null
+          status?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_magnets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_magnets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       link_variants: {
         Row: {
           clicks: number | null
@@ -2980,6 +3226,47 @@ export type Database = {
         }
         Relationships: []
       }
+      tracking_pixels: {
+        Row: {
+          created_at: string | null
+          events: string[] | null
+          id: string
+          page_url: string
+          pixel_id: string
+          pixel_type: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          events?: string[] | null
+          id?: string
+          page_url: string
+          pixel_id: string
+          pixel_type: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          events?: string[] | null
+          id?: string
+          page_url?: string
+          pixel_id?: string
+          pixel_type?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_pixels_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       traffic_events: {
         Row: {
           country: string | null
@@ -3302,6 +3589,50 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posted_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viral_mechanics: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          mechanic_type: string
+          referrals_count: number | null
+          shares_count: number | null
+          status: string
+          user_id: string
+          viral_coefficient: number | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          mechanic_type: string
+          referrals_count?: number | null
+          shares_count?: number | null
+          status?: string
+          user_id: string
+          viral_coefficient?: number | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          mechanic_type?: string
+          referrals_count?: number | null
+          shares_count?: number | null
+          status?: string
+          user_id?: string
+          viral_coefficient?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viral_mechanics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
