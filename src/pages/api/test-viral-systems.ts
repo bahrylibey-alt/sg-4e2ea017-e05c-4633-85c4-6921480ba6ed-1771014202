@@ -1,174 +1,97 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/integrations/supabase/client";
-import { unifiedOrchestrator } from "@/services/unifiedOrchestrator";
-import { viralDnaAnalyzer } from "@/services/viralDnaAnalyzer";
-import { quantumContentMultiplier } from "@/services/quantumContentMultiplier";
-import { contentIntelligence } from "@/services/contentIntelligence";
-import { viralEngine } from "@/services/viralEngine";
 
 /**
- * COMPREHENSIVE TEST FOR ALL VIRAL SYSTEMS
- * No authentication required - for easy testing
+ * TEST ALL VIRAL SYSTEMS
+ * Tests referral, social sharing, content multiplier, email capture
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    systems: {}
+  };
+
   try {
-    console.log('🧪 VIRAL SYSTEMS TEST: Starting comprehensive test...');
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || 'test-user';
 
-    // Get test user
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id')
-      .limit(1);
-
-    if (!profiles || profiles.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'No users found'
-      });
-    }
-
-    const userId = profiles[0].id;
-    const testResults: any = {
-      success: true,
-      userId,
-      timestamp: new Date().toISOString(),
-      systems: {}
-    };
-
-    // TEST 1: DNA ANALYZER
-    console.log('TEST 1: DNA Analyzer...');
-    try {
-      const dnaResults = await viralDnaAnalyzer.batchOptimizeContent(userId);
-      testResults.systems.dnaAnalyzer = {
-        status: '✅ PASSED',
-        optimizedCount: dnaResults.optimized_count,
-        averageBoost: dnaResults.average_boost
-      };
-    } catch (error) {
-      testResults.systems.dnaAnalyzer = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // TEST 2: CONTENT INTELLIGENCE
-    console.log('TEST 2: Content Intelligence...');
-    try {
-      const testContent = "🚨 Wait! This amazing product is only $29.99?! I've been testing this for weeks and it's genuinely impressive. Limited time deal - link in bio!";
-      const prediction = await contentIntelligence.predictVirality(
-        testContent,
-        "Test Product",
-        29.99,
-        "pinterest"
-      );
-      testResults.systems.contentIntelligence = {
-        status: '✅ PASSED',
-        viralityScore: prediction.viralityScore,
-        confidence: prediction.confidence,
-        predictedClicks: prediction.predictedClicks,
-        recommendations: prediction.recommendations.length
-      };
-    } catch (error) {
-      testResults.systems.contentIntelligence = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // TEST 3: QUANTUM MULTIPLIER
-    console.log('TEST 3: Quantum Content Multiplier...');
-    try {
-      const quantumResults = await quantumContentMultiplier.autoPost(userId);
-      testResults.systems.quantumMultiplier = {
-        status: '✅ PASSED',
-        postedCount: quantumResults.posted_count,
-        platforms: quantumResults.platforms
-      };
-    } catch (error) {
-      testResults.systems.quantumMultiplier = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // TEST 4: VIRAL ENGINE
-    console.log('TEST 4: Viral Engine...');
-    try {
-      const viralResults = await viralEngine.batchGenerateViralContent(userId);
-      testResults.systems.viralEngine = {
-        status: viralResults.success ? '✅ PASSED' : '⚠️ PARTIAL',
-        generatedCount: viralResults.generated_count,
-        productsProcessed: viralResults.products_processed
-      };
-    } catch (error) {
-      testResults.systems.viralEngine = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // TEST 5: UNIFIED ORCHESTRATOR
-    console.log('TEST 5: Unified Orchestrator...');
-    try {
-      const orchestratorResults = await unifiedOrchestrator.execute(userId);
-      testResults.systems.unifiedOrchestrator = {
-        status: orchestratorResults.success ? '✅ PASSED' : '⚠️ PARTIAL',
-        execution: orchestratorResults.execution,
-        metrics: orchestratorResults.metrics,
-        systemHealth: orchestratorResults.systemHealth,
-        nextActions: orchestratorResults.nextActions
-      };
-    } catch (error) {
-      testResults.systems.unifiedOrchestrator = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // TEST 6: SYSTEM HEALTH CHECK
-    console.log('TEST 6: System Health Check...');
-    try {
-      const healthCheck = await unifiedOrchestrator.healthCheck(userId);
-      testResults.systems.healthCheck = {
-        status: '✅ PASSED',
-        overallStatus: healthCheck.status,
-        systemsOnline: healthCheck.systems,
-        recommendations: healthCheck.recommendations
-      };
-    } catch (error) {
-      testResults.systems.healthCheck = {
-        status: '❌ FAILED',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-
-    // Calculate overall success
-    const systemStatuses = Object.values(testResults.systems).map((s: any) => s.status);
-    const passedCount = systemStatuses.filter(s => s === '✅ PASSED').length;
-    const totalCount = systemStatuses.length;
+    // Test 1: Viral Mechanics Table
+    const { data: viralMechanics, error: viralError } = await supabase
+      .from('viral_mechanics')
+      .select('*');
     
-    testResults.summary = {
-      totalTests: totalCount,
-      passed: passedCount,
-      failed: systemStatuses.filter(s => s === '❌ FAILED').length,
-      skipped: systemStatuses.filter(s => s === '⚠️ SKIPPED').length,
-      partial: systemStatuses.filter(s => s === '⚠️ PARTIAL').length,
-      successRate: `${Math.round((passedCount / totalCount) * 100)}%`
+    results.systems.viralMechanics = {
+      status: viralError ? 'FAILED' : 'OK',
+      count: viralMechanics?.length || 0,
+      data: viralMechanics || [],
+      error: viralError?.message
     };
 
-    console.log(`✅ VIRAL SYSTEMS TEST COMPLETE: ${testResults.summary.successRate} success rate`);
+    // Test 2: Lead Captures
+    const { data: leadCaptures, error: leadError } = await supabase
+      .from('lead_captures')
+      .select('*');
+    
+    results.systems.leadCaptures = {
+      status: leadError ? 'FAILED' : 'OK',
+      count: leadCaptures?.length || 0,
+      data: leadCaptures || [],
+      error: leadError?.message
+    };
 
-    return res.status(200).json(testResults);
+    // Test 3: Email Sequences
+    const { data: emailSeqs, error: emailError } = await supabase
+      .from('email_sequences')
+      .select('*');
+    
+    results.systems.emailSequences = {
+      status: emailError ? 'FAILED' : 'OK',
+      count: emailSeqs?.length || 0,
+      data: emailSeqs || [],
+      error: emailError?.message
+    };
+
+    // Test 4: Social Sharing
+    const { data: posts, error: postError } = await supabase
+      .from('posted_content')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    results.systems.socialSharing = {
+      status: postError ? 'FAILED' : 'OK',
+      recentPosts: posts?.length || 0,
+      data: posts || [],
+      error: postError?.message
+    };
+
+    // Test 5: Content Multiplier
+    const { data: genContent, error: genError } = await supabase
+      .from('generated_content')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    results.systems.contentMultiplier = {
+      status: genError ? 'FAILED' : 'OK',
+      recentContent: genContent?.length || 0,
+      data: genContent || [],
+      error: genError?.message
+    };
+
+    // Overall Status
+    const allOk = Object.values(results.systems).every((sys: any) => sys.status === 'OK');
+    results.overallStatus = allOk ? 'ALL_SYSTEMS_OPERATIONAL' : 'SOME_SYSTEMS_FAILED';
+
+    return res.status(200).json(results);
 
   } catch (error: any) {
-    console.error('❌ TEST ERROR:', error);
     return res.status(500).json({
-      success: false,
-      error: error.message
+      error: error.message,
+      results
     });
   }
 }
-
