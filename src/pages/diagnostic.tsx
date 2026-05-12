@@ -1,25 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, PlayCircle, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Loader2, PlayCircle, CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import { SEO } from "@/components/SEO";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function DiagnosticPage() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [workflowResults, setWorkflowResults] = useState<any>(null);
   const [quickCheck, setQuickCheck] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setIsAuthenticated(!!user);
+  };
 
   const runDiagnostic = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/test/elite-diagnostic');
       const data = await response.json();
       setResults(data);
-    } catch (error) {
+      if (!response.ok) {
+        setError(data.error || 'Diagnostic failed');
+      }
+    } catch (error: any) {
       console.error('Diagnostic failed:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -27,14 +44,19 @@ export default function DiagnosticPage() {
 
   const runCompleteWorkflow = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/test/run-complete-workflow', {
         method: 'POST'
       });
       const data = await response.json();
       setWorkflowResults(data);
-    } catch (error) {
+      if (!response.ok) {
+        setError(data.error || 'Workflow failed');
+      }
+    } catch (error: any) {
       console.error('Workflow failed:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -42,6 +64,7 @@ export default function DiagnosticPage() {
 
   const runQuickCheck = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/diagnose-system');
       const data = await response.json();
@@ -69,6 +92,30 @@ export default function DiagnosticPage() {
               Test every function and find exactly what's working and what's broken
             </p>
           </div>
+
+          {/* Authentication Warning */}
+          {!isAuthenticated && (
+            <Alert variant="default" className="border-blue-500">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <p className="font-semibold">Running in Test Mode</p>
+                <p className="text-sm mt-1">
+                  You're not logged in. Tests will use temporary test data. For full functionality and to save real data, please log in first.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>
+                <p className="font-semibold">Error:</p>
+                <p className="text-sm">{error}</p>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Quick Actions */}
           <div className="grid gap-4 md:grid-cols-3">

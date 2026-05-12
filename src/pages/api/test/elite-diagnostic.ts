@@ -45,9 +45,9 @@ export default async function handler(
   };
 
   try {
-    // Get test user
+    // Get test user - generate proper UUID if not authenticated
     const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || 'test-user-id';
+    const userId = user?.id || '00000000-0000-0000-0000-000000000000'; // Valid UUID format for testing
 
     // TEST 1: Database Connection
     await test('Database Connection', async () => {
