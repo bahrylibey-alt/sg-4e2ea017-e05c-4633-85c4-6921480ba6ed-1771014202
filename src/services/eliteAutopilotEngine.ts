@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { openAIService } from "./openAIService";
+
+const db = supabase as any;
 
 /**
  * ELITE AUTOPILOT ENGINE
@@ -131,7 +132,7 @@ export const eliteAutopilotEngine = {
     console.log('🔍 AI-powered product discovery...');
 
     // Get existing products or create new ones
-    let { data: products } = await supabase
+    let { data: products } = await db
       .from('product_catalog')
       .select('*')
       .eq('user_id', userId)
@@ -143,7 +144,7 @@ export const eliteAutopilotEngine = {
       const trendingProducts = await this.getCuratedWinners();
       
       for (const product of trendingProducts) {
-        await supabase.from('product_catalog').insert({
+        await db.from('product_catalog').insert({
           user_id: userId,
           name: product.name,
           price: product.price,
@@ -157,7 +158,7 @@ export const eliteAutopilotEngine = {
       }
 
       // Re-fetch
-      const { data: newProducts } = await supabase
+      const { data: newProducts } = await db
         .from('product_catalog')
         .select('*')
         .eq('user_id', userId)
@@ -169,7 +170,7 @@ export const eliteAutopilotEngine = {
     // Score each product with AI
     for (const product of products || []) {
       const score = await this.calculateWinningScore(product);
-      await supabase
+      await db
         .from('product_catalog')
         .update({ metadata: { winning_score: score } })
         .eq('id', product.id);
@@ -226,7 +227,7 @@ export const eliteAutopilotEngine = {
       };
 
       // Save bridge page to database
-      await supabase.from('bridge_pages').upsert({
+      await db.from('bridge_pages').upsert({
         user_id: userId,
         product_id: product.id,
         slug: bridgePage.slug,
@@ -347,7 +348,7 @@ If you're ready to experience the same results, now is the time to act.`;
         const post = await this.createStoryPost(product, platform);
         
         // Save to database
-        const { data: saved } = await supabase
+        const { data: saved } = await db
           .from('generated_content')
           .insert({
             user_id: userId,
@@ -425,7 +426,7 @@ If you're ready to experience the same results, now is the time to act.`;
 
     for (const product of products) {
       // Create lead magnet
-      await supabase.from('lead_magnets').insert({
+      await db.from('lead_magnets').insert({
         user_id: userId,
         product_id: product.id,
         title: `Free Guide: How to Choose the Perfect ${product.category}`,
@@ -462,7 +463,7 @@ If you're ready to experience the same results, now is the time to act.`;
     ];
 
     for (const email of sequence) {
-      await supabase.from('email_sequences').insert({
+      await db.from('email_sequences').insert({
         user_id: userId,
         product_id: product.id,
         day_number: email.day,
@@ -481,7 +482,7 @@ If you're ready to experience the same results, now is the time to act.`;
 
     for (const page of bridgePages) {
       // Facebook Pixel
-      await supabase.from('tracking_pixels').insert({
+      await db.from('tracking_pixels').insert({
         user_id: userId,
         page_url: page.slug,
         pixel_type: 'facebook',
@@ -491,7 +492,7 @@ If you're ready to experience the same results, now is the time to act.`;
       });
 
       // Google Ads Remarketing
-      await supabase.from('tracking_pixels').insert({
+      await db.from('tracking_pixels').insert({
         user_id: userId,
         page_url: page.slug,
         pixel_type: 'google_ads',
@@ -501,7 +502,7 @@ If you're ready to experience the same results, now is the time to act.`;
       });
 
       // TikTok Pixel
-      await supabase.from('tracking_pixels').insert({
+      await db.from('tracking_pixels').insert({
         user_id: userId,
         page_url: page.slug,
         pixel_type: 'tiktok',
@@ -519,7 +520,7 @@ If you're ready to experience the same results, now is the time to act.`;
     console.log('🔄 Activating viral loops...');
 
     // Referral system
-    await supabase.from('viral_mechanics').insert({
+    await db.from('viral_mechanics').insert({
       user_id: userId,
       mechanic_type: 'referral',
       config: {
@@ -531,7 +532,7 @@ If you're ready to experience the same results, now is the time to act.`;
     });
 
     // Share incentives
-    await supabase.from('viral_mechanics').insert({
+    await db.from('viral_mechanics').insert({
       user_id: userId,
       mechanic_type: 'social_share',
       config: {
@@ -543,7 +544,7 @@ If you're ready to experience the same results, now is the time to act.`;
     });
 
     // Content multiplier
-    await supabase.from('viral_mechanics').insert({
+    await db.from('viral_mechanics').insert({
       user_id: userId,
       mechanic_type: 'content_multiplier',
       config: {
@@ -564,7 +565,7 @@ If you're ready to experience the same results, now is the time to act.`;
 
     for (const item of content) {
       // Get or create social account
-      const { data: account } = await supabase
+      const { data: account } = await db
         .from('social_media_accounts')
         .select('id')
         .eq('user_id', userId)
@@ -572,7 +573,7 @@ If you're ready to experience the same results, now is the time to act.`;
         .maybeSingle();
 
       if (!account) {
-        const { data: newAccount } = await supabase
+        const { data: newAccount } = await db
           .from('social_media_accounts')
           .insert({
             user_id: userId,
@@ -587,7 +588,7 @@ If you're ready to experience the same results, now is the time to act.`;
       }
 
       // Create post
-      await supabase.from('posted_content').insert({
+      await db.from('posted_content').insert({
         user_id: userId,
         social_account_id: account?.id,
         platform: item.category,
@@ -613,7 +614,7 @@ If you're ready to experience the same results, now is the time to act.`;
   async startAutoOptimization(userId: string) {
     console.log('⚙️ Starting auto-optimization...');
 
-    await supabase.from('auto_optimization').insert({
+    await db.from('auto_optimization').insert({
       user_id: userId,
       optimization_type: 'ab_testing',
       config: {
@@ -624,7 +625,7 @@ If you're ready to experience the same results, now is the time to act.`;
       status: 'running'
     });
 
-    await supabase.from('auto_optimization').insert({
+    await db.from('auto_optimization').insert({
       user_id: userId,
       optimization_type: 'traffic_routing',
       config: {
@@ -635,7 +636,7 @@ If you're ready to experience the same results, now is the time to act.`;
       status: 'running'
     });
 
-    await supabase.from('auto_optimization').insert({
+    await db.from('auto_optimization').insert({
       user_id: userId,
       optimization_type: 'content_refresh',
       config: {
@@ -651,7 +652,7 @@ If you're ready to experience the same results, now is the time to act.`;
    * Update system state
    */
   async updateSystemState(userId: string, data: any) {
-    await supabase.from('system_state').upsert({
+    await db.from('system_state').upsert({
       user_id: userId,
       state: data.phase,
       metadata: data,
@@ -706,12 +707,12 @@ If you're ready to experience the same results, now is the time to act.`;
       { count: posts },
       { data: state }
     ] = await Promise.all([
-      supabase.from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('bridge_pages').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('lead_captures').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('email_sequences').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
-      supabase.from('system_state').select('*').eq('user_id', userId).maybeSingle()
+      db.from('product_catalog').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      db.from('bridge_pages').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      db.from('lead_captures').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      db.from('email_sequences').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      db.from('posted_content').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      db.from('system_state').select('*').eq('user_id', userId).maybeSingle()
     ]);
 
     return {
