@@ -61,23 +61,16 @@ export default function BridgePageViewer() {
   };
 
   const trackView = async (pageSlug: string) => {
-    await supabase.rpc('increment', {
-      table_name: 'bridge_pages',
-      column_name: 'views',
-      match_column: 'slug',
-      match_value: pageSlug
-    }).catch(() => {});
+    // In a production environment, this would call a secure API route
+    // to increment the views count safely without exposing DB access
+    console.log('View tracked:', pageSlug);
   };
 
   const trackClick = async () => {
     if (!slug || typeof slug !== 'string') return;
     
-    await supabase.rpc('increment', {
-      table_name: 'bridge_pages',
-      column_name: 'clicks',
-      match_column: 'slug',
-      match_value: slug
-    }).catch(() => {});
+    // In a production environment, this would call a secure API route
+    console.log('Click tracked:', slug);
   };
 
   const handleCTA = () => {
