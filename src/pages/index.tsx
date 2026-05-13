@@ -23,6 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
+import { AutopilotDashboard } from "@/components/AutopilotDashboard";
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function HomePage() {
         return created > weekAgo;
       }).length || 0;
 
-      const totalRevenue = conversions.data?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
+      const totalRevenue = conversions.data?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0) || 0;
 
       setStats({
         totalProducts: products.count || 0,
@@ -277,9 +278,24 @@ export default function HomePage() {
   };
 
   const handleExecuteWorkflow = async () => {
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "Please log in first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setExecuting(true);
-      const response = await fetch('/api/autopilot/execute-workflow', {
+      
+      toast({
+        title: "🚀 Starting Simple Workflow",
+        description: "Discovering products → Generating content → Posting"
+      });
+
+      const response = await fetch('/api/simple-execute', {
         method: 'POST'
       });
       
@@ -287,22 +303,21 @@ export default function HomePage() {
       
       if (data.success) {
         toast({
-          title: "Workflow Executed! ✅",
-          description: `${data.workflow.postsCreated} posts created, ${data.traffic.clicks} clicks generated`,
+          title: "✅ Workflow Complete!",
+          description: data.message,
         });
-        // Refresh stats
         loadDashboard();
       } else {
         toast({
-          title: "Execution Failed",
-          description: data.error || "Workflow execution failed. Please try again.",
+          title: "Workflow Failed",
+          description: data.error || "Unknown error occurred",
           variant: "destructive"
         });
       }
     } catch (error: any) {
       toast({
         title: "Execution Error",
-        description: "Failed to execute workflow. Please try again.",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
@@ -474,6 +489,11 @@ export default function HomePage() {
               </Alert>
             )}
           </div>
+        </div>
+
+        {/* Simple Autopilot Dashboard - NEW WORKING SYSTEM */}
+        <div className="my-8">
+          <AutopilotDashboard />
         </div>
 
         {/* Key Metrics */}
