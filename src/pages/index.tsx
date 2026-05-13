@@ -17,13 +17,17 @@ import {
   AlertCircle,
   Radio,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  LogIn,
+  LogOut,
+  User
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { trendingProductDiscovery } from "@/services/trendingProductDiscovery";
 import { AutopilotDashboard } from "@/components/AutopilotDashboard";
+import { SimplifiedAuthModal } from "@/components/SimplifiedAuthModal";
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
@@ -31,6 +35,8 @@ export default function HomePage() {
   const [discovering, setDiscovering] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [activatingAutopilot, setActivatingAutopilot] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeLinks: 0,
@@ -57,13 +63,9 @@ export default function HomePage() {
       let currentUserId = null;
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (!user) {
-        const { data: profiles } = await supabase.from('profiles').select('id').limit(1);
-        if (profiles && profiles.length > 0) {
-          currentUserId = profiles[0].id;
-        }
-      } else {
+      if (user) {
         currentUserId = user.id;
+        setUserEmail(user.email || null);
       }
       
       setUserId(currentUserId);
@@ -280,10 +282,11 @@ export default function HomePage() {
   const handleExecuteWorkflow = async () => {
     if (!userId) {
       toast({
-        title: "Error",
-        description: "Please log in first",
+        title: "Login Required",
+        description: "Please log in to run the workflow",
         variant: "destructive"
       });
+      setShowAuthModal(true);
       return;
     }
 
@@ -325,6 +328,17 @@ export default function HomePage() {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUserId(null);
+    setUserEmail(null);
+    toast({
+      title: "Logged out",
+      description: "You have been logged out successfully"
+    });
+    await loadDashboard();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -338,12 +352,59 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
+      <SimplifiedAuthModal 
+        open={showAuthModal} 
+        onOpenChange={setShowAuthModal}
+        onSuccess={loadDashboard}
+      />
+      
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-5xl font-bold text-gray-900">Autonomous Affiliate Dashboard</h1>
-          <p className="text-xl text-gray-600">All key controls in one place - Traffic, Autopilot, Products</p>
+        {/* Header with Auth */}
+        <div className="flex justify-between items-center">
+          <div className="text-center space-y-2 flex-1">
+            <h1 className="text-5xl font-bold text-gray-900">Autonomous Affiliate Dashboard</h1>
+            <p className="text-xl text-gray-600">All key controls in one place - Traffic, Autopilot, Products</p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {userId ? (
+              <>
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4" />
+                  <span className="text-gray-600">{userEmail}</span>
+                </div>
+                <Button variant="outline" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setShowAuthModal(true)} size="lg">
+                <LogIn className="mr-2 h-5 w-5" />
+                Login / Sign Up
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Login Required Alert */}
+        {!userId && (
+          <Alert className="border-2 border-yellow-500">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">Login Required</p>
+                  <p className="text-sm">Please log in to use the autopilot system and run workflows.</p>
+                </div>
+                <Button onClick={() => setShowAuthModal(true)}>
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login Now
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* System Status */}
         <Card className="border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50">
