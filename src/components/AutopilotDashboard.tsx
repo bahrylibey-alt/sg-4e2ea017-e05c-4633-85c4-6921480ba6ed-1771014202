@@ -102,7 +102,14 @@ export function AutopilotDashboard() {
   };
 
   const runEliteWorkflow = async () => {
-    if (!userId) return;
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "Please log in to run the workflow",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsRunning(true);
     try {
@@ -111,26 +118,46 @@ export function AutopilotDashboard() {
         description: "Discovering products, generating content, and posting..." 
       });
       
+      console.log('[AutopilotDashboard] Calling /api/simple-execute...');
+      
       const response = await fetch('/api/simple-execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Include cookies for authentication
       });
       
       const data = await response.json();
       
-      if (!response.ok) throw new Error(data.error || 'Workflow failed');
+      console.log('[AutopilotDashboard] Response:', data);
       
-      toast({ 
-        title: "✅ Workflow Complete", 
-        description: data.message || "Successfully ran simple autopilot workflow."
-      });
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      if (data.success) {
+        toast({ 
+          title: "✅ Workflow Complete!", 
+          description: `${data.message}\n\nProducts: ${data.results?.productsAdded || 0}\nContent: ${data.results?.contentGenerated || 0}\nPosted: ${data.results?.contentPosted || 0}`,
+          duration: 10000 // Show for 10 seconds
+        });
+      } else {
+        toast({
+          title: "Workflow Failed",
+          description: data.error || "Unknown error",
+          variant: "destructive"
+        });
+      }
       
       await loadStats(userId);
     } catch (error: any) {
+      console.error('[AutopilotDashboard] Error:', error);
       toast({ 
         title: "Error", 
-        description: error.message, 
-        variant: "destructive" 
+        description: error.message || "Failed to run workflow. Check console for details.", 
+        variant: "destructive",
+        duration: 10000
       });
     } finally {
       setIsRunning(false);
