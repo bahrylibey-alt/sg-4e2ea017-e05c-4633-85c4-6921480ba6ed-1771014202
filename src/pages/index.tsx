@@ -102,7 +102,7 @@ export default function HomePage() {
         return created > weekAgo;
       }).length || 0;
 
-      const totalRevenue = conversions.data?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0) || 0;
+      const totalRevenue = conversions.data?.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0) || 0;
 
       setStats({
         totalProducts: products.count || 0,
