@@ -33,7 +33,7 @@ export const simplePoster = {
         .from('posted_content')
         .insert({
           user_id: userId,
-          product_id: content.product_id,
+          product_id: (content as any).product_id,
           platform: content.category as any,
           post_type: 'text',
           caption: content.body,

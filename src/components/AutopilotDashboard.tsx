@@ -107,14 +107,13 @@ export function AutopilotDashboard() {
     setIsRunning(true);
     try {
       toast({ 
-        title: "🚀 Launching Elite Workflow", 
-        description: "Building sophisticated marketing funnels..." 
+        title: "🚀 Launching Workflow", 
+        description: "Discovering products, generating content, and posting..." 
       });
       
-      const response = await fetch('/api/autopilot/run-elite', {
+      const response = await fetch('/api/simple-execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        headers: { 'Content-Type': 'application/json' }
       });
       
       const data = await response.json();
@@ -122,8 +121,8 @@ export function AutopilotDashboard() {
       if (!response.ok) throw new Error(data.error || 'Workflow failed');
       
       toast({ 
-        title: "✅ Elite Workflow Complete", 
-        description: `Created ${data.bridgePages} funnels, ${data.content} pieces of content` 
+        title: "✅ Workflow Complete", 
+        description: data.message || "Successfully ran simple autopilot workflow."
       });
       
       await loadStats(userId);
