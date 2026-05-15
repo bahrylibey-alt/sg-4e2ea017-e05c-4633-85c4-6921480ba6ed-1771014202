@@ -341,14 +341,19 @@ If you're ready to experience the same results, now is the time to act.`;
    */
   async generateStoryContent(userId: string, products: any[], platforms: string[]) {
     console.log('📝 Generating story-based content...');
+    console.log(`  Products: ${products.length}, Platforms: ${platforms.length}`);
     const content: any[] = [];
 
     for (const product of products) {
+      console.log(`  → Product: ${product.name}`);
+      
       for (const platform of platforms) {
         const post = await this.createStoryPost(product, platform);
         
-        // Save to database
-        const { data: saved } = await db
+        console.log(`    → Creating post for ${platform}...`);
+        
+        // Save to database with error handling
+        const { data: saved, error: insertError } = await db
           .from('generated_content')
           .insert({
             user_id: userId,
@@ -362,10 +367,27 @@ If you're ready to experience the same results, now is the time to act.`;
           .select()
           .single();
 
-        if (saved) content.push(saved);
+        if (insertError) {
+          console.error(`    ❌ Failed to save ${platform} post:`, insertError);
+          console.error(`       Details:`, {
+            user_id: userId,
+            title: `${platform} Story - ${product.name}`,
+            body_length: post.caption.length,
+            hashtags_count: post.hashtags.length
+          });
+          continue;
+        }
+
+        if (saved) {
+          console.log(`    ✅ Saved ${platform} post: ${saved.id}`);
+          content.push(saved);
+        } else {
+          console.warn(`    ⚠️ No data returned for ${platform} post`);
+        }
       }
     }
 
+    console.log(`✅ Generated ${content.length} content pieces total`);
     return content;
   },
 
@@ -561,19 +583,29 @@ If you're ready to experience the same results, now is the time to act.`;
    */
   async distributeMassive(userId: string, content: any[], platforms: string[]): Promise<number> {
     console.log('🚀 Mass distribution...');
+    console.log(`  Content items: ${content.length}`);
     let posted = 0;
 
     for (const item of content) {
+      console.log(`  → Processing: ${item.title}`);
+      
       // Get or create social account
-      let { data: account } = await db
+      let { data: account, error: accountFetchError } = await db
         .from('social_media_accounts')
         .select('id')
         .eq('user_id', userId)
         .eq('platform', item.category)
         .maybeSingle();
 
+      if (accountFetchError) {
+        console.error(`  ❌ Error fetching account:`, accountFetchError);
+        continue;
+      }
+
       if (!account) {
-        const { data: newAccount } = await db
+        console.log(`  → Creating new account for ${item.category}...`);
+        
+        const { data: newAccount, error: createError } = await db
           .from('social_media_accounts')
           .insert({
             user_id: userId,
@@ -584,38 +616,63 @@ If you're ready to experience the same results, now is the time to act.`;
           .select()
           .single();
 
+        if (createError) {
+          console.error(`  ❌ Failed to create account for ${item.category}:`, createError);
+          continue;
+        }
+
         if (!newAccount) {
-          console.error(`Failed to create account for ${item.category}`);
+          console.error(`  ❌ No account data returned for ${item.category}`);
           continue;
         }
         
-        account = newAccount;  // <-- FIX: Update account variable
+        account = newAccount;
+        console.log(`  ✅ Created account: ${account.id}`);
+      } else {
+        console.log(`  ✅ Using existing account: ${account.id}`);
       }
 
-      // Create post
-      const { error: postError } = await db.from('posted_content').insert({
-        user_id: userId,
-        social_account_id: account.id,  // <-- Now this has a value
-        platform: item.category,
-        post_type: 'story',
-        caption: item.body,
-        hashtags: item.description?.split(' ') || [],
-        status: 'posted',
-        posted_at: new Date().toISOString(),
-        impressions: 0,
-        clicks: 0,
-        conversions: 0
-      });
+      // Create post with error handling
+      console.log(`  → Posting to ${item.category}...`);
+      
+      const { data: postData, error: postError } = await db
+        .from('posted_content')
+        .insert({
+          user_id: userId,
+          social_account_id: account.id,
+          platform: item.category,
+          post_type: 'story',
+          caption: item.body,
+          hashtags: item.description?.split(' ') || [],
+          status: 'posted',
+          posted_at: new Date().toISOString(),
+          impressions: 0,
+          clicks: 0,
+          conversions: 0
+        })
+        .select()
+        .single();
 
       if (postError) {
-        console.error(`Failed to post to ${item.category}:`, postError);
+        console.error(`  ❌ Failed to post to ${item.category}:`, postError);
+        console.error(`     Details:`, {
+          user_id: userId,
+          social_account_id: account.id,
+          platform: item.category,
+          caption_length: item.body?.length || 0
+        });
         continue;
       }
 
-      posted++;
-      console.log(`✅ Posted to ${item.category}`);
+      if (postData) {
+        posted++;
+        console.log(`  ✅ Posted to ${item.category}: ${postData.id}`);
+      } else {
+        console.warn(`  ⚠️ No post data returned for ${item.category}`);
+      }
     }
 
+    console.log(`✅ Successfully posted ${posted}/${content.length} items`);
     return posted;
   },
 
