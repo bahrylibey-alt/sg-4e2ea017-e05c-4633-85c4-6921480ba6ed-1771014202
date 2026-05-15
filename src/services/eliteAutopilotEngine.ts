@@ -565,7 +565,7 @@ If you're ready to experience the same results, now is the time to act.`;
 
     for (const item of content) {
       // Get or create social account
-      const { data: account } = await db
+      let { data: account } = await db
         .from('social_media_accounts')
         .select('id')
         .eq('user_id', userId)
@@ -584,13 +584,18 @@ If you're ready to experience the same results, now is the time to act.`;
           .select()
           .single();
 
-        if (!newAccount) continue;
+        if (!newAccount) {
+          console.error(`Failed to create account for ${item.category}`);
+          continue;
+        }
+        
+        account = newAccount;  // <-- FIX: Update account variable
       }
 
       // Create post
-      await db.from('posted_content').insert({
+      const { error: postError } = await db.from('posted_content').insert({
         user_id: userId,
-        social_account_id: account?.id,
+        social_account_id: account.id,  // <-- Now this has a value
         platform: item.category,
         post_type: 'story',
         caption: item.body,
@@ -602,7 +607,13 @@ If you're ready to experience the same results, now is the time to act.`;
         conversions: 0
       });
 
+      if (postError) {
+        console.error(`Failed to post to ${item.category}:`, postError);
+        continue;
+      }
+
       posted++;
+      console.log(`✅ Posted to ${item.category}`);
     }
 
     return posted;
