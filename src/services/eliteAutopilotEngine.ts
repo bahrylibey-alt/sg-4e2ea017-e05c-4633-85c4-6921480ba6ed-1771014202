@@ -360,9 +360,9 @@ If you're ready to experience the same results, now is the time to act.`;
             title: `${platform} Story - ${product.name}`,
             body: post.caption,
             description: post.hashtags.join(' '),
-            type: 'story',
+            type: 'review', // Fixed: 'story' is not an allowed value in DB constraint
             category: platform,
-            status: 'ready'
+            status: 'published' // Fixed: 'ready' is not an allowed value in DB constraint
           })
           .select()
           .single();
