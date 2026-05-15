@@ -15,9 +15,10 @@ export default async function handler(
   }
 
   try {
-    let { userId } = req.query;
+    const { userId } = req.query;
+    let targetUserId: string;
 
-    // If no userId provided, get first available profile
+    // If no userId provided or it's an array, get first available profile
     if (!userId || typeof userId !== 'string') {
       const { data: profiles } = await (supabase as any)
         .from('profiles')
@@ -36,10 +37,12 @@ export default async function handler(
         });
       }
 
-      userId = profiles[0].id;
+      targetUserId = profiles[0].id;
+    } else {
+      targetUserId = userId;
     }
 
-    const stats = await eliteAutopilotEngine.getEliteStats(userId);
+    const stats = await eliteAutopilotEngine.getEliteStats(targetUserId);
 
     return res.status(200).json(stats);
 
