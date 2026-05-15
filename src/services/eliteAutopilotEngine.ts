@@ -590,12 +590,14 @@ If you're ready to experience the same results, now is the time to act.`;
       console.log(`  → Processing: ${item.title}`);
       
       // Get or create social account
-      let { data: account, error: accountFetchError } = await db
+      const { data: fetchedAccount, error: accountFetchError } = await db
         .from('social_media_accounts')
         .select('id')
         .eq('user_id', userId)
         .eq('platform', item.category)
         .maybeSingle();
+
+      let account = fetchedAccount;
 
       if (accountFetchError) {
         console.error(`  ❌ Error fetching account:`, accountFetchError);
