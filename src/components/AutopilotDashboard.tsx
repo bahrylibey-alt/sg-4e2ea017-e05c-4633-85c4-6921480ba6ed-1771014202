@@ -105,7 +105,7 @@ export function AutopilotDashboard() {
     if (!userId) {
       toast({
         title: "Error",
-        description: "Please log in to run the workflow",
+        description: "Please log in to run the Elite workflow",
         variant: "destructive"
       });
       return;
@@ -114,18 +114,18 @@ export function AutopilotDashboard() {
     setIsRunning(true);
     try {
       toast({ 
-        title: "🚀 Launching Workflow", 
-        description: "Discovering products, generating content, and posting..." 
+        title: "🚀 Activating Elite System", 
+        description: "Running all 8 phases: Discovery → Bridge Pages → Content → Email → Retargeting → Viral → Distribution → Optimization" 
       });
       
-      console.log('[AutopilotDashboard] Calling /api/simple-execute...');
+      console.log('[AutopilotDashboard] Calling /api/autopilot/one-click-elite...');
       
-      const response = await fetch('/api/simple-execute', {
+      const response = await fetch('/api/autopilot/one-click-elite', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
         },
-        credentials: 'include' // Include cookies for authentication
+        credentials: 'include'
       });
       
       const data = await response.json();
@@ -137,14 +137,33 @@ export function AutopilotDashboard() {
       }
       
       if (data.success) {
+        const summary = `
+🎉 Elite System Activated!
+
+📊 Results:
+• ${data.result.products} Products Discovered
+• ${data.result.bridgePages} Bridge Pages Created
+• ${data.result.content} Content Pieces Generated
+• ${data.result.posted} Posts Published
+
+✨ Features Active:
+${data.result.features.emailFunnels ? '✅' : '❌'} Email Funnels
+${data.result.features.retargeting ? '✅' : '❌'} Retargeting Pixels
+${data.result.features.viralLoops ? '✅' : '❌'} Viral Loops
+${data.result.features.autoOptimization ? '✅' : '❌'} Auto-Optimization
+        `;
+        
         toast({ 
-          title: "✅ Workflow Complete!", 
-          description: `${data.message}\n\nProducts: ${data.results?.productsAdded || 0}\nContent: ${data.results?.contentGenerated || 0}\nPosted: ${data.results?.contentPosted || 0}`,
-          duration: 10000 // Show for 10 seconds
+          title: "✅ Elite System Running!", 
+          description: summary,
+          duration: 15000
         });
+        
+        // Show phases completed
+        console.log('Phases:', data.phases);
       } else {
         toast({
-          title: "Workflow Failed",
+          title: "Activation Failed",
           description: data.error || "Unknown error",
           variant: "destructive"
         });
@@ -155,7 +174,7 @@ export function AutopilotDashboard() {
       console.error('[AutopilotDashboard] Error:', error);
       toast({ 
         title: "Error", 
-        description: error.message || "Failed to run workflow. Check console for details.", 
+        description: error.message || "Failed to activate Elite system. Check console for details.", 
         variant: "destructive",
         duration: 10000
       });

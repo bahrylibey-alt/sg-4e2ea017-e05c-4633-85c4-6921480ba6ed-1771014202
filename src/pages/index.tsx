@@ -294,25 +294,41 @@ export default function HomePage() {
       setExecuting(true);
       
       toast({
-        title: "🚀 Starting Simple Workflow",
-        description: "Discovering products → Generating content → Posting"
+        title: "🚀 Starting Elite Autopilot",
+        description: "Activating all 8 phases of the advanced system..."
       });
 
-      const response = await fetch('/api/simple-execute', {
+      const response = await fetch('/api/autopilot/one-click-elite', {
         method: 'POST'
       });
       
       const data = await response.json();
       
       if (data.success) {
+        const summary = `
+✅ All 8 Phases Complete!
+
+Products: ${data.result.products}
+Bridge Pages: ${data.result.bridgePages}
+Content: ${data.result.content}
+Posts: ${data.result.posted}
+
+Features Active:
+• Email Funnels
+• Retargeting Pixels
+• Viral Loops
+• Auto-Optimization
+        `;
+        
         toast({
-          title: "✅ Workflow Complete!",
-          description: data.message,
+          title: "🎉 Elite System Activated!",
+          description: summary,
+          duration: 15000
         });
         loadDashboard();
       } else {
         toast({
-          title: "Workflow Failed",
+          title: "Activation Failed",
           description: data.error || "Unknown error occurred",
           variant: "destructive"
         });
@@ -468,72 +484,87 @@ export default function HomePage() {
                 size="lg"
                 onClick={handleExecuteWorkflow}
                 disabled={executing}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold px-8 py-6 text-lg"
+                className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 hover:from-purple-700 hover:via-pink-700 hover:to-red-700 text-white font-bold px-12 py-8 text-xl shadow-2xl border-4 border-white/20 animate-pulse"
               >
                 {executing ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Executing Workflow...
+                    <Loader2 className="mr-3 h-7 w-7 animate-spin" />
+                    Activating Elite System...
                   </>
                 ) : (
                   <>
-                    <Zap className="mr-2 h-5 w-5" />
-                    Execute Workflow Now
+                    <Rocket className="mr-3 h-7 w-7" />
+                    🚀 ONE-CLICK ELITE ACTIVATION
                   </>
                 )}
               </Button>
+            </div>
 
+            <div className="text-center mt-4 space-y-2">
+              <p className="text-sm font-semibold text-purple-700">
+                ✨ Restored April 2026 Working System ✨
+              </p>
+              <p className="text-xs text-gray-600">
+                All 8 Advanced Features: Products → Bridge Pages → Content → Email → Retargeting → Viral → Distribution → Optimization
+              </p>
+            </div>
+
+            {/* Alternative Actions */}
+            <div className="flex flex-wrap gap-3 justify-center mt-6">
               <Button
-                size="lg"
+                size="default"
                 onClick={handleActivateFullSystem}
                 disabled={activating}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8"
+                variant="outline"
+                className="border-2"
               >
                 {activating ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Activating...
                   </>
                 ) : (
                   <>
-                    <Zap className="mr-2 h-5 w-5" />
-                    Activate Full System
+                    <Zap className="mr-2 h-4 w-4" />
+                    Alternative: Full System
                   </>
                 )}
               </Button>
 
               <Button
-                size="lg"
+                size="default"
                 variant="outline"
                 onClick={discoverProducts}
                 disabled={discovering}
+                className="border-2"
               >
                 {discovering ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Discovering...
                   </>
                 ) : (
                   <>
-                    <TrendingUp className="mr-2 h-5 w-5" />
-                    Discover Trending Products
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Discover Products Only
                   </>
                 )}
               </Button>
 
               <Button
-                size="lg"
-                variant={stats.autopilotEnabled ? "default" : "outline"}
+                size="default"
+                variant="outline"
                 onClick={toggleAutopilot}
+                className="border-2"
               >
                 {stats.autopilotEnabled ? (
                   <>
-                    <PauseCircle className="mr-2 h-5 w-5" />
+                    <PauseCircle className="mr-2 h-4 w-4" />
                     Pause Autopilot
                   </>
                 ) : (
                   <>
-                    <PlayCircle className="mr-2 h-5 w-5" />
+                    <PlayCircle className="mr-2 h-4 w-4" />
                     Start Autopilot
                   </>
                 )}
