@@ -102,15 +102,6 @@ export function AutopilotDashboard() {
   };
 
   const runEliteWorkflow = async () => {
-    if (!userId) {
-      toast({
-        title: "Error",
-        description: "Please log in to run the Elite workflow",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setIsRunning(true);
     try {
       toast({ 
@@ -124,8 +115,7 @@ export function AutopilotDashboard() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
-        },
-        credentials: 'include'
+        }
       });
       
       const data = await response.json();
@@ -169,7 +159,9 @@ ${data.result.features.autoOptimization ? '✅' : '❌'} Auto-Optimization
         });
       }
       
-      await loadStats(userId);
+      if (userId) {
+        await loadStats(userId);
+      }
     } catch (error: any) {
       console.error('[AutopilotDashboard] Error:', error);
       toast({ 

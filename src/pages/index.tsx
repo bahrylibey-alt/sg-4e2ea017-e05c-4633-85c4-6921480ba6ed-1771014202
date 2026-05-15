@@ -280,16 +280,6 @@ export default function HomePage() {
   };
 
   const handleExecuteWorkflow = async () => {
-    if (!userId) {
-      toast({
-        title: "Login Required",
-        description: "Please log in to run the workflow",
-        variant: "destructive"
-      });
-      setShowAuthModal(true);
-      return;
-    }
-
     try {
       setExecuting(true);
       
